@@ -8,6 +8,10 @@ export interface Occupant {
   roomNumber: string;
   bedCode: string;
   joiningDate: string;
+  dueDate: string; // Dynamic current cycle due date (e.g., "03 Aug 2026")
+  dueDay: number; // Day of the month (1-28)
+  daysRemainingText: string; // e.g., "Due in 2 Days", "DUE TODAY", "5 DAYS OVERDUE", "PAID"
+  daysDiff: number; // Positive = future due, 0 = today, Negative = overdue
   vacatingDate?: string;
   rentAmount: number;
   paymentStatus: "Paid" | "Due" | "Overdue";
@@ -26,41 +30,28 @@ const firstNames = [
   "Meera", "Siddharth", "Pooja", "Varun", "Ritu", "Karan", "Divya", "Manish",
   "Shweta", "Abhishek", "Aarti", "Gautam", "Tarun", "Tanvi", "Nikhil", "Bhavna",
   "Aakash", "Sunita", "Deepak", "Swati", "Venkatesh", "Kavita", "Ramesh", "Lakshmi",
-  "Prashanth", "Anjali", "Sanjay", "Preeti", "Kiran", "Nisha", "Manoj", "Pallavi",
-  "Yash", "Roshni", "Ashok", "Sita", "Vijay", "Usha", "Vinay", "Radha"
+  "Prashanth", "Anjali", "Sanjay", "Preeti", "Kiran", "Nisha", "Manoj", "Pallavi"
 ];
 
 const lastNames = [
   "Sharma", "Patel", "Reddy", "Iyer", "Nair", "Mehta", "Kumar", "Begum",
   "Singh", "Kulkarni", "Verma", "Rao", "Joshi", "Deshmukh", "Gupta", "Agarwal",
-  "Banerjee", "Chatterjee", "Pandey", "Mishra", "Choudhury", "Pillai", "Menon", "Sen",
-  "Dhar", "Bhat", "Hegde", "Shetty", "Gowda", "Naidu", "Chowdary", "Kapoor",
-  "Khanna", "Malhotra", "Bhasin", "Seth", "Gill", "Dhillon", "Saini", "Chawla"
+  "Banerjee", "Chatterjee", "Pandey", "Mishra", "Choudhury", "Pillai", "Menon", "Sen"
 ];
 
 const roomNumbers = [
   "101", "102", "103", "104", "105", "106", "107", "108",
   "201", "202", "203", "204", "205", "206", "207", "208",
-  "301", "302", "303", "304", "305", "306", "307", "308",
-  "401", "402", "403", "404", "405", "406", "407", "408"
+  "301", "302", "303", "304", "305", "306", "307", "308"
 ];
 
 const bedCodes = ["Bed A", "Bed B", "Bed C"];
 
-function getRandomItem<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function getRandomDate(startYear = 2023, endYear = 2026): string {
-  const year = Math.floor(Math.random() * (endYear - startYear + 1)) + startYear;
-  const month = Math.floor(Math.random() * 12) + 1;
-  const day = Math.floor(Math.random() * 28) + 1;
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${day.toString().padStart(2, "0")} ${months[month - 1]} ${year}`;
-}
-
 export function generateMockOccupants(count = 200): Occupant[] {
   const occupants: Occupant[] = [];
+  const currentYear = 2026;
+  const currentMonth = 7; // August (0-indexed 7)
+  const currentDay = 1; // August 1st 2026 reference
 
   for (let i = 1; i <= count; i++) {
     const fn = firstNames[(i * 3) % firstNames.length];
@@ -69,40 +60,62 @@ export function generateMockOccupants(count = 200): Occupant[] {
     const room = roomNumbers[i % roomNumbers.length];
     const bed = bedCodes[i % bedCodes.length];
 
-    // Determine stay type & lifecycle status
     let stayType: "Tenant" | "Guest" = "Tenant";
     let lifecycleStatus: "Active" | "Booked" | "Notice" | "Past" = "Active";
     let paymentStatus: "Paid" | "Due" | "Overdue" = "Paid";
-    let rentAmount = 12500;
+    let rentAmount = 14500;
 
     if (i % 6 === 0) {
-      stayType = "Guest"; // ~33 Guests
-      rentAmount = 1800; // daily / short stay
+      stayType = "Guest";
+      rentAmount = 2500;
     }
+
+    // Determine due day in current month (1 to 10)
+    const dueDay = (i % 10) + 1; // Days 1 to 10 of August 2026
+    const daysDiff = dueDay - currentDay; // August 1 is reference
+
+    let daysRemainingText = "";
 
     if (i <= 10) {
       lifecycleStatus = "Past";
       paymentStatus = "Paid";
+      daysRemainingText = "PAST";
     } else if (i > 10 && i <= 25) {
       lifecycleStatus = "Notice";
-      paymentStatus = "Due";
+      if (daysDiff < 0) {
+        paymentStatus = "Overdue";
+        daysRemainingText = `${Math.abs(daysDiff)} DAYS OVERDUE`;
+      } else {
+        paymentStatus = "Due";
+        daysRemainingText = daysDiff === 0 ? "DUE TODAY" : daysDiff === 1 ? "DUE TOMORROW" : `Due in ${daysDiff} Days`;
+      }
     } else if (i > 25 && i <= 40) {
       lifecycleStatus = "Booked";
       paymentStatus = "Paid";
+      daysRemainingText = "BOOKED";
     } else if (i > 40 && i <= 60) {
+      // Overdue occupants (due days past August 1)
       paymentStatus = "Overdue";
-      rentAmount = 14000;
-    } else if (i > 60 && i <= 100) {
+      const overdueDays = (i % 5) + 1;
+      daysRemainingText = `${overdueDays} DAYS OVERDUE`;
+    } else if (i > 60 && i <= 120) {
+      // Pending / Due soon occupants
       paymentStatus = "Due";
+      if (daysDiff === 0) {
+        daysRemainingText = "DUE TODAY";
+      } else if (daysDiff === 1) {
+        daysRemainingText = "DUE TOMORROW font-bold";
+      } else {
+        daysRemainingText = `Due in ${daysDiff} Days`;
+      }
+    } else {
+      // Paid occupants
+      paymentStatus = "Paid";
+      daysRemainingText = "PAID";
     }
 
-    const joiningDate = getRandomDate(2023, 2026);
-    let vacatingDate: string | undefined = undefined;
-    if (lifecycleStatus === "Notice") {
-      vacatingDate = "15 Aug 2026";
-    } else if (lifecycleStatus === "Past") {
-      vacatingDate = "30 May 2025";
-    }
+    const joiningDate = `10 Oct 2023`;
+    const dueDateFormatted = `${dueDay.toString().padStart(2, "0")} Aug 2026`;
 
     occupants.push({
       id: `occ-${1000 + i}`,
@@ -114,7 +127,11 @@ export function generateMockOccupants(count = 200): Occupant[] {
       roomNumber: room,
       bedCode: bed,
       joiningDate,
-      vacatingDate,
+      dueDate: dueDateFormatted,
+      dueDay,
+      daysRemainingText,
+      daysDiff,
+      vacatingDate: lifecycleStatus === "Notice" ? "15 Aug 2026" : undefined,
       rentAmount,
       paymentStatus,
       lifecycleStatus,

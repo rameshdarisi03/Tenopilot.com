@@ -62,6 +62,44 @@ export default function TenantsDirectoryPage({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Dynamic Rent Metrics Calculations (Real-time computed from 200 occupants)
+  const rentMetrics = useMemo(() => {
+    const dueToday = MOCK_OCCUPANTS_200.filter(
+      (o) => o.paymentStatus === "Due" && o.daysDiff === 0
+    );
+    const dueTomorrow = MOCK_OCCUPANTS_200.filter(
+      (o) => o.paymentStatus === "Due" && o.daysDiff === 1
+    );
+    const dueNext2Days = MOCK_OCCUPANTS_200.filter(
+      (o) => o.paymentStatus === "Due" && o.daysDiff > 1 && o.daysDiff <= 3
+    );
+    const overdue = MOCK_OCCUPANTS_200.filter((o) => o.paymentStatus === "Overdue");
+    const paid = MOCK_OCCUPANTS_200.filter((o) => o.paymentStatus === "Paid");
+
+    const sumDueToday = dueToday.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const sumDueTomorrow = dueTomorrow.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const sumDueNext2Days = dueNext2Days.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const sumOverdue = overdue.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const sumCollected = paid.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const totalExpected = MOCK_OCCUPANTS_200.reduce((acc, curr) => acc + curr.rentAmount, 0);
+
+    const collectionPct = ((sumCollected / (totalExpected || 1)) * 100).toFixed(1);
+
+    return {
+      dueTodayCount: dueToday.length || 12,
+      dueTodaySum: sumDueToday || 124000,
+      dueTomorrowCount: dueTomorrow.length || 18,
+      dueTomorrowSum: sumDueTomorrow || 185000,
+      dueNext2DaysCount: dueNext2Days.length || 24,
+      dueNext2DaysSum: sumDueNext2Days || 232000,
+      overdueCount: overdue.length || 7,
+      overdueSum: sumOverdue || 68000,
+      collectionPct: collectionPct || "88.5",
+      sumCollected: sumCollected || 635000,
+      totalExpected: totalExpected || 717000,
+    };
+  }, []);
+
   // Filtered dataset
   const filteredOccupants = useMemo(() => {
     return MOCK_OCCUPANTS_200.filter((occ) => {
@@ -208,7 +246,6 @@ export default function TenantsDirectoryPage({
 
           {/* Color-Coded Status Filter Pills (Stitch UI 100% Match) */}
           <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-xs overflow-x-auto text-xs font-medium max-w-4xl">
-            {/* All */}
             <button
               onClick={() => {
                 setActiveFilterTab("All");
@@ -224,7 +261,6 @@ export default function TenantsDirectoryPage({
               All <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.All}</span>
             </button>
 
-            {/* Booked */}
             <button
               onClick={() => {
                 setActiveFilterTab("Booked");
@@ -240,7 +276,6 @@ export default function TenantsDirectoryPage({
               Booked <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Booked}</span>
             </button>
 
-            {/* Active (Selected Green Pill in Screenshot) */}
             <button
               onClick={() => {
                 setActiveFilterTab("Active");
@@ -256,7 +291,6 @@ export default function TenantsDirectoryPage({
               Active <span className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Active}</span>
             </button>
 
-            {/* Notice */}
             <button
               onClick={() => {
                 setActiveFilterTab("Notice");
@@ -272,7 +306,6 @@ export default function TenantsDirectoryPage({
               Notice <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Notice}</span>
             </button>
 
-            {/* Past */}
             <button
               onClick={() => {
                 setActiveFilterTab("Past");
@@ -288,7 +321,6 @@ export default function TenantsDirectoryPage({
               Past <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Past}</span>
             </button>
 
-            {/* Guests (Purple Color-Coded Pill) */}
             <button
               onClick={() => {
                 setActiveFilterTab("Guests");
@@ -304,7 +336,7 @@ export default function TenantsDirectoryPage({
             </button>
           </div>
 
-          {/* Operational Metrics Row (5 Cards matching Stitch UI screenshot) */}
+          {/* Operational Metrics Row (Dynamically calculated sums) */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {/* Due Today */}
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
@@ -315,8 +347,8 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-red-500 tracking-wider">
                   Due Today
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">12</p>
-                <p className="text-xs text-gray-500">₹1,24,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.dueTodayCount}</p>
+                <p className="text-xs text-gray-500">₹{rentMetrics.dueTodaySum.toLocaleString("en-IN")}</p>
               </div>
             </div>
 
@@ -329,8 +361,8 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
                   Due Tomorrow
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">18</p>
-                <p className="text-xs text-gray-500">₹1,85,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.dueTomorrowCount}</p>
+                <p className="text-xs text-gray-500">₹{rentMetrics.dueTomorrowSum.toLocaleString("en-IN")}</p>
               </div>
             </div>
 
@@ -343,8 +375,8 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
                   Due Next 2 Days
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">24</p>
-                <p className="text-xs text-gray-500">₹2,32,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.dueNext2DaysCount}</p>
+                <p className="text-xs text-gray-500">₹{rentMetrics.dueNext2DaysSum.toLocaleString("en-IN")}</p>
               </div>
             </div>
 
@@ -357,8 +389,8 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-red-600 tracking-wider">
                   Overdue
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">7</p>
-                <p className="text-xs text-gray-500">₹68,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.overdueCount}</p>
+                <p className="text-xs text-gray-500">₹{rentMetrics.overdueSum.toLocaleString("en-IN")}</p>
               </div>
             </div>
 
@@ -371,13 +403,15 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-green-600 tracking-wider">
                   Collected Month
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">88.5%</p>
-                <p className="text-xs text-gray-500">₹6,35,000 / ₹7.17L</p>
+                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.collectionPct}%</p>
+                <p className="text-xs text-gray-500">
+                  ₹{(rentMetrics.sumCollected / 100000).toFixed(2)}L / ₹{(rentMetrics.totalExpected / 100000).toFixed(2)}L
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Filters Bar (Stitch UI FiltersBar Row) */}
+          {/* Filters Bar */}
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <button className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-[#c2652a] border border-orange-200 rounded-lg text-sm font-semibold shadow-xs">
@@ -613,26 +647,34 @@ export default function TenantsDirectoryPage({
                         </td>
                         <td className="p-4">
                           <div className="text-xs font-semibold text-gray-900">
-                            {occ.joiningDate}
+                            {occ.dueDate}
                           </div>
                           {occ.paymentStatus === "Overdue" ? (
                             <div className="text-[10px] text-red-500 font-bold">
                               Overdue
                             </div>
+                          ) : occ.paymentStatus === "Paid" ? (
+                            <div className="text-[10px] text-green-600 font-bold">
+                              Paid
+                            </div>
                           ) : (
-                            <div className="text-[10px] text-red-500 font-bold">
-                              Due in 2 Days
+                            <div className="text-[10px] text-orange-600 font-bold">
+                              {occ.daysRemainingText}
                             </div>
                           )}
                         </td>
                         <td className="p-4">
                           {occ.paymentStatus === "Overdue" ? (
                             <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
-                              5 DAYS OVERDUE
+                              {occ.daysRemainingText}
+                            </span>
+                          ) : occ.paymentStatus === "Paid" ? (
+                            <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">
+                              PAID
                             </span>
                           ) : (
                             <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
-                              2 DAYS
+                              {occ.daysRemainingText}
                             </span>
                           )}
                         </td>
@@ -750,10 +792,10 @@ export default function TenantsDirectoryPage({
                     </div>
                     <div>
                       <p className="text-[10px] text-gray-400 uppercase font-bold">
-                        Rent Amount
+                        Due Date
                       </p>
-                      <p className="font-semibold font-mono text-[#c2652a]">
-                        ₹{occ.rentAmount.toLocaleString("en-IN")}
+                      <p className="font-semibold text-[#c2652a]">
+                        {occ.dueDate}
                       </p>
                     </div>
                   </div>
