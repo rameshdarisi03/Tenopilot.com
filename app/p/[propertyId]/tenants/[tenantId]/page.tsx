@@ -710,6 +710,16 @@ export default function IndividualTenantProfilePage({
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
+                    Payment Date (Default: Today)
+                  </label>
+                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 font-semibold text-gray-900 flex items-center justify-between">
+                    <span>01 Aug 2026 (Present Day)</span>
+                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">AUTO-STAMPED</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
                     Amount Collected (₹) *
                   </label>
                   <input
