@@ -259,6 +259,19 @@ once the vacating date is reached.
 
 ---
 
+# Rent Collection & Payment Timestamping
+
+When a Property Owner logs a rent payment using the `Collect Rent` action:
+
+1. **Transaction Entry**: A new financial ledger record is created in the Financial Domain.
+2. **`lastPaidDate` Update**: The occupant's `lastPaidDate` attribute is immediately set to the transaction payment date.
+3. **Rent Status Transition**: `paymentStatus` transitions to `Paid` 🟢.
+4. **Days Remaining Display**: Under the `Days Remaining` column in the Tenant Directory, paid occupants display a clean hyphen `—` (clearing any previous `DUE TODAY` or `OVERDUE` countdown tags).
+5. **Dynamic Rent Recalculation**: The next `dueDate` is recalculated for the subsequent billing cycle based on the occupant's billing day.
+
+
+---
+
 # Guest Stay
 
 Guests provide:
