@@ -1,0 +1,338 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TenoPilot Financial Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&amp;family=Manrope:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary": "#964407",
+                    "on-primary-container": "#fffbff",
+                    "background": "#fff8f6",
+                    "surface-bright": "#fff8f6",
+                    "inverse-primary": "#ffb68e",
+                    "surface-variant": "#ede0db",
+                    "critical-red": "#ba1a1a",
+                    "primary-container": "#b65c21",
+                    "on-primary-fixed-variant": "#773300",
+                    "on-tertiary-fixed-variant": "#4b481d",
+                    "surface": "#fff8f6",
+                    "border-sand": "#d7c2b9",
+                    "on-primary-fixed": "#331200",
+                    "on-surface-variant": "#554339",
+                    "on-error-container": "#93000a",
+                    "secondary-fixed-dim": "#e1c0ac",
+                    "tertiary-fixed": "#eae5ab",
+                    "on-secondary-fixed-variant": "#594233",
+                    "secondary-fixed": "#fedcc7",
+                    "surface-container-high": "#f2e6e0",
+                    "inverse-surface": "#362f2c",
+                    "surface-container-highest": "#ede0db",
+                    "surface-container-lowest": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "tertiary": "#636032",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#fbeee9",
+                    "on-background": "#201a17",
+                    "surface-warm": "#f8ede3",
+                    "secondary": "#725949",
+                    "tertiary-container": "#b1ad78",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "error": "#ba1a1a",
+                    "surface-tint": "#99460a",
+                    "on-error": "#ffffff",
+                    "outline-variant": "#dbc1b5",
+                    "primary-fixed-dim": "#ffb68e",
+                    "outline": "#887368",
+                    "tertiary-fixed-dim": "#cdc991",
+                    "secondary-container": "#fedcc7",
+                    "surface-container-low": "#fef1ec",
+                    "on-tertiary-container": "#434116",
+                    "surface-dim": "#e4d8d2",
+                    "on-surface": "#201a17",
+                    "on-secondary-container": "#795f4f",
+                    "success-emerald": "#059669",
+                    "primary-fixed": "#ffdbca",
+                    "surface-container": "#f8ebe6",
+                    "on-tertiary-fixed": "#1e1c00",
+                    "on-secondary-fixed": "#29180b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "unit": "4px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "xl": "40px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "container-max": "1440px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "label-md": ["Manrope"],
+                    "body-md": ["Manrope"],
+                    "display": ["Playfair Display"],
+                    "body-lg": ["Manrope"],
+                    "title-lg": ["Manrope"],
+                    "headline-lg": ["Playfair Display"],
+                    "tabular-nums": ["Manrope"],
+                    "headline-lg-mobile": ["Playfair Display"],
+                    "headline-md": ["Playfair Display"]
+            },
+            "fontSize": {
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .pds-track {
+            background: linear-gradient(90deg, #ede0db 0%, #964407 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-50 backdrop-blur-md bg-surface/80 flex justify-between items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden border border-border-sand">
+<img class="w-full h-full object-cover" data-alt="A professional studio portrait of a high-end property manager in a well-lit modern office. The lighting is soft and warm, reflecting a sophisticated Sahara-inspired aesthetic with earth tones. The subject exudes confidence and reliability, fitting for an authoritative financial platform brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDi6c64r5T9KjFDTCGsoRaN0VKfbGPaf6pzOUcwHhu-n8PpfntYEA6OP58cmFzgStR4X3ZgBOIiAR2zhYN1hogmOLaBG0NrQ4FPoaiUXWQBZnlNNY-dyOlhn2y-A7-bRq2tXOv1mhk_iGvDHAbJwxifP4xa4ukewoGsrueCoQMbT2SoZa2LjOHvJGLjWCyM0yEGQU_PoZnZT8RW7S1QIUSmouBBF89LjRU5VGT4cHo8B11ghHXWrcsYcA">
+</div>
+<h1 class="font-display text-headline-md text-primary">TenoPilot.com</h1>
+</div>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity active:scale-95 transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+</header>
+<main class="pt-20 pb-32 px-margin-mobile max-w-container-max mx-auto">
+<!-- Dashboard Intro -->
+<section class="mb-lg">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-xs">Financial Hub</h2>
+<p class="font-body-md text-on-surface-variant">Business performance for <span class="font-bold text-primary italic">Today</span></p>
+</section><nav class="flex gap-3 mb-xl overflow-x-auto hide-scrollbar -mx-margin-mobile px-margin-mobile py-1">
+  <a href="#" class="flex-shrink-0 px-lg py-3 bg-primary text-on-primary rounded-full font-bold text-label-md uppercase tracking-widest transition-all shadow-sm">Operations</a>
+  <a href="#" class="flex-shrink-0 px-lg py-3 bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-primary rounded-full font-label-md uppercase tracking-widest transition-all border border-outline-variant">
+    Rent Collection
+  </a>
+  <a href="#" class="flex-shrink-0 px-lg py-3 bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-primary rounded-full font-label-md uppercase tracking-widest transition-all border border-outline-variant">
+    Expenses
+  </a>
+  <a href="#" class="flex-shrink-0 px-lg py-3 bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-primary rounded-full font-label-md uppercase tracking-widest transition-all border border-outline-variant">
+    Security Deposits
+  </a>
+</nav>
+<!-- Horizontal Scroll KPIs -->
+<section class="mb-xl -mx-margin-mobile px-margin-mobile overflow-x-auto hide-scrollbar flex gap-md">
+<!-- Total Inflow -->
+<div class="min-w-[200px] flex-shrink-0 bg-surface-container-lowest border border-border-sand border-t-2 border-t-success-emerald p-lg rounded-xl shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">TOTAL INFLOW</span>
+<span class="material-symbols-outlined text-success-emerald" data-icon="trending_up">trending_up</span>
+</div>
+<div class="font-display text-headline-md text-on-surface tabular-nums">$42,850</div>
+<div class="mt-xs inline-flex items-center bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-bold text-success-emerald">
+                    +2.4% <span class="font-normal ml-1">vs yesterday</span>
+</div>
+</div>
+<!-- Total Outflow -->
+<div class="min-w-[200px] flex-shrink-0 bg-surface-container-lowest border border-border-sand border-t-2 border-t-critical-red p-lg rounded-xl shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">TOTAL OUTFLOW</span>
+<span class="material-symbols-outlined text-critical-red" data-icon="trending_down">trending_down</span>
+</div>
+<div class="font-display text-headline-md text-on-surface tabular-nums">$12,420</div>
+<div class="mt-xs font-label-md text-on-surface-variant text-[10px]">3 PENDING LOGS</div>
+</div>
+<!-- Net Profit -->
+<div class="min-w-[200px] flex-shrink-0 bg-surface-container-lowest border border-border-sand border-t-2 border-t-primary p-lg rounded-xl shadow-sm hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-md text-label-md text-on-surface-variant">NET PROFIT</span>
+<span class="material-symbols-outlined text-primary" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="font-display text-headline-md text-primary tabular-nums">$30,430</div>
+<div class="mt-xs font-label-md text-on-surface-variant text-[10px]">CASH ON HAND</div>
+</div>
+</section>
+<!-- Collection Progress PDS-10 -->
+<section class="mb-xl bg-surface-warm p-lg rounded-xl border border-outline-variant">
+<div class="flex justify-between items-end mb-md">
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Collection Progress</h3>
+<p class="font-body-md text-on-surface-variant">Targeting 100% of Monthly Rent</p>
+</div>
+<div class="text-right">
+<span class="font-display text-headline-md text-primary">82%</span>
+</div>
+</div>
+<div class="relative h-4 w-full bg-surface-variant rounded-full overflow-hidden pds-track">
+<div class="absolute inset-0 flex justify-between px-2 items-center pointer-events-none opacity-20">
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+<div class="w-px h-2 bg-on-surface"></div>
+</div>
+<!-- Slider Thumb representation -->
+<div class="absolute h-full w-4/5 bg-primary/20 border-r-4 border-primary"></div>
+</div>
+<div class="flex justify-between mt-sm">
+<span class="font-label-md text-[10px] text-on-surface-variant">PDS-0</span>
+<span class="font-label-md text-[10px] text-primary">PDS-10 SYSTEM</span>
+</div>
+</section>
+<!-- Recent Activity -->
+<section class="mb-lg">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-title-lg text-title-lg text-on-surface">Recent Activity</h3>
+<button class="font-label-md text-label-md text-primary tracking-widest uppercase">View All</button>
+</div>
+<div class="space-y-sm">
+<!-- Activity Item 1 -->
+<div class="flex items-center gap-md p-md bg-surface-container-low rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors">
+<div class="w-10 h-10 flex items-center justify-center rounded-full bg-success-emerald/10 text-success-emerald border border-success-emerald/20">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<div class="flex-1">
+<div class="font-title-lg text-[14px] text-on-surface">Rent Received - Unit 402</div>
+<div class="font-body-md text-[12px] text-on-surface-variant">Tenant: Alex Rivera</div>
+</div>
+<div class="text-right">
+<div class="font-bold text-on-surface tabular-nums">+$2,450</div>
+<div class="text-[10px] text-on-surface-variant">10:42 AM</div>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="flex items-center gap-md p-md bg-surface-container-low rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors">
+<div class="w-10 h-10 flex items-center justify-center rounded-full bg-critical-red/10 text-critical-red border border-critical-red/20">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</div>
+<div class="flex-1">
+<div class="font-title-lg text-[14px] text-on-surface">Maintenance Expense</div>
+<div class="font-body-md text-[12px] text-on-surface-variant">HVAC Repair - Central Bldg</div>
+</div>
+<div class="text-right">
+<div class="font-bold text-on-surface tabular-nums">-$840</div>
+<div class="text-[10px] text-on-surface-variant">09:15 AM</div>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="flex items-center gap-md p-md bg-surface-container-low rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors">
+<div class="w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 text-primary border border-primary/20">
+<span class="material-symbols-outlined" data-icon="account_balance">account_balance</span>
+</div>
+<div class="flex-1">
+<div class="font-title-lg text-[14px] text-on-surface">Bank Deposit</div>
+<div class="font-body-md text-[12px] text-on-surface-variant">Batch #4829 - Escrow</div>
+</div>
+<div class="text-right">
+<div class="font-bold text-on-surface tabular-nums">+$18,200</div>
+<div class="text-[10px] text-on-surface-variant">Yesterday</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Button (FAB) -->
+<button class="fixed bottom-24 right-margin-mobile w-14 h-14 bg-primary text-on-primary rounded-xl shadow-lg flex items-center justify-center transition-transform duration-200 active:scale-90 z-50">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+<span class="sr-only">Record Money</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant"><a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90 hover:bg-surface-container-high" href="/dashboard">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90 hover:bg-surface-container-high" href="/properties">
+<span class="material-symbols-outlined" data-icon="domain">domain</span>
+<span class="font-label-md text-label-md">Properties</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90 hover:bg-surface-container-high" href="/tenants">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="font-label-md text-label-md">Tenants</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-surface-warm text-primary rounded-xl px-3 py-1 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Financial</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90 hover:bg-surface-container-high" href="/profile">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a></nav>
+<script>
+        // Micro-interactions for the FAB
+        const fab = document.querySelector('button.fixed.bottom-24');
+        fab.addEventListener('click', () => {
+            // Simple visual feedback before potential navigation or modal
+            fab.style.transform = 'rotate(45deg)';
+            setTimeout(() => {
+                fab.style.transform = 'rotate(0deg)';
+            }, 300);
+        });
+
+        // Tonal layering transition on scroll
+        const header = document.querySelector('header');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 20) {
+                header.classList.add('shadow-md');
+                header.classList.remove('bg-surface/80');
+                header.classList.add('bg-surface');
+            } else {
+                header.classList.remove('shadow-md');
+                header.classList.add('bg-surface/80');
+                header.classList.remove('bg-surface');
+            }
+        });
+    </script>
+
+
+
+
+</body></html>

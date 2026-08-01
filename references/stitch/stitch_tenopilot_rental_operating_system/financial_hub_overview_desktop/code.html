@@ -1,0 +1,460 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Financial Hub | TenoPilot</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet">
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#773300",
+                    "on-primary-fixed": "#331200",
+                    "on-error": "#ffffff",
+                    "secondary-fixed": "#fedcc7",
+                    "primary-fixed-dim": "#ffb68e",
+                    "inverse-primary": "#ffb68e",
+                    "primary-container": "#b65c21",
+                    "tertiary-fixed": "#eae5ab",
+                    "on-surface": "#201a17",
+                    "tertiary-fixed-dim": "#cdc991",
+                    "secondary-fixed-dim": "#e1c0ac",
+                    "tertiary-container": "#b1ad78",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "secondary": "#725949",
+                    "surface-container-highest": "#ede0db",
+                    "outline-variant": "#dbc1b5",
+                    "on-secondary": "#ffffff",
+                    "outline": "#887368",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#636032",
+                    "on-tertiary-fixed": "#1e1c00",
+                    "on-background": "#201a17",
+                    "on-tertiary-fixed-variant": "#4b481d",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#ede0db",
+                    "critical-red": "#ba1a1a",
+                    "background": "#fff8f6",
+                    "on-tertiary-container": "#434116",
+                    "on-secondary-fixed": "#29180b",
+                    "error-container": "#ffdad6",
+                    "on-surface-variant": "#554339",
+                    "surface-bright": "#fff8f6",
+                    "secondary-container": "#fedcc7",
+                    "surface-variant": "#ede0db",
+                    "success-emerald": "#059669",
+                    "error": "#ba1a1a",
+                    "surface-container": "#f8ebe6",
+                    "primary-fixed": "#ffdbca",
+                    "border-sand": "#d7c2b9",
+                    "surface-container-high": "#f2e6e0",
+                    "surface": "#fff8f6",
+                    "on-secondary-fixed-variant": "#594233",
+                    "inverse-on-surface": "#fbeee9",
+                    "surface-tint": "#99460a",
+                    "primary": "#964407",
+                    "surface-warm": "#f8ede3",
+                    "inverse-surface": "#362f2c",
+                    "on-secondary-container": "#795f4f",
+                    "on-primary-container": "#fffbff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "40px",
+                    "sm": "8px",
+                    "container-max": "1440px",
+                    "xs": "4px",
+                    "unit": "4px",
+                    "lg": "24px",
+                    "margin-mobile": "16px",
+                    "md": "16px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "body-md": ["Manrope"],
+                    "title-lg": ["Manrope"],
+                    "tabular-nums": ["Manrope"],
+                    "body-lg": ["Manrope"],
+                    "headline-lg": ["Playfair Display"],
+                    "display": ["Playfair Display"],
+                    "label-md": ["Manrope"],
+                    "headline-md": ["Playfair Display"],
+                    "headline-lg-mobile": ["Playfair Display"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #fff8f6;
+            color: #201a17;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-nav {
+            backdrop-filter: blur(12px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d7c2b9;
+            border-radius: 10px;
+        }
+        .card-shadow-hover:hover {
+            box-shadow: 0 12px 24px -10px rgba(150, 68, 7, 0.15);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="font-body-md overflow-x-hidden">
+<!-- Sidebar Shell -->
+<aside class="fixed left-0 top-0 h-screen w-64 flex flex-col bg-surface border-r border-border-sand z-50">
+<div class="p-8">
+<h1 class="font-headline-md text-headline-md text-primary font-bold tracking-tight">TenoPilot</h1>
+<p class="font-label-md text-label-md text-outline uppercase tracking-widest mt-1">Business OS</p>
+</div>
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="domain">domain</span>
+<span class="font-body-md">Properties</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body-md">Tenants</span>
+</a>
+<a class="flex items-center gap-3 bg-surface-warm text-primary border-r-4 border-primary py-3 px-4 font-bold transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="payments" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-body-md">Financial Hub</span>
+</a>
+</nav>
+<div class="p-4 border-t border-border-sand space-y-1">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 right-0 left-64 h-20 bg-surface/80 backdrop-blur-md z-40 border-b border-border-sand flex items-center justify-between px-8">
+<div class="flex items-center gap-8">
+<h2 class="font-headline-md text-headline-md text-primary font-bold">Financial Hub</h2>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-primary font-bold border-b-2 border-primary pb-2 font-label-md tracking-wider" href="#">OPERATIONS</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors pb-2 font-label-md tracking-wider" href="#">RENT COLLECTION</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors pb-2 font-label-md tracking-wider" href="#">EXPENSES</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors pb-2 font-label-md tracking-wider" href="#">SECURITY DEPOSITS</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors pb-2 font-label-md tracking-wider" href="#">TRANSACTIONS</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors pb-2 font-label-md tracking-wider" href="#">REPORTS</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+</button>
+<div class="w-10 h-10 rounded-full border border-border-sand overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional studio portrait of a property manager with a warm, sophisticated demeanor, lit with soft golden-hour natural light against a minimalist earthy-toned office background. High-end lifestyle photography, 8k resolution, editorial style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFvnV_bkepK5ccoJ5EzC1jc9J1qb327fK7OUqIDKlaXhTNXF8QWjSBTM5LhIZAs6dUuHZnJNQPJoHt3LfnCETZyh8vfpGbpw9nQZ5Qdtd57nsv81xYbQQJVxgrS_oZJBFbqYQ54fzMMRxH17KS78Tmol7xTdeiByY4kg6zStmd0KcYytkdfvGkSvsuDqrYa5qHwAo9_te0KGxShfNUhupBizUbD80lPVu5oFvmEwqbb7ozqPiS4AHGlw">
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-20 p-8 max-w-[1440px]">
+<!-- Welcome & Actions -->
+<section class="flex flex-col md:flex-row md:items-end justify-between mb-xl gap-gutter">
+<div>
+<h3 class="font-headline-lg text-headline-lg text-on-surface">Manage your property's monetary flow with precision.</h3>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-2">Welcome back, Aditya. Your portfolio's health is optimal today.</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-lg font-title-lg hover:opacity-90 transition-all shadow-lg shadow-primary/20 group">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+<span class="">Collect Rent</span>
+</button>
+<button class="flex items-center gap-2 bg-surface border border-border-sand text-primary px-6 py-3 rounded-lg font-title-lg hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="">Record Expense</span>
+</button>
+</div>
+</section>
+<!-- Summary Stat Cards -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-xl">
+<!-- Stat Card 1 -->
+<div class="bg-surface p-6 rounded-xl border border-border-sand border-t-4 border-t-primary card-shadow-hover transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-label-md uppercase tracking-wider">Rent Collected</span>
+<span class="bg-success-emerald/10 text-success-emerald text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-tight">+12%</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface tabular-nums">₹8,40,000</span>
+<span class="text-on-surface-variant font-body-md mt-1">This Month</span>
+</div>
+<a class="mt-4 block font-label-md text-primary hover:underline uppercase tracking-widest text-[10px]" href="#">Review Detail</a>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-surface p-6 rounded-xl border border-border-sand border-t-4 border-t-critical-red card-shadow-hover transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-label-md uppercase tracking-wider">Pending Rent</span>
+<span class="material-symbols-outlined text-critical-red" data-icon="error">error</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-critical-red tabular-nums">₹1,15,000</span>
+<span class="text-on-surface-variant font-body-md mt-1">12 tenants pending</span>
+</div>
+<a class="mt-4 block font-label-md text-primary hover:underline uppercase tracking-widest text-[10px]" href="#">Review Detail</a>
+</div>
+<!-- Stat Card 3 -->
+<div class="bg-surface p-6 rounded-xl border border-border-sand border-t-4 border-t-secondary card-shadow-hover transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-label-md uppercase tracking-wider">Total Expenses</span>
+<span class="material-symbols-outlined text-outline" data-icon="payments">payments</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface tabular-nums">₹2,10,000</span>
+<span class="text-on-surface-variant font-body-md mt-1">Operational costs</span>
+</div>
+<a class="mt-4 block font-label-md text-primary hover:underline uppercase tracking-widest text-[10px]" href="#">Review Detail</a>
+</div>
+<!-- Stat Card 4 -->
+<div class="bg-surface p-6 rounded-xl border border-border-sand border-t-4 border-t-tertiary-container card-shadow-hover transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-label-md uppercase tracking-wider">Net Profit</span>
+<span class="material-symbols-outlined text-tertiary-container" data-icon="trending_up">trending_up</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-success-emerald tabular-nums">₹6,30,000</span>
+<span class="text-on-surface-variant font-body-md mt-1">Healthy Margin</span>
+</div>
+<a class="mt-4 block font-label-md text-primary hover:underline uppercase tracking-widest text-[10px]" href="#">Review Detail</a>
+</div>
+<!-- Stat Card 5 -->
+<div class="bg-surface p-6 rounded-xl border border-border-sand border-t-4 border-t-outline card-shadow-hover transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-label-md uppercase tracking-wider">Security Deposits</span>
+<span class="material-symbols-outlined text-outline" data-icon="lock">lock</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface tabular-nums">₹15,20,000</span>
+<span class="text-on-surface-variant font-body-md mt-1">Funds Held</span>
+</div>
+<a class="mt-4 block font-label-md text-primary hover:underline uppercase tracking-widest text-[10px]" href="#">Review Detail</a>
+</div>
+</section>
+<!-- Insights Banner -->
+<section class="mb-xl">
+<div class="bg-surface-warm border border-outline-variant p-6 rounded-2xl flex flex-wrap items-center justify-between gap-gutter">
+<div class="flex items-center gap-6">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div>
+<h4 class="font-title-lg text-on-surface">Collection rate is 94% this month</h4>
+<p class="text-on-surface-variant font-body-md">5 tenants have pending rent across Sunshine Heights PG and Zenith Residency.</p>
+</div>
+</div>
+<button class="bg-on-primary-fixed-variant text-on-primary px-5 py-2 rounded-lg font-label-md tracking-wider uppercase hover:opacity-90 transition-all">
+                    Send Reminders
+                </button>
+</div>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-xl">
+<!-- Snapshot Section -->
+<div class="lg:col-span-8 space-y-xl">
+<div class="bg-surface border border-border-sand rounded-2xl p-lg h-full">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-headline-md text-on-surface">Monthly Business Snapshot</h3>
+<select class="bg-surface-container-low border-none rounded-lg font-label-md text-on-surface-variant focus:ring-primary">
+<option>Last 6 Months</option>
+<option>This Year</option>
+</select>
+</div>
+<!-- Chart Placeholder Layout (Using Tailwind for asymmetric bar visual) -->
+<div class="flex items-end justify-between gap-6 h-64 px-4">
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full flex gap-1 items-end h-48">
+<div class="bg-primary/20 w-1/2 h-[70%] rounded-t-sm" title="Income"></div>
+<div class="bg-primary w-1/2 h-[45%] rounded-t-sm" title="Expense"></div>
+</div>
+<span class="font-label-md text-outline">MAR</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full flex gap-1 items-end h-48">
+<div class="bg-primary/20 w-1/2 h-[85%] rounded-t-sm" title="Income"></div>
+<div class="bg-primary w-1/2 h-[50%] rounded-t-sm" title="Expense"></div>
+</div>
+<span class="font-label-md text-outline">APR</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full flex gap-1 items-end h-48">
+<div class="bg-primary/20 w-1/2 h-[92%] rounded-t-sm" title="Income"></div>
+<div class="bg-primary w-1/2 h-[40%] rounded-t-sm" title="Expense"></div>
+</div>
+<span class="font-label-md text-outline">MAY</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full flex gap-1 items-end h-48">
+<div class="bg-primary/20 w-1/2 h-[60%] rounded-t-sm" title="Income"></div>
+<div class="bg-primary w-1/2 h-[55%] rounded-t-sm" title="Expense"></div>
+</div>
+<span class="font-label-md text-outline">JUN</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full flex gap-1 items-end h-48">
+<div class="bg-primary/20 w-1/2 h-[88%] rounded-t-sm" title="Income"></div>
+<div class="bg-primary w-1/2 h-[42%] rounded-t-sm" title="Expense"></div>
+</div>
+<span class="font-label-md text-outline">JUL</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-3">
+<div class="w-full flex gap-1 items-end h-48">
+<div class="bg-primary/20 w-1/2 h-[95%] rounded-t-sm" title="Income"></div>
+<div class="bg-primary w-1/2 h-[35%] rounded-t-sm" title="Expense"></div>
+</div>
+<span class="font-label-md text-outline font-bold text-primary">AUG</span>
+</div>
+</div>
+<div class="mt-8 grid grid-cols-2 gap-gutter pt-8 border-t border-border-sand">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-secondary-container rounded-lg flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined" data-icon="domain_verification">domain_verification</span>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-widest">Occupancy Rate</p>
+<p class="font-headline-md text-on-surface">96%</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-tertiary-fixed rounded-lg flex items-center justify-center text-on-tertiary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="workspace_premium">workspace_premium</span>
+</div>
+<div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-widest">Best Performer</p>
+<p class="font-headline-md text-on-surface">Sunshine Heights PG</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Activity Section -->
+<div class="lg:col-span-4 space-y-gutter">
+<div class="bg-surface border border-border-sand rounded-2xl p-lg">
+<h3 class="font-headline-md text-on-surface mb-6">Recent Activity</h3>
+<div class="relative space-y-8">
+<!-- Timeline Line -->
+<div class="absolute left-6 top-2 bottom-2 w-[1px] bg-border-sand"></div>
+<!-- Activity 1 -->
+<div class="relative flex items-start gap-6 group">
+<div class="relative z-10 w-12 h-12 rounded-full bg-surface border-2 border-primary-fixed-dim flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="download" style="font-variation-settings: 'FILL' 1;">download</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<p class="font-title-lg text-on-surface">Rent Received</p>
+<span class="font-label-md text-outline">10:45 AM</span>
+</div>
+<p class="text-body-md text-on-surface-variant">Arjun K. (Unit 402, Sunshine Heights)</p>
+<p class="font-tabular-nums text-success-emerald font-bold mt-1">+ ₹18,500</p>
+</div>
+</div>
+<!-- Activity 2 -->
+<div class="relative flex items-start gap-6 group">
+<div class="relative z-10 w-12 h-12 rounded-full bg-surface border-2 border-outline-variant flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="engineering">engineering</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<p class="font-title-lg text-on-surface">Maintenance Expense</p>
+<span class="font-label-md text-outline">Yesterday</span>
+</div>
+<p class="text-body-md text-on-surface-variant">Plumbing Repairs (Common Area)</p>
+<p class="font-tabular-nums text-critical-red font-bold mt-1">- ₹4,200</p>
+</div>
+</div>
+<!-- Activity 3 -->
+<div class="relative flex items-start gap-6 group">
+<div class="relative z-10 w-12 h-12 rounded-full bg-surface border-2 border-secondary-fixed-dim flex items-center justify-center text-on-secondary-fixed-variant group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<p class="font-title-lg text-on-surface">Staff Salary Paid</p>
+<span class="font-label-md text-outline">2 days ago</span>
+</div>
+<p class="text-body-md text-on-surface-variant">Security Staff (3 Employees)</p>
+<p class="font-tabular-nums text-critical-red font-bold mt-1">- ₹45,000</p>
+</div>
+</div>
+<!-- Activity 4 -->
+<div class="relative flex items-start gap-6 group">
+<div class="relative z-10 w-12 h-12 rounded-full bg-surface border-2 border-primary-fixed-dim flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="download" style="font-variation-settings: 'FILL' 1;">download</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<p class="font-title-lg text-on-surface">Rent Received</p>
+<span class="font-label-md text-outline">3 days ago</span>
+</div>
+<p class="text-body-md text-on-surface-variant">Meera S. (Unit 108, Zenith Res.)</p>
+<p class="font-tabular-nums text-success-emerald font-bold mt-1">+ ₹22,000</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-8 py-3 bg-surface-container text-on-surface-variant font-label-md uppercase tracking-widest rounded-lg hover:bg-surface-container-high transition-colors">
+                        View All Activity
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interaction Script -->
+<script>
+        document.querySelectorAll('.card-shadow-hover').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.borderColor = 'var(--primary)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.borderColor = 'var(--border-sand)';
+            });
+        });
+    </script>
+
+
+</body></html>

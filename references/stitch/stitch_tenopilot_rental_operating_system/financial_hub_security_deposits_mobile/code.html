@@ -1,0 +1,349 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TenoPilot - Security Deposits</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&amp;family=Manrope:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .line-clamp-1 {
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#964407",
+                        "on-primary-container": "#fffbff",
+                        "background": "#fff8f6",
+                        "surface-bright": "#fff8f6",
+                        "inverse-primary": "#ffb68e",
+                        "surface-variant": "#ede0db",
+                        "critical-red": "#ba1a1a",
+                        "primary-container": "#b65c21",
+                        "on-primary-fixed-variant": "#773300",
+                        "on-tertiary-fixed-variant": "#4b481d",
+                        "surface": "#fff8f6",
+                        "border-sand": "#d7c2b9",
+                        "on-primary-fixed": "#331200",
+                        "on-surface-variant": "#554339",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#e1c0ac",
+                        "tertiary-fixed": "#eae5ab",
+                        "on-secondary-fixed-variant": "#594233",
+                        "secondary-fixed": "#fedcc7",
+                        "surface-container-high": "#f2e6e0",
+                        "inverse-surface": "#362f2c",
+                        "surface-container-highest": "#ede0db",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#636032",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#fbeee9",
+                        "on-background": "#201a17",
+                        "surface-warm": "#f8ede3",
+                        "secondary": "#725949",
+                        "tertiary-container": "#b1ad78",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#99460a",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#dbc1b5",
+                        "primary-fixed-dim": "#ffb68e",
+                        "outline": "#887368",
+                        "tertiary-fixed-dim": "#cdc991",
+                        "secondary-container": "#fedcc7",
+                        "surface-container-low": "#fef1ec",
+                        "on-tertiary-container": "#434116",
+                        "surface-dim": "#e4d8d2",
+                        "on-surface": "#201a17",
+                        "on-secondary-container": "#795f4f",
+                        "success-emerald": "#059669",
+                        "primary-fixed": "#ffdbca",
+                        "surface-container": "#f8ebe6",
+                        "on-tertiary-fixed": "#1e1c00",
+                        "on-secondary-fixed": "#29180b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "unit": "4px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "xl": "40px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "container-max": "1440px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Manrope"],
+                        "body-md": ["Manrope"],
+                        "display": ["Playfair Display"],
+                        "body-lg": ["Manrope"],
+                        "title-lg": ["Manrope"],
+                        "headline-lg": ["Playfair Display"],
+                        "tabular-nums": ["Manrope"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "headline-md": ["Playfair Display"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen">
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-50 backdrop-blur-md bg-surface/80 flex justify-between items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a property manager in a sophisticated office environment. The lighting is soft and warm, reflecting the Sahara brand palette of ochres and sands. The subject is wearing high-end business attire, conveying authority and calm reliability. The background shows blurred architectural details of a luxury property." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdk4u1g-dEWEkZJeYND1-TKryh1uIo6SOzCsKj1q70Bn2gm_psPpfkPKuqu5GY_QG5nah-fItywUFDy49rDnyBsXyP1HrYpIRlrKJ6xdgNVQWnTCG5PusbspHbs4KUkH64T8EbGJrEBDmbdXNmoCb6-9nMo4hEAwtgDJEIOriqA4MGL9kYnvDJVZMCL3k0psOEHw027MW3aViGrRc3-pl_0m95yAkR589u6_wma4Yo2KI7qJILowP0Cw">
+</div>
+<h1 class="font-display text-headline-md text-primary">TenoPilot</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center text-primary transition-all duration-200 active:scale-95 hover:opacity-80">
+<span class="material-symbols-outlined">search</span>
+</button>
+</header><nav class="sticky top-16 z-40 bg-surface border-b border-outline-variant overflow-x-auto hide-scrollbar"><div class="flex px-margin-mobile py-3 gap-2 min-w-max">
+        <a href="#" class="px-4 py-2 rounded-full text-on-surface-variant font-label-md border border-outline-variant transition-all hover:bg-surface-warm active:scale-95">OPERATIONS</a>
+        <a href="#" class="px-4 py-2 rounded-full text-on-surface-variant font-label-md border border-outline-variant transition-all hover:bg-surface-warm active:scale-95">RENT COLLECTION</a>
+        <a href="#" class="px-4 py-2 rounded-full text-on-surface-variant font-label-md border border-outline-variant transition-all hover:bg-surface-warm active:scale-95">EXPENSES</a>
+        <a href="#" class="px-4 py-2 rounded-full bg-primary text-on-primary font-label-md border border-primary shadow-sm active:scale-95">SECURITY DEPOSITS</a>
+    </div></nav>
+<main class="pb-32 px-margin-mobile max-w-container-max mx-auto pt-4">
+<!-- Header Section -->
+<section class="mb-lg">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-2">Security Deposits</h2>
+<p class="text-on-surface-variant font-body-md">Manage and track all tenant security holdings.</p>
+</section>
+<!-- KPI Cards (Asymmetric Bento-ish Layout) -->
+<section class="grid grid-cols-2 gap-4 mb-xl">
+<!-- Large Primary KPI -->
+<div class="col-span-2 bg-surface-container-lowest border-t-2 border-primary p-lg rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-label-md uppercase tracking-wider">Total Deposits Held</span>
+<span class="material-symbols-outlined text-primary">account_balance_wallet</span>
+</div>
+<div>
+<span class="font-display text-[32px] leading-none text-primary">$142,500.00</span>
+<div class="mt-2 flex items-center gap-1">
+<span class="bg-success-emerald/10 text-success-emerald text-[10px] px-1.5 py-0.5 rounded font-bold">+2.4%</span>
+<span class="text-on-surface-variant text-[12px]">vs last month</span>
+</div>
+</div>
+<button class="mt-6 text-primary font-label-md uppercase text-right w-full">Review Portfolio</button>
+</div>
+<!-- Secondary KPI 1 -->
+<div class="bg-surface-container-lowest border-t-2 border-critical-red p-md rounded-xl shadow-sm">
+<div class="text-on-surface-variant font-label-md uppercase text-[10px] mb-2">Pending Refunds</div>
+<div class="font-display text-headline-md text-critical-red">$4,200</div>
+<div class="text-on-surface-variant text-[11px] mt-1">3 tenants waiting</div>
+</div>
+<!-- Secondary KPI 2 -->
+<div class="bg-surface-container-lowest border-t-2 border-secondary p-md rounded-xl shadow-sm">
+<div class="text-on-surface-variant font-label-md uppercase text-[10px] mb-2">Refunded (MTD)</div>
+<div class="font-display text-headline-md text-secondary">$12,850</div>
+<div class="text-on-surface-variant text-[11px] mt-1">8 settled cases</div>
+</div>
+</section>
+<!-- Action Center -->
+<section class="mb-xl">
+<h3 class="font-title-lg text-title-lg mb-4">Quick Actions</h3>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 bg-primary text-on-primary py-4 px-4 rounded-xl font-label-md transition-all active:scale-95 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">add_circle</span>
+                    RECORD DEPOSIT
+                </button>
+<button class="flex items-center justify-center gap-2 bg-surface-container-lowest border border-border-sand text-primary py-4 px-4 rounded-xl font-label-md transition-all active:scale-95">
+<span class="material-symbols-outlined">payments</span>
+                    REFUND DEPOSIT
+                </button>
+</div>
+</section>
+<!-- Recent Activity List -->
+<section class="mb-lg">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-title-lg text-title-lg">Recent Activity</h3>
+<button class="text-primary font-label-md">SEE ALL</button>
+</div>
+<div class="space-y-3">
+<!-- Activity Item 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-border-sand flex items-center justify-between group active:bg-surface-warm transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">person</span>
+</div>
+<div>
+<div class="font-title-lg text-body-lg font-bold">Julianna Silva</div>
+<div class="text-on-surface-variant text-body-md">Room 402B • Sahara Towers</div>
+</div>
+</div>
+<div class="text-right">
+<div class="font-tabular-nums font-bold text-on-surface">$2,400.00</div>
+<div class="flex items-center justify-end gap-1 mt-1">
+<span class="w-2 h-2 rounded-full bg-success-emerald"></span>
+<span class="text-[10px] font-label-md uppercase text-on-surface-variant">Active</span>
+</div>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-border-sand flex items-center justify-between group active:bg-surface-warm transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">person</span>
+</div>
+<div>
+<div class="font-title-lg text-body-lg font-bold">Marcus Thorne</div>
+<div class="text-on-surface-variant text-body-md">Suite 12 • The Oasis</div>
+</div>
+</div>
+<div class="text-right">
+<div class="font-tabular-nums font-bold text-on-surface">$1,850.00</div>
+<div class="flex items-center justify-end gap-1 mt-1">
+<span class="w-2 h-2 rounded-full bg-critical-red"></span>
+<span class="text-[10px] font-label-md uppercase text-on-surface-variant">Refund Pending</span>
+</div>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-border-sand flex items-center justify-between group active:bg-surface-warm transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">person</span>
+</div>
+<div>
+<div class="font-title-lg text-body-lg font-bold">Elena Rodriguez</div>
+<div class="text-on-surface-variant text-body-md">Studio 304 • Dune Residences</div>
+</div>
+</div>
+<div class="text-right">
+<div class="font-tabular-nums font-bold text-on-surface-variant line-through">$2,100.00</div>
+<div class="flex items-center justify-end gap-1 mt-1">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<span class="text-[10px] font-label-md uppercase text-on-surface-variant">Refunded</span>
+</div>
+</div>
+</div>
+<!-- Activity Item 4 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-border-sand flex items-center justify-between group active:bg-surface-warm transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">person</span>
+</div>
+<div>
+<div class="font-title-lg text-body-lg font-bold">David Chen</div>
+<div class="text-on-surface-variant text-body-md">Penthouse A • Golden Sands</div>
+</div>
+</div>
+<div class="text-right">
+<div class="font-tabular-nums font-bold text-on-surface">$5,500.00</div>
+<div class="flex items-center justify-end gap-1 mt-1">
+<span class="w-2 h-2 rounded-full bg-success-emerald"></span>
+<span class="text-[10px] font-label-md uppercase text-on-surface-variant">Active</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Visual Decorative Element -->
+<div class="relative w-full h-48 mt-lg rounded-2xl overflow-hidden mb-xl">
+<img class="w-full h-full object-cover grayscale-[0.2] sepia-[0.2]" data-alt="A high-angle architectural photograph of a luxury desert resort's courtyard. The composition features rhythmic geometric shadows cast by minimalist sandstone pillars onto a pristine sand-colored floor. The scene is bathed in late afternoon golden light, creating a deep earthy and sophisticated mood that aligns with the Sahara brand aesthetic. High contrast and clean lines dominate the frame." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXKneaMlsTAtSasJ3PHk7dnJwfcUHJxHQcnSCjTxI-VBkx_G1x27LxgT4L9aCL0lonJzx3Qd-0d_WJQ9BkB3GcDnaj702eIJFzF1CSUO_q5WqeNqtCwBu4HYXUYxsTRrm21wQpvbzomYNWfD9eSevqRMKIqSATDknk4pIwHPHU6E28ByPYpN7E8n74cDh5L9oTUrmHfAytQA0VH_zcBxvT33qrkDByPWGhWN1hzhOdxSNYE6ChQxYkdQ">
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<p class="font-display text-title-lg text-primary italic">"Precision in every transaction."</p>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="font-label-md text-label-md">Properties</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-surface-warm text-primary rounded-xl px-3 py-1 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-label-md text-label-md">Payments</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90 relative" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-label-md text-label-md">Notifications</span>
+<span class="absolute top-1 right-3 w-2 h-2 bg-critical-red rounded-full"></span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple micro-interaction for cards
+        document.querySelectorAll('.active\\:scale-95').forEach(button => {
+            button.addEventListener('touchstart', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('touchend', () => {
+                button.classList.remove('scale-95');
+            });
+        });
+        
+        // Dynamic scroll reveal for header
+        let lastScrollTop = 0;
+        const header = document.querySelector('header');
+        window.addEventListener('scroll', () => {
+            let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop > lastScrollTop && scrollTop > 100) {
+                header.style.transform = 'translateY(-100%)';
+            } else {
+                header.style.transform = 'translateY(0)';
+            }
+            lastScrollTop = scrollTop;
+            header.style.transition = 'transform 0.3s ease-in-out';
+        });
+    </script>
+
+
+
+
+</body></html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Tenant Profile - Amara Okafor</title>
+<!-- Fonts: Playfair Display for Serifs, Manrope for Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS v3 CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#c2652a', // Terracotta
+            accent: '#fdf8f4',  // Light warm background
+            muted: '#71717a',
+            success: '#10b981',
+          },
+          fontFamily: {
+            serif: ['"Playfair Display"', 'serif'],
+            sans: ['"Manrope"', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+<style data-purpose="custom-styling">
+    body {
+      background-color: #fdf8f4;
+      font-family: 'Manrope', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .serif-heading {
+      font-family: 'Playfair Display', serif;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Timeline horizontal scroll for mobile if needed, though we'll try to fit it */
+    .timeline-container {
+      overflow-x: auto;
+    }
+    /* Active state for navigation icons */
+    .nav-active {
+      color: #c2652a;
+    }
+  </style>
+</head>
+<body class="pb-24">
+<!-- BEGIN: Sticky Header -->
+<header class="sticky top-0 z-50 bg-[#fdf8f4]/90 backdrop-blur-md px-4 py-4 flex items-center justify-between border-b border-orange-100">
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-orange-50 rounded-full">
+<svg class="text-gray-700" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="24" xmlns="http://www.w3.org/2000/svg"><path d="m15 18-6-6 6-6"></path></svg>
+</button>
+<span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Tenant Profile</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="relative">
+<svg class="text-gray-700" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+<span class="absolute top-0 right-0 h-4 w-4 bg-primary text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">8</span>
+</div>
+<img alt="Admin" class="w-8 h-8 rounded-full border border-orange-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCHIM_OrZ_TGSnL76zrvr9i2wJw7EvVeHOh_dLlkQ-cJNVUQxgMf9774udcy8iCmTGa8vltgww62a4bNfkLc-Hc9bDntRfWRpWTBfOtnRuNf4j5s-169erduIGm4fRES9sctiCJeNv1Q--_9SuhuTitgAq8-9Bm-YIyAXmUk1cWxppYOZonojUDScRxviMonAYtXEnb5o_cgvaJqSNUONHBqM1Q6HhwYE9kBJd3EJzZfIYaBsRFdYrVg">
+</div>
+</header>
+<!-- END: Sticky Header -->
+<main class="px-4 py-6 space-y-6">
+<!-- BEGIN: Profile Hero Section -->
+<section class="space-y-4" data-purpose="profile-hero">
+<div class="flex flex-col gap-1">
+<h1 class="serif-heading text-4xl text-gray-900">Amara Okafor</h1>
+<div class="flex items-center gap-3">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
+<span class="w-2 h-2 rounded-full bg-green-500 mr-1.5"></span> ACTIVE
+          </span>
+<span class="text-sm text-gray-500">Resident since Oct 12, 2023</span>
+</div>
+</div>
+<!-- Quick Actions -->
+<div class="grid grid-cols-2 gap-3">
+<button class="flex flex-col items-center justify-center py-3 bg-white border border-orange-100 rounded-xl shadow-sm text-xs font-semibold text-gray-700">
+<svg class="mb-1 text-primary" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>
+          Edit Profile
+        </button>
+<button class="flex flex-col items-center justify-center py-3 bg-primary text-white rounded-xl shadow-md text-xs font-semibold">
+<svg class="mb-1" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><rect height="14" rx="2" width="20" x="2" y="5"></rect><line x1="2" x2="22" y1="10" y2="10"></line></svg>
+          Collect Rent
+        </button>
+<button class="flex flex-col items-center justify-center py-3 bg-white border border-orange-100 rounded-xl shadow-sm text-xs font-semibold text-gray-700">
+<svg class="mb-1 text-primary" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg>
+          Transfer Room
+        </button>
+<button class="flex flex-col items-center justify-center py-3 bg-white border border-orange-100 rounded-xl shadow-sm text-xs font-semibold text-gray-700">
+<svg class="mb-1 text-primary" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path></svg>
+          Log Notice
+        </button>
+</div>
+</section>
+<!-- END: Profile Hero Section -->
+<!-- BEGIN: KPI Cards Section -->
+<section class="grid grid-cols-2 gap-3" data-purpose="kpi-metrics">
+<!-- Total Rent Paid -->
+<div class="p-4 bg-white rounded-2xl border border-orange-50 shadow-sm">
+<div class="p-2 bg-green-50 w-fit rounded-lg mb-2">
+<svg class="text-green-600" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>
+</div>
+<p class="text-[10px] uppercase tracking-tight text-gray-500 font-bold mb-1">Total Rent Paid</p>
+<p class="text-xl font-bold text-gray-900">₹2,56,500</p>
+<p class="text-[10px] text-green-600 font-bold mt-1">↑ 2.5% THIS MONTH</p>
+</div>
+<!-- Outstanding Balance -->
+<div class="p-4 bg-white rounded-2xl border border-orange-50 shadow-sm">
+<div class="p-2 bg-blue-50 w-fit rounded-lg mb-2">
+<svg class="text-blue-600" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
+</div>
+<p class="text-[10px] uppercase tracking-tight text-gray-500 font-bold mb-1">Outstanding Balance</p>
+<p class="text-xl font-bold text-gray-900">₹0</p>
+<p class="text-[10px] text-green-600 font-bold mt-1">EVERYTHING CURRENT</p>
+</div>
+<!-- Security Deposit -->
+<div class="p-4 bg-white rounded-2xl border border-orange-50 shadow-sm">
+<div class="p-2 bg-purple-50 w-fit rounded-lg mb-2">
+<svg class="text-purple-600" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><rect height="11" rx="2" ry="2" width="18" x="3" y="11"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+</div>
+<p class="text-[10px] uppercase tracking-tight text-gray-500 font-bold mb-1">Security Deposit</p>
+<p class="text-xl font-bold text-gray-900">₹25,000</p>
+<p class="text-[10px] text-gray-400 font-bold mt-1">LOCKED / ACTIVE</p>
+</div>
+<!-- Next Due Date -->
+<div class="p-4 bg-white rounded-2xl border border-orange-50 shadow-sm">
+<div class="p-2 bg-orange-50 w-fit rounded-lg mb-2">
+<svg class="text-primary" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+</div>
+<p class="text-[10px] uppercase tracking-tight text-gray-500 font-bold mb-1">Next Due Date</p>
+<p class="text-lg font-bold text-gray-900">01 Aug 2024</p>
+<p class="text-[10px] text-red-600 font-bold mt-1">IN 20 DAYS</p>
+</div>
+</section>
+<!-- END: KPI Cards Section -->
+<!-- BEGIN: Residency Details Card -->
+<section class="bg-white rounded-2xl border border-orange-50 p-5 shadow-sm space-y-5" data-purpose="residency-context">
+<div class="flex justify-between items-start border-b border-orange-50 pb-4">
+<div>
+<h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Residency</h3>
+<div class="space-y-1.5">
+<div class="flex items-baseline gap-4">
+<span class="text-sm text-gray-500 w-24">Property</span>
+<span class="text-sm font-bold text-gray-900">Sunshine Heights PG</span>
+</div>
+<div class="flex items-baseline gap-4">
+<span class="text-sm text-gray-500 w-24">Room &amp; Bed</span>
+<span class="text-sm font-bold text-gray-900">Floor 01 • Room 102 • Bed A</span>
+</div>
+<div class="flex items-baseline gap-4">
+<span class="text-sm text-gray-500 w-24">Status</span>
+<span class="px-2 py-0.5 rounded bg-green-50 text-green-700 text-[10px] font-bold">PAID</span>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-3 pt-2">
+<h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Contact</h3>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-gray-50 rounded-lg text-gray-500">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+</div>
+<span class="text-sm font-medium text-gray-800">+91 98765 43210</span>
+</div>
+<svg fill="#25D366" height="20" viewBox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"></path></svg>
+</div>
+<div class="flex items-center gap-3">
+<div class="p-2 bg-gray-50 rounded-lg text-gray-500">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="16" xmlns="http://www.w3.org/2000/svg"><rect height="16" rx="2" width="20" x="2" y="4"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+</div>
+<span class="text-sm font-medium text-gray-800">amara.o@techtree.co</span>
+</div>
+</div>
+</section>
+<!-- END: Residency Details Card -->
+<!-- BEGIN: Active Agreement Section -->
+<section class="bg-white rounded-2xl border border-orange-50 p-5 shadow-sm space-y-4" data-purpose="active-agreement">
+<h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Agreement</h3>
+<div class="space-y-2">
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">ID</span>
+<span class="font-bold text-gray-900">AGR-2023-102A</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">Period</span>
+<span class="font-bold text-gray-900">12 Oct '23 – 11 Oct '24</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">Notice Period</span>
+<span class="font-bold text-gray-900">30 Days</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-gray-500">Monthly Rent</span>
+<span class="font-bold text-gray-900">₹24,500</span>
+</div>
+</div>
+<button class="w-full py-3 mt-2 border border-orange-200 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-primary">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>
+        Download Agreement PDF
+      </button>
+</section>
+<!-- END: Active Agreement Section -->
+<!-- BEGIN: Rent Payment History Section -->
+<section class="space-y-4" data-purpose="payment-history">
+<div class="flex items-center justify-between">
+<h3 class="serif-heading text-xl text-gray-900">Rent Payment History</h3>
+<div class="flex gap-2">
+<button class="p-2 bg-white rounded-lg border border-orange-50 shadow-sm text-gray-600">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18"></path><path d="M7 12h10"></path><path d="M10 18h4"></path></svg>
+</button>
+<button class="p-2 bg-white rounded-lg border border-orange-50 shadow-sm text-gray-600">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>
+</button>
+</div>
+</div>
+<!-- Payment Rows -->
+<div class="space-y-3">
+<!-- Item 1 -->
+<div class="bg-white p-4 rounded-2xl border border-orange-50 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center justify-center bg-orange-50 rounded-lg h-12 w-12 text-primary font-bold">
+<span class="text-[10px] leading-none">JUL</span>
+<span class="text-sm">24</span>
+</div>
+<div>
+<p class="text-sm font-bold text-gray-900">₹24,500</p>
+<p class="text-xs text-gray-500">UPI (HDFC) • 01 Jul</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[10px] font-bold text-primary mb-1">#REC-73104</p>
+<span class="px-2 py-0.5 rounded bg-green-50 text-green-700 text-[10px] font-bold">PAID</span>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-white p-4 rounded-2xl border border-orange-50 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center justify-center bg-orange-50 rounded-lg h-12 w-12 text-primary font-bold">
+<span class="text-[10px] leading-none">JUN</span>
+<span class="text-sm">24</span>
+</div>
+<div>
+<p class="text-sm font-bold text-gray-900">₹24,500</p>
+<p class="text-xs text-gray-500">UPI (GPay) • 01 Jun</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[10px] font-bold text-primary mb-1">#REC-62155</p>
+<span class="px-2 py-0.5 rounded bg-green-50 text-green-700 text-[10px] font-bold">PAID</span>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="bg-white p-4 rounded-2xl border border-orange-50 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-center justify-center bg-orange-50 rounded-lg h-12 w-12 text-primary font-bold">
+<span class="text-[10px] leading-none">MAY</span>
+<span class="text-sm">24</span>
+</div>
+<div>
+<p class="text-sm font-bold text-gray-900">₹24,500</p>
+<p class="text-xs text-gray-500">UPI (PhonePe) • 01 May</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[10px] font-bold text-primary mb-1">#REC-59210</p>
+<span class="px-2 py-0.5 rounded bg-green-50 text-green-700 text-[10px] font-bold">PAID</span>
+</div>
+</div>
+</div>
+<button class="w-full text-center py-2 text-sm font-bold text-primary flex items-center justify-center gap-2">
+        View All Transactions
+        <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+</button>
+</section>
+<!-- END: Rent Payment History Section -->
+<!-- BEGIN: Tenant Timeline Section -->
+<section class="space-y-4" data-purpose="tenant-timeline">
+<h3 class="serif-heading text-xl text-gray-900">Tenant Timeline</h3>
+<div class="bg-white rounded-2xl border border-orange-50 p-6 shadow-sm overflow-hidden">
+<div class="flex justify-between items-start relative pb-4">
+<!-- Connector Lines -->
+<div class="absolute top-[18px] left-[15%] w-[70%] h-0.5 bg-gray-200 -z-0"></div>
+<div class="absolute top-[18px] left-[15%] w-[35%] h-0.5 bg-blue-500 -z-0"></div>
+<div class="absolute top-[18px] left-[50%] w-[10%] h-0.5 bg-green-500 -z-0"></div>
+<!-- Timeline Step 1 -->
+<div class="flex flex-col items-center z-10 w-1/4">
+<div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-blue-100">
+<svg class="text-blue-600" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" width="14" xmlns="http://www.w3.org/2000/svg"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+</div>
+<p class="mt-2 text-[10px] font-bold text-gray-900">Booked</p>
+<p class="text-[9px] text-gray-400">05 Oct '23</p>
+</div>
+<!-- Timeline Step 2 -->
+<div class="flex flex-col items-center z-10 w-1/4">
+<div class="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-green-100">
+<svg class="text-green-600" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+<p class="mt-2 text-[10px] font-bold text-gray-900">Checked In</p>
+<p class="text-[9px] text-gray-400">12 Oct '23</p>
+</div>
+<!-- Timeline Step 3 -->
+<div class="flex flex-col items-center z-10 w-1/4">
+<div class="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-orange-100">
+<svg class="text-primary" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path><path d="M10 9H8"></path></svg>
+</div>
+<p class="mt-2 text-[10px] font-bold text-gray-900">Notice Logged</p>
+<p class="text-[9px] text-gray-400">10 Jul '24</p>
+</div>
+<!-- Timeline Step 4 -->
+<div class="flex flex-col items-center z-10 w-1/4">
+<div class="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-gray-100 opacity-50">
+<svg class="text-gray-400" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" width="14" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg>
+</div>
+<p class="mt-2 text-[10px] font-bold text-gray-300">Past Tenant</p>
+<p class="text-[9px] text-gray-300">10 Aug '24</p>
+</div>
+</div>
+<!-- Summary Stats below timeline for mobile clarity -->
+<div class="grid grid-cols-2 gap-4 pt-4 border-t border-orange-50 mt-2">
+<div>
+<p class="text-[10px] text-gray-400 uppercase font-bold">Advance Paid</p>
+<p class="text-sm font-bold text-gray-900">₹5,000</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase font-bold">Vacating on</p>
+<p class="text-sm font-bold text-red-600">10 Aug 2024</p>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Tenant Timeline Section -->
+<!-- BEGIN: KYC Documents Section -->
+<section class="space-y-4" data-purpose="kyc-documents">
+<div class="flex items-center justify-between">
+<h3 class="serif-heading text-xl text-gray-900">KYC Documents</h3>
+<button class="text-xs font-bold text-primary uppercase">Manage</button>
+</div>
+<div class="space-y-3">
+<div class="p-4 bg-white rounded-2xl border border-orange-50 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="p-3 bg-gray-50 rounded-xl">
+<svg class="text-gray-500" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><rect height="18" rx="2" width="18" x="3" y="3"></rect><path d="M7 21v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path><circle cx="12" cy="11" r="3"></circle></svg>
+</div>
+<div>
+<p class="text-sm font-bold text-gray-900">Aadhar Card</p>
+<p class="text-[10px] text-gray-400">Verified on Oct 12, 2023</p>
+</div>
+</div>
+<div class="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
+<svg class="text-green-600" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+</div>
+<div class="p-4 bg-white rounded-2xl border border-orange-50 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="p-3 bg-gray-50 rounded-xl">
+<svg class="text-gray-500" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><rect height="18" rx="2" width="18" x="3" y="3"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+</div>
+<div>
+<p class="text-sm font-bold text-gray-900">Company ID</p>
+<p class="text-[10px] text-gray-400">Verified on Oct 14, 2023</p>
+</div>
+</div>
+<div class="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
+<svg class="text-green-600" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+</div>
+</div>
+</section>
+<!-- END: KYC Documents Section -->
+</main>
+<!-- BEGIN: Bottom Navigation -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-orange-100 px-6 py-3 flex items-center justify-between z-50">
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+<span class="text-[10px] font-bold">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0V7m6 0v1a3 3 0 0 0 6 0V7m-6 0h6M9 7h6M9 7V6a3 3 0 1 1 6 0v1m-6 0H3m2 14V11m14 10V11"></path></svg>
+<span class="text-[10px] font-bold">Properties</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><rect height="14" rx="2" width="20" x="2" y="5"></rect><line x1="2" x2="22" y1="10" y2="10"></line></svg>
+<span class="text-[10px] font-bold">Payments</span>
+</button>
+<button class="flex flex-col items-center gap-1 nav-active">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+<span class="text-[10px] font-bold">Profile</span>
+</button>
+</nav>
+<!-- END: Bottom Navigation -->
+</body></html>

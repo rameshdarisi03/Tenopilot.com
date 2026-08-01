@@ -1,0 +1,320 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TenoPilot | Welcome Home</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet">
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#fedcc7",
+                        "tertiary-fixed-dim": "#cdc991",
+                        "inverse-surface": "#362f2c",
+                        "surface-tint": "#99460a",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#ffdbca",
+                        "on-error": "#ffffff",
+                        "background": "#fff8f6",
+                        "secondary-fixed-dim": "#e1c0ac",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#29170b",
+                        "on-primary-fixed-variant": "#773300",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed": "#eae5ab",
+                        "inverse-primary": "#ffb68e",
+                        "surface": "#fff8f6",
+                        "surface-dim": "#e4d8d2",
+                        "surface-bright": "#fff8f6",
+                        "surface-variant": "#ede0db",
+                        "primary": "#c2652a", /* Updated to signature Sahara Refined accent */
+                        "surface-container-high": "#f2e6e0",
+                        "primary-container": "#c2652a", /* Matches primary accent */
+                        "critical-red": "#ba1a1a",
+                        "border-sand": "#d7c2b9",
+                        "on-primary-fixed": "#331200",
+                        "inverse-on-surface": "#fbeee9",
+                        "outline": "#887368",
+                        "on-tertiary-fixed": "#1e1c00",
+                        "on-primary-container": "#fffbff",
+                        "success-emerald": "#059669",
+                        "surface-container": "#f8ebe6",
+                        "on-background": "#201a17",
+                        "tertiary-container": "#b1ad78",
+                        "on-tertiary-fixed-variant": "#4b481d",
+                        "surface-container-highest": "#ede0db",
+                        "secondary-container": "#fbd9c4",
+                        "surface-warm": "#f8ede3",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#636032",
+                        "secondary": "#725949",
+                        "on-secondary-container": "#775d4d",
+                        "primary-fixed-dim": "#ffb68e",
+                        "surface-container-low": "#fef1ec",
+                        "on-tertiary-container": "#434116",
+                        "on-surface-variant": "#554339",
+                        "on-surface": "#201a17",
+                        "on-secondary-fixed-variant": "#594233",
+                        "outline-variant": "#dbc1b5",
+                        "on-error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "lg": "24px",
+                        "margin-mobile": "16px",
+                        "gutter": "24px",
+                        "unit": "4px",
+                        "container-max": "1440px",
+                        "xl": "40px",
+                        "sm": "8px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Manrope"],
+                        "tabular-nums": ["Manrope"],
+                        "display": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "body-md": ["Manrope"],
+                        "headline-md": ["Playfair Display"],
+                        "title-lg": ["Manrope"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "label-md": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .bento-glow:hover {
+            box-shadow: 0 12px 32px -10px rgba(194, 101, 42, 0.2);
+        }
+        .text-glow {
+            text-shadow: 0 0 20px rgba(194, 101, 42, 0.1);
+        }
+        .luxury-gradient {
+            background: linear-gradient(135deg, #c2652a 0%, #964407 100%);
+        }
+        .image-overlay {
+            background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 100%);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-lg antialiased">
+<!-- Minimal Top Navigation -->
+<header class="bg-surface/90 backdrop-blur-md border-b border-outline-variant/30 sticky top-0 z-50">
+<div class="flex justify-between items-center h-20 w-full max-w-container-max mx-auto px-xl">
+<!-- Brand -->
+<div class="flex items-center gap-md">
+<span class="font-display text-headline-md font-bold text-primary">TenoPilot.com</span>
+</div>
+<!-- Profile Actions -->
+<div class="flex items-center gap-lg">
+<button class="relative cursor-pointer hover:bg-surface-container-low p-2 rounded-full transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-critical-red rounded-full ring-2 ring-surface"></span>
+</button>
+<div class="flex items-center gap-md cursor-pointer group px-2 py-1 rounded-full hover:bg-surface-container-low transition-all">
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of Alex Stratton" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAI3Kq-Xzuy4gbp2JHqdSZQijmSkBxDjKAwL-dgGEzpIdqe6XdxHwRtWdF1WBV0RUVTQf_D7XTJXFv8NwT-I8f_QIJACPAyJDzED3htqp5sqY5trdeA9388_ULnDjtrZ84UzXUJlfZeA-G54M_YAsgSmTDPsmu3x2ZZvY_v_O4CX8JeUFm_tRdO_2OIR9gyBbG1uvpFXgfpryffip83FSaat-fLVwvq-2BmJ17b1RNtTELJP66IrZDcrA">
+</div>
+<div class="hidden lg:flex flex-col">
+<span class="font-label-md text-label-md text-on-surface font-bold tracking-wide">ALEX STRATTON</span>
+<span class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Principal Manager</span>
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-container-max mx-auto px-xl py-xl space-y-xl">
+<!-- Sophisticated Greeting Section -->
+<section class="py-xl max-w-4xl">
+<span class="font-label-md text-primary tracking-[0.2em] uppercase mb-4 block">Welcome Home</span>
+<h1 class="font-display text-display text-on-surface mb-4">Good morning, Alex. Your portfolio is calling.</h1>
+<p class="font-body-lg text-headline-md text-on-surface-variant opacity-80 leading-relaxed font-normal">4 properties require attention today. Jump in to streamline your collections and occupancy.</p>
+</section>
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter">
+<!-- View All Properties Card -->
+<div class="group relative luxury-gradient text-white rounded-xl p-lg flex flex-col justify-between overflow-hidden shadow-xl bento-glow transition-all duration-500 min-h-[400px]">
+<div class="relative z-10 space-y-md">
+<div class="w-14 h-14 bg-white/10 rounded-lg flex items-center justify-center backdrop-blur-md">
+<span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">domain</span>
+</div>
+<h3 class="font-display text-headline-lg">View All Properties</h3>
+<p class="font-body-md text-body-lg opacity-90 leading-relaxed">Manage all active properties and aggregated financial metrics across your entire estate.</p>
+</div>
+<div class="mt-xl relative z-10">
+<button class="w-full bg-white text-primary font-title-lg py-4 rounded-full hover:bg-surface-warm transition-all duration-300 flex items-center justify-center gap-3 shadow-lg group-hover:scale-[1.02]">
+                    View Portfolio Dashboard
+                    <span class="material-symbols-outlined font-bold">arrow_forward</span>
+</button>
+</div>
+<!-- Decorative Element -->
+<div class="absolute -right-12 -bottom-12 opacity-10 transform group-hover:rotate-12 transition-transform duration-1000">
+<span class="material-symbols-outlined text-[240px]">corporate_fare</span>
+</div>
+</div>
+<!-- Property Card 1: The Sands Residences -->
+<div class="group bg-white border border-sand rounded-xl overflow-hidden shadow-sm bento-glow transition-all duration-500 hover:-translate-y-1">
+<div class="h-64 w-full relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" data-alt="The Sands Residences" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRh4WPVYoLf2QYW5pJgNQLt4mxPtNbxMsJapEfjmYH43wC-XJ2jxbymDbopBi4nzNkLkwve3fklO4INHzHKr3Suzv2wDtbMFVfOGVGxTD3U7vg02OErRrs4LmF5nYfCXM056dkr2ot65NS53u61ff34DA_USerg2Ugp0xVUTACTgbi0I5oqB5Ap90klEYOC4BSEQZufAD3hQZdF4Pmm2GOJMgmR0e9VzhpIZxuPKh6zatwi-VkNmzvow">
+<div class="absolute inset-0 image-overlay opacity-60"></div>
+<div class="absolute top-4 right-4 bg-success-emerald/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-widest">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+                    HEALTHY
+                </div>
+<div class="absolute bottom-4 left-4 text-white">
+<p class="font-label-md opacity-80 uppercase tracking-widest text-[10px]">Scottsdale, AZ</p>
+<h4 class="font-display text-headline-md">The Sands Residences</h4>
+</div>
+</div>
+<div class="p-lg space-y-lg">
+<div class="grid grid-cols-2 gap-4 py-2">
+<div class="flex flex-col gap-1">
+<span class="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Occupancy</span>
+<span class="font-tabular-nums text-headline-md text-primary font-bold">98.5%</span>
+</div>
+<div class="flex flex-col gap-1 items-end">
+<span class="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest font-bold text-right">Rent Collection</span>
+<span class="font-tabular-nums text-headline-md text-success-emerald font-bold">100%</span>
+</div>
+</div>
+<button class="w-full border border-outline text-on-surface font-title-lg py-3 rounded-full hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 flex items-center justify-center gap-2 group/btn">
+                    View Dashboard
+                    <span class="material-symbols-outlined transition-transform group-hover/btn:translate-x-1">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Property Card 2: Meridian Lofts -->
+<div class="group bg-white border border-sand rounded-xl overflow-hidden shadow-sm bento-glow transition-all duration-500 hover:-translate-y-1">
+<div class="h-64 w-full relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" data-alt="Meridian Lofts" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdYJvw1XvJmizMUiLGBKO59mDtXrOL63UzOgO_jfuUhWw1gtFKXk8b5n1-7QUVqF8-oyxMDHtxYHQbGA3geBtLUR5JNICiGIRgs6MpHc8mnwU1vUrBR4q0fLn79SbllW3k0wJz6zpiD6qsg_atz6hlTfQEM6odwxlLK4M7a5j-7gT2wZEtj4jGgnayEqEH3KgBPD5RV1z3zRbiNSTTANU5Jcv71Y_3qRLSYZ2VnzBHPXaHl7nj5tQ4xQ">
+<div class="absolute inset-0 image-overlay opacity-60"></div>
+<div class="absolute top-4 right-4 bg-primary/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-widest">
+<span class="material-symbols-outlined text-[14px]">pending_actions</span>
+                    3 TASKS
+                </div>
+<div class="absolute bottom-4 left-4 text-white">
+<p class="font-label-md opacity-80 uppercase tracking-widest text-[10px]">Phoenix, AZ</p>
+<h4 class="font-display text-headline-md">Meridian Lofts</h4>
+</div>
+</div>
+<div class="p-lg space-y-lg">
+<div class="grid grid-cols-2 gap-4 py-2">
+<div class="flex flex-col gap-1">
+<span class="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Occupancy</span>
+<span class="font-tabular-nums text-headline-md text-primary font-bold">92.0%</span>
+</div>
+<div class="flex flex-col gap-1 items-end">
+<span class="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest font-bold text-right">Rent Collection</span>
+<span class="font-tabular-nums text-headline-md text-primary font-bold">94%</span>
+</div>
+</div>
+<button class="w-full border border-outline text-on-surface font-title-lg py-3 rounded-full hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 flex items-center justify-center gap-2 group/btn">
+                    View Dashboard
+                    <span class="material-symbols-outlined transition-transform group-hover/btn:translate-x-1">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Property Card 3: Copper Crest Estate -->
+<div class="group bg-white border border-sand rounded-xl overflow-hidden shadow-sm bento-glow transition-all duration-500 hover:-translate-y-1">
+<div class="h-64 w-full relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" data-alt="Copper Crest Estate" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1fVVuIkCF4sdO0MtxIQa1Kow--sI8a4Zqk1jePQXQCHEE_vJRNdv_1R1R8Rc1ar5Ozzq6oKWJZNRq-4umPA4ugcfTewJdQQvHGL7ROel_rZMgk4ZO0OtSIVy_HAmp2IotxS4ofShQD-rYoOLrz7PtyUUCJKcwirjQdT9Bwzoph8QV0OtLliAKuWtKqwmG3QnF_b99yVq2nHM2NRdrYvxGnIR2pRmdt3KCMuwR0q00VCo1BoXWlNcQ7Q">
+<div class="absolute inset-0 image-overlay opacity-60"></div>
+<div class="absolute top-4 right-4 bg-success-emerald/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 tracking-widest">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+                    HEALTHY
+                </div>
+<div class="absolute bottom-4 left-4 text-white">
+<p class="font-label-md opacity-80 uppercase tracking-widest text-[10px]">Paradise Valley, AZ</p>
+<h4 class="font-display text-headline-md">Copper Crest Estate</h4>
+</div>
+</div>
+<div class="p-lg space-y-lg">
+<div class="grid grid-cols-2 gap-4 py-2">
+<div class="flex flex-col gap-1">
+<span class="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Occupancy</span>
+<span class="font-tabular-nums text-headline-md text-primary font-bold">100%</span>
+</div>
+<div class="flex flex-col gap-1 items-end">
+<span class="font-label-md text-[10px] text-on-surface-variant uppercase tracking-widest font-bold text-right">Rent Collection</span>
+<span class="font-tabular-nums text-headline-md text-success-emerald font-bold">100%</span>
+</div>
+</div>
+<button class="w-full border border-outline text-on-surface font-title-lg py-3 rounded-full hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 flex items-center justify-center gap-2 group/btn">
+                    View Dashboard
+                    <span class="material-symbols-outlined transition-transform group-hover/btn:translate-x-1">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Add New Property Card -->
+<button class="group border-2 border-dashed border-outline-variant/50 rounded-xl flex flex-col items-center justify-center p-xl hover:border-primary hover:bg-surface-container-low transition-all duration-500 min-h-[400px]">
+<div class="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center mb-6 group-hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-5xl text-outline-variant group-hover:text-primary transition-all duration-300 transform group-hover:rotate-90">add</span>
+</div>
+<span class="font-display text-headline-md text-on-surface-variant group-hover:text-primary transition-colors">Add New Property</span>
+<p class="font-body-md text-on-surface-variant/60 mt-2">Expand your portfolio</p>
+</button>
+</div>
+</main>
+<!-- Bottom Navigation for Tablet/Mobile -->
+<nav class="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white/80 backdrop-blur-xl border border-sand shadow-2xl rounded-full px-6 py-3 flex gap-8 items-center">
+<a class="flex flex-col items-center justify-center text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">domain</span>
+<span class="font-label-md text-[10px] uppercase font-bold tracking-tighter">Portfolio</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-[10px] uppercase font-bold tracking-tighter">Analytics</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-md text-[10px] uppercase font-bold tracking-tighter">Docs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-[10px] uppercase font-bold tracking-tighter">Settings</span>
+</a>
+</nav>
+<script>
+    // Micro-interaction for bento hover glow effect
+    document.querySelectorAll('.bento-glow').forEach(card => {
+        card.addEventListener('mousemove', e => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            card.style.setProperty('--mouse-x', `${x}px`);
+            card.style.setProperty('--mouse-y', `${y}px`);
+        });
+    });
+</script>
+</body></html>

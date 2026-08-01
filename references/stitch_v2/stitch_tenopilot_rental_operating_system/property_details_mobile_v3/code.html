@@ -1,0 +1,377 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#e1c0ac",
+                        "secondary": "#725949",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#331200",
+                        "surface-tint": "#99460a",
+                        "surface-bright": "#fff8f6",
+                        "primary-container": "#b65c21",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#ede0db",
+                        "surface-container-highest": "#ede0db",
+                        "surface-container-high": "#f2e6e0",
+                        "surface-dim": "#e4d8d2",
+                        "outline": "#887368",
+                        "primary-fixed-dim": "#ffb68e",
+                        "primary": "#964407",
+                        "critical-red": "#ba1a1a",
+                        "success-emerald": "#059669",
+                        "secondary-container": "#fbd9c4",
+                        "surface-container": "#f8ebe6",
+                        "on-error-container": "#93000a",
+                        "on-surface-variant": "#554339",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#ffdbca",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#fedcc7",
+                        "inverse-surface": "#362f2c",
+                        "tertiary": "#636032",
+                        "on-secondary-fixed": "#29170b",
+                        "surface-container-low": "#fef1ec",
+                        "surface": "#fff8f6",
+                        "on-primary-fixed-variant": "#773300",
+                        "tertiary-container": "#b1ad78",
+                        "on-tertiary-fixed": "#1e1c00",
+                        "on-surface": "#201a17",
+                        "on-tertiary-container": "#434116",
+                        "inverse-on-surface": "#fbeee9",
+                        "on-tertiary-fixed-variant": "#4b481d",
+                        "tertiary-fixed-dim": "#cdc991",
+                        "background": "#fff8f6",
+                        "tertiary-fixed": "#eae5ab",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#201a17",
+                        "error": "#ba1a1a",
+                        "inverse-primary": "#ffb68e",
+                        "on-primary-container": "#fffbff",
+                        "surface-warm": "#f8ede3",
+                        "outline-variant": "#dbc1b5",
+                        "on-secondary-container": "#775d4d",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed-variant": "#594233",
+                        "border-sand": "#d7c2b9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "xs": "4px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "margin-mobile": "16px",
+                        "gutter": "24px",
+                        "unit": "4px",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "title-lg": ["Manrope"],
+                        "label-md": ["Manrope"],
+                        "headline-md": ["Playfair Display"],
+                        "body-md": ["Manrope"],
+                        "tabular-nums": ["Manrope"],
+                        "body-lg": ["Manrope"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "headline-lg": ["Playfair Display"],
+                        "display": ["Playfair Display"]
+                    },
+                    "fontSize": {
+                        "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .bento-glow:hover {
+            box-shadow: 0 12px 24px -10px rgba(194, 101, 42, 0.15);
+        }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        .circular-chart { display: block; margin: 10px auto; max-width: 80%; max-height: 250px; }
+        .circle-bg { fill: none; stroke: #eee; stroke-width: 3.8; }
+        .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; transition: stroke-dasharray 0.3s ease; }
+        .status-pill { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .status-pill.active { transform: scale(1.05); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md selection:bg-primary-container selection:text-white">
+<!-- Top App Bar -->
+<header class="sticky top-0 w-full z-50 bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-md border-b border-outline-variant/30 h-16">
+<div class="flex items-center justify-between px-margin-mobile h-full max-w-container-max mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">apartment</span>
+<div class="flex flex-col">
+<h1 class="font-display text-headline-md text-primary leading-tight">Sunshine PG</h1>
+<span class="text-label-md font-label-md text-on-surface-variant flex items-center gap-1">
+                        Sunshine Heights <span class="material-symbols-outlined text-[14px]">expand_more</span>
+</span>
+</div>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors active:opacity-70">
+<span class="material-symbols-outlined text-primary">swap_vert</span>
+</button>
+</div>
+</header>
+<main class="max-w-container-max mx-auto px-margin-mobile pb-32 pt-6">
+<!-- Occupancy Overview Section -->
+<section class="mb-lg">
+<div class="bg-surface-container-lowest rounded-xl border border-border-sand p-6 bento-glow transition-all">
+<div class="flex flex-col items-center">
+<h2 class="font-title-lg text-title-lg text-on-surface mb-xs">Live Occupancy</h2>
+<p class="text-body-md text-on-surface-variant mb-lg text-center">Tower A &amp; B combined status</p>
+<div class="relative w-48 h-48 mb-lg">
+<svg class="circular-chart" viewBox="0 0 36 36">
+<!-- Occupied: 50% (Terracotta) -->
+<path class="circle stroke-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-dasharray="50, 100"></path>
+<!-- Available: 25% (Emerald) -->
+<path class="circle stroke-success-emerald" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-dasharray="25, 100" stroke-dashoffset="-50"></path>
+<!-- Booked: 15% (Blue/Secondary) -->
+<path class="circle stroke-secondary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-dasharray="15, 100" stroke-dashoffset="-75"></path>
+<!-- Vacating: 10% (Yellow/Tertiary) -->
+<path class="circle stroke-tertiary-container" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke-dasharray="10, 100" stroke-dashoffset="-90"></path>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-display text-headline-lg-mobile text-primary">82%</span>
+<span class="text-label-md font-label-md text-on-surface-variant uppercase">Full</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 w-full">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-success-emerald"></span>
+<span class="text-body-md">12 Available</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+<span class="text-body-md">48 Occupied</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+<span class="text-body-md">8 Booked</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary-container"></span>
+<span class="text-body-md">4 Vacating</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- High Density Navigation & Filters -->
+<section class="mb-lg">
+<div class="flex items-center justify-between mb-md">
+<h3 class="font-title-lg text-title-lg">Floor Navigation</h3>
+<span class="text-label-md font-label-md text-primary bg-primary-container/10 px-2 py-1 rounded">BLOCK A</span>
+</div>
+<div class="overflow-x-auto pb-4 -mx-margin-mobile px-margin-mobile flex gap-2 no-scrollbar">
+<button class="shrink-0 h-10 px-6 rounded-full bg-primary text-white font-label-md">G Floor</button>
+<button class="shrink-0 h-10 px-6 rounded-full bg-surface-container-low text-on-surface-variant font-label-md border border-outline-variant/30">Floor 1</button>
+<button class="shrink-0 h-10 px-6 rounded-full bg-surface-container-low text-on-surface-variant font-label-md border border-outline-variant/30">Floor 2</button>
+<button class="shrink-0 h-10 px-6 rounded-full bg-surface-container-low text-on-surface-variant font-label-md border border-outline-variant/30">Floor 3</button>
+</div>
+<div class="grid grid-cols-2 gap-2 mt-4">
+<button class="status-pill active bg-success-emerald/10 border border-success-emerald/30 p-3 rounded-xl flex items-center justify-between">
+<span class="text-label-md font-label-md text-success-emerald">AVAILABLE</span>
+<span class="font-tabular-nums font-bold text-success-emerald">12</span>
+</button>
+<button class="status-pill bg-surface-container p-3 rounded-xl border border-transparent flex items-center justify-between">
+<span class="text-label-md font-label-md text-on-surface-variant">OCCUPIED</span>
+<span class="font-tabular-nums font-bold text-on-surface-variant">48</span>
+</button>
+<button class="status-pill bg-surface-container p-3 rounded-xl border border-transparent flex items-center justify-between">
+<span class="text-label-md font-label-md text-on-surface-variant">VACATING</span>
+<span class="font-tabular-nums font-bold text-on-surface-variant">4</span>
+</button>
+<button class="status-pill bg-surface-container p-3 rounded-xl border border-transparent flex items-center justify-between">
+<span class="text-label-md font-label-md text-on-surface-variant">BOOKED</span>
+<span class="font-tabular-nums font-bold text-on-surface-variant">8</span>
+</button>
+</div>
+</section>
+<!-- Room Inventory Section -->
+<section class="space-y-4">
+<h3 class="font-title-lg text-title-lg">Ground Floor Units</h3>
+<!-- Room Card 101 -->
+<div class="bg-surface-container-lowest border border-border-sand rounded-xl p-4 overflow-hidden relative">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="font-headline-md text-headline-md text-on-surface">Unit 101</h4>
+<p class="text-body-md text-on-surface-variant">4 Bed Shared · Premium Wing</p>
+</div>
+<div class="p-2 bg-surface-warm rounded-lg">
+<span class="material-symbols-outlined text-primary">sensor_door</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<!-- Bed A - Occupied (Beige/Tan) -->
+<div class="bg-secondary-container/30 border border-secondary-fixed-dim p-3 rounded-lg flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="text-label-md font-bold text-on-secondary-container">BED A</span>
+<span class="material-symbols-outlined text-secondary text-[18px]" style="font-variation-settings: 'FILL' 1;">bed</span>
+</div>
+<div class="flex flex-col">
+<span class="text-body-md font-bold text-on-secondary-fixed-variant">John Doe</span>
+<span class="text-[10px] uppercase font-bold text-secondary/60">OCCUPIED</span>
+</div>
+</div>
+<!-- Bed B - Available (Green) -->
+<div class="bg-success-emerald/5 border border-success-emerald/20 p-3 rounded-lg flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="text-label-md font-bold text-success-emerald">BED B</span>
+<span class="material-symbols-outlined text-success-emerald text-[18px]">bed</span>
+</div>
+<div class="flex flex-col">
+<span class="text-body-md font-bold text-success-emerald">Empty</span>
+<span class="text-[10px] uppercase font-bold text-success-emerald/60">AVAILABLE</span>
+</div>
+</div>
+<!-- Bed C - Booked (Blue/Secondary Brand) -->
+<div class="bg-surface-container-high border border-outline-variant/50 p-3 rounded-lg flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="text-label-md font-bold text-primary">BED C</span>
+<span class="material-symbols-outlined text-primary text-[18px]" style="font-variation-settings: 'FILL' 1;">event_available</span>
+</div>
+<div class="flex flex-col">
+<span class="text-body-md font-bold text-on-surface">Mark Smith</span>
+<span class="text-[10px] uppercase font-bold text-primary/60">BOOKED</span>
+</div>
+</div>
+<!-- Bed D - Vacating (Yellow/Tertiary) -->
+<div class="bg-tertiary-fixed/20 border border-tertiary-fixed-dim p-3 rounded-lg flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="text-label-md font-bold text-on-tertiary-fixed-variant">BED D</span>
+<span class="material-symbols-outlined text-tertiary text-[18px]">exit_to_app</span>
+</div>
+<div class="flex flex-col">
+<span class="text-body-md font-bold text-on-tertiary-fixed-variant">Lee Wang</span>
+<span class="text-[10px] uppercase font-bold text-on-tertiary-fixed-variant/60">VACATING</span>
+</div>
+</div>
+</div>
+<button class="w-full mt-4 py-2 border-t border-outline-variant/30 flex items-center justify-center gap-2 text-primary font-label-md uppercase tracking-wider transition-colors hover:bg-primary/5">
+                    View Details <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+<!-- Room Card 102 (Slightly simplified for high density) -->
+<div class="bg-surface-container-lowest border border-border-sand rounded-xl p-4 bento-glow transition-all">
+<div class="flex justify-between items-center mb-4">
+<h4 class="font-headline-md text-headline-md text-on-surface">Unit 102</h4>
+<span class="text-label-md font-bold text-success-emerald bg-success-emerald/10 px-2 py-0.5 rounded">2/2 AVAIL</span>
+</div>
+<div class="flex gap-3 overflow-hidden">
+<div class="flex-1 bg-success-emerald/5 border border-success-emerald/20 p-3 rounded-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-success-emerald">bed</span>
+<div class="flex flex-col">
+<span class="text-label-md font-bold text-success-emerald">BED A</span>
+<span class="text-body-md">Available</span>
+</div>
+</div>
+<div class="flex-1 bg-success-emerald/5 border border-success-emerald/20 p-3 rounded-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-success-emerald">bed</span>
+<div class="flex flex-col">
+<span class="text-label-md font-bold text-success-emerald">BED B</span>
+<span class="text-body-md">Available</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface dark:bg-surface-dim border-t border-outline-variant/30 shadow-lg h-20 px-2 pb-safe">
+<div class="flex justify-around items-center h-full">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">domain</span>
+<span class="font-label-md text-label-md">Properties</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Payments</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-label-md text-label-md">Notifications</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</div>
+</nav>
+<script>
+        // Micro-interaction for status pills
+        document.querySelectorAll('.status-pill').forEach(pill => {
+            pill.addEventListener('click', function() {
+                document.querySelectorAll('.status-pill').forEach(p => {
+                    p.classList.remove('active', 'bg-success-emerald/10', 'border-success-emerald/30');
+                    p.classList.add('bg-surface-container', 'border-transparent');
+                    const text = p.querySelector('span:first-child');
+                    const count = p.querySelector('span:last-child');
+                    text.classList.replace('text-success-emerald', 'text-on-surface-variant');
+                    count.classList.replace('text-success-emerald', 'text-on-surface-variant');
+                });
+                
+                this.classList.add('active', 'bg-success-emerald/10', 'border-success-emerald/30');
+                this.classList.remove('bg-surface-container', 'border-transparent');
+                const text = this.querySelector('span:first-child');
+                const count = this.querySelector('span:last-child');
+                text.classList.replace('text-on-surface-variant', 'text-success-emerald');
+                count.classList.replace('text-on-surface-variant', 'text-success-emerald');
+            });
+        });
+
+        // Floor Navigation micro-interaction
+        document.querySelectorAll('.shrink-0.h-10').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.shrink-0.h-10').forEach(b => {
+                    b.classList.remove('bg-primary', 'text-white');
+                    b.classList.add('bg-surface-container-low', 'text-on-surface-variant', 'border-outline-variant/30');
+                });
+                this.classList.add('bg-primary', 'text-white');
+                this.classList.remove('bg-surface-container-low', 'text-on-surface-variant', 'border-outline-variant/30');
+            });
+        });
+    </script>
+</body></html>

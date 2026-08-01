@@ -1,0 +1,547 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Rent Collection | TenoPilot Financial Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&amp;family=Manrope:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        /* Custom scrollbar for a premium feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #fff8f6;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d7c2b9;
+            border-radius: 10px;
+        }
+        .glass-header {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#773300",
+                        "on-primary-fixed": "#331200",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#fedcc7",
+                        "primary-fixed-dim": "#ffb68e",
+                        "inverse-primary": "#ffb68e",
+                        "primary-container": "#b65c21",
+                        "tertiary-fixed": "#eae5ab",
+                        "on-surface": "#201a17",
+                        "tertiary-fixed-dim": "#cdc991",
+                        "secondary-fixed-dim": "#e1c0ac",
+                        "tertiary-container": "#b1ad78",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "secondary": "#725949",
+                        "surface-container-highest": "#ede0db",
+                        "outline-variant": "#dbc1b5",
+                        "on-secondary": "#ffffff",
+                        "outline": "#887368",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#636032",
+                        "on-tertiary-fixed": "#1e1c00",
+                        "on-background": "#201a17",
+                        "on-tertiary-fixed-variant": "#4b481d",
+                        "on-error-container": "#93000a",
+                        "surface-variant": "#ede0db",
+                        "critical-red": "#ba1a1a",
+                        "background": "#fff8f6",
+                        "on-tertiary-container": "#434116",
+                        "on-secondary-fixed": "#29180b",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#554339",
+                        "surface-bright": "#fff8f6",
+                        "secondary-container": "#fedcc7",
+                        "surface-dim": "#e4d8d2",
+                        "surface-container-low": "#fef1ec",
+                        "success-emerald": "#059669",
+                        "error": "#ba1a1a",
+                        "surface-container": "#f8ebe6",
+                        "primary-fixed": "#ffdbca",
+                        "border-sand": "#d7c2b9",
+                        "surface-container-high": "#f2e6e0",
+                        "surface": "#fff8f6",
+                        "on-secondary-fixed-variant": "#594233",
+                        "inverse-on-surface": "#fbeee9",
+                        "surface-tint": "#99460a",
+                        "primary": "#964407",
+                        "surface-warm": "#f8ede3",
+                        "inverse-surface": "#362f2c",
+                        "on-secondary-container": "#795f4f",
+                        "on-primary-container": "#fffbff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "sm": "8px",
+                        "container-max": "1440px",
+                        "xs": "4px",
+                        "unit": "4px",
+                        "lg": "24px",
+                        "margin-mobile": "16px",
+                        "md": "16px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Manrope"],
+                        "title-lg": ["Manrope"],
+                        "tabular-nums": ["Manrope"],
+                        "body-lg": ["Manrope"],
+                        "headline-lg": ["Playfair Display"],
+                        "display": ["Playfair Display"],
+                        "label-md": ["Manrope"],
+                        "headline-md": ["Playfair Display"],
+                        "headline-lg-mobile": ["Playfair Display"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-secondary-fixed">
+<!-- Sidebar Navigation Shell -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-surface border-r border-border-sand flex flex-col z-[60]">
+<!-- Brand Header -->
+<div class="p-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined fill-icon">domain</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary font-bold leading-none">TenoPilot</h1>
+<p class="font-label-md text-label-md text-on-surface-variant tracking-wider">BUSINESS OS</p>
+</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg group" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-primary">dashboard</span>
+<span class="font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg group" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-primary">domain</span>
+<span class="font-body-md">Properties</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low transition-colors py-3 px-4 rounded-lg group" href="#">
+<span class="material-symbols-outlined text-outline group-hover:text-primary">group</span>
+<span class="font-body-md">Tenants</span>
+</a>
+<a class="flex items-center gap-3 bg-surface-warm text-primary border-r-4 border-primary py-3 px-4 rounded-l-lg" href="#">
+<span class="material-symbols-outlined fill-icon">payments</span>
+<span class="font-body-md font-bold">Financial Hub</span>
+</a>
+</nav>
+<!-- Sidebar Footer -->
+<div class="p-4 border-t border-border-sand">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low py-3 px-4 rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-low py-3 px-4 rounded-lg" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-body-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 left-64 right-0 z-50 glass-header bg-surface/80 border-b border-border-sand">
+<div class="max-w-[1440px] mx-auto px-8 py-4 flex justify-between items-center">
+<div class="flex items-center gap-8">
+<h2 class="font-headline-md text-headline-md text-primary">Financial Hub</h2>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors pb-2" href="#">Operations</a>
+<a class="font-label-md text-primary font-bold border-b-2 border-primary pb-2" href="#">Rent Collection</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors pb-2" href="#">Expenses</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors pb-2" href="#">Security Deposits</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors pb-2" href="#">Transactions</a>
+<a class="font-label-md text-on-surface-variant hover:text-primary transition-colors pb-2" href="#">Reports</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-surface-container-high border border-border-sand overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a mature woman with a warm, confident expression. She has short, styled silver hair and is wearing a sophisticated beige linen blazer. The lighting is soft and natural, with a blurred office background in warm earthy tones consistent with a Sahara-inspired palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8rR-2-Zrh0WcFqJPuMGjlOUqsBHiKl0ynSi--vF9cG6ET075mglDZ5WECcENT4em2yb-ZaUnyUTCxrjAJ2LEx101ZszYcOBSW44Ft5ipnZJ1JiUfF9ob3cPwsN5394WlZUNYje3oBZGhcpszA3uLaQ1YwNivKevawj5PJe9VCK1fNNTLrMw30un1ZAJGS8C4OEQKojOYbOY8XkOVgZqq0Y8I3M7XKC3G7sTvh1KAGgSn7keupn2D5bw">
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 pb-xl px-8 max-w-[1440px]">
+<!-- Summary Banner -->
+<section class="mb-10">
+<div class="bg-primary text-on-primary rounded-xl p-8 flex flex-col md:flex-row justify-between items-center shadow-lg relative overflow-hidden">
+<div class="z-10">
+<p class="font-label-md text-secondary-fixed tracking-widest uppercase mb-2">Collection Overview</p>
+<h3 class="font-headline-lg text-headline-lg">₹1,15,000 Pending across 12 Tenants</h3>
+</div>
+<div class="mt-6 md:mt-0 z-10">
+<button class="bg-surface-container-lowest text-primary px-6 py-3 rounded-full font-bold font-body-md hover:bg-surface-warm transition-all flex items-center gap-2">
+<span class="material-symbols-outlined">send</span>
+                        Send Bulk Reminders
+                    </button>
+</div>
+<!-- Subtle decorative background element -->
+<div class="absolute -right-20 -bottom-20 w-64 h-64 bg-on-primary-fixed-variant opacity-10 rounded-full blur-3xl"></div>
+</div>
+</section>
+<!-- Filters and Search -->
+<section class="mb-8 flex flex-col md:flex-row gap-4 items-end justify-between">
+<div class="flex gap-4 items-end flex-wrap">
+<div class="flex flex-col gap-2">
+<label class="font-label-md text-on-surface-variant px-1">Property</label>
+<select class="bg-surface-container-low border border-border-sand rounded-lg px-4 py-2.5 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none min-w-[200px]">
+<option>All Properties</option>
+<option>Sunshine Heights</option>
+<option>The Sahara Residency</option>
+<option>Oasis Apartment</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-md text-on-surface-variant px-1">Month</label>
+<select class="bg-surface-container-low border border-border-sand rounded-lg px-4 py-2.5 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none min-w-[150px]">
+<option>October 2023</option>
+<option>September 2023</option>
+<option>August 2023</option>
+</select>
+</div>
+</div>
+<div class="w-full md:w-1/3 relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-3 pl-12 pr-6 font-body-md focus:ring-2 focus:ring-primary/20 text-on-surface placeholder:text-outline" placeholder="Search by name, room or phone..." type="text">
+</div>
+</section>
+<!-- Pending Rent Section -->
+<section class="mb-12">
+<div class="flex items-center justify-between mb-6">
+<h4 class="font-headline-md text-headline-md text-on-surface">Pending Rent <span class="text-critical-red font-body-md font-normal ml-2">(12 Items)</span></h4>
+<a class="text-primary font-label-md hover:underline" href="#">VIEW ALL PENDING</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1: Arjun Sharma -->
+<div class="bg-surface border-t-2 border-primary rounded-xl p-6 border-x border-b border-border-sand hover:shadow-xl transition-all duration-300 group">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full overflow-hidden bg-surface-container-high ring-2 ring-surface ring-offset-2">
+<img class="w-full h-full object-cover" data-alt="A portrait of a young South Asian man named Arjun, wearing a casual navy polo shirt. He has a friendly smile and is posed against a warm, sun-drenched architectural background with clean lines and sand-colored stone. The image reflects a high-end residential setting with soft, natural lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAs9Gl_j9WII-prory5RtTRqyO7lpvg1vCV3ANy290h4vl0vGMrZR19is6-nWptop_lHJ0EQFBudBy7dNX-5QydNoH6N3yVxnGWUaorgzO7erpkgAcE6jjxNp7VnTlWUGZ9CFehgWcHnalifSDUJz0DU5zAg1TN1-e7fx4r5AdO82LLrVyFBFg0rUPKZhoxxko8cTsl_F6tjaJZtRNhzx8-fCPInhMojysKUGT_kYZ3IEPZg-GYamGECw">
+</div>
+<div>
+<h5 class="font-title-lg text-title-lg text-on-surface leading-tight">Arjun Sharma</h5>
+<p class="text-on-surface-variant font-body-md">Sunshine Heights</p>
+</div>
+</div>
+<span class="bg-error-container text-on-error-container px-3 py-1 rounded-full font-label-md">Pending</span>
+</div>
+<div class="space-y-3 mb-6">
+<div class="flex items-center gap-3 text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[20px]">meeting_room</span>
+<span class="font-body-md">Room 402 / Bed A</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[20px]">payments</span>
+<span class="font-headline-md text-primary">₹12,500 <span class="text-on-surface-variant font-body-md font-normal">Due</span></span>
+</div>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[20px]">calendar_today</span>
+<span class="font-body-md">Due Date: <span class="font-bold text-on-surface">10 Oct</span></span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 pt-4 border-t border-border-sand">
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-primary group-hover/btn:scale-110 transition-transform">currency_rupee</span>
+<span class="font-label-md text-on-surface-variant">Collect</span>
+</button>
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-success-emerald group-hover/btn:scale-110 transition-transform">chat</span>
+<span class="font-label-md text-on-surface-variant">Reminder</span>
+</button>
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-secondary group-hover/btn:scale-110 transition-transform">call</span>
+<span class="font-label-md text-on-surface-variant">Call</span>
+</button>
+</div>
+</div>
+<!-- Card 2: Sarah Khan -->
+<div class="bg-surface border-t-2 border-primary rounded-xl p-6 border-x border-b border-border-sand hover:shadow-xl transition-all duration-300 group">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full overflow-hidden bg-surface-container-high ring-2 ring-surface ring-offset-2">
+<img class="w-full h-full object-cover" data-alt="A portrait of a stylish young woman named Sarah with dark hair, wearing a white silk blouse. She has a professional and approachable look. The background is a minimalist interior with warm desert-inspired decor, soft cream walls, and subtle terracotta accents. Professional high-end photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwFjY_j9-LUZ-qrtQcbMJsoflCr7VFNNu6CBFCTAyImj501uD2oT3jfJiD2-YGGWd3uf-iTdeceTonQ_6fNToL4B-1cH90WKsfVaB3YNTqQwgbJkOv7OITjTrffUiQfZltQQ7b7mF6MqZJVPTHnc8Hf8-L2nmVHu3ZumFStGcG2ej9B3unX_N-nvszF6bjenhETmSyt_P5qw0NfWK3trAMzn6rBT_xnSAziNzxnT-KTHujvCKE5sZvqw">
+</div>
+<div>
+<h5 class="font-title-lg text-title-lg text-on-surface leading-tight">Sarah Khan</h5>
+<p class="text-on-surface-variant font-body-md">Oasis Apartment</p>
+</div>
+</div>
+<span class="bg-error-container text-on-error-container px-3 py-1 rounded-full font-label-md">Pending</span>
+</div>
+<div class="space-y-3 mb-6">
+<div class="flex items-center gap-3 text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[20px]">meeting_room</span>
+<span class="font-body-md">Suite 201</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[20px]">payments</span>
+<span class="font-headline-md text-primary">₹22,000 <span class="text-on-surface-variant font-body-md font-normal">Due</span></span>
+</div>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[20px]">calendar_today</span>
+<span class="font-body-md">Due Date: <span class="font-bold text-on-surface">12 Oct</span></span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 pt-4 border-t border-border-sand">
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-primary">currency_rupee</span>
+<span class="font-label-md text-on-surface-variant">Collect</span>
+</button>
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-success-emerald">chat</span>
+<span class="font-label-md text-on-surface-variant">Reminder</span>
+</button>
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-secondary">call</span>
+<span class="font-label-md text-on-surface-variant">Call</span>
+</button>
+</div>
+</div>
+<!-- Card 3: Michael Chen -->
+<div class="bg-surface border-t-2 border-primary rounded-xl p-6 border-x border-b border-border-sand hover:shadow-xl transition-all duration-300 group">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full overflow-hidden bg-surface-container-high ring-2 ring-surface ring-offset-2">
+<img class="w-full h-full object-cover" data-alt="A medium close-up of an East Asian male student named Michael, wearing a modern green sweatshirt. He is in a brightly lit common area of a luxury hostel. The aesthetic is clean, modern, and warm with wooden textures and plants. High-end lifestyle photography, bright and airy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQj1tGc7mIZUW5ZQe1vLOvmUlwKOUTAdJbHzusuOsWPPgAHkhFvC4rkSWOfzRZqMZ2eUmfeF6SrWFPn1deiO_pSWQ3m4En5_yGmNf7Qhp3R7DPQfEicoayfIDPxEAL-7YJKlWC9Eqkcv2FAMoMuvs7exIwCQNXsPPeKlXYsA6KGoi4w46Y1g0ZTKMM6uNKmdAht99NbWqlUxdbBiZ_UjqNCWdzv43GIUGfkr2paYCT1cDU9g_9l4J21g">
+</div>
+<div>
+<h5 class="font-title-lg text-title-lg text-on-surface leading-tight">Michael Chen</h5>
+<p class="text-on-surface-variant font-body-md">Sunshine Heights</p>
+</div>
+</div>
+<span class="bg-error-container text-on-error-container px-3 py-1 rounded-full font-label-md">Pending</span>
+</div>
+<div class="space-y-3 mb-6">
+<div class="flex items-center gap-3 text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[20px]">meeting_room</span>
+<span class="font-body-md">Room 105 / Bed B</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[20px]">payments</span>
+<span class="font-headline-md text-primary">₹14,200 <span class="text-on-surface-variant font-body-md font-normal">Due</span></span>
+</div>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[20px]">calendar_today</span>
+<span class="font-body-md">Due Date: <span class="font-bold text-on-surface">15 Oct</span></span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 pt-4 border-t border-border-sand">
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-primary">currency_rupee</span>
+<span class="font-label-md text-on-surface-variant">Collect</span>
+</button>
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-success-emerald">chat</span>
+<span class="font-label-md text-on-surface-variant">Reminder</span>
+</button>
+<button class="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-surface-warm transition-colors group/btn">
+<span class="material-symbols-outlined text-secondary">call</span>
+<span class="font-label-md text-on-surface-variant">Call</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Payments Table Section -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h4 class="font-headline-md text-headline-md text-on-surface">Recent Payments</h4>
+<div class="flex gap-2">
+<button class="p-2 border border-border-sand rounded-lg hover:bg-surface-container-low">
+<span class="material-symbols-outlined">download</span>
+</button>
+<button class="p-2 border border-border-sand rounded-lg hover:bg-surface-container-low">
+<span class="material-symbols-outlined">print</span>
+</button>
+</div>
+</div>
+<div class="bg-surface border border-border-sand rounded-xl overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-border-sand">
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase tracking-wider">Tenant</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase tracking-wider">Property / Unit</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase tracking-wider">Amount</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase tracking-wider">Date</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase tracking-wider">Method</th>
+<th class="px-6 py-4 font-label-md text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-sand/30">
+<tr class="hover:bg-surface-warm/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-xs">RJ</div>
+<span class="font-body-md font-bold text-on-surface">Rohan Joshi</span>
+</div>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">Sunshine Heights - 302</td>
+<td class="px-6 py-4 font-tabular-nums text-success-emerald font-bold">₹12,500</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">24 Oct, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded text-xs font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">account_balance</span> UPI
+                                </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-label-md bg-primary-fixed hover:bg-primary-fixed-dim px-3 py-1.5 rounded-lg transition-colors">
+                                    Generate Receipt
+                                </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-warm/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center font-bold text-xs">AM</div>
+<span class="font-body-md font-bold text-on-surface">Anita Mishra</span>
+</div>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">Oasis Apartment - 104</td>
+<td class="px-6 py-4 font-tabular-nums text-success-emerald font-bold">₹18,000</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">23 Oct, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded text-xs font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">payments</span> CASH
+                                </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-label-md bg-primary-fixed hover:bg-primary-fixed-dim px-3 py-1.5 rounded-lg transition-colors">
+                                    Generate Receipt
+                                </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-warm/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-xs">PS</div>
+<span class="font-body-md font-bold text-on-surface">Priya Singh</span>
+</div>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">The Sahara - 501</td>
+<td class="px-6 py-4 font-tabular-nums text-success-emerald font-bold">₹25,500</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">22 Oct, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded text-xs font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">credit_card</span> BANK
+                                </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-label-md bg-primary-fixed hover:bg-primary-fixed-dim px-3 py-1.5 rounded-lg transition-colors">
+                                    Generate Receipt
+                                </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-warm/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-fixed-dim text-on-primary-fixed flex items-center justify-center font-bold text-xs">DK</div>
+<span class="font-body-md font-bold text-on-surface">Deepak Kumar</span>
+</div>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">Sunshine Heights - 102</td>
+<td class="px-6 py-4 font-tabular-nums text-success-emerald font-bold">₹12,500</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">20 Oct, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded text-xs font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">account_balance</span> UPI
+                                </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-label-md bg-primary-fixed hover:bg-primary-fixed-dim px-3 py-1.5 rounded-lg transition-colors">
+                                    Generate Receipt
+                                </button>
+</td>
+</tr>
+<tr class="hover:bg-surface-warm/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center font-bold text-xs">LW</div>
+<span class="font-body-md font-bold text-on-surface">Li Wei</span>
+</div>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">Sunshine Heights - 402B</td>
+<td class="px-6 py-4 font-tabular-nums text-success-emerald font-bold">₹12,500</td>
+<td class="px-6 py-4 text-on-surface-variant font-body-md">19 Oct, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1 bg-surface-container-high px-2 py-1 rounded text-xs font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">account_balance</span> UPI
+                                </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary font-label-md bg-primary-fixed hover:bg-primary-fixed-dim px-3 py-1.5 rounded-lg transition-colors">
+                                    Generate Receipt
+                                </button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="mt-4 flex justify-center">
+<button class="text-on-surface-variant font-label-md hover:text-primary flex items-center gap-2 px-4 py-2 border border-border-sand rounded-full">
+                    Load More History <span class="material-symbols-outlined">expand_more</span>
+</button>
+</div>
+</section>
+</main>
+<!-- Contextual Floating Action Button -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[70] group">
+<span class="material-symbols-outlined text-[28px] fill-icon">add</span>
+<span class="absolute right-full mr-4 bg-inverse-surface text-inverse-on-surface px-3 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">New Collection</span>
+</button>
+<script>
+        // Simple Micro-interaction for hover states
+        document.querySelectorAll('button, a').forEach(el => {
+            el.addEventListener('mousedown', () => {
+                el.style.transform = 'scale(0.98)';
+            });
+            el.addEventListener('mouseup', () => {
+                el.style.transform = '';
+            });
+        });
+    </script>
+
+
+</body></html>

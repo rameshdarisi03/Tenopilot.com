@@ -1,0 +1,318 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Staff Management | TenoPilot</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet">
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "success-emerald": "#059669",
+                    "on-surface-variant": "#554339",
+                    "background": "#fff8f6",
+                    "surface-container-high": "#f2e6e0",
+                    "surface-dim": "#e4d8d2",
+                    "secondary-container": "#fedcc7",
+                    "on-primary-container": "#fffbff",
+                    "surface-warm": "#f8ede3",
+                    "on-tertiary-fixed": "#1e1c00",
+                    "on-secondary-fixed-variant": "#594233",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary": "#725949",
+                    "on-tertiary-container": "#434116",
+                    "inverse-surface": "#362f2c",
+                    "primary-fixed": "#ffdbca",
+                    "on-background": "#201a17",
+                    "on-error-container": "#93000a",
+                    "on-primary-fixed": "#331200",
+                    "on-secondary-container": "#795f4f",
+                    "on-surface": "#201a17",
+                    "primary-fixed-dim": "#ffb68e",
+                    "tertiary": "#636032",
+                    "surface-bright": "#fff8f6",
+                    "on-tertiary-fixed-variant": "#4b481d",
+                    "border-sand": "#d7c2b9",
+                    "surface-container-low": "#fef1ec",
+                    "primary": "#964407",
+                    "inverse-on-surface": "#fbeee9",
+                    "critical-red": "#ba1a1a",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-fixed": "#29180b",
+                    "on-primary-fixed-variant": "#773300",
+                    "error": "#ba1a1a",
+                    "outline": "#887368",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed-dim": "#cdc991",
+                    "surface-tint": "#99460a",
+                    "surface-container": "#f8ebe6",
+                    "surface-container-highest": "#ede0db",
+                    "on-error": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "surface-variant": "#ede0db",
+                    "secondary-fixed": "#fedcc7",
+                    "outline-variant": "#dbc1b5",
+                    "on-primary": "#ffffff",
+                    "primary-container": "#b65c21",
+                    "surface": "#fff8f6",
+                    "tertiary-container": "#b1ad78",
+                    "inverse-primary": "#ffb68e",
+                    "tertiary-fixed": "#eae5ab",
+                    "secondary-fixed-dim": "#e1c0ac"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "md": "16px",
+                    "container-max": "1440px",
+                    "xs": "4px",
+                    "margin-mobile": "16px",
+                    "gutter": "24px",
+                    "unit": "4px",
+                    "lg": "24px",
+                    "xl": "40px",
+                    "sm": "8px"
+            },
+            "fontFamily": {
+                    "tabular-nums": ["Manrope"],
+                    "headline-lg": ["Playfair Display"],
+                    "label-md": ["Manrope"],
+                    "title-lg": ["Manrope"],
+                    "display": ["Playfair Display"],
+                    "headline-lg-mobile": ["Playfair Display"],
+                    "body-md": ["Manrope"],
+                    "body-lg": ["Manrope"],
+                    "headline-md": ["Playfair Display"]
+            },
+            "fontSize": {
+                    "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom, 24px);
+        }
+        /* Mobile-first constraints */
+        body {
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            background-color: #fff8f6;
+            overflow-x: hidden;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-40 bg-surface/80 backdrop-blur-md flex justify-between items-center px-md h-16 border-b border-border-sand/50 transition-all duration-300">
+<h1 class="font-headline-md text-headline-md text-primary">Staff</h1>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors" data-icon="search">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors" data-icon="more_vert">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="px-md pt-lg pb-32">
+<!-- High-level Summary Section -->
+<section class="mb-lg">
+<div class="bg-surface-container-low rounded-xl p-lg border border-border-sand/40 relative overflow-hidden">
+<div class="relative z-10">
+<p class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest mb-1">Overview</p>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-primary">12 Total Staff members</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Active across 4 prime properties.</p>
+</div>
+<!-- Subtle Atmosphere -->
+<div class="absolute -bottom-8 -right-8 w-32 h-32 bg-primary/5 rounded-full blur-3xl"></div>
+</div>
+</section>
+<!-- Staff List -->
+<section class="flex flex-col gap-4">
+<!-- Staff Card: Julianne V. -->
+<article class="bg-white rounded-xl border border-border-sand p-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full border-2 border-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional portrait of a woman in her late 30s, Julianne, smiling warmly in a bright modern office setting. She has a polished corporate appearance, wearing a tailored cream blazer that matches the TenoPilot Sahara palette. The lighting is soft and natural, emphasizing a high-end property management professional atmosphere with warm neutral tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmsO7igKy6raMo0Pg92lGWwCFdV0dgtLz1zL8FtSlqgdqVfrRYvPqEVfw8FmSELPsw-W9nTP5TvNyIL7QE8PczH4G7CS61SH1CgPjn-JXdOFxM9qprbReYktxGtikScKQGFecwdTDqshiqkEGCSOZMKnICvuodeGVfdnFa7cRfGSwI1IIn6kJsElCCRsPAV8AVfAQWoZsJlPWm3xc7OFEClnpLHWZm9mffKAPAz0RttJWF3mrywe8NOw">
+</div>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Julianne V.</h3>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-[10px] uppercase tracking-wider">Manager</span>
+</div>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full" data-icon="more_vert">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<div class="flex items-center gap-2 mb-6 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">domain</span>
+<span class="font-body-md text-body-md">The Sahara Sands Plaza</span>
+</div>
+<div class="flex items-center border-t border-border-sand/30 pt-4 gap-4">
+<button class="flex-1 font-label-md text-label-md text-primary py-2 flex items-center justify-center gap-2 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">call</span> CALL
+                    </button>
+<div class="w-[1px] h-6 bg-border-sand/30"></div>
+<button class="flex-1 font-label-md text-label-md text-primary py-2 flex items-center justify-center gap-2 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">chat_bubble</span> MESSAGE
+                    </button>
+</div>
+</article>
+<!-- Staff Card: Marcus Chen -->
+<article class="bg-white rounded-xl border border-border-sand p-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full border-2 border-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A focused headshot of Marcus Chen, a receptionist in his 20s, wearing a crisp white shirt and a terracotta-colored tie. He is set against a blurred background of a sophisticated hotel lobby with wooden accents and warm lighting. The image captures an authoritative yet welcoming hospitality professional, aligned with the corporate modern flair of the design system." src="https://lh3.googleusercontent.com/aida-public/AB6AXuChuG3d6z-cumrKm2XnjeL7LDfRU6P3wLQ1N3HuOk9Eqzxn1ga5OW4wK8KwCeNpyG0E8UMDWk9htOmgO7YxMbqt5uUWvXA1mmQZGhTpy2WCEKPiZRlzTSe7O5TJkr4Y4vH-6v8OntoAj332cUqN_vTkK0TzPzpx1ehpbfbdJry6DBRQNEtwi6TI4eVqFTDLj9vUFUi_uu8VyPeg6_9tbLWGWANMbFTGFY5n33Moo7z-2S4YDUcU5YVcYQ">
+</div>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Marcus Chen</h3>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-label-md text-[10px] uppercase tracking-wider">Receptionist</span>
+</div>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full" data-icon="more_vert">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<div class="flex items-center gap-2 mb-6 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">domain</span>
+<span class="font-body-md text-body-md">Oasis Towers</span>
+</div>
+<div class="flex items-center border-t border-border-sand/30 pt-4 gap-4">
+<button class="flex-1 font-label-md text-label-md text-primary py-2 flex items-center justify-center gap-2 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">call</span> CALL
+                    </button>
+<div class="w-[1px] h-6 bg-border-sand/30"></div>
+<button class="flex-1 font-label-md text-label-md text-primary py-2 flex items-center justify-center gap-2 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">chat_bubble</span> MESSAGE
+                    </button>
+</div>
+</article>
+<!-- Staff Card: Elena Rossi -->
+<article class="bg-white rounded-xl border border-border-sand p-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-full border-2 border-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close up portrait of Elena Rossi, an engineering lead with a confident expression. She is wearing a professional work uniform in a deep clay brown. The background features a clean architectural view of a high-end apartment building exterior during the golden hour. The visual style is premium and earthy, using warm ochre tones consistent with the Sahara theme." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHe8dKs9hCt5-4yI1UYskV4MVUIMAlCcawv1OZ07esqecwwGwQHxIN8Fzjig2pIgGukYUXbk3ahXTorv4K-tEwI136IlN71iNgpgoyo69PiP_0lOZZDgToBJ2jQCQkf0WNlzqfrMrKFL9sv9ztP8MmNDv382MOgqCB36jLGHQZufH1ZKNHJZ_X2aFuZYAf3HWy6GxMcjseGlsWAg9scebFc9tQtmq9Y5XKKa-YeHld_ZtJPPpERMEm6A">
+</div>
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Elena Rossi</h3>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container font-label-md text-[10px] uppercase tracking-wider">Engineering</span>
+</div>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full" data-icon="more_vert">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<div class="flex items-center gap-2 mb-6 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">domain</span>
+<span class="font-body-md text-body-md">Dunes Residence</span>
+</div>
+<div class="flex items-center border-t border-border-sand/30 pt-4 gap-4">
+<button class="flex-1 font-label-md text-label-md text-primary py-2 flex items-center justify-center gap-2 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">call</span> CALL
+                    </button>
+<div class="w-[1px] h-6 bg-border-sand/30"></div>
+<button class="flex-1 font-label-md text-label-md text-primary py-2 flex items-center justify-center gap-2 hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">chat_bubble</span> MESSAGE
+                    </button>
+</div>
+</article>
+</section>
+</main>
+<!-- FAB: One-Handed Optimized -->
+<div class="fixed right-6 bottom-24 z-50">
+<button class="flex items-center justify-center gap-2 px-6 h-14 bg-primary text-white rounded-full shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+<span class="font-label-md text-label-md">ADD STAFF</span>
+</button>
+</div>
+<!-- Bottom Navigation (Mobile optimized shell) -->
+<nav class="fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-xl h-20 safe-bottom border-t border-border-sand/30 flex items-center justify-around px-2 z-50">
+<div class="flex flex-col items-center gap-1 text-on-surface-variant opacity-60">
+<span class="material-symbols-outlined text-[24px]">dashboard</span>
+<span class="font-label-md text-[10px]">Home</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant opacity-60">
+<span class="material-symbols-outlined text-[24px]">domain</span>
+<span class="font-label-md text-[10px]">Property</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">engineering</span>
+<span class="font-label-md text-[10px]">Staff</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant opacity-60">
+<span class="material-symbols-outlined text-[24px]">payments</span>
+<span class="font-label-md text-[10px]">Financial</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant opacity-60">
+<span class="material-symbols-outlined text-[24px]">person</span>
+<span class="font-label-md text-[10px]">Profile</span>
+</div>
+</nav>
+<script>
+        // Simple haptic-like interaction for FAB
+        const fab = document.querySelector('button.bg-primary');
+        fab.addEventListener('click', () => {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(10);
+            }
+            console.log('Opening Add Staff interaction modal...');
+        });
+
+        // Search trigger micro-interaction
+        const searchBtn = document.querySelector('[data-icon="search"]');
+        searchBtn.addEventListener('click', () => {
+            const h1 = document.querySelector('header h1');
+            h1.classList.toggle('opacity-0');
+            h1.classList.toggle('-translate-x-4');
+            // Simplified logic: in a real app, a search input would appear here
+        });
+
+        // Shadow scroll effect
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('shadow-sm');
+                header.classList.replace('bg-surface/80', 'bg-surface/95');
+            } else {
+                header.classList.remove('shadow-sm');
+                header.classList.replace('bg-surface/95', 'bg-surface/80');
+            }
+        });
+    </script>
+</body></html>

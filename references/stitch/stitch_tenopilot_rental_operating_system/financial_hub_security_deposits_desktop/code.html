@@ -1,0 +1,431 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Financial Hub - Security Deposits | TenoPilot</title>
+<!-- Google Fonts: Manrope & Playfair Display -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#773300",
+                    "on-primary-fixed": "#331200",
+                    "on-error": "#ffffff",
+                    "secondary-fixed": "#fedcc7",
+                    "primary-fixed-dim": "#ffb68e",
+                    "inverse-primary": "#ffb68e",
+                    "primary-container": "#b65c21",
+                    "tertiary-fixed": "#eae5ab",
+                    "on-surface": "#201a17",
+                    "tertiary-fixed-dim": "#cdc991",
+                    "secondary-fixed-dim": "#e1c0ac",
+                    "tertiary-container": "#b1ad78",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "secondary": "#725949",
+                    "surface-container-highest": "#ede0db",
+                    "outline-variant": "#dbc1b5",
+                    "on-secondary": "#ffffff",
+                    "outline": "#887368",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary": "#636032",
+                    "on-tertiary-fixed": "#1e1c00",
+                    "on-background": "#201a17",
+                    "on-tertiary-fixed-variant": "#4b481d",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#ede0db",
+                    "critical-red": "#ba1a1a",
+                    "background": "#fff8f6",
+                    "on-tertiary-container": "#434116",
+                    "on-secondary-fixed": "#29180b",
+                    "error-container": "#ffdad6",
+                    "on-surface-variant": "#554339",
+                    "surface-bright": "#fff8f6",
+                    "secondary-container": "#fedcc7",
+                    "surface-container-low": "#fef1ec",
+                    "success-emerald": "#059669",
+                    "error": "#ba1a1a",
+                    "surface-container": "#f8ebe6",
+                    "primary-fixed": "#ffdbca",
+                    "border-sand": "#d7c2b9",
+                    "surface-container-high": "#f2e6e0",
+                    "surface": "#fff8f6",
+                    "on-secondary-fixed-variant": "#594233",
+                    "inverse-on-surface": "#fbeee9",
+                    "surface-tint": "#99460a",
+                    "primary": "#964407",
+                    "surface-warm": "#f8ede3",
+                    "inverse-surface": "#362f2c",
+                    "on-secondary-container": "#795f4f",
+                    "on-primary-container": "#fffbff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "40px",
+                    "sm": "8px",
+                    "container-max": "1440px",
+                    "xs": "4px",
+                    "unit": "4px",
+                    "lg": "24px",
+                    "margin-mobile": "16px",
+                    "md": "16px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "body-md": ["Manrope"],
+                    "title-lg": ["Manrope"],
+                    "tabular-nums": ["Manrope"],
+                    "body-lg": ["Manrope"],
+                    "headline-lg": ["Playfair Display"],
+                    "display": ["Playfair Display"],
+                    "label-md": ["Manrope"],
+                    "headline-md": ["Playfair Display"],
+                    "headline-lg-mobile": ["Playfair Display"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; background-color: #fff8f6; color: #201a17; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .stat-card-glow:hover {
+            box-shadow: 0 12px 24px -10px rgba(194, 101, 42, 0.15);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d7c2b9; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-background overflow-hidden flex h-screen">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-surface border-r border-border-sand flex flex-col z-50">
+<div class="p-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary-container flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">domain</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary font-bold leading-none">TenoPilot</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Business OS</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 text-on-surface-variant py-3 px-4 hover:bg-surface-container-low transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant py-3 px-4 hover:bg-surface-container-low transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="font-body-md text-body-md">Properties</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant py-3 px-4 hover:bg-surface-container-low transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-body-md text-body-md">Tenants</span>
+</a>
+<!-- Financial Hub Active -->
+<a class="flex items-center gap-3 bg-surface-warm text-primary border-r-4 border-primary py-3 px-4 rounded-l-lg" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-body-md text-body-md font-bold">Financial Hub</span>
+</a>
+</nav>
+<div class="p-4 mt-auto border-t border-border-sand space-y-1">
+<a class="flex items-center gap-3 text-on-surface-variant py-3 px-4 hover:bg-surface-container-low transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant py-3 px-4 hover:bg-surface-container-low transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-body-md text-body-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-64 flex-1 h-screen overflow-y-auto custom-scrollbar bg-background">
+<!-- TopNavBar Anchor -->
+<header class="sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-border-sand w-full">
+<div class="flex justify-between items-center px-8 py-4">
+<div class="flex items-center gap-8">
+<h2 class="font-headline-md text-headline-md text-primary font-bold">Financial Hub</h2>
+<div class="relative group">
+<span class="absolute inset-y-0 left-3 flex items-center text-outline">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-body-md w-64 focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="Search transactions..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex gap-6">
+<a class="font-label-md text-label-md text-on-surface-variant pb-2 hover:text-primary transition-colors" href="#">Operations</a>
+<a class="font-label-md text-label-md text-on-surface-variant pb-2 hover:text-primary transition-colors" href="#">Rent Collection</a>
+<a class="font-label-md text-label-md text-on-surface-variant pb-2 hover:text-primary transition-colors" href="#">Expenses</a>
+<!-- Security Deposits Active -->
+<a class="font-label-md text-label-md text-primary font-bold border-b-2 border-primary pb-2" href="#">Security Deposits</a>
+<a class="font-label-md text-label-md text-on-surface-variant pb-2 hover:text-primary transition-colors" href="#">Transactions</a>
+<a class="font-label-md text-label-md text-on-surface-variant pb-2 hover:text-primary transition-colors" href="#">Reports</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">notifications</span></button>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border border-border-sand overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional portrait of a senior real estate financial manager, dressed in a sharp tailored suit, looking confident and composed against a soft-focus office background with warm sahara sunlight filtering through." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUNFpW3d-vA9hqsxKE5UieNDTaXHcaVekqbfUI8ybjX1YqvGi41zpD7FaDnDyWgwhBw0--j_MjgxF4nOCFyku3wqn-aG_ei9Ljkw9W9PkL9ZMA1Rt0I8JSUtFYhhLUmKiC2BppEGT5udSyEQogB59SabnyIvhCG18HpNLIg0t2qTrEWWlFXkfgYF73pU-dCPc6qPM3mmxYBu_ovoPLEJbteaAKPrlRbFT_NIw0Fe6spvlAiLUwYJ0cfg">
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Body -->
+<div class="max-w-[1440px] px-8 py-10 space-y-xl">
+<!-- Page Header & Actions -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Security Deposits</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-1">Manage tenant guarantees and escrow holdbacks.</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-white border border-border-sand text-primary px-6 py-3 rounded-lg font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined text-[18px]">history_edu</span>
+                        REFUND DEPOSIT
+                    </button>
+<button class="bg-primary text-white px-6 py-3 rounded-lg font-label-md text-label-md flex items-center gap-2 hover:bg-primary-container transition-all shadow-lg">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+                        RECORD DEPOSIT
+                    </button>
+</div>
+</div>
+<!-- Summary Stat Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<!-- Total Deposits -->
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-border-sand border-t-[3px] border-t-primary stat-card-glow transition-all duration-300">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary p-2 bg-primary-fixed rounded-lg">account_balance_wallet</span>
+<span class="bg-success-emerald/10 text-success-emerald font-label-md text-[10px] px-2 py-0.5 rounded-full">+2.4% vs LY</span>
+</div>
+<div class="mt-4">
+<p class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Total Deposits Held</p>
+<h3 class="font-display text-[36px] text-on-surface mt-1">₹15,20,000</h3>
+</div>
+<div class="mt-6 pt-4 border-t border-border-sand/50">
+<a class="font-label-md text-label-md text-primary flex items-center gap-1 hover:underline" href="#">VIEW ALL HELD DEPOSITS <span class="material-symbols-outlined text-[14px]">arrow_forward</span></a>
+</div>
+</div>
+<!-- Pending Refunds -->
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-border-sand border-t-[3px] border-t-critical-red stat-card-glow transition-all duration-300">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-critical-red p-2 bg-error-container rounded-lg">pending_actions</span>
+<span class="text-on-surface-variant font-label-md text-[10px] px-2 py-0.5 rounded-full border border-border-sand">2 Tenants vacating</span>
+</div>
+<div class="mt-4">
+<p class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Pending Refunds</p>
+<h3 class="font-display text-[36px] text-on-surface mt-1">₹25,000</h3>
+</div>
+<div class="mt-6 pt-4 border-t border-border-sand/50">
+<a class="font-label-md text-label-md text-critical-red flex items-center gap-1 hover:underline" href="#">REVIEW PENDING <span class="material-symbols-outlined text-[14px]">arrow_forward</span></a>
+</div>
+</div>
+<!-- Refunded This Month -->
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-border-sand border-t-[3px] border-t-secondary stat-card-glow transition-all duration-300">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-secondary p-2 bg-secondary-fixed rounded-lg">assignment_return</span>
+</div>
+<div class="mt-4">
+<p class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Refunded This Month</p>
+<h3 class="font-display text-[36px] text-on-surface mt-1">₹45,000</h3>
+</div>
+<div class="mt-6 pt-4 border-t border-border-sand/50">
+<a class="font-label-md text-label-md text-secondary flex items-center gap-1 hover:underline" href="#">DOWNLOAD RECEIPTS <span class="material-symbols-outlined text-[14px]">arrow_forward</span></a>
+</div>
+</div>
+</div>
+<!-- Records List (Bento-style Canvas) -->
+<div class="bg-surface-container-lowest border border-border-sand rounded-xl overflow-hidden shadow-sm">
+<div class="px-8 py-6 border-b border-border-sand flex justify-between items-center bg-surface-container-low">
+<h4 class="font-title-lg text-title-lg text-on-surface">Recent Deposit Activity</h4>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors"><span class="material-symbols-outlined text-on-surface-variant">filter_list</span></button>
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors"><span class="material-symbols-outlined text-on-surface-variant">download</span></button>
+</div>
+</div>
+<div class="divide-y divide-border-sand">
+<!-- Record 1: Active -->
+<div class="group">
+<div class="px-8 py-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-surface-warm transition-colors cursor-pointer" onclick="toggleTimeline('timeline-1')">
+<div class="flex items-center gap-6 flex-1">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A portrait of a cheerful Indian professional man, Rohan Joshi, in his early 30s, wearing business casual attire. Soft studio lighting with a warm golden hue, set against a blurred upscale residential interior background with neutral sahara tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKpdVPvL384cPwk47NfYG-DaT4DZ8ZUZ-6rFs89luRfRla8MYLo22ibJawZ-g4U2-Nk9382RFuKjZtbh6xxfQUa2b-DXxO2hlVqdR0mWQOMkID1Bf54yaZx_HaGhL-tfl9xvyiWhTzj4UbBUZB3vNZT_lpyFDLq0qtwXZY6uCJz1kNc7pfe1j5roNANEdSZd7aUgaS8rdq1Xe3AvFE-aryLaDwn94jkW5tY_ES_auDwUYf21bHwQjD-A">
+</div>
+<div>
+<h5 class="font-title-lg text-title-lg text-on-surface">Rohan Joshi</h5>
+<p class="font-body-md text-body-md text-on-surface-variant">Room 302 • Silver Oaks Residency</p>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-8 flex-[2] mt-4 md:mt-0">
+<div>
+<p class="font-label-md text-label-md text-outline uppercase">Amount</p>
+<p class="font-tabular-nums text-body-lg text-on-surface font-bold">₹25,000</p>
+</div>
+<div>
+<p class="font-label-md text-label-md text-outline uppercase">Received</p>
+<p class="font-body-lg text-on-surface">15 Jan 2023</p>
+</div>
+<div class="flex items-center">
+<span class="bg-success-emerald/10 text-success-emerald px-3 py-1 rounded-full font-label-md text-label-md flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-success-emerald"></span>
+                                        Active
+                                    </span>
+</div>
+</div>
+<div class="flex justify-end ml-4">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-transform" id="icon-timeline-1">expand_more</span>
+</div>
+</div>
+<!-- Timeline Detail 1 -->
+<div class="hidden px-8 pb-8 pt-4 bg-surface-container-low/50 border-t border-border-sand/30" id="timeline-1">
+<div class="ml-16 pl-8 border-l border-border-sand relative space-y-6">
+<div class="relative">
+<div class="absolute -left-[37px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-white shadow-sm"></div>
+<div>
+<p class="font-label-md text-label-md text-primary font-bold">JAN 15, 2023</p>
+<p class="font-body-md text-body-md text-on-surface">Security deposit received via Bank Transfer. Transaction ID: #TXN09218.</p>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[37px] top-0 w-4 h-4 rounded-full bg-outline-variant border-4 border-white shadow-sm"></div>
+<div>
+<p class="font-label-md text-label-md text-outline font-bold">JAN 14, 2023</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Lease agreement signed for Unit 302.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Record 2: Refund Pending -->
+<div class="group">
+<div class="px-8 py-6 flex flex-col md:flex-row md:items-center justify-between hover:bg-surface-warm transition-colors cursor-pointer" onclick="toggleTimeline('timeline-2')">
+<div class="flex items-center gap-6 flex-1">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of Amara Okafor, a woman in her late 20s with a confident expression. High-end lighting, minimalist composition, featuring soft beige and clay tones in the background to match a premium real estate brand aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvgeLENqVGXx8oNaBHlDdRWpdUWJ3uJkFe8-iWKiHHNvypWiEjDfZcaYl_HCnh5_2Hqr9ezvEotEzTLzBIE4QYvBms6YiigGNjpVgX4fYryRu5jX_lZinrjBFpEYFz3gThqalGYbOLuMv0z6dSikF_1feqb1f0oXmg-VmQ_vJFJhcbJQURwLZ5_C5SGC32tXnTiH1qY8jiOhr9jqbJuK5MnUrqWsAbmcfiXCv9wBWsNPnDn35Pv2R6vQ">
+</div>
+<div>
+<h5 class="font-title-lg text-title-lg text-on-surface">Amara Okafor</h5>
+<p class="font-body-md text-body-md text-on-surface-variant">Room 402 • Skyline Apartments</p>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-8 flex-[2] mt-4 md:mt-0">
+<div>
+<p class="font-label-md text-label-md text-outline uppercase">Amount</p>
+<p class="font-tabular-nums text-body-lg text-on-surface font-bold">₹30,000</p>
+</div>
+<div>
+<p class="font-label-md text-label-md text-outline uppercase">Vacating</p>
+<p class="font-body-lg text-critical-red">15 Dec 2024</p>
+</div>
+<div class="flex items-center">
+<span class="bg-primary/10 text-primary px-3 py-1 rounded-full font-label-md text-label-md flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                                        Refund Pending
+                                    </span>
+</div>
+</div>
+<div class="flex justify-end ml-4">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-transform" id="icon-timeline-2">expand_more</span>
+</div>
+</div>
+<!-- Timeline Detail 2 -->
+<div class="hidden px-8 pb-8 pt-4 bg-surface-container-low/50 border-t border-border-sand/30" id="timeline-2">
+<div class="ml-16 pl-8 border-l border-border-sand relative space-y-6">
+<div class="relative">
+<div class="absolute -left-[37px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-white shadow-sm"></div>
+<div>
+<p class="font-label-md text-label-md text-primary font-bold">NOV 10, 2024</p>
+<p class="font-body-md text-body-md text-on-surface">Move-out notice received. Inspection scheduled for Dec 14.</p>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[37px] top-0 w-4 h-4 rounded-full bg-outline-variant border-4 border-white shadow-sm"></div>
+<div>
+<p class="font-label-md text-label-md text-outline font-bold">JUL 20, 2023</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Security deposit received via UPI.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Decorative/Informational Section -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-lg h-64">
+<div class="relative rounded-xl overflow-hidden group">
+<img class="absolute inset-0 w-full h-full object-cover brightness-[0.85] group-hover:scale-105 transition-transform duration-700" data-alt="A wide-angle interior shot of a minimalist, luxury apartment lobby. Polished marble floors reflecting warm sunlight, tall potted plants, and modern earth-toned furniture. The aesthetic is extremely clean and sophisticated, representing high-end property management." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDk52d7ZoCtsjl9-oDjX2K67VxOAagpKKw1lIHhp4ea43ghUxIbS1MuPuBukScVRiODp2MFmD57W-eS8JgbOt9vDQRfvRkG88jEAT2AHsMFHK_pMnwTWflmIs1mGER5Luj0Agxll5sLsT6ykMUv15sD8QH_ialctNINQ5DqhBEQZJCUuxi2-L7xHrS9VuH81MXpdTEZK_JkBEcfx0gFZlfaYngentb8fb07bHUokgvobCGH8SBfQoqNzA">
+<div class="relative h-full flex flex-col justify-end p-8 bg-gradient-to-t from-black/60 to-transparent">
+<h3 class="font-headline-md text-white">Escrow Compliance</h3>
+<p class="text-white/80 font-body-md max-w-sm">All deposits are securely held in a Tier-1 regulatory bank account with real-time audit trails.</p>
+</div>
+</div>
+<div class="bg-surface-container-high rounded-xl p-8 flex flex-col justify-center items-center text-center border border-border-sand">
+<div class="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-primary text-[32px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+</div>
+<h3 class="font-title-lg text-on-surface">Precision Refund Engine</h3>
+<p class="font-body-md text-on-surface-variant mt-2 max-w-md">Our automated system calculates wear-and-tear deductions based on inspection logs to ensure fair settlement for every tenant.</p>
+<button class="mt-6 text-primary font-label-md text-label-md uppercase tracking-widest border-b border-primary pb-1 hover:border-b-2 transition-all">Configure Deduction Rules</button>
+</div>
+</section>
+</div>
+</main>
+<!-- FAB for quick record -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined">add</span>
+</button>
+<script>
+        function toggleTimeline(id) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById('icon-' + id);
+            
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.style.transform = 'rotate(180deg)';
+                el.classList.add('animate-in', 'fade-in', 'slide-in-from-top-4', 'duration-300');
+            } else {
+                el.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Search bar interaction
+        document.querySelector('input').addEventListener('focus', function() {
+            this.parentElement.classList.add('w-80');
+            this.parentElement.classList.remove('w-64');
+        });
+        document.querySelector('input').addEventListener('blur', function() {
+            this.parentElement.classList.add('w-64');
+            this.parentElement.classList.remove('w-80');
+        });
+    </script>
+
+
+</body></html>

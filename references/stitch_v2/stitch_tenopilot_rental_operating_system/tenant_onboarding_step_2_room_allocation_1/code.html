@@ -1,0 +1,509 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TenoPilot - Room Allocation</title>
+<!-- Tailwind CSS v3 CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "surface-dim": "#dcd9d9",
+                  "on-tertiary-fixed-variant": "#004d63",
+                  "on-primary": "#ffffff",
+                  "primary-fixed": "#ffdbca",
+                  "tertiary-fixed-dim": "#70d2fa",
+                  "surface-container-lowest": "#ffffff",
+                  "surface-bright": "#fcf9f8",
+                  "on-error": "#ffffff",
+                  "secondary-fixed": "#d2e4ff",
+                  "inverse-on-surface": "#f3f0ef",
+                  "on-surface-variant": "#554339",
+                  "on-secondary": "#ffffff",
+                  "on-tertiary-container": "#fbfdff",
+                  "secondary-container": "#c4dcff",
+                  "secondary-fixed-dim": "#b0c8eb",
+                  "primary": "#964407",
+                  "border-subtle": "rgba(26, 26, 26, 0.08)",
+                  "surface-variant": "#e5e2e1",
+                  "surface": "#fcf9f8",
+                  "on-secondary-container": "#49617f",
+                  "tertiary": "#006480",
+                  "outline-variant": "#dbc1b5",
+                  "on-primary-container": "#fffbff",
+                  "secondary": "#49607e",
+                  "on-secondary-fixed": "#001c37",
+                  "primary-container": "#b65c21",
+                  "surface-warm": "#FFF8F6",
+                  "error": "#ba1a1a",
+                  "tertiary-fixed": "#bce9ff",
+                  "on-tertiary-fixed": "#001f2a",
+                  "surface-container-low": "#f6f3f2",
+                  "surface-container-high": "#eae7e7",
+                  "inverse-surface": "#313030",
+                  "outline": "#887368",
+                  "on-primary-fixed": "#331200",
+                  "background": "#fcf9f8",
+                  "tertiary-container": "#007ea1",
+                  "surface-container": "#f0eded",
+                  "on-background": "#1c1b1b",
+                  "on-primary-fixed-variant": "#773300",
+                  "on-secondary-fixed-variant": "#314865",
+                  "on-surface": "#1c1b1b",
+                  "on-error-container": "#93000a",
+                  "on-tertiary": "#ffffff",
+                  "surface-tint": "#99460a",
+                  "surface-muted": "#F6F9FC",
+                  "accent-blue": "#635BFF",
+                  "surface-container-highest": "#e5e2e1",
+                  "primary-fixed-dim": "#ffb68e",
+                  "inverse-primary": "#ffb68e",
+                  "error-container": "#ffdad6"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "full": "9999px"
+          },
+          "spacing": {
+                  "stack-sm": "12px",
+                  "stack-lg": "48px",
+                  "stack-md": "24px",
+                  "section-gap-mobile": "80px",
+                  "section-gap-desktop": "160px",
+                  "gutter": "32px",
+                  "container-max": "1200px"
+          },
+          "fontFamily": {
+                  "body-md": ["Inter"],
+                  "display-lg-mobile": ["Playfair Display"],
+                  "display-lg": ["Playfair Display"],
+                  "body-lg": ["Inter"],
+                  "label-caps": ["Inter"],
+                  "headline-lg": ["Playfair Display"],
+                  "button": ["Inter"],
+                  "headline-md": ["Inter"],
+                  "headline-lg-mobile": ["Playfair Display"]
+          },
+          "fontSize": {
+                  "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                  "display-lg-mobile": ["44px", {"lineHeight": "52px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                  "display-lg": ["72px", {"lineHeight": "84px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                  "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                  "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                  "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                  "button": ["15px", {"lineHeight": "20px", "fontWeight": "500"}],
+                  "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                  "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+<style data-purpose="custom-typography">
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #fcf9f8;
+    }
+    h2, h3, .font-display {
+      font-family: 'Playfair Display', serif;
+    }
+  </style>
+<style data-purpose="layout-styling">
+    .sidebar-active {
+      background-color: #FFF5F1;
+      border-right: 4px solid #964407;
+      color: #964407;
+    }
+    .step-line {
+      height: 2px;
+      background-color: #E5E7EB;
+      flex-grow: 1;
+      margin: 0 10px;
+    }
+    .status-card-available {
+      background-color: #F0FDF4;
+      border: 1px solid #DCFCE7;
+    }
+    .status-card-vacating {
+      background-color: #FFF7ED;
+      border: 1px solid #FFEDD5;
+    }
+    .status-card-occupied {
+      background-color: #FEF2F2;
+      border: 1px solid #FEE2E2;
+    }
+    .status-card-booked {
+      background-color: #EFF6FF;
+      border: 1px solid #DBEAFE;
+    }
+    .scroll-hide::-webkit-scrollbar {
+      display: none;
+    }
+  </style>
+</head>
+<body class="text-on-surface">
+<!-- BEGIN: MainLayout -->
+<div class="flex min-h-screen">
+<!-- BEGIN: LeftSidebar -->
+<aside class="w-64 bg-white border-r border-slate-200 flex flex-col justify-between py-8 shrink-0">
+<div>
+<div class="px-6 mb-10">
+<h1 class="text-xl font-bold text-primary">TenoPilot.com</h1>
+<p class="text-[10px] text-slate-400 font-semibold tracking-widest uppercase">Sahara Edition</p>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center px-6 py-3 text-slate-500 hover:bg-slate-50 transition-colors" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          Dashboard
+        </a>
+<a class="flex items-center px-6 py-3 text-slate-500 hover:bg-slate-50 transition-colors" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          Properties
+        </a>
+<a class="flex items-center px-6 py-3 sidebar-active font-semibold" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          Tenants
+        </a>
+<a class="flex items-center px-6 py-3 text-slate-500 hover:bg-slate-50 transition-colors" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          Financial Hub
+        </a>
+</nav>
+</div>
+<div class="space-y-1">
+<a class="flex items-center px-6 py-3 text-slate-500 hover:bg-slate-50 transition-colors" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Settings
+      </a>
+<a class="flex items-center px-6 py-3 text-slate-500 hover:bg-slate-50 transition-colors" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Support
+      </a>
+</div>
+</aside>
+<!-- END: LeftSidebar -->
+<!-- BEGIN: MainContentArea -->
+<div class="flex-1 flex flex-col min-w-0">
+<!-- BEGIN: TopBar -->
+<header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0">
+<div class="flex-1 max-w-xl">
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center">
+<svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</span>
+<input class="block w-full pl-10 pr-3 py-3 bg-orange-50 border-none rounded-full text-sm focus:ring-primary focus:bg-white transition-all" placeholder="Search tenants, rooms, or documents..." type="text">
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<button class="relative text-slate-400 hover:text-primary">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span class="absolute -top-1 -right-1 bg-error text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">8</span>
+</button>
+<button class="text-slate-400 hover:text-primary">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<div class="flex items-center space-x-3 cursor-pointer">
+<div class="text-right">
+<p class="text-sm font-semibold">Alex Rivera</p>
+<p class="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Owner Profile</p>
+</div>
+<img alt="Profile" class="w-10 h-10 rounded-full object-cover border-2 border-orange-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLxHPAKXb7YoSX0SK1PG9MOb00-GujQG_F1vRb_Mg-jcCAgMiJToQaK7fQnXZOr_t5YFptxKaTE5GZu2Xei-naq-7pi08B53ymikMAN_cObAJ3MSZOWZ8tua6P5MeSRg2u5BB9zaoLoImSd2jOX2iiiMnW7sAOxAVICPHpU-G7hV8iCCIyjhZy52cYfKyYROp9_D5wk3AnOeE4gHX-auPelOmH0srdujHVtDaaNY2f63KxkvQAile4PRIoYrJRYbZRzoc">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+</div>
+</header>
+<!-- END: TopBar -->
+<!-- BEGIN: ContentScroller -->
+<main class="flex-1 overflow-y-auto scroll-hide">
+<!-- BEGIN: Centered Container -->
+<div class="max-w-5xl mx-auto px-10 py-12">
+<header class="mb-12 text-center">
+<h2 class="text-4xl font-bold mb-8 text-on-surface">New Tenant Onboarding</h2>
+<!-- BEGIN: Stepper -->
+<div class="flex items-center justify-between max-w-3xl mx-auto mb-12">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center text-sm shadow-md">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<span class="text-xs mt-3 text-slate-500 font-medium">Personal Details</span>
+</div>
+<div class="step-line bg-primary/20"></div>
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shadow-lg ring-4 ring-primary-fixed">2</div>
+<span class="text-xs mt-3 text-primary font-bold">Room Allocation</span>
+</div>
+<div class="step-line"></div>
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-sm font-bold border-2 border-slate-200">3</div>
+<span class="text-xs mt-3 text-slate-400 font-medium">Documents &amp; KYC</span>
+</div>
+<div class="step-line"></div>
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-sm font-bold border-2 border-slate-200">4</div>
+<span class="text-xs mt-3 text-slate-400 font-medium">Agreement</span>
+</div>
+</div>
+<!-- END: Stepper -->
+</header>
+<!-- BEGIN: AllocationForm -->
+<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-10 mb-12" data-purpose="room-allocation-card">
+<div class="flex items-start mb-10">
+<div class="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white mr-6 shadow-lg shadow-primary/20">
+<svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<h3 class="text-2xl font-bold text-on-surface">Step 2: Room Allocation</h3>
+<p class="text-slate-500 mt-2 text-lg">Select a suitable room and bed for the new tenant.</p>
+</div>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+<div class="w-full md:w-80">
+<label class="block text-[11px] font-bold text-slate-700 mb-3 uppercase tracking-widest">Desired Joining Date</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-4 flex items-center">
+<svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</span>
+<input class="block w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-primary focus:border-primary bg-slate-50" readonly="" type="text" value="15 Aug 2026">
+</div>
+<p class="text-[10px] text-slate-400 mt-3 italic font-medium">Showing beds available on or before this date</p>
+</div>
+<div class="flex items-center space-x-8 text-xs font-bold uppercase tracking-widest text-slate-500">
+<div class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span> Available</div>
+<div class="flex items-center"><span class="w-3 h-3 bg-orange-400 rounded-full mr-2"></span> Vacating</div>
+</div>
+</div>
+<div class="bg-green-50/50 border border-green-100 rounded-2xl p-4 flex items-center text-sm text-green-700 mb-12">
+<svg class="w-5 h-5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="font-medium">Currently viewing all beds available immediately or becoming free by August 15th, 2026.</p>
+</div>
+<!-- BEGIN: GridView -->
+<div class="space-y-16">
+<!-- Floor 02 Section -->
+<section>
+<div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-8">
+<h4 class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Floor 02 — Premium Suites</h4>
+<span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">18 BEDS AVAILABLE / VACATING</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Room 201 -->
+<div class="border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow bg-slate-50/20">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h5 class="text-xl font-bold text-on-surface">Room 201</h5>
+<span class="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1 inline-block">4 Sharing</span>
+</div>
+<button class="text-slate-300 hover:text-slate-500">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed A</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed B</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">12 Aug 26</p>
+</div>
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed C</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed D</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">14 Aug 26</p>
+</div>
+</div>
+</div>
+<!-- Room 202 -->
+<div class="border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow bg-slate-50/20">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h5 class="text-xl font-bold text-on-surface">Room 202</h5>
+<span class="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1 inline-block">2 Sharing</span>
+</div>
+<button class="text-slate-300 hover:text-slate-500">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+</button>
+</div>
+<div class="space-y-4">
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed A</p>
+<p class="text-[10px] font-bold text-green-600">Available Now</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed B</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">13 Aug 26</p>
+</div>
+</div>
+</div>
+<!-- Room 203 -->
+<div class="border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow bg-slate-50/20">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h5 class="text-xl font-bold text-on-surface">Room 203</h5>
+<span class="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1 inline-block">4 Sharing</span>
+</div>
+<button class="text-slate-300 hover:text-slate-500">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed A</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed B</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">14 Aug 26</p>
+</div>
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed C</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed D</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">15 Aug 26</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Floor 01 Section -->
+<section>
+<div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-8">
+<h4 class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Floor 01 — Deluxe</h4>
+<span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">16 BEDS AVAILABLE / VACATING</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Room 101 -->
+<div class="border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow bg-slate-50/20">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h5 class="text-xl font-bold text-on-surface">Room 101</h5>
+<span class="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1 inline-block">3 Sharing</span>
+</div>
+<button class="text-slate-300 hover:text-slate-500">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed C</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed D</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">12 Aug 26</p>
+</div>
+</div>
+</div>
+<!-- Room 102 -->
+<div class="border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow bg-slate-50/20">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h5 class="text-xl font-bold text-on-surface">Room 102</h5>
+<span class="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1 inline-block">4 Sharing</span>
+</div>
+<button class="text-slate-300 hover:text-slate-500">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed A</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed C</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">13 Aug 26</p>
+</div>
+<div class="status-card-available p-4 rounded-xl text-center col-span-2">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed D</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+</div>
+</div>
+<!-- Room 103 -->
+<div class="border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow bg-slate-50/20">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h5 class="text-xl font-bold text-on-surface">Room 103</h5>
+<span class="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1 inline-block">3 Sharing</span>
+</div>
+<button class="text-slate-300 hover:text-slate-500">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path></svg>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed A</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-available p-4 rounded-xl text-center">
+<svg class="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed B</p>
+<p class="text-[10px] font-bold text-green-600">Available</p>
+</div>
+<div class="status-card-vacating p-4 rounded-xl text-center border-dashed col-span-2">
+<svg class="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<p class="text-[11px] font-bold text-slate-700 uppercase">Bed C</p>
+<p class="text-[10px] font-bold text-orange-600 leading-tight">Becoming free 13 Aug 26</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- END: GridView -->
+<!-- BEGIN: ActionsFooter -->
+<div class="flex items-center justify-between mt-16 border-t border-slate-100 pt-10">
+<button class="px-10 py-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              &lt; Back
+            </button>
+<div class="flex items-center space-x-10">
+<button class="text-sm font-bold text-primary underline underline-offset-8 hover:text-primary-container transition-colors">Skip for Now</button>
+<button class="px-12 py-4 bg-primary text-white rounded-xl text-sm font-bold flex items-center shadow-xl shadow-primary/30 hover:bg-primary-container transition-all transform hover:-translate-y-1">
+                Save &amp; Continue
+                <svg class="w-4 h-4 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+<!-- END: ActionsFooter -->
+</div>
+<!-- END: AllocationForm -->
+<footer class="text-center py-12">
+<p class="text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+            TenoPilot © 2026  •  Secured by Sahara AES-256 Encryption
+          </p>
+</footer>
+</div>
+<!-- END: Centered Container -->
+</main>
+<!-- END: ContentScroller -->
+</div>
+<!-- END: MainContentArea -->
+</div>
+<!-- END: MainLayout -->
+</body></html>

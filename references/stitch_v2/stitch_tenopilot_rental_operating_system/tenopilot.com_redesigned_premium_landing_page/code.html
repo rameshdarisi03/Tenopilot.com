@@ -1,0 +1,652 @@
+<!DOCTYPE html><html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TenoPilot.com | The Complete Rental Operating System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-fixed": "#001f2a",
+                    "primary-fixed": "#ffdbca",
+                    "primary": "#964407",
+                    "surface": "#fcf9f8",
+                    "tertiary": "#006480",
+                    "tertiary-fixed-dim": "#70d2fa",
+                    "background": "#fcf9f8",
+                    "inverse-on-surface": "#f3f0ef",
+                    "on-primary": "#ffffff",
+                    "surface-bright": "#fcf9f8",
+                    "tertiary-container": "#007ea1",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-dim": "#dcd9d9",
+                    "surface-container-low": "#f6f3f2",
+                    "on-secondary-fixed-variant": "#314865",
+                    "surface-container-high": "#eae7e7",
+                    "secondary-container": "#c4dcff",
+                    "surface-variant": "#e5e2e1",
+                    "surface-muted": "#F6F9FC",
+                    "surface-container": "#f0eded",
+                    "primary-container": "#b65c21",
+                    "secondary-fixed-dim": "#b0c8eb",
+                    "on-primary-fixed": "#331200",
+                    "surface-warm": "#FFF8F6",
+                    "surface-container-highest": "#e5e2e1",
+                    "on-error": "#ffffff",
+                    "surface-tint": "#99460a",
+                    "outline": "#887368",
+                    "on-error-container": "#93000a",
+                    "secondary-fixed": "#d2e4ff",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed-variant": "#773300",
+                    "tertiary-fixed": "#bce9ff",
+                    "on-secondary-fixed": "#001c37",
+                    "on-tertiary-fixed-variant": "#004d63",
+                    "on-secondary-container": "#49617f",
+                    "error-container": "#ffdad6",
+                    "error": "#ba1a1a",
+                    "primary-fixed-dim": "#ffb68e",
+                    "secondary": "#49607e",
+                    "on-background": "#1c1b1b",
+                    "on-surface": "#1c1b1b",
+                    "on-surface-variant": "#554339",
+                    "on-primary-container": "#fffbff",
+                    "border-subtle": "rgba(26, 26, 26, 0.08)",
+                    "on-tertiary-container": "#fbfdff",
+                    "outline-variant": "#dbc1b5",
+                    "inverse-surface": "#313030",
+                    "accent-blue": "#635BFF",
+                    "inverse-primary": "#ffb68e"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "section-gap-desktop": "160px",
+                    "stack-lg": "48px",
+                    "section-gap-mobile": "80px",
+                    "stack-md": "24px",
+                    "stack-sm": "12px",
+                    "gutter": "32px",
+                    "container-max": "1200px"
+            },
+            "fontFamily": {
+                    "display-lg": ["Playfair Display"],
+                    "headline-md": ["Inter"],
+                    "display-lg-mobile": ["Playfair Display"],
+                    "headline-lg": ["Playfair Display"],
+                    "headline-lg-mobile": ["Playfair Display"],
+                    "body-md": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "button": ["Inter"]
+            },
+            "fontSize": {
+                    "display-lg": ["72px", {"lineHeight": "84px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "display-lg-mobile": ["44px", {"lineHeight": "52px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "button": ["15px", {"lineHeight": "20px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .shadow-eight {
+            box-shadow: 0px 20px 50px rgba(0,0,0,0.04);
+        }
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .mac-browser-shadow {
+            box-shadow: 0 50px 100px -20px rgba(150, 68, 7, 0.15), 0 30px 60px -30px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-surface-warm text-on-surface font-body-md overflow-x-hidden">
+<!-- Global Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-surface-warm/80 backdrop-blur-xl border-b border-border-subtle">
+<div class="max-w-container-max mx-auto px-gutter py-4 flex justify-between items-center">
+<a class="font-display-lg text-headline-md text-primary" href="#">TenoPilot.com</a>
+<div class="hidden md:flex items-center gap-8">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-button text-button" href="#features">Features</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-button text-button" href="#pricing">Pricing</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-button text-button" href="#about">About</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden sm:block text-on-surface-variant font-button text-button hover:opacity-80 transition-opacity">Login</button>
+<button class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-button text-button shadow-md hover:opacity-90 active:scale-95 transition-all">Start Free Trial</button>
+</div>
+</div>
+</nav>
+<!-- Redesigned Hero Section -->
+<header class="relative pt-48 pb-32 overflow-visible">
+<div class="max-w-container-max mx-auto px-gutter relative z-10 text-center">
+<div class="reveal active inline-flex items-center gap-2 bg-primary-fixed text-on-primary-fixed-variant px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-10 shadow-sm border border-primary/10">
+<span class="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+            Precision Rental OS
+        </div>
+<h1 class="font-display-lg text-display-lg-mobile md:text-display-lg max-w-5xl mx-auto mb-8 leading-[1.1]">
+            The Master Key to Every <span class="text-primary italic">Building, Room, and Bed.</span>
+</h1>
+<p class="font-body-lg text-body-lg md:text-xl text-on-surface-variant max-w-2xl mx-auto mb-14 leading-relaxed">
+            A high-performance operating system for modern Co-living, PGs, and Hostels. Eliminate friction and scale your property management with surgical precision.
+        </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-24 reveal active">
+<button class="w-full sm:w-auto bg-primary text-on-primary px-10 py-5 rounded-full font-button text-lg font-bold shadow-xl hover:shadow-primary/20 hover:-translate-y-0.5 transition-all">Start Free Trial</button>
+<button class="w-full sm:w-auto bg-white text-on-surface px-10 py-5 rounded-full font-button text-lg font-bold border border-border-subtle shadow-lg hover:bg-surface-container-low hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">play_circle</span>
+                Book Live Demo
+            </button>
+</div>
+<!-- Multi-Device Mockup Composition -->
+<div class="relative max-w-6xl mx-auto reveal active px-4 md:px-0">
+<!-- Desktop Frame (Mac-style Browser) -->
+<div class="relative z-0 mac-browser-shadow rounded-2xl overflow-hidden border border-border-subtle bg-white transition-transform duration-700 hover:scale-[1.01]">
+<div class="bg-surface-container-high h-11 flex items-center px-4 gap-2 border-b border-border-subtle">
+<div class="flex gap-1.5">
+<div class="w-3 h-3 rounded-full bg-[#FF5F57]"></div>
+<div class="w-3 h-3 rounded-full bg-[#FFBD2E]"></div>
+<div class="w-3 h-3 rounded-full bg-[#28C840]"></div>
+</div>
+<div class="ml-4 flex-grow max-w-md h-6 bg-white/50 rounded-md flex items-center px-3">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant/20 mr-2"></div>
+<div class="text-[10px] text-on-surface-variant/40 font-mono tracking-tighter">tenopilot.com/dashboard/tenant-directory</div>
+</div>
+</div>
+<div class="relative aspect-[16/10] bg-surface-container-low overflow-hidden">
+<img alt="Tenant Directory Desktop View" class="w-full h-full object-cover object-top" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBENq4lI_5FbDP1ZTyy3XzFn4MV4M4nhjk_7q1zvWncq_De2EgNtGYkxd-SpcmNac3VlYZoSl0ttcWnbbdZOqgnLjtsT8m2SRu_qRclTREm5Q6VFE2ivXwWP_f09bGvS_KYj1RiVujFMW3o_2vbI75Gv16KR_Sk4n_qkPdK9sI_lygDkhrK1YLCsiVYESJD2UvJBYeDT4sFeK9r1XVhnFScxObma7JE6tiLGCRG3yT02lvm04BCV_8uhnQV2c4l8K7S8ik">
+<!-- Subtle overlay gradient -->
+<div class="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent pointer-events-none"></div>
+</div>
+</div>
+<!-- Overlapping Mobile Frame (iPhone-style) -->
+<div class="absolute -bottom-12 -right-4 md:right-[-40px] z-20 w-1/3 max-w-[280px] min-w-[160px] reveal active" style="transition-delay: 200ms;">
+<div class="relative rounded-[2.5rem] border-[8px] border-inverse-surface bg-inverse-surface shadow-2xl aspect-[9/19.5] overflow-hidden">
+<!-- Notch -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-6 bg-inverse-surface rounded-b-2xl z-30"></div>
+<!-- Screen Content: Owner Dashboard -->
+<div class="w-full h-full bg-surface-warm p-4 pt-10">
+<div class="flex justify-between items-center mb-6">
+<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-sm">person</span>
+</div>
+<span class="text-[10px] font-bold text-on-surface-variant">SAHARA MGMT</span>
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">notifications</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="p-3 bg-white rounded-xl shadow-sm border border-border-subtle">
+<p class="text-[10px] text-on-surface-variant mb-1 uppercase tracking-wider font-bold">Total Collections</p>
+<p class="text-xl font-display-lg text-primary">$124,500</p>
+<div class="mt-2 h-1 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[88%]"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div class="p-3 bg-white rounded-xl shadow-sm border border-border-subtle">
+<p class="text-[9px] text-on-surface-variant mb-1 uppercase tracking-wider font-bold">Occupancy</p>
+<p class="text-lg font-bold">94%</p>
+</div>
+<div class="p-3 bg-white rounded-xl shadow-sm border border-border-subtle">
+<p class="text-[9px] text-on-surface-variant mb-1 uppercase tracking-wider font-bold">Tickets</p>
+<p class="text-lg font-bold text-error">12</p>
+</div>
+</div>
+<div class="p-3 bg-primary rounded-xl shadow-lg">
+<p class="text-[10px] text-white/70 mb-2 uppercase tracking-wider font-bold">Action Required</p>
+<div class="flex items-center justify-between text-white">
+<span class="text-xs font-medium">6 Renewals Pending</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Bottom Nav -->
+<div class="absolute bottom-4 left-4 right-4 h-12 glass-panel rounded-full flex items-center justify-around px-2">
+<span class="material-symbols-outlined text-primary">home</span>
+<span class="material-symbols-outlined text-on-surface-variant">receipt_long</span>
+<span class="material-symbols-outlined text-on-surface-variant">group</span>
+<span class="material-symbols-outlined text-on-surface-variant">settings</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Decorative background elements -->
+<div class="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none -z-10"></div>
+<div class="absolute top-1/4 left-10 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none -z-10"></div>
+</header>
+<!-- Trusted For / Audience Cards -->
+<section class="py-section-gap-mobile md:py-section-gap-desktop bg-white">
+<div class="max-w-container-max mx-auto px-gutter">
+<div class="text-center mb-24 reveal">
+<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-6">Engineered for every rental vertical</h2>
+<p class="text-on-surface-variant text-body-lg max-w-2xl mx-auto leading-relaxed">Whether you manage 10 rooms or 10,000 beds, TenoPilot provides the operational clarity you deserve.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-8 reveal">
+<!-- Card 1 -->
+<div class="p-10 rounded-2xl bg-surface-warm border border-border-subtle group hover:border-primary/40 hover:-translate-y-2 transition-all duration-300">
+<div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-3xl">apartment</span>
+</div>
+<h3 class="font-headline-md text-xl mb-4">PG Owners</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Automate rent cycles and deposit returns for your private hostel.</p>
+</div>
+<!-- Card 2 -->
+<div class="p-10 rounded-2xl bg-surface-warm border border-border-subtle group hover:border-primary/40 hover:-translate-y-2 transition-all duration-300">
+<div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-3xl">hotel</span>
+</div>
+<h3 class="font-headline-md text-xl mb-4">Hostels</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Bunk-level availability and short-stay rotations managed effortlessly.</p>
+</div>
+<!-- Card 3 -->
+<div class="p-10 rounded-2xl bg-surface-warm border border-border-subtle group hover:border-primary/40 hover:-translate-y-2 transition-all duration-300">
+<div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-3xl">groups</span>
+</div>
+<h3 class="font-headline-md text-xl mb-4">Co-living</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Foster community and manage shared services with high efficiency.</p>
+</div>
+<!-- Card 4 -->
+<div class="p-10 rounded-2xl bg-surface-warm border border-border-subtle group hover:border-primary/40 hover:-translate-y-2 transition-all duration-300">
+<div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-3xl">school</span>
+</div>
+<h3 class="font-headline-md text-xl mb-4">Student Housing</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Handle massive academic intake cycles and bulk admissions.</p>
+</div>
+<!-- Card 5 -->
+<div class="p-10 rounded-2xl bg-surface-warm border border-border-subtle group hover:border-primary/40 hover:-translate-y-2 transition-all duration-300">
+<div class="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-3xl">corporate_fare</span>
+</div>
+<h3 class="font-headline-md text-xl mb-4">Rentals</h3>
+<p class="text-on-surface-variant text-sm leading-relaxed">Complete portfolio management for the modern building landlord.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- The Problem: Manual vs TenoPilot -->
+<section class="py-section-gap-mobile md:py-section-gap-desktop bg-surface-warm overflow-hidden">
+<div class="max-w-container-max mx-auto px-gutter">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-32 items-center">
+<div class="reveal">
+<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-8 leading-tight">Legacy systems are <span class="text-error">silent profit killers.</span></h2>
+<p class="text-body-lg text-on-surface-variant mb-12 leading-relaxed">If you're still using Excel sheets and WhatsApp groups to run your business, you're leaking revenue through fragmentation and human error.</p>
+<div class="space-y-8">
+<div class="flex items-start gap-6">
+<div class="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center text-error mt-1 shrink-0">
+<span class="material-symbols-outlined">close</span>
+</div>
+<div>
+<h4 class="font-bold text-xl mb-2">Fragmented Data Silos</h4>
+<p class="text-on-surface-variant leading-relaxed">Maintenance on chat, rent on Excel, and identity on paper. It's impossible to see the big picture.</p>
+</div>
+</div>
+<div class="flex items-start gap-6">
+<div class="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center text-error mt-1 shrink-0">
+<span class="material-symbols-outlined">close</span>
+</div>
+<div>
+<h4 class="font-bold text-xl mb-2">Revenue Leakage</h4>
+<p class="text-on-surface-variant leading-relaxed">Forgotten utility bills, missed penalty collections, and unrecorded ghost vacancies.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="relative reveal">
+<div class="bg-white p-12 rounded-3xl shadow-eight border border-border-subtle">
+<div class="flex items-center gap-4 mb-10">
+<div class="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-2xl">auto_awesome</span>
+</div>
+<span class="font-bold text-2xl tracking-tight">The TenoPilot Advantage</span>
+</div>
+<div class="space-y-6">
+<div class="p-6 bg-surface-warm rounded-2xl flex justify-between items-center border border-primary/20 hover:border-primary transition-colors cursor-default">
+<span class="font-bold">Automated Rent Ledger</span>
+<span class="bg-primary text-on-primary px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Unified</span>
+</div>
+<div class="p-6 bg-surface-warm rounded-2xl flex justify-between items-center border border-transparent hover:border-primary/20 transition-colors cursor-default">
+<span class="font-bold">Maintenance Intelligence</span>
+<span class="bg-primary/10 text-primary px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Real-time</span>
+</div>
+<div class="p-6 bg-surface-warm rounded-2xl flex justify-between items-center border border-transparent hover:border-primary/20 transition-colors cursor-default">
+<span class="font-bold">Occupancy Optimization</span>
+<span class="bg-primary/10 text-primary px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">Live</span>
+</div>
+</div>
+</div>
+<!-- Floating Badge -->
+<div class="absolute -top-10 -right-10 bg-secondary text-on-secondary p-8 rounded-3xl shadow-2xl animate-bounce hidden md:block border-4 border-white">
+<p class="text-3xl font-display-lg">35%</p>
+<p class="text-xs uppercase font-bold tracking-widest opacity-80">Profit Growth</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Showcase Features -->
+<section class="py-section-gap-mobile md:py-section-gap-desktop bg-white" id="features">
+<div class="max-w-container-max mx-auto px-gutter">
+<!-- Feature 1 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-32 items-center mb-48 reveal">
+<div class="order-2 lg:order-1">
+<div class="relative rounded-3xl overflow-hidden shadow-2xl border border-border-subtle group">
+<img alt="Maintenance Management" class="w-full transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0ewFxuB6arjXan2MTaOC9tii6CCJbgtSHPHBDWyKYShcrcPhX_t48R-O-vFVrekcgZQhW2d5YfB14Cgy1fTZhJ0uPsvdfH8GpELDv4D_fykDJvloKBUMuEZ69rZjYZiNa8ZcpicyjnmvVqt7_cjcjcmtbgWFrJ6i1DzYxIom1ZALH0Bzfx8UBEwHvvvdCB7mofOhNNR2lY5Ql4uv3qLLLdPMXJLQ5zVVUTG81BEBlw1M11M_xwPRsOA">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+</div>
+</div>
+<div class="order-1 lg:order-2">
+<span class="text-primary font-bold text-label-caps mb-6 block tracking-[0.2em]">OPERATIONAL EXCELLENCE</span>
+<h3 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-8 leading-tight">Maintenance that works <span class="text-primary italic">for</span> you.</h3>
+<p class="text-body-lg text-on-surface-variant mb-10 leading-relaxed">Tenants log issues via their app. Your staff gets notified instantly. Track costs, completion times, and contractor ratings all in one place without picking up the phone.</p>
+<ul class="space-y-6">
+<li class="flex items-center gap-4 group"><span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg transition-colors group-hover:bg-primary group-hover:text-white">check_circle</span> <span class="font-medium">Automated job assignment by skill</span></li>
+<li class="flex items-center gap-4 group"><span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg transition-colors group-hover:bg-primary group-hover:text-white">check_circle</span> <span class="font-medium">Photo-proof completion and digital sign-off</span></li>
+<li class="flex items-center gap-4 group"><span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg transition-colors group-hover:bg-primary group-hover:text-white">check_circle</span> <span class="font-medium">Centralized inventory &amp; spare parts tracking</span></li>
+</ul>
+</div>
+</div>
+<!-- Feature 2 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-32 items-center reveal">
+<div>
+<span class="text-primary font-bold text-label-caps mb-6 block tracking-[0.2em]">IDENTITY &amp; SECURITY</span>
+<h3 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-8 leading-tight">Zero-friction <span class="text-primary italic">Tenant Ledger.</span></h3>
+<p class="text-body-lg text-on-surface-variant mb-10 leading-relaxed">Maintain a professional digital record of every tenant. Integrated e-KYC, automated digital agreement storage, and seamless check-in/out workflows.</p>
+<ul class="space-y-6">
+<li class="flex items-center gap-4 group"><span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg transition-colors group-hover:bg-primary group-hover:text-white">check_circle</span> <span class="font-medium">Legally binding Digital Signatures</span></li>
+<li class="flex items-center gap-4 group"><span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg transition-colors group-hover:bg-primary group-hover:text-white">check_circle</span> <span class="font-medium">Automatic Invoicing and Tax Receipts</span></li>
+<li class="flex items-center gap-4 group"><span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg transition-colors group-hover:bg-primary group-hover:text-white">check_circle</span> <span class="font-medium">Facial Recognition Visitor Log</span></li>
+</ul>
+</div>
+<div>
+<div class="relative rounded-3xl overflow-hidden shadow-2xl border border-border-subtle group">
+<img alt="Tenant Directory" class="w-full transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD36_tyltTI8KGeayuYsDV1QfOFoVaATTvPbvvAgBUeyoMF0p1iQNYowzjeRbHsiJkYOMmSZi0PDgoewzckodmNdlx6HqfJ7I4M69mM8T3bZIOYn6jryWcQh9HWm_g2An50ife4hOPDV1EMUaRPkzNKLhaWGuK-wHOtWdXzxTPDr8JLEy66LEGy_GWYhj1amtU85_Op6DeqWX9t0BCIJQ3YxIHWyDrz2zbupKdfCUbe_wcyEb8FyuJ0-Q">
+<div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- How It Works: Timeline -->
+<section class="py-section-gap-mobile md:py-section-gap-desktop bg-surface-warm">
+<div class="max-w-container-max mx-auto px-gutter text-center">
+<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-24 reveal">From Setup to Pilot in minutes.</h2>
+<div class="relative flex flex-col md:flex-row justify-between items-start gap-16 reveal">
+<!-- Connector Line (Desktop) -->
+<div class="hidden md:block absolute top-12 left-0 w-full h-[2px] bg-border-subtle -z-10"></div>
+<!-- Step 1 -->
+<div class="flex-1 flex flex-col items-center group">
+<div class="w-24 h-24 bg-white rounded-full flex items-center justify-center text-primary border border-border-subtle shadow-xl mb-8 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-4xl">add_business</span>
+</div>
+<h4 class="font-bold text-xl mb-3">Create Building</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Map your properties and geofence locations.</p>
+</div>
+<!-- Step 2 -->
+<div class="flex-1 flex flex-col items-center group">
+<div class="w-24 h-24 bg-white rounded-full flex items-center justify-center text-primary border border-border-subtle shadow-xl mb-8 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-4xl">settings_input_component</span>
+</div>
+<h4 class="font-bold text-xl mb-3">Configure Ops</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Set amenities, house rules, and bill cycles.</p>
+</div>
+<!-- Step 3 -->
+<div class="flex-1 flex flex-col items-center group">
+<div class="w-24 h-24 bg-white rounded-full flex items-center justify-center text-primary border border-border-subtle shadow-xl mb-8 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-4xl">meeting_room</span>
+</div>
+<h4 class="font-bold text-xl mb-3">Inventory Map</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Bulk-upload rooms and define bed types.</p>
+</div>
+<!-- Step 4 -->
+<div class="flex-1 flex flex-col items-center group">
+<div class="w-24 h-24 bg-white rounded-full flex items-center justify-center text-primary border border-border-subtle shadow-xl mb-8 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-4xl">person_add</span>
+</div>
+<h4 class="font-bold text-xl mb-3">Invite Tenants</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Automate onboarding via the mobile app.</p>
+</div>
+<!-- Step 5 -->
+<div class="flex-1 flex flex-col items-center group">
+<div class="w-24 h-24 bg-white rounded-full flex items-center justify-center text-primary border border-border-subtle shadow-xl mb-8 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-4xl">speed</span>
+</div>
+<h4 class="font-bold text-xl mb-3">Scale Ops</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Sit back and monitor the pilot from anywhere.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing Section -->
+<section class="py-section-gap-mobile md:py-section-gap-desktop bg-white" id="pricing">
+<div class="max-w-container-max mx-auto px-gutter">
+<div class="text-center mb-24 reveal">
+<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-6">Transparent, scalable pricing.</h2>
+<p class="text-on-surface-variant text-body-lg max-w-xl mx-auto">No hidden fees. Choose a plan that fits your current inventory.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-10 reveal">
+<!-- Starter -->
+<div class="p-12 rounded-3xl bg-surface-warm border border-border-subtle flex flex-col hover:shadow-xl transition-all">
+<div class="mb-10">
+<h4 class="font-bold text-sm uppercase tracking-widest text-on-surface-variant mb-3">Starter</h4>
+<div class="flex items-baseline gap-2">
+<span class="text-5xl font-bold font-display-lg">$49</span>
+<span class="text-on-surface-variant font-medium">/mo</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-6">Up to 20 rooms per building.</p>
+</div>
+<ul class="space-y-5 mb-12 flex-grow">
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Standard Reporting</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Digital Rent Collection</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Maintenance Management</li>
+</ul>
+<button class="w-full border-2 border-primary text-primary font-bold py-5 rounded-2xl hover:bg-primary hover:text-on-primary transition-all">Start Free Trial</button>
+</div>
+<!-- Professional -->
+<div class="p-12 rounded-3xl bg-white border-2 border-primary shadow-2xl relative scale-105 z-10 flex flex-col">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary text-[10px] font-bold px-6 py-2 rounded-full shadow-lg tracking-widest">MOST POPULAR</div>
+<div class="mb-10">
+<h4 class="font-bold text-sm uppercase tracking-widest text-on-surface-variant mb-3">Professional</h4>
+<div class="flex items-baseline gap-2">
+<span class="text-5xl font-bold font-display-lg">$99</span>
+<span class="text-on-surface-variant font-medium">/mo</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-6">Up to 100 rooms per building.</p>
+</div>
+<ul class="space-y-5 mb-12 flex-grow">
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Advanced Growth Analytics</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Multi-Building Sync HQ</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Granular Staff Permissions</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Priority Support &amp; Training</li>
+</ul>
+<button class="w-full bg-primary text-on-primary font-bold py-5 rounded-2xl shadow-xl hover:shadow-primary/30 transition-all">Start Free Trial</button>
+</div>
+<!-- Enterprise -->
+<div class="p-12 rounded-3xl bg-surface-warm border border-border-subtle flex flex-col hover:shadow-xl transition-all">
+<div class="mb-10">
+<h4 class="font-bold text-sm uppercase tracking-widest text-on-surface-variant mb-3">Enterprise</h4>
+<div class="flex items-baseline gap-2">
+<span class="text-5xl font-bold font-display-lg italic">Custom</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-6">Unlimited global portfolio scale.</p>
+</div>
+<ul class="space-y-5 mb-12 flex-grow">
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Dedicated Success Partner</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Full API &amp; Webhook Access</li>
+<li class="flex items-center gap-4 text-sm font-medium"><span class="material-symbols-outlined text-primary text-xl">check</span> Custom ERP Integrations</li>
+</ul>
+<button class="w-full border-2 border-primary text-primary font-bold py-5 rounded-2xl hover:bg-primary hover:text-on-primary transition-all">Contact Sales</button>
+</div>
+</div>
+</div>
+</section>
+<!-- FAQ Accordion -->
+<section class="py-section-gap-mobile md:py-section-gap-desktop bg-surface-warm">
+<div class="max-w-3xl mx-auto px-gutter">
+<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg text-center mb-20 reveal">Expert answers for your operations.</h2>
+<div class="space-y-6 reveal">
+<div class="bg-white rounded-2xl shadow-sm border border-border-subtle overflow-hidden transition-all hover:border-primary/20">
+<button class="w-full flex justify-between items-center p-8 text-left hover:bg-surface-muted transition-colors font-bold text-xl" onclick="toggleFaq(this)">
+                    How long does onboarding take?
+                    <span class="material-symbols-outlined transition-transform duration-300">expand_more</span>
+</button>
+<div class="px-8 pb-8 text-on-surface-variant hidden leading-relaxed">
+                    Most portfolios are live within 24 hours. Our automated CSV importer handles your current tenant list, and our success team provides a 60-minute kick-off call for your managers.
+                </div>
+</div>
+<div class="bg-white rounded-2xl shadow-sm border border-border-subtle overflow-hidden transition-all hover:border-primary/20">
+<button class="w-full flex justify-between items-center p-8 text-left hover:bg-surface-muted transition-colors font-bold text-xl" onclick="toggleFaq(this)">
+                    Can I manage multiple regions?
+                    <span class="material-symbols-outlined transition-transform duration-300">expand_more</span>
+</button>
+<div class="px-8 pb-8 text-on-surface-variant hidden leading-relaxed">
+                    Yes, TenoPilot is built for cross-border management. You can manage buildings in different cities or countries from a single global login, with local currency and tax configuration for each asset.
+                </div>
+</div>
+<div class="bg-white rounded-2xl shadow-sm border border-border-subtle overflow-hidden transition-all hover:border-primary/20">
+<button class="w-full flex justify-between items-center p-8 text-left hover:bg-surface-muted transition-colors font-bold text-xl" onclick="toggleFaq(this)">
+                    How secure is my tenant data?
+                    <span class="material-symbols-outlined transition-transform duration-300">expand_more</span>
+</button>
+<div class="px-8 pb-8 text-on-surface-variant hidden leading-relaxed">
+                    Security is our core competency. We use AES-256 encryption at rest, TLS 1.3 in transit, and host on SOC2 compliant infrastructure. Your data is backed up every 60 minutes.
+                </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="py-32 bg-primary relative overflow-hidden">
+<div class="max-w-container-max mx-auto px-gutter text-center reveal relative z-10">
+<h2 class="font-display-lg text-headline-lg-mobile md:text-headline-lg mb-8 text-white">Join the future of rental operations.</h2>
+<p class="text-xl text-white/80 mb-14 max-w-2xl mx-auto leading-relaxed">Trade operational chaos for surgical clarity. Hundreds of property managers already have.</p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-6">
+<button class="w-full sm:w-auto bg-white text-primary px-14 py-5 rounded-full font-bold text-lg shadow-2xl hover:bg-surface-warm hover:scale-105 transition-all">Start Free Trial</button>
+<button class="w-full sm:w-auto border-2 border-white/30 text-white px-14 py-5 rounded-full font-bold text-lg hover:bg-white/10 hover:border-white transition-all">Request Private Demo</button>
+</div>
+</div>
+<!-- Decor -->
+<div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+<div class="absolute -top-1/2 -left-1/4 w-full h-full bg-white rounded-full blur-[160px]"></div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-surface-warm border-t border-border-subtle py-24 px-gutter">
+<div class="max-w-container-max mx-auto grid grid-cols-1 md:grid-cols-4 gap-16">
+<div class="col-span-1 md:col-span-1">
+<a class="font-display-lg text-headline-md text-primary mb-8 block" href="#">TenoPilot.com</a>
+<p class="text-on-surface-variant text-sm leading-relaxed mb-8">
+                The high-performance rental operating system for professional property managers who demand precision and scale.
+            </p>
+<div class="flex gap-6">
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#"><span class="material-symbols-outlined">public</span></a>
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#"><span class="material-symbols-outlined">alternate_email</span></a>
+</div>
+</div>
+<div>
+<h5 class="font-bold text-[11px] uppercase tracking-[0.2em] mb-8 text-on-surface">Platform</h5>
+<ul class="space-y-4">
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Core Features</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Pricing Model</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Developer API</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Security Specs</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-[11px] uppercase tracking-[0.2em] mb-8 text-on-surface">Company</h5>
+<ul class="space-y-4">
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Our Mission</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Engineering Blog</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Partner Program</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Media Kit</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-[11px] uppercase tracking-[0.2em] mb-8 text-on-surface">Legal &amp; Support</h5>
+<ul class="space-y-4">
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Compliance Center</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Terms of Service</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Privacy Hub</a></li>
+<li><a class="text-on-surface-variant hover:text-primary text-sm transition-colors" href="#">Service Status</a></li>
+</ul>
+</div>
+</div>
+<div class="max-w-container-max mx-auto mt-24 pt-10 border-t border-border-subtle flex flex-col md:flex-row justify-between items-center text-on-surface-variant text-[12px] tracking-wide">
+<p>© 2024 TenoPilot.com. Engineered for Excellence in Property Management.</p>
+<div class="flex gap-8 mt-4 md:mt-0">
+<a class="hover:text-primary transition-colors" href="#">Cookies</a>
+<a class="hover:text-primary transition-colors" href="#">Accessibility</a>
+</div>
+</div>
+</footer>
+<script>
+    // Intersection Observer for scroll entrance animations
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('active');
+            }
+        });
+    }, observerOptions);
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // FAQ Accordion Toggle
+    function toggleFaq(btn) {
+        const content = btn.nextElementSibling;
+        const icon = btn.querySelector('span');
+        
+        content.classList.toggle('hidden');
+        icon.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        
+        // Optional: Close others
+        const allItems = btn.closest('.space-y-6').querySelectorAll('.bg-white');
+        allItems.forEach(item => {
+            const itemBtn = item.querySelector('button');
+            const itemContent = itemBtn.nextElementSibling;
+            if (itemBtn !== btn) {
+                itemContent.classList.add('hidden');
+                itemBtn.querySelector('span').style.transform = 'rotate(0deg)';
+            }
+        });
+    }
+</script>
+</body></html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Subscription &amp; Billing | TenoPilot.com</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&amp;family=Manrope:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@100..900&amp;family=Playfair+Display:wght@100..900&amp;display=swap" rel="stylesheet">
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Manrope', sans-serif;
+        }
+        .glass-header {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .bento-card {
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .bento-card:active {
+            transform: scale(0.98);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#fff8f6",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#636032",
+                        "tertiary-fixed": "#eae5ab",
+                        "secondary-fixed": "#fedcc7",
+                        "surface-container-high": "#f2e6e0",
+                        "on-primary-fixed": "#331200",
+                        "inverse-surface": "#362f2c",
+                        "secondary-container": "#fedcc7",
+                        "on-tertiary-container": "#434116",
+                        "on-tertiary-fixed-variant": "#4b481d",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#fef1ec",
+                        "secondary": "#725949",
+                        "on-primary-container": "#fffbff",
+                        "surface-container-highest": "#ede0db",
+                        "on-secondary": "#ffffff",
+                        "surface-warm": "#f8ede3",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "critical-red": "#ba1a1a",
+                        "surface-dim": "#e4d8d2",
+                        "on-primary-fixed-variant": "#773300",
+                        "secondary-fixed-dim": "#e1c0ac",
+                        "surface-variant": "#ede0db",
+                        "inverse-on-surface": "#fbeee9",
+                        "primary-container": "#b65c21",
+                        "surface-tint": "#99460a",
+                        "primary-fixed": "#ffdbca",
+                        "on-surface": "#201a17",
+                        "on-secondary-fixed": "#29180b",
+                        "tertiary-container": "#b1ad78",
+                        "success-emerald": "#059669",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#dbc1b5",
+                        "inverse-primary": "#ffb68e",
+                        "on-secondary-container": "#795f4f",
+                        "border-sand": "#d7c2b9",
+                        "error": "#ba1a1a",
+                        "on-surface-variant": "#554339",
+                        "on-background": "#201a17",
+                        "primary": "#964407",
+                        "background": "#fff8f6",
+                        "outline": "#887368",
+                        "on-tertiary-fixed": "#1e1c00",
+                        "on-error": "#ffffff",
+                        "surface-container": "#f8ebe6",
+                        "tertiary-fixed-dim": "#cdc991",
+                        "primary-fixed-dim": "#ffb68e",
+                        "surface-bright": "#fff8f6",
+                        "on-secondary-fixed-variant": "#594233"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "container-max": "1440px",
+                        "xl": "40px",
+                        "unit": "4px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Playfair Display"],
+                        "tabular-nums": ["Manrope"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "body-lg": ["Manrope"],
+                        "headline-lg": ["Playfair Display"],
+                        "title-lg": ["Manrope"],
+                        "display": ["Playfair Display"],
+                        "label-md": ["Manrope"],
+                        "body-md": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 backdrop-blur-md border-b border-outline-variant bg-surface/80 flex items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-4 w-full">
+<button class="material-symbols-outlined text-primary active:scale-95 transition-transform">arrow_back</button>
+<h1 class="font-headline-md text-headline-md-mobile font-bold text-primary">TenoPilot.com</h1>
+</div>
+</header>
+<!-- Content Canvas -->
+<main class="pt-24 px-margin-mobile max-w-md mx-auto space-y-md">
+<!-- Subscription Header -->
+<div class="mb-lg">
+<p class="font-label-md text-label-md text-secondary uppercase tracking-widest mb-xs">Billing Overview</p>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Subscription &amp; Billing</h2>
+</div>
+<!-- Current Plan Card -->
+<section class="bento-card bg-surface-container border border-border-sand rounded-xl p-md shadow-sm">
+<div class="flex justify-between items-start mb-md">
+<div>
+<h3 class="font-title-lg text-title-lg text-on-surface">Premium Portfolio</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Active since Jan 2024</p>
+</div>
+<span class="bg-success-emerald/10 text-success-emerald px-sm py-xs rounded-full font-label-md text-[10px] uppercase font-bold border border-success-emerald/20">Active</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="font-headline-md text-headline-md text-primary">$249.00</span>
+<span class="font-body-md text-body-md text-secondary">/month</span>
+</div>
+</section>
+<!-- Renewal Countdown (Amber/Primary) -->
+<section class="bento-card bg-surface-container-low border-2 border-primary-container rounded-xl p-md overflow-hidden relative">
+<div class="absolute top-0 right-0 p-2">
+<span class="material-symbols-outlined text-primary-container opacity-20 text-4xl" style="font-variation-settings: 'FILL' 1;">timer</span>
+</div>
+<div class="relative z-10">
+<h3 class="font-title-lg text-title-lg text-primary mb-xs">Renewal in 4 days</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md">Your plan will automatically renew on May 15, 2024.</p>
+<button class="w-full h-14 bg-primary text-on-primary font-bold rounded-lg active:scale-[0.97] transition-transform flex items-center justify-center gap-sm">
+                    Renew Now
+                    <span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</section>
+<!-- Payment Method -->
+<section class="bento-card bg-surface-container border border-border-sand rounded-xl p-md">
+<h3 class="font-label-md text-label-md text-secondary uppercase mb-md">Default Payment Method</h3>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-md">
+<div class="w-12 h-8 bg-on-surface/5 rounded flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-secondary">credit_card</span>
+</div>
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">•••• 8821</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Expires 09/27</p>
+</div>
+</div>
+<button class="text-primary font-label-md text-label-md underline">Edit</button>
+</div>
+</section>
+<!-- Recent Invoices -->
+<section class="space-y-sm pb-8">
+<h3 class="font-label-md text-label-md text-secondary uppercase px-xs">Recent Invoices</h3>
+<!-- Invoice Item 1 -->
+<div class="bento-card bg-surface-container border border-border-sand rounded-xl p-md flex items-center justify-between">
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">April 2024</p>
+<p class="font-body-md text-body-md text-on-surface-variant">INV-2024-004 • $249.00</p>
+</div>
+<button class="h-12 w-12 flex items-center justify-center rounded-full bg-surface-warm border border-border-sand text-primary active:scale-90 transition-transform">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+<!-- Invoice Item 2 -->
+<div class="bento-card bg-surface-container border border-border-sand rounded-xl p-md flex items-center justify-between">
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">March 2024</p>
+<p class="font-body-md text-body-md text-on-surface-variant">INV-2024-003 • $249.00</p>
+</div>
+<button class="h-12 w-12 flex items-center justify-center rounded-full bg-surface-warm border border-border-sand text-primary active:scale-90 transition-transform">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+<!-- Invoice Item 3 -->
+<div class="bento-card bg-surface-container border border-border-sand rounded-xl p-md flex items-center justify-between">
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">February 2024</p>
+<p class="font-body-md text-body-md text-on-surface-variant">INV-2024-002 • $249.00</p>
+</div>
+<button class="h-12 w-12 flex items-center justify-center rounded-full bg-surface-warm border border-border-sand text-primary active:scale-90 transition-transform">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+<button class="w-full py-md text-primary font-bold font-label-md text-label-md flex items-center justify-center gap-xs">
+                View all history
+                <span class="material-symbols-outlined text-sm">open_in_new</span>
+</button>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 border-t border-outline-variant bg-surface flex justify-around items-center h-20 px-2 pb-safe">
+<a class="flex flex-col items-center justify-center text-secondary opacity-70 hover:bg-surface-warm transition-all duration-200 rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary opacity-70 hover:bg-surface-warm transition-all duration-200 rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined">domain</span>
+<span class="font-label-md text-label-md">Properties</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary bg-surface-container-low rounded-xl px-3 py-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-label-md text-label-md">Payments</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary opacity-70 hover:bg-surface-warm transition-all duration-200 rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-label-md text-label-md">Notifications</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary opacity-70 hover:bg-surface-warm transition-all duration-200 rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple haptic feedback simulation
+        document.querySelectorAll('button, a').forEach(btn => {
+            btn.addEventListener('touchstart', () => {
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(5);
+                }
+            });
+        });
+    </script>
+</body></html>

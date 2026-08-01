@@ -1,0 +1,292 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Property Setup - Sunshine PG</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed-dim": "#e1c0ac",
+                    "secondary": "#725949",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed": "#331200",
+                    "surface-tint": "#99460a",
+                    "surface-bright": "#fff8f6",
+                    "primary-container": "#b65c21",
+                    "error-container": "#ffdad6",
+                    "surface-variant": "#ede0db",
+                    "surface-container-highest": "#ede0db",
+                    "surface-container-high": "#f2e6e0",
+                    "surface-dim": "#e4d8d2",
+                    "outline": "#887368",
+                    "primary-fixed-dim": "#ffb68e",
+                    "primary": "#964407",
+                    "critical-red": "#ba1a1a",
+                    "success-emerald": "#059669",
+                    "secondary-container": "#fbd9c4",
+                    "surface-container": "#f8ebe6",
+                    "on-error-container": "#93000a",
+                    "on-surface-variant": "#554339",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#ffdbca",
+                    "on-primary": "#ffffff",
+                    "secondary-fixed": "#fedcc7",
+                    "inverse-surface": "#362f2c",
+                    "tertiary": "#636032",
+                    "on-secondary-fixed": "#29170b",
+                    "surface-container-low": "#fef1ec",
+                    "surface": "#fff8f6",
+                    "on-primary-fixed-variant": "#773300",
+                    "tertiary-container": "#b1ad78",
+                    "on-tertiary-fixed": "#1e1c00",
+                    "on-surface": "#201a17",
+                    "on-tertiary-container": "#434116",
+                    "inverse-on-surface": "#fbeee9",
+                    "on-tertiary-fixed-variant": "#4b481d",
+                    "tertiary-fixed-dim": "#cdc991",
+                    "background": "#fff8f6",
+                    "tertiary-fixed": "#eae5ab",
+                    "on-secondary": "#ffffff",
+                    "on-background": "#201a17",
+                    "error": "#ba1a1a",
+                    "inverse-primary": "#ffb68e",
+                    "on-primary-container": "#fffbff",
+                    "surface-warm": "#f8ede3",
+                    "outline-variant": "#dbc1b5",
+                    "on-secondary-container": "#775d4d",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-fixed-variant": "#594233",
+                    "border-sand": "#d7c2b9"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "40px",
+                    "xs": "4px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "sm": "8px",
+                    "margin-mobile": "16px",
+                    "gutter": "24px",
+                    "unit": "4px",
+                    "container-max": "1440px"
+            },
+            "fontFamily": {
+                    "title-lg": ["Manrope"],
+                    "label-md": ["Manrope"],
+                    "headline-md": ["Playfair Display"],
+                    "body-md": ["Manrope"],
+                    "tabular-nums": ["Manrope"],
+                    "body-lg": ["Manrope"],
+                    "headline-lg-mobile": ["Playfair Display"],
+                    "headline-lg": ["Playfair Display"],
+                    "display": ["Playfair Display"]
+            },
+            "fontSize": {
+                    "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .bento-glow:hover {
+            box-shadow: 0 12px 24px -10px rgba(194, 101, 42, 0.15);
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen">
+<!-- Top AppBar -->
+<header class="sticky top-0 w-full z-50 bg-primary text-white flex items-center justify-between px-margin-mobile h-16 max-w-container-max mx-auto shadow-lg">
+<div class="flex items-center gap-3"><span class="material-symbols-outlined text-white text-2xl" data-icon="apartment">apartment</span><h1 class="font-display text-headline-md text-white">Sunshine PG</h1></div>
+<button class="active:opacity-70 transition-opacity p-2 hover:bg-surface-container-low rounded-full"><span class="material-symbols-outlined text-white" data-icon="swap_vert">swap_vert</span></button>
+</header>
+<main class="max-w-container-max mx-auto pb-32">
+<!-- Action Header -->
+<div class="px-margin-mobile pt-lg pb-md flex items-center justify-between bg-surface-container-low/50">
+<div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Property Setup</h2>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase mt-1">Ground Floor Configuration</p>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-2 text-label-md font-label-md text-on-surface-variant border border-outline-variant rounded-full hover:bg-surface-container-low transition-colors">
+                    Save Draft
+                </button>
+<button class="px-4 py-2 text-label-md font-label-md bg-primary text-white rounded-full shadow-sm active:scale-95 transition-transform">
+                    Publish
+                </button>
+</div>
+</div>
+<!-- Main Content Canvas -->
+<div class="px-margin-mobile py-md space-y-lg">
+<!-- Quick Actions Bento -->
+<div class="grid grid-cols-3 gap-md">
+<button class="flex flex-col items-center justify-center p-lg bg-surface-container-lowest border border-border-sand rounded-xl bento-glow transition-all active:scale-95">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="add_home">add_home</span>
+</div>
+<span class="text-label-md font-label-md text-on-surface">Add Room</span>
+</button>
+<button class="flex flex-col items-center justify-center p-lg bg-surface-container-lowest border border-border-sand rounded-xl bento-glow transition-all active:scale-95">
+<div class="w-12 h-12 rounded-full bg-secondary-container/20 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-secondary text-2xl" data-icon="cloud_download">cloud_download</span>
+</div>
+<span class="text-label-md font-label-md text-on-surface">Import Setup</span>
+</button>
+<button class="flex flex-col items-center justify-center p-lg bg-surface-container-lowest border border-border-sand rounded-xl bento-glow transition-all active:scale-95"><div class="w-12 h-12 rounded-full bg-tertiary-container/20 flex items-center justify-center mb-3"><span class="material-symbols-outlined text-tertiary text-2xl" data-icon="layers">layers</span></div><span class="text-label-md font-label-md text-on-surface">Add Floor</span></button></div>
+<!-- Room Configuration Section -->
+<div class="space-y-md">
+<div class="flex items-center justify-between">
+<h3 class="font-title-lg text-title-lg text-on-surface">Active Rooms</h3>
+<span class="text-label-md font-label-md text-primary uppercase">Floor 01</span>
+</div>
+<!-- Room A-101 Card -->
+<div class="bg-surface-container-lowest border border-border-sand rounded-xl p-md bento-glow transition-all relative overflow-hidden">
+<div class="absolute top-0 right-0 p-3">
+<span class="material-symbols-outlined text-on-surface-variant/40" data-icon="more_vert">more_vert</span>
+</div>
+<div class="flex gap-md">
+<div class="w-20 h-20 rounded-lg bg-cover bg-center shrink-0" data-alt="A bright, luxury studio apartment room with desert modern aesthetic, featuring warm terracotta accents, high-end wooden furniture, and floor-to-ceiling windows letting in soft golden sunlight. The atmosphere is upscale and serene, consistent with the Sahara Refined brand identity of tactile warmth and corporate precision." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCBDamcCetNePu2boNMKJ-WSDgF4H31dsdjYUa9T-66rcG2Ma_BdgcYNhbJ9tqocmHNGb93VUaJOzjjZJU21h78l_M-EEC4LOI7YPhGgev5CHq6KGU5SAyswEP0UGJRSH431AfyiNnJUkoKUbfXmR9onHdYOmWPuQRJIzqpiWcGXMKq9R4-4vkg9syxSpvLsGRxqwj85937YnPwYt_r9Gfkv0px0jXyvoOrl07yrp-QO3fomCXyeva_yA')"></div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center gap-2 mb-1">
+<h4 class="font-title-lg text-title-lg text-on-surface">Room A-101</h4>
+<span class="px-2 py-0.5 rounded-full bg-success-emerald/10 text-[10px] font-bold text-success-emerald uppercase tracking-wider">Active</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="group">group</span>
+<span class="text-body-md font-body-md">Triple Sharing</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="chair">chair</span>
+<span class="text-body-md font-body-md">Fully Furnished</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-outline-variant/30 flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary-fixed flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a premium property client in a light-filled modern office, capturing a sense of reliability and quiet authority with soft high-key lighting and a neutral professional color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD57o-dMR5BsTf79N-H_Aba_CXlgoUQCtDtddFcUxkfrx85UDdYRg-9IN2Ggn4nFFVgK8yTJjOxAhmLg8GMYDq3LU9sMpVx3-V5m42D1n2jPSv01q1GtcWvV72243fe4rny9KigvBLFvYBaoZenExYBeeKg4tV4bORSVXcoG1paohhBoFz6VkjvQtC7DrTnk1R_NcylOSpbPh7-s-UOn0K2v9Yvy_r1PX7HKlL7SxzU2kq4097jZemyAQ">
+</div>
+<div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-secondary-fixed flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A portrait of a young professional resident in a desert modern setting, featuring warm natural lighting and earthy tones that evoke a high-end luxury residential feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBj3-Pu7Fwy9dUBpmZPJ7CLPH3X5gp8oQ6KzgMYULUYLkPTr5LrD9QVU3-My8rxKaaoWbSy9xO6ownkwZ49WbAFF1YlkyJIfMbwd0tRFA0b13rI1gMtBlT6ZBY5uKQFhSvMpHCq6vqVlgDpRMC-lfDgwYIrZAA34aNrmpBl6Ib0vDN_fRO1fm7H1zTPPlasUaTtG0lWiUlDluhDKs3ehBoOHq6Cl6eJ3GLsA9cV_PVNaN-xRRTQl8gCfQ">
+</div>
+<div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-surface-container-high flex items-center justify-center">
+<span class="text-[10px] font-bold text-on-surface-variant">+1</span>
+</div>
+</div>
+<button class="text-primary font-bold text-label-md flex items-center gap-1">
+                            Manage Inventory <span class="material-symbols-outlined text-xs" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Room A-102 Card -->
+<div class="bg-surface-container-lowest border border-border-sand rounded-xl p-md bento-glow transition-all relative overflow-hidden">
+<div class="absolute top-0 right-0 p-3">
+<span class="material-symbols-outlined text-on-surface-variant/40" data-icon="more_vert">more_vert</span>
+</div>
+<div class="flex gap-md">
+<div class="w-20 h-20 rounded-lg bg-cover bg-center shrink-0" data-alt="A premium dual-occupancy residential room with refined minimalist decor, earthy terracotta textiles, and sleek corporate modern furniture. The space is bathed in warm, diffused light, highlighting the high-quality textures and professional property management aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAozftp9FYi4daiHFi65zjUtaprLMkN6r-SyQnW-4sxYwdnGma88R8WnwmOusmvp8IO8oq1hfUeJ712VSh2b3W3rMdHBVH4DvBN1YG38bxOuxaZPs5mWAaKd961mPx5TKK1-Gj-1ft9ymGwQsAuK_sO0raloOuKmharjD98nXrBOWfwldCuvxvuZhW4SF-nYkB4R59e4WhVrk5CA9Q_O4d6OAtNi3sxjWdGkhXZBzLLD1xl0P2wXyIZYg')"></div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center gap-2 mb-1">
+<h4 class="font-title-lg text-title-lg text-on-surface">Room A-102</h4>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-[10px] font-bold text-on-secondary-container uppercase tracking-wider">Maintenance</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="person">person</span>
+<span class="text-body-md font-body-md">Double Sharing</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="ac_unit">ac_unit</span>
+<span class="text-body-md font-body-md">AC Ready</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-outline-variant/30 flex items-center justify-between">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm" data-icon="info">info</span>
+<span class="text-label-md font-label-md">Next available in 3 days</span>
+</div>
+<button class="text-primary font-bold text-label-md flex items-center gap-1">
+                            Edit Specs <span class="material-symbols-outlined text-xs" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Hint/Feedback Container -->
+<div class="p-lg bg-surface-container border-l-4 border-primary rounded-r-lg">
+<div class="flex gap-md">
+<span class="material-symbols-outlined text-primary" data-icon="lightbulb">lightbulb</span>
+<div>
+<h5 class="text-label-md font-label-md text-on-surface uppercase mb-1">Setup Tip</h5>
+<p class="text-body-md text-on-surface-variant">Standardizing room types across the floor helps in quicker inventory management and billing automation.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 w-full z-50 shadow-lg border-t border-outline-variant/30 bg-surface dark:bg-surface-dim flex justify-around items-center h-20 px-2 pb-safe">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 transition-all scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="domain" style="font-variation-settings: 'FILL' 1;">domain</span>
+<span class="font-label-md text-label-md">Properties</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Payments</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all scale-95 active:scale-90 relative" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="font-label-md text-label-md">Notifications</span>
+<span class="absolute top-0 right-4 w-2 h-2 bg-critical-red rounded-full"></span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple micro-interaction for cards
+        document.querySelectorAll('.bento-glow').forEach(card => {
+            card.addEventListener('touchstart', () => {
+                card.style.transform = 'scale(0.98)';
+            });
+            card.addEventListener('touchend', () => {
+                card.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+
+
+</body></html>

@@ -1,0 +1,501 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Subscription &amp; Billing | TenoPilot</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&amp;family=Manrope:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#fff8f6",
+                    "on-tertiary": "#ffffff",
+                    "tertiary": "#636032",
+                    "tertiary-fixed": "#eae5ab",
+                    "secondary-fixed": "#fedcc7",
+                    "surface-container-high": "#f2e6e0",
+                    "on-primary-fixed": "#331200",
+                    "inverse-surface": "#362f2c",
+                    "secondary-container": "#fedcc7",
+                    "on-tertiary-container": "#434116",
+                    "on-tertiary-fixed-variant": "#4b481d",
+                    "on-primary": "#ffffff",
+                    "surface-container-low": "#fef1ec",
+                    "secondary": "#725949",
+                    "on-primary-container": "#fffbff",
+                    "surface-container-highest": "#ede0db",
+                    "on-secondary": "#ffffff",
+                    "surface-warm": "#f8ede3",
+                    "error-container": "#ffdad6",
+                    "surface-container-lowest": "#ffffff",
+                    "critical-red": "#ba1a1a",
+                    "surface-dim": "#e4d8d2",
+                    "on-primary-fixed-variant": "#773300",
+                    "secondary-fixed-dim": "#e1c0ac",
+                    "surface-variant": "#ede0db",
+                    "inverse-on-surface": "#fbeee9",
+                    "primary-container": "#b65c21",
+                    "surface-tint": "#99460a",
+                    "primary-fixed": "#ffdbca",
+                    "on-surface": "#201a17",
+                    "on-secondary-fixed": "#29180b",
+                    "tertiary-container": "#b1ad78",
+                    "success-emerald": "#059669",
+                    "on-error-container": "#93000a",
+                    "outline-variant": "#dbc1b5",
+                    "inverse-primary": "#ffb68e",
+                    "on-error": "#ffffff",
+                    "surface-container": "#f8ebe6",
+                    "tertiary-fixed-dim": "#cdc991",
+                    "primary-fixed-dim": "#ffb68e",
+                    "surface-bright": "#fff8f6",
+                    "on-secondary-fixed-variant": "#594233",
+                    "primary": "#964407",
+                    "border-sand": "#d7c2b9",
+                    "outline": "#887368"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "container-max": "1440px",
+                    "xl": "40px",
+                    "unit": "4px",
+                    "gutter": "24px",
+                    "xs": "4px",
+                    "sm": "8px",
+                    "lg": "24px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Playfair Display"],
+                    "tabular-nums": ["Manrope"],
+                    "headline-lg-mobile": ["Playfair Display"],
+                    "body-lg": ["Manrope"],
+                    "headline-lg": ["Playfair Display"],
+                    "title-lg": ["Manrope"],
+                    "display": ["Playfair Display"],
+                    "label-md": ["Manrope"],
+                    "body-md": ["Manrope"]
+            },
+            "fontSize": {
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .active-tab-border {
+            box-shadow: inset -4px 0 0 0 #964407;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #d7c2b9;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body-md text-on-surface selection:bg-primary-fixed-dim selection:text-on-primary-fixed overflow-x-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-64 h-full fixed left-0 top-0 bg-surface border-r border-outline-variant flex flex-col py-xl px-md z-40">
+<div class="mb-xl px-sm">
+<h1 class="font-headline-lg text-headline-lg text-primary">TenoPilot</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Sahara Management Hub</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-on-surface-variant hover:bg-surface-container-lowest transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-on-surface-variant hover:bg-surface-container-lowest transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">domain</span>
+                Properties
+            </a>
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-on-surface-variant hover:bg-surface-container-lowest transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">groups</span>
+                Tenants
+            </a>
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-on-surface-variant hover:bg-surface-container-lowest transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">payments</span>
+                Finance
+            </a>
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-on-surface-variant hover:bg-surface-container-lowest transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">analytics</span>
+                Reports
+            </a>
+</nav>
+<div class="mt-auto border-t border-outline-variant pt-md">
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-primary bg-surface-container-low border-r-4 border-primary font-bold" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Settings
+            </a>
+<a class="flex items-center gap-3 px-sm py-3 font-label-md text-on-surface-variant hover:bg-surface-container-lowest transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+                Support
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-30 flex justify-between items-center h-16 px-lg bg-surface/80 backdrop-blur-md border-b border-outline-variant">
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-low px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md w-64" placeholder="Search billing..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<button class="relative text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-critical-red rounded-full"></span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">apps</span>
+</button>
+<div class="relative" id="profile-dropdown-container">
+  <button id="profile-toggle" class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center border border-outline-variant overflow-hidden hover:shadow-md transition-shadow active:scale-95">
+    <img class="w-full h-full object-cover" alt="Profile Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9nW566WeGfa02wGh-MEnBCbGaG7YLCkLq23FFVk9uVDe72m_vi_aAYVXDk9Py12XBUeFSqOxIq8U3fQhCdW1dTAaCKv1OR9ZZfcqjyi8Fjl5wgjukJhoGhKpQbiBj8v3sfXc4aTBSlQHOo2VkUPIsrLKpwfyGxfUPavS2gaY_XRIJs14deVf6e67OkoUnpFuRYxOUPGwxbjdnHDzOYAkYWmvpTpxyyHJsEvhsQ5KoTZX3RtIrjNkQEA">
+  </button>
+  <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-surface border border-outline-variant rounded-xl shadow-xl py-2 z-50">
+    <div class="px-4 py-2 border-b border-outline-variant mb-1">
+      <p class="font-title-lg text-on-surface">Sahara Manager</p>
+      <p class="text-label-md text-on-surface-variant">manager@tenopilot.com</p>
+    </div>
+    <a href="#" class="flex items-center gap-3 px-4 py-2 text-body-md text-on-surface-variant hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined text-[20px]">person</span>
+      View Profile
+    </a>
+    <a href="#" class="flex items-center justify-between px-4 py-2 text-body-md text-primary bg-surface-container-low font-bold">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-[20px]">credit_card</span>
+        Subscription &amp; Billing
+      </div>
+      <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+    </a>
+    <a href="#" class="flex items-center gap-3 px-4 py-2 text-body-md text-on-surface-variant hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined text-[20px]">settings</span>
+      Settings
+    </a>
+    <div class="border-t border-outline-variant mt-1 pt-1">
+      <a href="#" class="flex items-center gap-3 px-4 py-2 text-body-md text-critical-red hover:bg-error-container/10 transition-colors">
+        <span class="material-symbols-outlined text-[20px]">logout</span>
+        Sign Out
+      </a>
+    </div>
+  </div>
+</div>
+</div>
+</header>
+<!-- Page Header & Breadcrumbs -->
+<div class="max-w-container-max mx-auto px-lg py-xl">
+<div class="mb-lg">
+<nav class="flex items-center gap-2 text-label-md text-on-surface-variant mb-2">
+<a class="hover:text-primary" href="#">Settings</a>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-primary font-bold">Subscription</span>
+</nav>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Subscription &amp; Billing</h2>
+</div>
+<!-- Dashboard Alert (Floating Style) -->
+<div class="mb-xl bg-surface-container-low border border-primary-fixed-dim rounded-xl p-md flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">priority_high</span>
+</div>
+<div>
+<p class="font-title-lg text-on-surface">Renew your Sahara Premium plan</p>
+<p class="font-body-md text-on-surface-variant">Your current cycle ends in <span class="font-bold text-primary">5 Days</span>. Take action to avoid service interruption.</p>
+</div>
+</div>
+<button class="bg-primary text-on-primary px-lg py-sm rounded-full font-label-md uppercase tracking-wider hover:bg-primary-container transition-all active:scale-95 shadow-md" style="transition: width 1.5s cubic-bezier(0.65, 0, 0.35, 1);">
+                    Renew Now
+                </button>
+</div>
+<!-- Two-Column Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column (Main Content) -->
+<div class="lg:col-span-8 space-y-lg">
+<!-- Active Plan Card -->
+<div class="bg-white border-t-4 border-primary rounded-xl p-lg border-x border-b border-border-sand hover:shadow-xl transition-shadow duration-300" style="transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<span class="bg-success-emerald/10 text-success-emerald text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-widest mb-2 inline-block">Active</span>
+<h3 class="font-headline-md text-headline-md text-primary">Sahara Premium</h3>
+<p class="text-on-surface-variant font-body-md">Comprehensive property and tenant management suite.</p>
+</div>
+<div class="text-right">
+<p class="font-headline-md text-headline-md text-on-surface">₹4,999<span class="text-body-md text-on-surface-variant">/year</span></p>
+<button class="text-primary font-label-md hover:underline mt-2">Compare Plans</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md pt-lg border-t border-outline-variant">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">event</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant uppercase">Next Renewal</p>
+<p class="font-title-lg text-on-surface">Oct 24, 2024</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">history</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant uppercase">Member Since</p>
+<p class="font-title-lg text-on-surface">Oct 24, 2021</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Usage Limits Section -->
+<div class="bg-white rounded-xl p-lg border border-border-sand" style="transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); transform: translateY(0px);">
+<h4 class="font-title-lg text-title-lg mb-lg">Usage &amp; Capacity</h4>
+<div class="space-y-lg">
+<!-- Progress Bar 1 -->
+<div class="space-y-2">
+<div class="flex justify-between font-label-md">
+<span class="text-on-surface-variant uppercase">Property limit</span>
+<span class="text-on-surface font-bold">3 of 5 Properties</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 60%; transition: width 1.5s cubic-bezier(0.65, 0, 0.35, 1);"></div>
+</div>
+</div>
+<!-- Progress Bar 2 -->
+<div class="space-y-2">
+<div class="flex justify-between font-label-md">
+<span class="text-on-surface-variant uppercase">Tenant limit</span>
+<span class="text-on-surface font-bold">142 of 250 Tenants</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 56.8%; transition: width 1.5s cubic-bezier(0.65, 0, 0.35, 1);"></div>
+</div>
+</div>
+<!-- Progress Bar 3 -->
+<div class="space-y-2">
+<div class="flex justify-between font-label-md">
+<span class="text-on-surface-variant uppercase">Document storage</span>
+<span class="text-on-surface font-bold">4.2 GB of 10 GB</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-tertiary-container h-full rounded-full" style="width: 42%; transition: width 1.5s cubic-bezier(0.65, 0, 0.35, 1);"></div>
+</div>
+</div>
+</div>
+<div class="mt-xl p-md bg-surface-warm rounded-lg flex items-center justify-between border border-outline-variant">
+<p class="text-body-md text-on-surface-variant">Need more capacity? Scale your infrastructure instantly.</p>
+<button class="font-label-md text-primary font-bold hover:text-primary-container flex items-center gap-1">
+                                UPGRADE <span class="material-symbols-outlined text-[18px]">trending_up</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Right Column (Sidebar) -->
+<div class="lg:col-span-4 space-y-lg">
+<!-- Payment Method -->
+<div class="bg-white rounded-xl p-lg border border-border-sand" style="transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); transform: translateY(0px);">
+<div class="flex justify-between items-center mb-lg">
+<h4 class="font-title-lg text-title-lg">Payment Method</h4>
+<button class="text-primary font-label-md hover:underline">Edit</button>
+</div>
+<div class="bg-surface-container-low p-md rounded-lg border border-outline-variant relative overflow-hidden group">
+<!-- Visual Texture -->
+<div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none group-hover:rotate-12 transition-transform duration-500">
+<span class="material-symbols-outlined text-[64px]">credit_card</span>
+</div>
+<div class="flex items-center gap-md relative z-10">
+<div class="w-12 h-8 bg-on-primary-fixed-variant rounded flex items-center justify-center text-white font-bold text-[10px]">
+                                    VISA
+                                </div>
+<div>
+<p class="font-title-lg text-on-surface tabular-nums">•••• 4242</p>
+<p class="text-label-md text-on-surface-variant">Exp: 09/27</p>
+</div>
+</div>
+<div class="mt-md flex items-center gap-2 text-label-md text-success-emerald">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+                                Primary Payment Method
+                            </div>
+</div>
+</div>
+<!-- Billing History -->
+<div class="bg-white rounded-xl p-lg border border-border-sand" style="transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); transform: translateY(0px);">
+<div class="flex justify-between items-center mb-lg">
+<h4 class="font-title-lg text-title-lg">Billing History</h4>
+<a class="text-primary font-label-md hover:underline" href="#">View All</a>
+</div>
+<div class="space-y-md">
+<!-- Invoice Item -->
+<div class="flex items-center justify-between p-sm border-b border-outline-variant hover:bg-surface-warm transition-colors rounded-lg group">
+<div class="flex items-center gap-md">
+<div class="text-secondary opacity-60 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined">receipt_long</span>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Invoice #8291</p>
+<p class="text-label-md text-on-surface-variant">Oct 24, 2023</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<p class="text-body-md font-bold text-on-surface">₹4,999</p>
+<button class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-all">
+<span class="material-symbols-outlined text-[18px]">download</span>
+</button>
+</div>
+</div>
+<!-- Invoice Item -->
+<div class="flex items-center justify-between p-sm border-b border-outline-variant hover:bg-surface-warm transition-colors rounded-lg group">
+<div class="flex items-center gap-md">
+<div class="text-secondary opacity-60 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined">receipt_long</span>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Invoice #7104</p>
+<p class="text-label-md text-on-surface-variant">Oct 24, 2022</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<p class="text-body-md font-bold text-on-surface">₹4,999</p>
+<button class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-all">
+<span class="material-symbols-outlined text-[18px]">download</span>
+</button>
+</div>
+</div>
+<!-- Invoice Item -->
+<div class="flex items-center justify-between p-sm border-b border-outline-variant hover:bg-surface-warm transition-colors rounded-lg group">
+<div class="flex items-center gap-md">
+<div class="text-secondary opacity-60 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined">receipt_long</span>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Invoice #6042</p>
+<p class="text-label-md text-on-surface-variant">Oct 24, 2021</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<p class="text-body-md font-bold text-on-surface">₹3,499</p>
+<button class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:bg-primary-fixed hover:text-primary transition-all">
+<span class="material-symbols-outlined text-[18px]">download</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Promo Card -->
+<div class="relative rounded-xl overflow-hidden aspect-[4/3] flex flex-col justify-end p-lg">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover" data-alt="A high-resolution, wide-angle cinematic shot of a luxury villa development at sunset in a desert oasis. The architecture features modern clean lines and warm sandstone textures. The sky is a gradient of deep orange, dusty rose, and soft gold. The lighting is dramatic and warm, emphasizing professional success and the premium nature of the real estate business." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDET-HJQvx9-_THf0Ec4i0eM9f6k8lLPTyRv_qtMgLpavhlTff2tMJcqcjzIZMAZSXTLifxm2xgG-O1CvUJ4Uh3rlUQ16tosSTaWwZGJQLMzHGO6sMXcyplhayfdrKkAErAwJbpyUKue47HNiHM-nY7LfZ4zY9XUeqgQ5Kv5MKZp0gz_xsM6L3hytR8wb1aGGGK-U3zpPcMd2l4S86xYzhr0QUb2JEcEe3K6fuTq3O5MhQGHJG1zQ-kyg">
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent"></div>
+</div>
+<div class="relative z-10 text-white">
+<h5 class="font-headline-md text-white mb-2">Expanding your empire?</h5>
+<p class="font-body-md text-surface-container-high mb-4">Add up to 5 properties to your current plan with the Enterprise tier.</p>
+<button class="bg-white text-primary px-lg py-sm rounded-full font-label-md uppercase hover:bg-surface-container-low transition-all">
+                                Get a Quote
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Info -->
+<footer class="max-w-container-max mx-auto px-lg py-xl flex flex-col md:flex-row justify-between items-center border-t border-outline-variant text-on-surface-variant">
+<div class="flex items-center gap-md mb-md md:mb-0">
+<span class="font-bold text-primary">TenoPilot.com</span>
+<span class="text-label-md">© 2024 Sahara Management Group</span>
+</div>
+<div class="flex gap-lg font-label-md uppercase tracking-wider">
+<a class="hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-primary transition-colors" href="#">Contact Support</a>
+</div>
+</footer>
+</main>
+<!-- Micro-interactions Script -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Hover effect for cards to add subtle lift
+            const cards = document.querySelectorAll('.bg-white.rounded-xl');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-2px)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0px)';
+                });
+                card.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            });
+
+            // Smooth progress bar animation on scroll
+            const progressBars = document.querySelectorAll('.bg-primary, .bg-secondary, .bg-tertiary-container');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const targetWidth = entry.target.style.width;
+                        entry.target.style.width = '0';
+                        setTimeout(() => {
+                            entry.target.style.transition = 'width 1.5s cubic-bezier(0.65, 0, 0.35, 1)';
+                            entry.target.style.width = targetWidth;
+                        }, 100);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            progressBars.forEach(bar => observer.observe(bar));
+        });
+    </script>
+
+
+<script>
+  (function() {
+    const toggle = document.getElementById('profile-toggle');
+    const dropdown = document.getElementById('profile-dropdown');
+    const container = document.getElementById('profile-dropdown-container');
+
+    if (toggle && dropdown) {
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    }
+  })();
+</script></body></html>

@@ -1,0 +1,300 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>New Tenant Onboarding - Step 4: Agreement</title>
+<!-- Tailwind CSS v3 CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style data-purpose="typography">
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F9FAFB;
+    }
+  </style>
+<style data-purpose="custom-styling">
+    /* Custom accent color based on brand: #C2410C (Orange-700) */
+    .brand-accent { color: #C2410C; }
+    .brand-bg-accent { background-color: #C2410C; }
+    .brand-border-accent { border-color: #C2410C; }
+    
+    .agreement-container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    
+    .sidebar-item-active {
+      background-color: #FFF7ED;
+      border-right: 4px solid #C2410C;
+      color: #C2410C;
+    }
+
+    .step-line {
+      height: 2px;
+      flex-grow: 1;
+      background-color: #E5E7EB;
+    }
+    .step-line-active {
+      background-color: #C2410C;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex bg-slate-50">
+<!-- BEGIN: LeftSidebar -->
+<aside class="w-64 bg-white border-r border-gray-200 flex flex-col fixed inset-y-0" data-purpose="main-navigation">
+<div class="p-6">
+<div class="flex items-center gap-2">
+<span class="text-xl font-bold text-orange-600">TenoPilot.com</span>
+</div>
+<p class="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mt-1">Sahara Edition</p>
+</div>
+<nav class="flex-1 px-2 space-y-1">
+<a class="flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 group" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Dashboard
+      </a>
+<a class="flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 group" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Properties
+      </a>
+<a class="sidebar-item-active flex items-center px-4 py-3 text-sm font-medium rounded-lg group" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Tenants
+      </a>
+<a class="flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 group" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Financial Hub
+      </a>
+<a class="flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 group" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Reports
+      </a>
+</nav>
+<div class="p-4 border-t border-gray-200 mt-auto space-y-1">
+<a class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Settings
+      </a>
+<a class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50" href="#">
+<svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        Support
+      </a>
+</div>
+</aside>
+<!-- END: LeftSidebar -->
+<!-- Main Content Wrapper -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<!-- BEGIN: Header -->
+<header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-10">
+<div class="relative w-96">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center">
+<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</span>
+<input class="block w-full pl-10 pr-3 py-2 border border-gray-100 rounded-full bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" placeholder="Search tenants, rooms, or documents..." type="text">
+</div>
+<div class="flex items-center gap-6">
+<div class="relative">
+<button class="text-gray-400 hover:text-gray-600">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center border-2 border-white font-bold">6</span>
+</div>
+<button class="text-gray-400 hover:text-gray-600">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-semibold text-gray-900">Alex Rivera</p>
+<p class="text-xs text-gray-500">Owner Profile</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-300">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBuZA4dSD7J6xBslNp34b4x1igbC_R8FMS5EmA5UUjfrGRjNeawwMqngo3d2otVU2aQfvoYyqB90uwFPbodrtc-kj7E5kfhoY9s5KgI6qCJuXr197vzNUNOSQqf6KdYFdEmWIpiwqUtNiLmManroglPFf9lxIDOuj27G820sE472ig16FYxYdxaznsGly2H0-qNxxrZ2xOQaFUJ9mK4F1pHw91DrQACN_cketsBOCKGdUa1jgEBrEt5Q">
+</div>
+<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+</div>
+</header>
+<!-- END: Header -->
+<!-- BEGIN: MainContent -->
+<div class="p-8 pb-32">
+<h1 class="text-2xl font-bold text-gray-900 mb-8">New Tenant Onboarding</h1>
+<!-- BEGIN: Stepper -->
+<div class="mb-12 max-w-4xl mx-auto" data-purpose="onboarding-stepper">
+<div class="flex items-center justify-between">
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full brand-bg-accent text-white flex items-center justify-center">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+</div>
+<span class="text-xs font-medium text-gray-500">Personal Details</span>
+</div>
+<div class="step-line step-line-active mx-4"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full brand-bg-accent text-white flex items-center justify-center">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+</div>
+<span class="text-xs font-medium text-gray-500">Room Allocation</span>
+</div>
+<div class="step-line step-line-active mx-4"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full brand-bg-accent text-white flex items-center justify-center">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+</div>
+<span class="text-xs font-medium text-gray-500">Documents &amp; KYC</span>
+</div>
+<div class="step-line step-line-active mx-4"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 rounded-full border-2 brand-border-accent bg-white brand-accent flex items-center justify-center font-bold text-sm">
+              4
+            </div>
+<span class="text-xs font-bold brand-accent">Agreement</span>
+</div>
+</div>
+</div>
+<!-- END: Stepper -->
+<!-- BEGIN: ContentCard -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden agreement-container" data-purpose="agreement-step-content">
+<div class="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl brand-bg-accent flex items-center justify-center text-white shadow-lg shadow-orange-100">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<h2 class="text-lg font-bold text-gray-900">Step 4: Agreement</h2>
+<p class="text-sm text-gray-500">Please review the agreement below. Based on the details provided, we've prepared this agreement for your review.</p>
+</div>
+</div>
+<div class="p-8 bg-gray-50">
+<!-- Document Preview Mockup -->
+<div class="bg-white p-10 border border-gray-200 rounded shadow-sm text-sm text-gray-800 leading-relaxed" data-purpose="agreement-document">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-xl font-bold uppercase tracking-tight text-gray-900">Tenant Agreement</h3>
+<p class="text-gray-600 font-medium">Single Occupancy</p>
+</div>
+<p class="text-xs font-bold text-gray-500">Date: 02 Aug 2024</p>
+</div>
+<p class="mb-8">This Agreement is made between <strong>Sunshine Heights PG</strong> (hereinafter referred to as "Owner") and <strong>John Doe</strong> (hereinafter referred to as "Tenant").</p>
+<div class="space-y-8">
+<!-- Tenant Details Section -->
+<section>
+<h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-4">1. Tenant Details</h4>
+<div class="grid grid-cols-4 gap-4">
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Tenant Name</p>
+<p class="font-bold">John Doe</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Phone</p>
+<p class="font-bold">+91 98765 43210</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Email</p>
+<p class="font-bold">john.doe@email.com</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Profile ID</p>
+<p class="font-bold">TEN-000124</p>
+</div>
+</div>
+</section>
+<!-- Room Allocation Section -->
+<section>
+<h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-4">2. Room Allocation</h4>
+<div class="grid grid-cols-4 gap-4">
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Property</p>
+<p class="font-bold">Sunshine Heights PG</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Room</p>
+<p class="font-bold">Room 102</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Bed</p>
+<p class="font-bold">Bed D</p>
+</div>
+<div>
+<p class="text-[10px] text-gray-400 uppercase">Floor</p>
+<p class="font-bold">Floor 2</p>
+</div>
+</div>
+</section>
+<!-- Terms & Charges Section -->
+<section>
+<h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-4">3. Terms &amp; Charges</h4>
+<div class="grid grid-cols-2 gap-x-8 gap-y-3">
+<div class="flex justify-between">
+<span class="text-gray-600">Joining Date</span>
+<span class="font-bold text-right">15 Aug 2024</span>
+</div>
+<div class="flex justify-between">
+<span class="text-gray-600">Monthly Rent (Incl. Services)</span>
+<span class="font-bold text-right">₹9,000</span>
+</div>
+<div class="flex justify-between">
+<span class="text-gray-600">Security Deposit</span>
+<span class="font-bold text-right">₹9,000 <span class="font-normal text-gray-400 text-xs">(Refundable)</span></span>
+</div>
+<div class="flex justify-between">
+<span class="text-gray-600">Payment Due Date</span>
+<span class="font-bold text-right">5th of every month</span>
+</div>
+<div class="flex justify-between">
+<span class="text-gray-600">Notice Period</span>
+<span class="font-bold text-right">30 days</span>
+</div>
+<div class="flex justify-between">
+<span class="text-gray-600">Agreement Duration</span>
+<span class="font-bold text-right">11 months (15 Aug 2024 - 14 Jul 2025)</span>
+</div>
+</div>
+</section>
+<!-- Terms & Conditions Section -->
+<section>
+<h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-4">4. Terms &amp; Conditions</h4>
+<ul class="list-disc pl-5 space-y-2 text-xs text-gray-700">
+<li>The rent is payable in advance by the due date mentioned above.</li>
+<li>The security deposit is refundable at the end of the stay, subject to deductions for any damages.</li>
+<li>Notice period of 30 days is mandatory before vacating the room.</li>
+<li>The tenant agrees to abide by all the house rules and maintain a clean and peaceful environment.</li>
+<li>Any damages caused to the property will be charged to the tenant.</li>
+</ul>
+<p class="mt-4 text-xs text-gray-500 italic">By agreeing below, you confirm that you have read, understood, and agree to the terms and conditions mentioned in this agreement.</p>
+</section>
+</div>
+<!-- Acceptance Checkbox -->
+<div class="mt-10 p-4 bg-orange-50 border border-orange-100 rounded-lg flex items-center gap-3">
+<input checked="" class="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500 cursor-pointer" id="agree-terms" type="checkbox">
+<label class="text-sm font-medium text-orange-900 cursor-pointer" for="agree-terms">I have read and agree to the terms and conditions.</label>
+</div>
+</div>
+</div>
+</div>
+<!-- END: ContentCard -->
+<!-- BEGIN: ActionButtons -->
+<div class="mt-8 flex items-center justify-between agreement-container">
+<button class="px-8 py-3 border border-gray-300 text-gray-600 font-bold rounded-xl hover:bg-gray-50 flex items-center gap-2">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          Back
+        </button>
+<div class="flex flex-col items-center">
+<button class="px-12 py-3.5 brand-bg-accent text-white font-bold rounded-xl hover:bg-orange-800 transition-colors flex items-center gap-2 shadow-lg shadow-orange-200">
+            Agree &amp; Continue
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<button class="mt-4 text-sm font-bold text-orange-600 hover:underline flex items-center gap-1">
+            Skip &amp; Proceed
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+<!-- END: ActionButtons -->
+</div>
+<!-- END: MainContent -->
+<!-- BEGIN: Footer -->
+<footer class="h-12 bg-white border-t border-gray-200 flex items-center justify-center text-[10px] text-gray-400 gap-4 mt-auto">
+<span>TenoPilot © 2024</span>
+<span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+<span>Secured by Sahara AES-256 Encryption</span>
+</footer>
+<!-- END: Footer -->
+</main>
+</body></html>

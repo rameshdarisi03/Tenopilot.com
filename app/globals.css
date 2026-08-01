@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #fff8f6;
+    --foreground: #201a17;
+    --primary: #964407;
+    --primary-hover: #c2652a;
+    --secondary: #725949;
+    --surface-warm: #f8ede3;
+    --surface-container: #f8ebe6;
+    --surface-container-high: #f2e6e0;
+    --border-sand: #d7c2b9;
+    --success: #059669;
+    --critical: #ba1a1a;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), sans-serif;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: var(--font-serif), Georgia, serif;
+  }
+}
+
+/* Sahara Custom Utility Classes */
+.bg-sahara-surface { background-color: #fff8f6; }
+.bg-sahara-container { background-color: #f8ede3; }
+.bg-sahara-container-high { background-color: #f2e6e0; }
+.bg-sahara-primary { background-color: #964407; }
+.bg-sahara-primary-hover { background-color: #c2652a; }
+.text-sahara-primary { color: #964407; }
+.text-sahara-charcoal { color: #201a17; }
+.text-sahara-muted { color: #554339; }
+.border-sahara-sand { border-color: #d7c2b9; }
+
+/* Status Badges */
+.badge-available { @apply bg-emerald-100 text-emerald-800 border border-emerald-300; }
+.badge-booked { @apply bg-amber-100 text-amber-800 border border-amber-300; }
+.badge-occupied { @apply bg-rose-100 text-rose-800 border border-rose-300; }
+.badge-vacating { @apply bg-orange-100 text-orange-800 border border-orange-300; }
+.badge-guest { @apply bg-purple-100 text-purple-800 border border-purple-300; }

@@ -1,0 +1,458 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Settings | TenoPilot.com</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#007ea1",
+                        "on-secondary-fixed-variant": "#314865",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#001c37",
+                        "error": "#ba1a1a",
+                        "background": "#fcf9f8",
+                        "primary-fixed": "#ffdbca",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#554339",
+                        "tertiary-fixed": "#bce9ff",
+                        "on-background": "#1c1b1b",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#70d2fa",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#49607e",
+                        "inverse-on-surface": "#f3f0ef",
+                        "border-subtle": "rgba(26, 26, 26, 0.08)",
+                        "surface-muted": "#F6F9FC",
+                        "primary-container": "#c2652a",
+                        "surface-tint": "#c2652a",
+                        "surface-container-highest": "#e5e2e1",
+                        "surface-container-low": "#f6f3f2",
+                        "on-primary-container": "#fffbff",
+                        "inverse-surface": "#313030",
+                        "error-container": "#ffdad6",
+                        "outline": "#887368",
+                        "on-tertiary-fixed-variant": "#004d63",
+                        "on-secondary-container": "#49617f",
+                        "on-primary-fixed": "#331200",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#ffb68e",
+                        "on-primary-fixed-variant": "#773300",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#006480",
+                        "surface-bright": "#fcf9f8",
+                        "surface-variant": "#e5e2e1",
+                        "surface-container-high": "#eae7e7",
+                        "secondary-fixed": "#d2e4ff",
+                        "primary": "#c2652a",
+                        "surface-warm": "#FFF8F6",
+                        "on-tertiary-container": "#fbfdff",
+                        "secondary-fixed-dim": "#b0c8eb",
+                        "on-tertiary-fixed": "#001f2a",
+                        "surface-container": "#f0eded",
+                        "secondary-container": "#c4dcff",
+                        "surface-dim": "#dcd9d9",
+                        "accent-blue": "#635BFF",
+                        "outline-variant": "#dbc1b5",
+                        "inverse-primary": "#ffb68e",
+                        "surface": "#fcf9f8",
+                        "on-surface": "#1c1b1b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap-mobile": "80px",
+                        "container-max": "1200px",
+                        "gutter": "32px",
+                        "stack-md": "24px",
+                        "stack-lg": "48px",
+                        "stack-sm": "12px",
+                        "section-gap-desktop": "160px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Inter"],
+                        "headline-lg": ["Playfair Display"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["Playfair Display"],
+                        "button": ["Inter"],
+                        "display-lg-mobile": ["Playfair Display"],
+                        "display-lg": ["Playfair Display"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                        "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "button": ["15px", {"lineHeight": "20px", "fontWeight": "500"}],
+                        "display-lg-mobile": ["44px", {"lineHeight": "52px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "display-lg": ["72px", {"lineHeight": "84px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #fcf9f8; /* background */
+            color: #1c1b1b;
+        }
+        .shadow-refined {
+            box-shadow: 0 4px 20px -2px rgba(194, 101, 42, 0.08), 0 2px 10px -2px rgba(194, 101, 42, 0.04);
+        }
+        .glass-nav {
+            backdrop-filter: blur(20px);
+            background-color: rgba(252, 249, 248, 0.8);
+            border-bottom: 1px solid rgba(26, 26, 26, 0.08);
+        }
+        .chip-active {
+            background-color: rgba(194, 101, 42, 0.1);
+            color: #c2652a;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- Side Navigation -->
+<aside class="h-screen w-64 fixed left-0 top-0 flex flex-col py-lg px-md bg-surface-container-lowest border-r border-outline-variant z-50">
+<div class="mb-stack-lg px-4">
+<h1 class="font-headline-lg text-2xl font-bold text-primary">TenoPilot</h1>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Business OS</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined mr-3">domain</span>
+                Properties
+            </a>
+<a class="flex items-center px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined mr-3">group</span>
+                Tenants
+            </a>
+<a class="flex items-center px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined mr-3">payments</span>
+                Financial Hub
+            </a>
+<div class="pt-stack-md mt-stack-md border-t border-outline-variant">
+<a class="flex items-center px-4 py-3 rounded-lg text-primary font-semibold border-r-2 border-primary bg-primary-fixed/20" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">settings</span>
+                    Settings
+                </a>
+<a class="flex items-center px-4 py-3 rounded-lg text-secondary hover:bg-surface-container-high transition-colors duration-200" href="#">
+<span class="material-symbols-outlined mr-3">help_outline</span>
+                    Support
+                </a>
+</div>
+</nav>
+<div class="mt-auto px-4 py-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center">
+<span class="text-on-primary-fixed font-bold">JD</span>
+</div>
+<div>
+<p class="text-sm font-bold">John Doe</p>
+<p class="text-xs text-on-surface-variant">Admin Access</p>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-64 min-h-screen">
+<!-- Top App Bar -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 glass-nav z-40 flex items-center justify-between px-gutter">
+<div class="flex items-center w-full max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 pl-10 text-body-md placeholder:text-outline" placeholder="Search settings, users, or properties..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">apps</span>
+</button>
+</div>
+</header>
+<!-- Content Area -->
+<div class="pt-32 pb-section-gap-desktop px-gutter max-w-7xl mx-auto">
+<div class="mb-stack-lg">
+<h2 class="font-headline-lg text-headline-lg text-on-background mb-2">Settings</h2>
+<p class="text-on-surface-variant text-lg">Manage your organization's core details and preferences.</p>
+</div>
+<!-- Two-Column Grid for main settings -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-8">
+<!-- Left (Wider) Column -->
+<div class="lg:col-span-8 space-y-8">
+<!-- Partner Ownership -->
+<section class="bg-surface-container-lowest rounded-xl shadow-refined overflow-hidden border border-border-subtle transition-all hover:border-outline-variant">
+<div class="p-8 flex justify-between items-center border-b border-surface-container-low">
+<div class="flex items-center gap-3">
+<h3 class="font-headline-md text-headline-md text-primary">Partner Ownership</h3>
+<span class="material-symbols-outlined text-outline text-lg">lock</span>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2 bg-surface-container-low text-on-surface-variant font-button rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+                                    Add Partner
+                                </button>
+<button class="px-6 py-2 bg-primary text-white font-button rounded-lg hover:opacity-90 shadow-sm transition-all">Edit</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low/50">
+<tr>
+<th class="px-8 py-4 font-label-caps text-on-surface-variant">Partner</th>
+<th class="px-8 py-4 font-label-caps text-on-surface-variant text-right">Ownership %</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-low">
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">R</div>
+<span class="font-semibold text-on-background">Ramesh</span>
+</td>
+<td class="px-8 py-6 text-right font-headline-md text-on-background">40%</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-[#2a6b5e] flex items-center justify-center text-white font-bold">S</div>
+<span class="font-semibold text-on-background">Suresh</span>
+</td>
+<td class="px-8 py-6 text-right font-headline-md text-on-background">40%</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6 flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-[#6a5e96] flex items-center justify-center text-white font-bold">M</div>
+<span class="font-semibold text-on-background">Mahesh</span>
+</td>
+<td class="px-8 py-6 text-right font-headline-md text-on-background">20%</td>
+</tr>
+</tbody>
+<tfoot class="bg-surface-container-low/80">
+<tr>
+<td class="px-8 py-5 font-bold text-on-surface">Total Ownership</td>
+<td class="px-8 py-5 text-right font-bold text-primary text-xl">100%</td>
+</tr>
+</tfoot>
+</table>
+</div>
+<div class="bg-surface-container-low p-4 px-8 flex items-center gap-3">
+<span class="material-symbols-outlined text-outline text-sm">lock_person</span>
+<p class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Changes are protected. Admin password required.</p>
+</div>
+</section>
+<!-- Expense Accounts -->
+<section class="bg-surface-container-lowest rounded-xl shadow-refined overflow-hidden border border-border-subtle transition-all hover:border-outline-variant">
+<div class="p-8 flex justify-between items-center border-b border-surface-container-low">
+<div class="flex items-center gap-3">
+<h3 class="font-headline-md text-headline-md text-on-background">Expense Accounts</h3>
+<span class="material-symbols-outlined text-outline text-lg">account_balance_wallet</span>
+</div>
+<button class="px-6 py-2 bg-surface-container-low text-on-surface-variant font-button rounded-lg hover:bg-surface-container-high transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+                                Add Account
+                            </button>
+</div>
+<div class="divide-y divide-surface-container-low">
+<!-- Business Account -->
+<div class="px-8 py-4 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+</div>
+<div>
+<p class="font-semibold text-on-background">Business Account</p>
+<p class="text-xs text-on-surface-variant uppercase tracking-wider font-bold">Bank</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- Petty Cash -->
+<div class="px-8 py-4 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-[#2a6b5e]/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#2a6b5e]">payments</span>
+</div>
+<div>
+<p class="font-semibold text-on-background">Petty Cash</p>
+<p class="text-xs text-on-surface-variant uppercase tracking-wider font-bold">Cash</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- ICICI Current Account -->
+<div class="px-8 py-4 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-[#6a5e96]/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#6a5e96]">account_balance</span>
+</div>
+<div>
+<p class="font-semibold text-on-background">ICICI Current Account</p>
+<p class="text-xs text-on-surface-variant uppercase tracking-wider font-bold">Bank</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- HDFC Current Account -->
+<div class="px-8 py-4 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+</div>
+<div>
+<p class="font-semibold text-on-background">HDFC Current Account</p>
+<p class="text-xs text-on-surface-variant uppercase tracking-wider font-bold">Bank</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- Maintenance Fund -->
+<div class="px-8 py-4 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-primary-fixed/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">savings</span>
+</div>
+<div>
+<p class="font-semibold text-on-background">Maintenance Fund</p>
+<p class="text-xs text-on-surface-variant uppercase tracking-wider font-bold">Fund</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Right (Narrower) Column -->
+<div class="lg:col-span-4 space-y-8">
+<!-- Business Profile -->
+<section class="bg-surface-container-lowest p-8 rounded-xl shadow-refined border border-border-subtle transition-all hover:border-outline-variant">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary">business</span>
+<h3 class="font-headline-md text-headline-md text-on-background">Business Profile</h3>
+</div>
+<div class="space-y-4">
+<div>
+<label class="text-[10px] uppercase font-bold text-outline tracking-widest">Entity Name</label>
+<p class="font-semibold text-lg text-on-background">TenoPilot.com</p>
+</div>
+<div>
+<label class="text-[10px] uppercase font-bold text-outline tracking-widest">Registered Office</label>
+<p class="text-on-surface-variant">12 Tech Plaza, Silicon Valley,<br>CA 94025, USA</p>
+</div>
+<div>
+<label class="text-[10px] uppercase font-bold text-outline tracking-widest">Primary Contact</label>
+<p class="text-on-surface-variant font-medium">+1 (555) 0123-456</p>
+</div>
+<button class="w-full mt-4 py-3 bg-white text-primary font-button rounded-lg border border-primary/20 hover:bg-primary/5 transition-all">
+                                View Full Profile
+                            </button>
+</div>
+</section>
+<!-- Subscription & Billing -->
+<section class="bg-surface-container-lowest p-8 rounded-xl shadow-refined border border-border-subtle transition-all hover:border-outline-variant">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">credit_card</span>
+<h3 class="font-headline-md text-headline-md text-on-background">Billing</h3>
+</div>
+<span class="px-2 py-1 chip-active text-[10px] font-bold rounded uppercase tracking-tighter">Pro Plan</span>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between text-sm">
+<span class="text-on-surface-variant">Next renewal</span>
+<span class="font-semibold text-on-background">Oct 12, 2024</span>
+</div>
+<div class="w-full bg-surface-container-low h-2 rounded-full overflow-hidden">
+<div class="bg-primary w-3/4 h-full rounded-full"></div>
+</div>
+<p class="text-xs text-on-surface-variant font-medium">75% of annual cycle remaining</p>
+<a class="block text-primary text-sm font-semibold hover:underline mt-4" href="#">Manage Subscription</a>
+</div>
+</section>
+</div>
+</div>
+<!-- Bottom 3-Column Grid Row -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Staff Permissions -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-refined border border-border-subtle transition-all hover:border-outline-variant">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary">manage_accounts</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-background mb-3">Staff Permissions</h3>
+<p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Define access levels for property managers, receptionists, and support staff.</p>
+<div class="flex items-center gap-2">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full border-2 border-white bg-surface-container-low flex items-center justify-center text-[10px] font-bold text-outline">JS</div>
+<div class="w-8 h-8 rounded-full border-2 border-white bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-outline">AK</div>
+<div class="w-8 h-8 rounded-full border-2 border-white bg-primary-fixed flex items-center justify-center text-[10px] font-bold text-on-primary-fixed">ML</div>
+</div>
+<span class="text-xs text-outline font-semibold uppercase tracking-wider">+14 users</span>
+</div>
+<button class="mt-8 text-primary font-bold text-sm flex items-center gap-1 group">
+                        Configure Roles <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Property Configurations -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-refined border border-border-subtle transition-all hover:border-outline-variant">
+<div class="w-12 h-12 bg-primary/5 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary">apartment</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-background mb-3">Property Setup</h3>
+<p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Set global naming conventions for floors, rooms, and wing identifiers.</p>
+<div class="p-3 bg-surface-container-low rounded text-xs font-mono text-outline border border-border-subtle">
+                        Pattern: {FLOOR}_{TYPE}_{ID}
+                    </div>
+<button class="mt-8 text-primary font-bold text-sm flex items-center gap-1 group">
+                        Edit Patterns <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Security -->
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-refined border border-border-subtle transition-all hover:border-outline-variant">
+<div class="w-12 h-12 bg-error-container/10 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-error">security</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-background mb-3">Security</h3>
+<p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Manage 2FA authentication, password rotation policies, and login alerts.</p>
+<div class="flex items-center gap-2 text-green-700">
+<span class="material-symbols-outlined text-sm">verified_user</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">2FA Enabled</span>
+</div>
+<button class="mt-8 text-primary font-bold text-sm flex items-center gap-1 group">
+                        Security Audit <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Search highlight interaction
+        const searchInput = document.querySelector('input[type="text"]');
+        if(searchInput) {
+            searchInput.addEventListener('focus', () => {
+                searchInput.parentElement.classList.add('ring-2', 'ring-primary/20');
+            });
+            searchInput.addEventListener('blur', () => {
+                searchInput.parentElement.classList.remove('ring-2', 'ring-primary/20');
+            });
+        }
+    </script>
+</body></html>

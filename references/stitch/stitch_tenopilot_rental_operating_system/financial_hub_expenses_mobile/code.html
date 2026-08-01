@@ -1,0 +1,358 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TenoPilot - Expenses</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Playfair+Display:ital,wght@0,600;0,700;1,600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      line-height: 1;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #d7c2b9;
+      border-radius: 10px;
+    }
+    .expense-card-shadow {
+      box-shadow: 0 4px 6px -1px rgba(150, 68, 7, 0.05), 0 2px 4px -2px rgba(150, 68, 7, 0.05);
+    }
+    .fab-shadow {
+      box-shadow: 0 10px 15px -3px rgba(150, 68, 7, 0.3);
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "primary": "#964407",
+                  "on-primary-container": "#fffbff",
+                  "background": "#fff8f6",
+                  "surface-bright": "#fff8f6",
+                  "inverse-primary": "#ffb68e",
+                  "surface-variant": "#ede0db",
+                  "critical-red": "#ba1a1a",
+                  "primary-container": "#b65c21",
+                  "on-primary-fixed-variant": "#773300",
+                  "on-tertiary-fixed-variant": "#4b481d",
+                  "surface": "#fff8f6",
+                  "border-sand": "#d7c2b9",
+                  "on-primary-fixed": "#331200",
+                  "on-surface-variant": "#554339",
+                  "on-error-container": "#93000a",
+                  "secondary-fixed-dim": "#e1c0ac",
+                  "tertiary-fixed": "#eae5ab",
+                  "on-secondary-fixed-variant": "#594233",
+                  "secondary-fixed": "#fedcc7",
+                  "surface-container-high": "#f2e6e0",
+                  "inverse-surface": "#362f2c",
+                  "surface-container-highest": "#ede0db",
+                  "surface-container-lowest": "#ffffff",
+                  "error-container": "#ffdad6",
+                  "tertiary": "#636032",
+                  "on-primary": "#ffffff",
+                  "inverse-on-surface": "#fbeee9",
+                  "on-background": "#201a17",
+                  "surface-warm": "#f8ede3",
+                  "secondary": "#725949",
+                  "tertiary-container": "#b1ad78",
+                  "on-secondary": "#ffffff",
+                  "on-tertiary": "#ffffff",
+                  "error": "#ba1a1a",
+                  "surface-tint": "#99460a",
+                  "on-error": "#ffffff",
+                  "outline-variant": "#dbc1b5",
+                  "primary-fixed-dim": "#ffb68e",
+                  "outline": "#887368",
+                  "tertiary-fixed-dim": "#cdc991",
+                  "secondary-container": "#fedcc7",
+                  "surface-container-low": "#fef1ec",
+                  "on-tertiary-container": "#434116",
+                  "surface-dim": "#e4d8d2",
+                  "on-surface": "#201a17",
+                  "on-secondary-container": "#795f4f",
+                  "success-emerald": "#059669",
+                  "primary-fixed": "#ffdbca",
+                  "surface-container": "#f8ebe6",
+                  "on-tertiary-fixed": "#1e1c00",
+                  "on-secondary-fixed": "#29180b"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "full": "9999px"
+          },
+          "spacing": {
+                  "margin-mobile": "16px",
+                  "unit": "4px",
+                  "sm": "8px",
+                  "md": "16px",
+                  "xl": "40px",
+                  "xs": "4px",
+                  "lg": "24px",
+                  "container-max": "1440px",
+                  "gutter": "24px"
+          },
+          "fontFamily": {
+                  "label-md": ["Manrope"],
+                  "body-md": ["Manrope"],
+                  "display": ["Playfair Display"],
+                  "body-lg": ["Manrope"],
+                  "title-lg": ["Manrope"],
+                  "headline-lg": ["Playfair Display"],
+                  "tabular-nums": ["Manrope"],
+                  "headline-lg-mobile": ["Playfair Display"],
+                  "headline-md": ["Playfair Display"]
+          },
+          "fontSize": {
+                  "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                  "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                  "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                  "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                  "title-lg": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                  "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                  "tabular-nums": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                  "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                  "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md min-h-screen pb-32">
+<!-- TopAppBar Section -->
+<header class="fixed top-0 w-full backdrop-blur-md bg-surface/80 z-50 flex justify-between items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a high-end property manager in a well-lit modern office. The lighting is soft and warm, echoing the Sahara color palette of ochres and sands. The subject is dressed in corporate attire, looking confident and reliable. High-contrast editorial style with shallow depth of field." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGEUZdLXWyRtHN4rKa7xW0UE262JpcrQti_phd6U4XHMgwBtUUnC7znKjp6oQLStdqnn3w18J11CAUORTqjVU2vGyxuERCikSmiFVht4xpOUB9HQ-FaRDYdRMjtszh5MOc5zRfIrASuZhinWfVJ9LdhR-yptKU-oJBYn3l4Mm4sOn536c9N59fHYGYux_hWvdC6yqh7NEqcxUDQ_cgSSCV2SzCXOUnxagzfrAjsLyT5fyjyLD6B3iOcA">
+</div>
+<h1 class="font-display text-headline-md text-primary">TenoPilot</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-primary hover:opacity-80 transition-opacity active:scale-95" data-icon="search">search</button>
+<button class="material-symbols-outlined text-primary hover:opacity-80 transition-opacity active:scale-95" data-icon="tune">tune</button>
+</div>
+</header>
+<main class="pt-20 px-margin-mobile max-w-lg mx-auto"><nav class="flex items-center gap-2 mb-lg overflow-x-auto custom-scrollbar pb-2">
+  <button class="px-4 py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-warm transition-all whitespace-nowrap">Operations</button>
+  <button class="px-4 py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-warm transition-all whitespace-nowrap">Rent Collection</button>
+  <button class="px-4 py-2 rounded-full font-label-md text-label-md bg-primary text-white shadow-sm transition-all whitespace-nowrap">Expenses</button>
+  <button class="px-4 py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-warm transition-all whitespace-nowrap">Security Deposits</button>
+</nav>
+<!-- Hero Section: Total Spent -->
+<section class="mb-lg">
+<div class="p-lg rounded-xl bg-surface-container-low border border-border-sand flex flex-col items-center text-center relative overflow-hidden">
+<div class="absolute -top-12 -right-12 w-32 h-32 bg-primary/5 rounded-full blur-3xl"></div>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest mb-1">Total Spent This Month</span>
+<h2 class="font-display text-[40px] font-bold text-primary tracking-tight">$12,480.00</h2>
+<div class="mt-4 flex items-center gap-2 bg-success-emerald/10 px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-[16px] text-success-emerald" style="font-variation-settings: 'FILL' 1;">trending_down</span>
+<span class="font-label-md text-label-md text-success-emerald">4.2% LESS THAN LAST MONTH</span>
+</div>
+</div>
+</section>
+<!-- Category Grid -->
+<section class="mb-lg">
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-headline-md text-headline-md-mobile text-on-surface">Categories</h3>
+<button class="font-label-md text-label-md text-primary uppercase">View All</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Electricity -->
+<div class="bg-surface-container-lowest border-t-2 border-primary p-4 rounded-xl expense-card-shadow flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary" data-icon="bolt">bolt</span>
+<span class="font-label-md text-label-md text-on-surface-variant">42%</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Electricity</p>
+<p class="font-title-lg text-title-lg text-on-surface">$3,240</p>
+</div>
+</div>
+<!-- Water -->
+<div class="bg-surface-container-lowest border-t-2 border-tertiary p-4 rounded-xl expense-card-shadow flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-tertiary" data-icon="water_drop">water_drop</span>
+<span class="font-label-md text-label-md text-on-surface-variant">12%</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Water</p>
+<p class="font-title-lg text-title-lg text-on-surface">$1,120</p>
+</div>
+</div>
+<!-- Salary -->
+<div class="bg-surface-container-lowest border-t-2 border-secondary p-4 rounded-xl expense-card-shadow flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-secondary" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md text-on-surface-variant">35%</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Salary</p>
+<p class="font-title-lg text-title-lg text-on-surface">$5,800</p>
+</div>
+</div>
+<!-- Maintenance -->
+<div class="bg-surface-container-lowest border-t-2 border-outline p-4 rounded-xl expense-card-shadow flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-outline" data-icon="build">build</span>
+<span class="font-label-md text-label-md text-on-surface-variant">11%</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Maintenance</p>
+<p class="font-title-lg text-title-lg text-on-surface">$2,320</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Expenses -->
+<section>
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-headline-md text-headline-md-mobile text-on-surface">Recent Expenses</h3>
+<button class="material-symbols-outlined text-on-surface-variant">filter_list</button>
+</div>
+<div class="flex flex-col gap-2">
+<!-- Item 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex items-center justify-between transition-all hover:bg-surface-warm active:scale-98">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="electric_bolt">electric_bolt</span>
+</div>
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">Electricity Bill</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Azure Towers • Unit 402</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-title-lg text-title-lg text-primary">-$420.00</p>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Oct 12</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex items-center justify-between transition-all hover:bg-surface-warm active:scale-98">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-tertiary-container/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="cleaning_services">cleaning_services</span>
+</div>
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">Weekly Cleaning</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Sahara Estates • Common Area</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-title-lg text-title-lg text-primary">-$150.00</p>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Oct 11</p>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex items-center justify-between transition-all hover:bg-surface-warm active:scale-98">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">Concierge Salary</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Royal Palms • Staff</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-title-lg text-title-lg text-primary">-$2,200.00</p>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Oct 10</p>
+</div>
+</div>
+<!-- Item 4 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex items-center justify-between transition-all hover:bg-surface-warm active:scale-98">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-error-container/30 flex items-center justify-center text-critical-red">
+<span class="material-symbols-outlined" data-icon="plumbing">plumbing</span>
+</div>
+<div>
+<p class="font-title-lg text-title-lg text-on-surface">Emergency Pipe Repair</p>
+<p class="font-body-md text-body-md text-on-surface-variant">Azure Towers • Basement</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-title-lg text-title-lg text-critical-red">-$890.00</p>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Oct 08</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB: Record Expense -->
+<button class="fixed bottom-24 right-6 w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center fab-shadow transition-transform active:scale-90 z-50">
+<span class="material-symbols-outlined text-[32px]" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 bg-surface border-t border-outline-variant">
+<!-- Home -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md mt-1">Home</span>
+</div>
+<!-- Properties -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90">
+<span class="material-symbols-outlined" data-icon="domain">domain</span>
+<span class="font-label-md text-label-md mt-1">Properties</span>
+</div>
+<!-- Payments (Active for Expenses) -->
+<div class="flex flex-col items-center justify-center bg-surface-warm text-primary rounded-xl px-4 py-1 transition-transform duration-200 active:scale-90">
+<span class="material-symbols-outlined" data-icon="payments" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-label-md text-label-md mt-1">Payments</span>
+</div>
+<!-- Notifications -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="font-label-md text-label-md mt-1">Alerts</span>
+</div>
+<!-- Profile -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1 transition-transform duration-200 active:scale-90">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md mt-1">Profile</span>
+</div>
+</nav>
+<script>
+    // Simple micro-interaction for cards
+    document.querySelectorAll('.active\\:scale-98').forEach(card => {
+      card.addEventListener('mousedown', () => {
+        card.style.transform = 'scale(0.98)';
+      });
+      card.addEventListener('mouseup', () => {
+        card.style.transform = 'scale(1)';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'scale(1)';
+      });
+    });
+
+    // Handle scroll for navbar shadow toggle
+    window.addEventListener('scroll', () => {
+      const header = document.querySelector('header');
+      if (window.scrollY > 20) {
+        header.classList.add('shadow-sm');
+      } else {
+        header.classList.remove('shadow-sm');
+      }
+    });
+  </script>
+
+
+
+
+</body></html>
