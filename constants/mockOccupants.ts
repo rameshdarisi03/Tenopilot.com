@@ -25,19 +25,35 @@ export interface Occupant {
   };
 }
 
-const firstNames = [
-  "Rajesh", "Priya", "Vikram", "Ananya", "Kavya", "Arjun", "Suresh", "Fatima",
-  "Rohan", "Harpreet", "Deepa", "Rahul", "Neha", "Amit", "Sneha", "Aditya",
-  "Meera", "Siddharth", "Pooja", "Varun", "Ritu", "Karan", "Divya", "Manish",
-  "Shweta", "Abhishek", "Aarti", "Gautam", "Tarun", "Tanvi", "Nikhil", "Bhavna",
-  "Aakash", "Sunita", "Deepak", "Swati", "Venkatesh", "Kavita", "Ramesh", "Lakshmi",
-  "Prashanth", "Anjali", "Sanjay", "Preeti", "Kiran", "Nisha", "Manoj", "Pallavi"
-];
-
-const lastNames = [
-  "Sharma", "Patel", "Reddy", "Iyer", "Nair", "Mehta", "Kumar", "Begum",
-  "Singh", "Kulkarni", "Verma", "Rao", "Joshi", "Deshmukh", "Gupta", "Agarwal",
-  "Banerjee", "Chatterjee", "Pandey", "Mishra", "Choudhury", "Pillai", "Menon", "Sen"
+// 200 Guaranteed 100% Unique Indian Names (No Duplicates)
+const UNIQUE_INDIAN_NAMES: string[] = [
+  "Aarav Sharma", "Aditi Patel", "Aditya Reddy", "Aishwarya Iyer", "Akash Nair", "Akshay Mehta", "Alok Kumar", "Amara Begum",
+  "Amit Singh", "Amrita Kulkarni", "Anand Verma", "Ananya Rao", "Aniket Joshi", "Anjali Deshmukh", "Anurag Gupta", "Aparna Agarwal",
+  "Arjun Banerjee", "Arnav Chatterjee", "Arti Pandey", "Arun Mishra", "Arvind Choudhury", "Ashok Pillai", "Avani Menon", "Bhavna Sen",
+  "Bhavya Kapoor", "Brijesh Saxena", "Chaitanya Bhat", "Chetan Tripathy", "Deepa Nambiar", "Deepak Bhattacharya", "Devendra Shetty", "Divya Thakur",
+  "Gautam Mehta", "Geeta Srivastava", "Girish Hegde", "Gopal Varma", "Harish Subbu", "Harpreet Begum", "Hemant Rastogi", "Indira Mahajan",
+  "Isha Chaudhry", "Jagdish Prasad", "Jitendra Aggarwal", "Karan Malhotra", "Kavita Swaminathan", "Kavya Pillai", "Kiran Nayak", "Kishore Gowda",
+  "Krishnan Murthy", "Kunal Biswas", "Lakshmi Patel", "Lalitha Sundaram", "Madhav Ghosh", "Manish Saxena", "Manju Ranganathan", "Meera Pillai",
+  "Mohan Das", "Mukesh Sharma", "Nikhil Verma", "Nisha Rao", "Nitin Garg", "Pallavi Deshpande", "Pankaj Sethi", "Parth Sarathi",
+  "Pooja Nambisan", "Pradeep Sen", "Prakash Jha", "Pranav Varma", "Prashanth Pillai", "Preeti Kulkarni", "Priya Reddy", "Rahul Verma",
+  "Rajesh Banerjee", "Rajiv Dhawan", "Rakesh Maurya", "Ramesh Darisi", "Rani Mukherjee", "Ritu Joshi", "Rohan Singh", "Rohit Bhardwaj",
+  "Sachin Tendulkar", "Sameer Grover", "Sanjay Kumar", "Santhosh Shetty", "Sarita Hegde", "Satish Acharya", "Shalini Shinde", "Shivam Tyagi",
+  "Shruti Venkatesh", "Shweta Deshmukh", "Siddharth Sen", "Sneha Agarwal", "Sridhar Iyer", "Subhash Chandra", "Sudarshan Naidu", "Sudhir Mittal",
+  "Sujata Poddar", "Suman Bhowmick", "Sunil Gavaskar", "Sunita Agarwal", "Suresh Reddy", "Swati Kadam", "Tanvi Choudhury", "Tarun Gupta",
+  "Tejaswin Shankar", "Umesh Yadav", "Vaibhav Suryavanshi", "Varun Dhawan", "Venkatesh Choudhury", "Vicky Kaushal", "Vidya Balan", "Vijay Mallya",
+  "Vikas Bahl", "Vikramaditya Motwane", "Vimal Anand", "Vinay Pathak", "Vineet Kumar", "Vinod Rai", "Vipul Shah", "Viraj Kohli",
+  "Virender Sehwag", "Vishal Bhardwaj", "Vivek Agnihotri", "Yash Chopra", "Yashwant Sinha", "Yogesh Dutt", "Zaheer Khan", "Abhay Deol",
+  "Abhishek Sharma", "Adil Hussain", "Ajay Devgn", "Ajit Agarkar", "Akhil Akkineni", "Ali Fazal", "Allu Arjun", "Alia Bhatt",
+  "Anil Kapoor", "Anupam Kher", "Anushka Sharma", "Aravinda de Silva", "Arijit Singh", "Ashwin Kumar", "Asin Thottumkal", "Atharvaa Murali",
+  "Ayushmann Khurrana", "Bala Kumaran", "Balakrishna Nandamuri", "Bhumika Chawla", "Bipasha Basu", "Bobby Deol", "Chiranjeevi Konidela", "Dhanush K",
+  "Dilip Kumar", "Dulquer Salmaan", "Farhan Akhtar", "Genelia D'Souza", "Govinda Ahuja", "Harbhajan Singh", "Hrithik Roshan", "Irrfan Khan",
+  "Jaideep Ahlawat", "Janhavi Kapoor", "Jayaram Subramaniam", "Jitendra Kumar", "Jyothika Saravanan", "Kajal Aggarwal", "Kamal Haasan", "Kangana Ranaut",
+  "Kareena Kapoor", "Karisma Kapoor", "Kartik Aaryan", "Katrina Kaif", "Keerthy Suresh", "Kiara Advani", "Kriti Sanon", "Mammootty Muhammed",
+  "Manju Warrier", "Manoj Bajpayee", "Mohanlal Viswanathan", "Nagarjuna Akkineni", "Nani Ghanta", "Nawazuddin Siddiqui", "Nayanthara Kurian", "Niti Aayog",
+  "Nivin Pauly", "Pankaj Tripathi", "Prabhas Raju", "Prithviraj Sukumaran", "Pooja Hegde", "Rajinikanth Gaikwad", "Ranbir Kapoor", "Ranveer Singh",
+  "Rashmika Mandanna", "Ravi Teja", "Rishab Shetty", "Sai Pallavi", "Samantha Ruth", "Shah Rukh Khan", "Shahid Kapoor", "Sharwanand Myneni",
+  "Siddharth Narayan", "Sivakarthikeyan Doss", "Sonakshi Sinha", "Sonam Kapoor", "Suriya Sivakumar", "Tabu Hashmi", "Tamannaah Bhatia", "Trisha Krishnan",
+  "Upendra Rao", "Vijay Chandrasekhar", "Vijay Sethupathi", "Vikram Kennedy", "Yash Gowda", "Yami Gautam", "Yousuf Khan", "Zubeen Garg"
 ];
 
 const roomNumbers = [
@@ -50,14 +66,13 @@ const bedCodes = ["Bed A", "Bed B", "Bed C"];
 
 export function generateMockOccupants(count = 200): Occupant[] {
   const occupants: Occupant[] = [];
-  const currentYear = 2026;
-  const currentMonth = 7; // August (0-indexed 7)
   const currentDay = 1; // August 1st 2026 reference
 
   for (let i = 1; i <= count; i++) {
-    const fn = firstNames[(i * 3) % firstNames.length];
-    const ln = lastNames[(i * 5) % lastNames.length];
-    const name = `${fn} ${ln}`;
+    const name = UNIQUE_INDIAN_NAMES[(i - 1) % UNIQUE_INDIAN_NAMES.length];
+    const nameParts = name.split(" ");
+    const fn = nameParts[0];
+    const ln = nameParts.slice(1).join(" ") || "Kumar";
     const room = roomNumbers[i % roomNumbers.length];
     const bed = bedCodes[i % bedCodes.length];
 
@@ -71,8 +86,8 @@ export function generateMockOccupants(count = 200): Occupant[] {
       rentAmount = 2500;
     }
 
-    const dueDay = (i % 10) + 1; // Days 1 to 10 of August 2026
-    const daysDiff = dueDay - currentDay; // August 1 reference
+    const dueDay = (i % 10) + 1;
+    const daysDiff = dueDay - currentDay;
 
     let daysRemainingText = "—";
     let lastPaidDate = `01 Jul 2026`;
@@ -115,7 +130,7 @@ export function generateMockOccupants(count = 200): Occupant[] {
       }
     } else {
       paymentStatus = "Paid";
-      daysRemainingText = "—"; // Clean hyphen for paid occupants per user request
+      daysRemainingText = "—";
       lastPaidDate = `01 Aug 2026`;
     }
 
@@ -125,9 +140,9 @@ export function generateMockOccupants(count = 200): Occupant[] {
     occupants.push({
       id: `occ-${1000 + i}`,
       name,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${fn}${ln}`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${fn}${ln}${i}`,
       phone: `+91 ${9800000000 + (i * 123456) % 900000000}`,
-      email: `${fn.toLowerCase()}.${ln.toLowerCase()}@example.com`,
+      email: `${fn.toLowerCase()}.${ln.toLowerCase().replace(/\s+/g, "")}${i}@example.com`,
       stayType,
       roomNumber: room,
       bedCode: bed,
