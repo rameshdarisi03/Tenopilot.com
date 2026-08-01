@@ -60,6 +60,7 @@ export default function TenantsDirectoryPage({
 
   // Collect Rent Modal State
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
+  const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
   const [paymentAmount, setPaymentAmount] = useState<number>(14500);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -78,9 +79,17 @@ export default function TenantsDirectoryPage({
     e.preventDefault();
     if (!collectRentOccupant) return;
 
+    // Format selected date (e.g. "2026-07-31" -> "31 Jul 2026")
+    const dParts = paymentDate.split("-");
+    const formattedPaidDate = `${dParts[2]} ${
+      ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
+        parseInt(dParts[1], 10) - 1
+      ] || "Aug"
+    } ${dParts[0]}`;
+
     // Mutate mock occupant status
     collectRentOccupant.paymentStatus = "Paid";
-    collectRentOccupant.lastPaidDate = "01 Aug 2026";
+    collectRentOccupant.lastPaidDate = formattedPaidDate;
     collectRentOccupant.daysRemainingText = "—";
 
     triggerToast(
@@ -858,12 +867,18 @@ export default function TenantsDirectoryPage({
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Payment Date (Default: Today)
+                    Payment Date *
                   </label>
-                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 font-semibold text-gray-900 flex items-center justify-between">
-                    <span>01 Aug 2026 (Present Day)</span>
-                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">AUTO-STAMPED</span>
-                  </div>
+                  <input
+                    type="date"
+                    required
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Defaults to today. Change if logging a past/backdated payment.
+                  </p>
                 </div>
 
                 <div>
