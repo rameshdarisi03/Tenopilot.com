@@ -12,12 +12,17 @@ import {
   UserCheck,
   Settings,
   HelpCircle,
+  X,
 } from "lucide-react";
 
 export function PropertySidebar({
   propertyId = "sunshine-pg",
+  mobileOpen = false,
+  onMobileClose,
 }: {
   propertyId?: string;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -64,28 +69,39 @@ export function PropertySidebar({
     },
   ];
 
-  return (
-    <aside className="w-64 bg-[#fff8f6] border-r border-[#d7c2b9]/60 flex flex-col justify-between h-screen sticky top-0 shrink-0 z-40 select-none">
-      <div className="p-4 space-y-6">
-        {/* Brand Logo - Clicking TenoPilot.com redirects to /home */}
-        <Link
-          href="/home"
-          id="sidebar-brand-link"
-          className="px-2 pt-2 flex items-center gap-3 group transition-transform active:scale-98"
-          title="Return to Welcome Home Dashboard"
-        >
-          <div className="w-9 h-9 rounded-xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-lg shadow-sm group-hover:bg-[#c2652a] transition-colors">
-            T
-          </div>
-          <div>
-            <span className="font-serif font-bold text-xl tracking-tight text-[#201a17]">
-              TenoPilot.com
-            </span>
-            <span className="text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
-              Business OS
-            </span>
-          </div>
-        </Link>
+  const sidebarContent = (
+    <div className="flex flex-col justify-between h-full bg-white border-r border-gray-200 select-none">
+      <div className="p-6 space-y-6">
+        {/* Mobile Close Button */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/home"
+            id="sidebar-brand-link"
+            className="flex items-center gap-3 group transition-transform active:scale-98"
+            title="Return to Welcome Home Dashboard"
+          >
+            <div className="w-9 h-9 rounded-xl bg-[#c2652a] text-white flex items-center justify-center font-serif font-bold text-lg shadow-sm">
+              T
+            </div>
+            <div>
+              <span className="font-serif font-bold text-xl tracking-tight text-gray-900">
+                TenoPilot.com
+              </span>
+              <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block -mt-1">
+                Sahara Management Hub
+              </span>
+            </div>
+          </Link>
+
+          {onMobileClose && (
+            <button
+              onClick={onMobileClose}
+              className="lg:hidden p-1 rounded-full text-gray-500 hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
 
         {/* 8 Primary Clean Menu Nav */}
         <nav className="space-y-1 pt-2">
@@ -93,6 +109,7 @@ export function PropertySidebar({
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||
+              (item.name === "Tenants" && pathname?.includes("tenants")) ||
               (item.name === "Financial Hub" && pathname?.includes("financial-hub")) ||
               (item.name === "Overview" && pathname?.includes("overview"));
 
@@ -100,13 +117,14 @@ export function PropertySidebar({
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+                onClick={() => onMobileClose && onMobileClose()}
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs transition-all ${
                   isActive
-                    ? "bg-[#f8ede3] text-[#964407] border-l-4 border-[#964407] shadow-xs"
-                    : "text-[#554339] hover:bg-[#f8ede3]/60 hover:text-[#201a17]"
+                    ? "bg-orange-50 text-[#c2652a] font-semibold border-r-4 border-[#c2652a]"
+                    : "text-gray-600 hover:bg-orange-50/60 hover:text-[#c2652a]"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-[#964407]" : "text-[#725949]"}`} />
+                <Icon className={`w-4 h-4 ${isActive ? "text-[#c2652a]" : "text-gray-500"}`} />
                 <span>{item.name}</span>
               </Link>
             );
@@ -115,22 +133,58 @@ export function PropertySidebar({
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-[#d7c2b9]/40 space-y-2 text-xs font-semibold text-[#554339]">
+      <div className="p-4 border-t border-gray-100 space-y-1 text-xs text-gray-600">
         <Link
           href={`/p/${propertyId}/settings`}
-          className="flex items-center gap-3 px-3.5 py-2 rounded-lg hover:bg-[#f8ede3] transition-colors"
+          onClick={() => onMobileClose && onMobileClose()}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100"
         >
-          <Settings className="w-4 h-4 text-[#725949]" />
+          <Settings className="w-4 h-4 text-gray-500" />
           <span>Settings</span>
         </Link>
         <a
           href="#support"
-          className="flex items-center gap-3 px-3.5 py-2 rounded-lg hover:bg-[#f8ede3] transition-colors text-[#554339]"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600"
         >
-          <HelpCircle className="w-4 h-4 text-[#725949]" />
+          <HelpCircle className="w-4 h-4 text-gray-500" />
           <span>Support</span>
         </a>
+
+        {/* User Profile Card */}
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs border-2 border-white shadow-xs">
+              RD
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-900">Ramesh Darisi</p>
+              <p className="text-[10px] text-gray-500">Super Admin</p>
+            </div>
+          </div>
+        </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (hidden on mobile, visible on lg screens) */}
+      <aside className="hidden lg:flex lg:w-64 h-screen sticky top-0 shrink-0 z-40">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Slide-Over Drawer */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            onClick={onMobileClose}
+          ></div>
+          <div className="relative w-64 max-w-[80vw] h-full shadow-2xl z-10">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

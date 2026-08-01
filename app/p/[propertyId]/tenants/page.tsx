@@ -3,7 +3,7 @@
 import { use, useState, useMemo } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
 import {
   Search,
   Plus,
@@ -12,7 +12,7 @@ import {
   MessageSquare,
   MoreVertical,
   Calendar,
-  AlertCircle,
+  AlertTriangle,
   Clock,
   CheckCircle2,
   ChevronLeft,
@@ -22,7 +22,7 @@ import {
   X,
   UserPlus,
   ShieldCheck,
-  Building2,
+  ChevronDown,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -33,20 +33,23 @@ export default function TenantsDirectoryPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   // Filter & Search states
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState<
     "All" | "Booked" | "Active" | "Notice" | "Past" | "Guests"
-  >("All");
+  >("Active");
 
-  const [tenantStatusFilter, setTenantStatusFilter] = useState("All");
+  const [tenantStatusFilter, setTenantStatusFilter] = useState("Active");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("All");
   const [paymentDueFilter, setPaymentDueFilter] = useState("All");
-  const [floorFilter, setFloorFilter] = useState("All");
-  const [roomFilter, setRoomFilter] = useState("All");
+  const [floorFilter, setFloorFilter] = useState("All Floors");
+  const [roomFilter, setRoomFilter] = useState("All Rooms");
 
   // Selection state for bulk actions
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(["occ-1001"]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -81,7 +84,7 @@ export default function TenantsDirectoryPage({
       // Dropdown Filters
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
       if (paymentStatusFilter !== "All" && occ.paymentStatus !== paymentStatusFilter) return false;
-      if (roomFilter !== "All" && occ.roomNumber !== roomFilter) return false;
+      if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
 
       return true;
     });
@@ -130,58 +133,61 @@ export default function TenantsDirectoryPage({
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
-      {/* 256px Left Sidebar */}
-      <PropertySidebar propertyId={propertyId} />
+    <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
+      {/* Responsive Left Sidebar (Hidden on mobile < lg, drawer on toggle) */}
+      <PropertySidebar
+        propertyId={propertyId}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      {/* Main Content Area (100% width on mobile) */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
         {/* Top Header */}
         <PropertyHeader
-          title="Tenants & Guests Directory"
-          sectionTabs={["Directory", "Onboarding History"]}
-          activeTab="Directory"
+          title="Tenant Operations"
+          onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
         {/* Directory Body */}
-        <div className="p-6 md:p-8 space-y-6 flex-1 pb-28">
+        <div className="p-4 md:p-8 space-y-6 flex-1 pb-28">
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="font-serif text-3xl font-bold text-[#201a17]">
+              <h1 className="font-serif text-3xl font-bold text-gray-800">
                 Tenant Operations
               </h1>
-              <p className="text-[#554339] text-xs mt-1">
+              <p className="text-gray-500 text-xs md:text-sm mt-1">
                 Manage tenants across their lifecycle and track rent collection
               </p>
             </div>
 
-            {/* Top CTA Button */}
+            {/* Top Primary CTA Button */}
             <div className="relative">
               <button
                 onClick={() => setShowAddMenu(!showAddMenu)}
-                className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 active:scale-95"
+                className="px-6 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 active:scale-95"
               >
-                <Plus className="w-4 h-4" /> Add New Tenant ▼
+                <Plus className="w-5 h-5" /> Add New Tenant
               </button>
 
               {showAddMenu && (
-                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl border border-[#d7c2b9] shadow-xl py-2 z-50 text-xs font-semibold text-[#201a17]">
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg border border-gray-200 shadow-xl py-2 z-50 text-xs font-semibold text-gray-800">
                   <button
                     onClick={() => {
                       setShowAddMenu(false);
-                      triggerToast("Opened Tenant Onboarding Modal");
+                      triggerToast("Opened Tenant Onboarding Form");
                     }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-[#f8ede3] flex items-center gap-2 text-[#964407]"
+                    className="w-full text-left px-4 py-2.5 hover:bg-orange-50 flex items-center gap-2 text-[#c2652a]"
                   >
-                    <UserPlus className="w-4 h-4" /> + New Tenant (Long-term)
+                    <UserPlus className="w-4 h-4 text-[#c2652a]" /> + New Tenant (Long-term)
                   </button>
                   <button
                     onClick={() => {
                       setShowAddMenu(false);
                       triggerToast("Opened Guest Onboarding (Skipped Agreement)");
                     }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-[#f8ede3] flex items-center gap-2 text-purple-700"
+                    className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700"
                   >
                     <ShieldCheck className="w-4 h-4 text-purple-700" /> + New Guest (Short-term)
                   </button>
@@ -190,9 +196,9 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Toast Callout */}
+          {/* Toast Notification */}
           {toastMessage && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-xs">
+            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-700" />
                 <span>{toastMessage}</span>
@@ -200,141 +206,194 @@ export default function TenantsDirectoryPage({
             </div>
           )}
 
-          {/* Status Segmented Control (Stitch UI Tabs) */}
-          <div className="flex bg-white rounded-2xl p-1.5 border border-[#d7c2b9] shadow-xs max-w-4xl overflow-x-auto text-xs font-semibold">
-            {(["All", "Booked", "Active", "Notice", "Past", "Guests"] as const).map((tab) => {
-              const isActive = activeFilterTab === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => {
-                    setActiveFilterTab(tab);
-                    setCurrentPage(1);
-                  }}
-                  className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-2 ${
-                    isActive
-                      ? "bg-[#964407] text-white shadow-xs font-bold"
-                      : "text-[#554339] hover:bg-[#f8ede3] hover:text-[#201a17]"
-                  }`}
-                >
-                  <span>{tab}</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] ${
-                      isActive
-                        ? "bg-white/20 text-white"
-                        : tab === "Guests"
-                        ? "bg-purple-100 text-purple-700"
-                        : "bg-[#f8ede3] text-[#554339]"
-                    }`}
-                  >
-                    {counts[tab]}
-                  </span>
-                </button>
-              );
-            })}
+          {/* Color-Coded Status Filter Pills (Stitch UI 100% Match) */}
+          <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-xs overflow-x-auto text-xs font-medium max-w-4xl">
+            {/* All */}
+            <button
+              onClick={() => {
+                setActiveFilterTab("All");
+                setTenantStatusFilter("All");
+                setCurrentPage(1);
+              }}
+              className={`flex-1 min-w-[90px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                activeFilterTab === "All"
+                  ? "bg-gray-100 text-gray-800 font-bold border border-gray-300 shadow-xs"
+                  : "text-gray-500 hover:text-[#c2652a]"
+              }`}
+            >
+              All <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.All}</span>
+            </button>
+
+            {/* Booked */}
+            <button
+              onClick={() => {
+                setActiveFilterTab("Booked");
+                setTenantStatusFilter("Booked");
+                setCurrentPage(1);
+              }}
+              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                activeFilterTab === "Booked"
+                  ? "bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs"
+                  : "text-gray-500 hover:text-blue-600"
+              }`}
+            >
+              Booked <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Booked}</span>
+            </button>
+
+            {/* Active (Selected Green Pill in Screenshot) */}
+            <button
+              onClick={() => {
+                setActiveFilterTab("Active");
+                setTenantStatusFilter("Active");
+                setCurrentPage(1);
+              }}
+              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                activeFilterTab === "Active"
+                  ? "bg-green-50 text-green-700 font-semibold border border-green-200 shadow-xs"
+                  : "text-gray-500 hover:text-green-600"
+              }`}
+            >
+              Active <span className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Active}</span>
+            </button>
+
+            {/* Notice */}
+            <button
+              onClick={() => {
+                setActiveFilterTab("Notice");
+                setTenantStatusFilter("Notice");
+                setCurrentPage(1);
+              }}
+              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                activeFilterTab === "Notice"
+                  ? "bg-orange-50 text-orange-700 font-bold border border-orange-200 shadow-xs"
+                  : "text-gray-500 hover:text-orange-600"
+              }`}
+            >
+              Notice <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Notice}</span>
+            </button>
+
+            {/* Past */}
+            <button
+              onClick={() => {
+                setActiveFilterTab("Past");
+                setTenantStatusFilter("Past");
+                setCurrentPage(1);
+              }}
+              className={`flex-1 min-w-[90px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                activeFilterTab === "Past"
+                  ? "bg-gray-100 text-gray-800 font-bold border border-gray-300 shadow-xs"
+                  : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              Past <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Past}</span>
+            </button>
+
+            {/* Guests (Purple Color-Coded Pill) */}
+            <button
+              onClick={() => {
+                setActiveFilterTab("Guests");
+                setCurrentPage(1);
+              }}
+              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
+                activeFilterTab === "Guests"
+                  ? "bg-purple-50 text-purple-700 font-bold border border-purple-200 shadow-xs"
+                  : "text-gray-500 hover:text-purple-600"
+              }`}
+            >
+              Guests <span className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Guests}</span>
+            </button>
           </div>
 
-          {/* Operational Metrics Row (5 Cards matching Stitch UI) */}
+          {/* Operational Metrics Row (5 Cards matching Stitch UI screenshot) */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {/* Due Today */}
-            <div className="bg-white p-4 rounded-2xl border border-[#d7c2b9] shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-red-50 text-red-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[9px] uppercase font-bold text-red-600 tracking-wider">
+                <p className="text-[10px] uppercase font-bold text-red-500 tracking-wider">
                   Due Today
                 </p>
-                <p className="text-xl font-bold font-serif text-[#201a17]">12</p>
-                <p className="text-[11px] text-[#554339] font-medium">₹1,24,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">12</p>
+                <p className="text-xs text-gray-500">₹1,24,000</p>
               </div>
             </div>
 
             {/* Due Tomorrow */}
-            <div className="bg-white p-4 rounded-2xl border border-[#d7c2b9] shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Clock className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[9px] uppercase font-bold text-amber-600 tracking-wider">
+                <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
                   Due Tomorrow
                 </p>
-                <p className="text-xl font-bold font-serif text-[#201a17]">18</p>
-                <p className="text-[11px] text-[#554339] font-medium">₹1,85,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">18</p>
+                <p className="text-xs text-gray-500">₹1,85,000</p>
               </div>
             </div>
 
             {/* Due in Next 2 Days */}
-            <div className="bg-white p-4 rounded-2xl border border-[#d7c2b9] shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[9px] uppercase font-bold text-amber-600 tracking-wider">
+                <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
                   Due Next 2 Days
                 </p>
-                <p className="text-xl font-bold font-serif text-[#201a17]">24</p>
-                <p className="text-[11px] text-[#554339] font-medium">₹2,32,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">24</p>
+                <p className="text-xs text-gray-500">₹2,32,000</p>
               </div>
             </div>
 
             {/* Overdue */}
-            <div className="bg-white p-4 rounded-2xl border border-red-200 shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
-                <AlertCircle className="w-5 h-5" />
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-red-100 text-red-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
+                <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[9px] uppercase font-bold text-red-700 tracking-wider">
+                <p className="text-[10px] uppercase font-bold text-red-600 tracking-wider">
                   Overdue
                 </p>
-                <p className="text-xl font-bold font-serif text-[#ba1a1a]">7</p>
-                <p className="text-[11px] text-[#554339] font-medium">₹68,000</p>
+                <p className="text-xl font-bold font-sans text-gray-900">7</p>
+                <p className="text-xs text-gray-500">₹68,000</p>
               </div>
             </div>
 
             {/* Collected This Month */}
-            <div className="bg-white p-4 rounded-2xl border border-[#d7c2b9] shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-green-50 text-green-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[9px] uppercase font-bold text-emerald-600 tracking-wider">
+                <p className="text-[10px] uppercase font-bold text-green-600 tracking-wider">
                   Collected Month
                 </p>
-                <p className="text-xl font-bold font-serif text-[#059669]">88.5%</p>
-                <p className="text-[11px] text-[#554339] font-medium">₹6,35,000 / ₹7.17L</p>
+                <p className="text-xl font-bold font-sans text-gray-900">88.5%</p>
+                <p className="text-xs text-gray-500">₹6,35,000 / ₹7.17L</p>
               </div>
             </div>
           </div>
 
-          {/* Filters Dropdown Bar (Stitch UI FiltersBar) */}
-          <div className="bg-white rounded-2xl border border-[#d7c2b9] p-4 shadow-xs space-y-3">
+          {/* Filters Bar (Stitch UI FiltersBar Row) */}
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="Search by name, phone, room, Aadhaar..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#d7c2b9] bg-[#fff8f6] text-xs text-[#201a17] focus:outline-none focus:border-[#964407]"
-                />
-                <Search className="w-4 h-4 text-[#554339] absolute left-3 top-2.5" />
-              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-[#c2652a] border border-orange-200 rounded-lg text-sm font-semibold shadow-xs">
+                <Filter className="w-4 h-4" /> Filters <ChevronDown className="w-4 h-4 ml-1" />
+              </button>
 
-              {/* Filter Dropdowns */}
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-[#554339] font-bold z-10">
+              <div className="relative min-w-[140px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
                   Tenant Status
                 </label>
                 <select
                   value={tenantStatusFilter}
                   onChange={(e) => setTenantStatusFilter(e.target.value)}
-                  className="w-full text-xs py-2 px-3 border border-[#d7c2b9] rounded-xl bg-white text-[#201a17] focus:outline-none focus:border-[#964407]"
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
                 >
-                  <option value="All">All Statuses</option>
+                  <option value="All">All</option>
                   <option value="Active">Active</option>
                   <option value="Booked">Booked</option>
                   <option value="Notice">Notice</option>
@@ -342,36 +401,67 @@ export default function TenantsDirectoryPage({
                 </select>
               </div>
 
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-[#554339] font-bold z-10">
+              <div className="relative min-w-[140px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
                   Payment Status
                 </label>
                 <select
                   value={paymentStatusFilter}
                   onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                  className="w-full text-xs py-2 px-3 border border-[#d7c2b9] rounded-xl bg-white text-[#201a17] focus:outline-none focus:border-[#964407]"
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
                 >
                   <option value="All">All</option>
                   <option value="Paid">Paid</option>
-                  <option value="Due">Due / Pending</option>
+                  <option value="Due">Pending / Due</option>
                   <option value="Overdue">Overdue</option>
                 </select>
               </div>
 
-              <div className="relative min-w-[120px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-[#554339] font-bold z-10">
+              <div className="relative min-w-[130px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
+                  Payment Due
+                </label>
+                <select
+                  value={paymentDueFilter}
+                  onChange={(e) => setPaymentDueFilter(e.target.value)}
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                >
+                  <option value="All">All</option>
+                  <option value="Today">Today</option>
+                  <option value="2Days">Due in 2 Days</option>
+                </select>
+              </div>
+
+              <div className="relative min-w-[130px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
+                  Floor
+                </label>
+                <select
+                  value={floorFilter}
+                  onChange={(e) => setFloorFilter(e.target.value)}
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                >
+                  <option value="All Floors">All Floors</option>
+                  <option value="Ground">Ground Floor</option>
+                  <option value="1">1st Floor</option>
+                  <option value="2">2nd Floor</option>
+                </select>
+              </div>
+
+              <div className="relative min-w-[130px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
                   Room
                 </label>
                 <select
                   value={roomFilter}
                   onChange={(e) => setRoomFilter(e.target.value)}
-                  className="w-full text-xs py-2 px-3 border border-[#d7c2b9] rounded-xl bg-white text-[#201a17] focus:outline-none focus:border-[#964407]"
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
                 >
-                  <option value="All">All Rooms</option>
-                  <option value="101">Room 101</option>
-                  <option value="102">Room 102</option>
-                  <option value="201">Room 201</option>
-                  <option value="301">Room 301</option>
+                  <option value="All Rooms">All Rooms</option>
+                  <option value="101">101</option>
+                  <option value="102">102</option>
+                  <option value="201">201</option>
+                  <option value="301">301</option>
                 </select>
               </div>
 
@@ -379,193 +469,212 @@ export default function TenantsDirectoryPage({
                 onClick={() => {
                   setTenantStatusFilter("All");
                   setPaymentStatusFilter("All");
-                  setRoomFilter("All");
+                  setPaymentDueFilter("All");
+                  setFloorFilter("All Floors");
+                  setRoomFilter("All Rooms");
                   setSearchTerm("");
                 }}
-                className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1 ml-auto"
+                className="text-xs font-medium text-gray-400 hover:text-[#c2652a] flex items-center gap-1 ml-auto"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Clear All
               </button>
             </div>
+
+            {/* Active Filter Chips */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[10px] text-gray-400 font-bold uppercase">
+                Active Filters:
+              </span>
+              <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
+                Tenant Status: {tenantStatusFilter}
+                <X
+                  className="w-3 h-3 cursor-pointer hover:text-red-500"
+                  onClick={() => setTenantStatusFilter("All")}
+                />
+              </div>
+              <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
+                Payment Status: {paymentStatusFilter}
+                <X
+                  className="w-3 h-3 cursor-pointer hover:text-red-500"
+                  onClick={() => setPaymentStatusFilter("All")}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setTenantStatusFilter("All");
+                  setPaymentStatusFilter("All");
+                }}
+                className="text-xs text-[#c2652a] font-bold underline ml-2"
+              >
+                Clear All
+              </button>
+            </div>
           </div>
 
-          {/* Stitch UI Tenant Table */}
-          <div className="bg-white rounded-2xl border border-[#d7c2b9] shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-[#f8ede3]/60 border-b border-[#d7c2b9]">
-                  <tr>
-                    <th className="p-4 w-10">
-                      <input
-                        type="checkbox"
-                        checked={
-                          paginatedOccupants.length > 0 &&
-                          paginatedOccupants.every((o) => selectedIds.includes(o.id))
-                        }
-                        onChange={handleSelectAll}
-                        className="rounded border-[#d7c2b9] text-[#964407] focus:ring-[#964407]"
-                      />
-                    </th>
-                    <th className="p-4 text-[10px] font-bold text-[#554339] uppercase tracking-wider">
-                      Tenant
-                    </th>
-                    <th className="p-4 text-[10px] font-bold text-[#554339] uppercase tracking-wider">
-                      Room & Bed
-                    </th>
-                    <th className="p-4 text-[10px] font-bold text-[#554339] uppercase tracking-wider text-center">
-                      Rent Status
-                    </th>
-                    <th className="p-4 text-[10px] font-bold text-[#554339] uppercase tracking-wider">
-                      Payment Due
-                    </th>
-                    <th className="p-4 text-[10px] font-bold text-[#554339] uppercase tracking-wider">
-                      Days Remaining
-                    </th>
-                    <th className="p-4 text-[10px] font-bold text-[#554339] uppercase tracking-wider text-right">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f8ede3]">
-                  {paginatedOccupants.length > 0 ? (
-                    paginatedOccupants.map((occ) => {
-                      const isSelected = selectedIds.includes(occ.id);
-                      return (
-                        <tr
-                          key={occ.id}
-                          className={`transition-colors ${
-                            isSelected ? "bg-[#f8ede3]/50" : "hover:bg-[#fff8f6]"
-                          }`}
-                        >
-                          <td className="p-4">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleSelectOne(occ.id)}
-                              className="rounded border-[#d7c2b9] text-[#964407] focus:ring-[#964407]"
+          {/* Desktop Data Table (`hidden md:block`) */}
+          <div className="hidden md:block bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xs">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="p-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={
+                        paginatedOccupants.length > 0 &&
+                        paginatedOccupants.every((o) => selectedIds.includes(o.id))
+                      }
+                      onChange={handleSelectAll}
+                      className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
+                    />
+                  </th>
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    Tenant
+                  </th>
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    Room & Bed
+                  </th>
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
+                    Rent Status
+                  </th>
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    Payment Due
+                  </th>
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    Days Remaining
+                  </th>
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedOccupants.length > 0 ? (
+                  paginatedOccupants.map((occ) => {
+                    const isSelected = selectedIds.includes(occ.id);
+                    return (
+                      <tr
+                        key={occ.id}
+                        className={`transition-colors ${
+                          isSelected ? "bg-[#fef6f2]" : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <td className="p-4">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectOne(occ.id)}
+                            className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
+                          />
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={occ.avatar}
+                              alt={occ.name}
+                              className="w-10 h-10 rounded-full border border-gray-200 object-cover"
                             />
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={occ.avatar}
-                                alt={occ.name}
-                                className="w-9 h-9 rounded-full border border-[#d7c2b9] object-cover"
-                              />
-                              <div>
-                                <div className="text-xs font-bold text-[#201a17] flex items-center gap-1.5">
-                                  {occ.name}
-                                  {occ.stayType === "Guest" && (
-                                    <span className="badge-guest px-2 py-0.2 rounded-full text-[9px] font-bold">
-                                      🟣 GUEST
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-[#554339]">
-                                  {occ.phone}
-                                </div>
+                            <div>
+                              <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                {occ.name}
+                                {occ.stayType === "Guest" && (
+                                  <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                                    🟣 GUEST
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-500 font-medium">
+                                {occ.phone}
                               </div>
                             </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="text-xs font-bold text-[#201a17]">
-                              Room {occ.roomNumber} ({occ.bedCode})
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="text-sm font-bold text-gray-800">
+                            Room {occ.roomNumber} ({occ.bedCode})
+                          </div>
+                          <div className="text-[10px] text-gray-500">Sunshine Heights PG</div>
+                        </td>
+                        <td className="p-4 text-center">
+                          {occ.paymentStatus === "Paid" && (
+                            <span className="inline-block px-2.5 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">
+                              PAID
+                            </span>
+                          )}
+                          {occ.paymentStatus === "Due" && (
+                            <span className="inline-block px-2.5 py-1 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
+                              PENDING
+                            </span>
+                          )}
+                          {occ.paymentStatus === "Overdue" && (
+                            <span className="inline-block px-2.5 py-1 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
+                              OVERDUE
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <div className="text-xs font-semibold text-gray-900">
+                            {occ.joiningDate}
+                          </div>
+                          {occ.paymentStatus === "Overdue" ? (
+                            <div className="text-[10px] text-red-500 font-bold">
+                              Overdue
                             </div>
-                            <div className="text-[10px] text-[#554339]">Sunshine PG</div>
-                          </td>
-                          <td className="p-4 text-center">
-                            {occ.paymentStatus === "Paid" && (
-                              <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold uppercase">
-                                PAID 🟢
-                              </span>
-                            )}
-                            {occ.paymentStatus === "Due" && (
-                              <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold uppercase">
-                                PENDING 🟡
-                              </span>
-                            )}
-                            {occ.paymentStatus === "Overdue" && (
-                              <span className="inline-block px-2 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase">
-                                OVERDUE 🔴
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            <div className="text-xs font-semibold text-[#201a17]">
-                              {occ.joiningDate}
+                          ) : (
+                            <div className="text-[10px] text-red-500 font-bold">
+                              Due in 2 Days
                             </div>
-                            {occ.paymentStatus === "Overdue" ? (
-                              <div className="text-[10px] text-[#ba1a1a] font-bold">
-                                5 DAYS OVERDUE
-                              </div>
-                            ) : (
-                              <div className="text-[10px] text-amber-700 font-bold">
-                                Due in 2 Days
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            {occ.lifecycleStatus === "Active" && (
-                              <span className="badge-available px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                                ACTIVE
-                              </span>
-                            )}
-                            {occ.lifecycleStatus === "Notice" && (
-                              <span className="badge-vacating px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                                NOTICE
-                              </span>
-                            )}
-                            {occ.lifecycleStatus === "Booked" && (
-                              <span className="badge-booked px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                                BOOKED
-                              </span>
-                            )}
-                            {occ.lifecycleStatus === "Past" && (
-                              <span className="bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                                PAST
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-2 text-[#554339]">
-                              <button
-                                onClick={() => triggerToast(`Calling ${occ.phone}`)}
-                                className="p-1 rounded hover:bg-[#f8ede3] hover:text-[#964407]"
-                                title="Call Occupant"
-                              >
-                                <Phone className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => triggerToast(`WhatsApp reminder sent to ${occ.phone}`)}
-                                className="p-1 rounded hover:bg-[#f8ede3] hover:text-[#059669]"
-                                title="Send WhatsApp Reminder"
-                              >
-                                <MessageSquare className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => triggerToast(`Opened Profile for ${occ.name}`)}
-                                className="p-1 rounded hover:bg-[#f8ede3]"
-                              >
-                                <MoreVertical className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-xs text-[#554339]">
-                        No matching occupants found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {occ.paymentStatus === "Overdue" ? (
+                            <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
+                              5 DAYS OVERDUE
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
+                              2 DAYS
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2 text-gray-400">
+                            <button
+                              onClick={() => triggerToast(`Calling ${occ.phone}`)}
+                              className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
+                              title="Call"
+                            >
+                              <Phone className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => triggerToast(`WhatsApp reminder sent to ${occ.phone}`)}
+                              className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
+                              title="WhatsApp"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => triggerToast(`Viewing details for ${occ.name}`)}
+                              className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-xs text-gray-500">
+                      No matching occupants found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
 
             {/* Pagination Controls */}
-            <div className="px-6 py-4 border-t border-[#f8ede3] flex items-center justify-between text-xs font-semibold text-[#554339]">
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between text-xs font-semibold text-gray-600">
               <span>
                 Showing Page {currentPage} of {totalPages || 1} ({filteredOccupants.length} total)
               </span>
@@ -574,56 +683,142 @@ export default function TenantsDirectoryPage({
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="p-2 rounded-lg border border-[#d7c2b9] hover:bg-[#f8ede3] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="p-2 rounded-lg border border-[#d7c2b9] hover:bg-[#f8ede3] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           </div>
+
+          {/* Mobile Card List View (`md:hidden` - 100% Mobile Viewport Width) */}
+          <div className="md:hidden space-y-4">
+            {paginatedOccupants.length > 0 ? (
+              paginatedOccupants.map((occ) => (
+                <div
+                  key={occ.id}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-3"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={occ.avatar}
+                        alt={occ.name}
+                        className="w-11 h-11 rounded-full border border-gray-200 object-cover"
+                      />
+                      <div>
+                        <h3 className="font-bold text-sm text-gray-900 flex items-center gap-2">
+                          {occ.name}
+                          {occ.stayType === "Guest" && (
+                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                              🟣 GUEST
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-gray-500">{occ.phone}</p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
+                        occ.paymentStatus === "Paid"
+                          ? "bg-green-100 text-green-700"
+                          : occ.paymentStatus === "Overdue"
+                          ? "bg-red-100 text-red-600"
+                          : "bg-orange-100 text-orange-600"
+                      }`}
+                    >
+                      {occ.paymentStatus}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
+                    <div>
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">
+                        Room & Bed
+                      </p>
+                      <p className="font-semibold text-gray-800">
+                        Room {occ.roomNumber} ({occ.bedCode})
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">
+                        Rent Amount
+                      </p>
+                      <p className="font-semibold font-mono text-[#c2652a]">
+                        ₹{occ.rentAmount.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      onClick={() => triggerToast(`Calling ${occ.phone}`)}
+                      className="flex-1 py-2 rounded-xl bg-orange-50 text-[#c2652a] font-bold text-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Phone className="w-3.5 h-3.5" /> Call
+                    </button>
+                    <button
+                      onClick={() => triggerToast(`WhatsApp sent to ${occ.phone}`)}
+                      className="flex-1 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
+                No matching occupants found.
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Floating Bulk Action Bar (Triggers when checkboxed) */}
+        {/* Floating Bulk Action Bar (Matching Stitch UI Screenshot) */}
         {selectedIds.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#201a17] text-white rounded-2xl px-6 py-3.5 shadow-2xl flex items-center gap-6 border border-[#d7c2b9]/40 animate-in slide-in-from-bottom-4">
-            <div className="text-xs font-semibold">
-              <span className="font-bold text-[#ffb68e]">
-                {selectedIds.length} Tenants Selected
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 shadow-2xl rounded-2xl p-3 md:px-6 md:py-3.5 flex items-center gap-4 md:gap-6 animate-in slide-in-from-bottom-4">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-7 h-7 rounded-lg bg-orange-50 text-[#c2652a] font-bold flex items-center justify-center text-sm">
+                {selectedIds.length}
               </span>
-              <span className="text-white/60 block text-[10px]">
-                TOTAL DUE ₹{(selectedIds.length * 14500).toLocaleString("en-IN")}
-              </span>
+              <div className="hidden sm:block">
+                <span className="font-bold text-gray-900 block">Tenants Selected</span>
+                <span className="text-[10px] text-gray-500">
+                  TOTAL DUE: ₹{(selectedIds.length * 14500).toLocaleString("en-IN")}
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={() => triggerToast(`Rent reminders sent to ${selectedIds.length} tenants`)}
-                className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95"
+                className="px-4 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-semibold shadow-md flex items-center gap-2 active:scale-95"
               >
                 <MessageSquare className="w-4 h-4" /> Send Rent Reminder
               </button>
               <button
                 onClick={() => triggerToast(`Calling ${selectedIds.length} selected tenants`)}
-                className="px-3.5 py-2 rounded-xl border border-white/20 text-white hover:bg-white/10 text-xs font-bold flex items-center gap-1.5"
+                className="hidden md:flex px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold items-center gap-1.5"
               >
-                <Phone className="w-3.5 h-3.5" /> Call Selected
+                <Phone className="w-4 h-4" /> Call Selected
               </button>
               <button
                 onClick={() => triggerToast(`Exported CSV for ${selectedIds.length} tenants`)}
-                className="px-3.5 py-2 rounded-xl border border-white/20 text-white hover:bg-white/10 text-xs font-bold flex items-center gap-1.5"
+                className="hidden md:flex px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold items-center gap-1.5"
               >
-                <Download className="w-3.5 h-3.5" /> Export
+                <Download className="w-4 h-4" /> Export Selected
               </button>
               <button
                 onClick={() => setSelectedIds([])}
-                className="p-1 rounded-full hover:bg-white/20 text-white/60 ml-2"
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 ml-1"
               >
                 <X className="w-4 h-4" />
               </button>
