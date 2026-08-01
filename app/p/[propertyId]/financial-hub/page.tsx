@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import {
@@ -21,9 +21,10 @@ import {
 export default function FinancialHubPage({
   params,
 }: {
-  params: { propertyId: string };
+  params: Promise<{ propertyId: string }>;
 }) {
-  const propertyId = params.propertyId || "sunshine-pg";
+  const resolvedParams = use(params);
+  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const [activeTab, setActiveTab] = useState("Expenses");
   const [showRecordDrawer, setShowRecordDrawer] = useState(true);
   const [showToast, setShowToast] = useState(true);

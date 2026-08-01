@@ -1,5 +1,6 @@
 "use client";
 
+import { use } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
@@ -20,9 +21,10 @@ import {
 export default function PropertyOverviewPage({
   params,
 }: {
-  params: { propertyId: string };
+  params: Promise<{ propertyId: string }>;
 }) {
-  const propertyId = params.propertyId || "sunshine-pg";
+  const resolvedParams = use(params);
+  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
