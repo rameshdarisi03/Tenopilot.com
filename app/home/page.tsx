@@ -18,44 +18,49 @@ import {
   FileText,
   Settings,
   Sparkles,
+  MapPin,
+  Verified,
 } from "lucide-react";
 
 export default function HomeWorkspacePage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white">
+    <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white pb-12">
       {/* Top Header Navigation */}
       <header className="sticky top-0 z-50 bg-[#fff8f6]/90 backdrop-blur-md border-b border-[#d7c2b9]/60">
-        <div className="max-w-[1240px] mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           {/* Brand */}
-          <Link href="/home" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-xl shadow-md group-hover:bg-[#c2652a] transition-colors">
+          <Link href="/home" className="flex items-center gap-2.5 sm:gap-3 group">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-lg sm:text-xl shadow-md group-hover:bg-[#c2652a] transition-colors">
               T
             </div>
             <div>
-              <span className="font-serif font-bold text-2xl tracking-tight text-[#201a17]">
+              <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-[#201a17]">
                 TenoPilot
               </span>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
+              <span className="text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
                 Home Dashboard
               </span>
             </div>
           </Link>
 
           {/* User Profile & Actions */}
-          <div className="flex items-center gap-5">
-            <button className="relative p-2 rounded-full hover:bg-[#f8ede3] text-[#554339] transition-colors">
+          <div className="flex items-center gap-3 sm:gap-5">
+            <button
+              className="relative p-2 rounded-full hover:bg-[#f8ede3] text-[#554339] transition-colors active:scale-95"
+              aria-label="Notifications"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a]"></span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#964407]"></span>
             </button>
 
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-3 p-1.5 rounded-full hover:bg-[#f8ede3] transition-all"
+                className="flex items-center gap-2.5 p-1 rounded-full hover:bg-[#f8ede3] transition-all active:scale-95"
               >
-                <div className="w-9 h-9 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-sm border-2 border-[#964407]/20">
+                <div className="w-9 h-9 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-xs sm:text-sm border-2 border-[#964407]/20 shadow-sm">
                   AS
                 </div>
                 <div className="hidden lg:flex flex-col text-left">
@@ -86,34 +91,35 @@ export default function HomeWorkspacePage() {
         </div>
       </header>
 
-      {/* Main Workspace Body */}
-      <main className="max-w-[1240px] mx-auto px-6 py-10 flex-1 space-y-10 w-full">
+      {/* Main Mobile-Optimized Body */}
+      <main className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 space-y-6 sm:space-y-10 w-full">
         {/* Welcome Greeting */}
         <section className="max-w-3xl">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#964407] block mb-2">
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#964407] block mb-1.5">
             Welcome Home
           </span>
-          <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-[#201a17]">
-            Good morning, Alex. Your portfolio is calling.
+          <h1 className="font-serif text-2xl sm:text-4xl md:text-5xl font-bold text-[#201a17] leading-tight">
+            Good morning, Alex.<br />
+            <span className="text-[#725949] font-normal">Your portfolio is calling.</span>
           </h1>
-          <p className="text-base sm:text-lg text-[#554339] mt-3 font-normal">
-            3 properties require your operational focus today. Select a workspace below to streamline collections and bed occupancy.
+          <p className="text-sm sm:text-lg text-[#554339] mt-2 font-normal leading-relaxed">
+            3 properties require operational focus today. Tap a dashboard below to streamline collections and occupancy.
           </p>
         </section>
 
-        {/* Workspace Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {/* Card 1: Consolidated Portfolio Workspace Card */}
-          <div className="bg-gradient-to-br from-[#964407] to-[#c2652a] text-white rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[360px]">
-            <div className="relative z-10 space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-md">
-                <Building2 className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="font-serif text-2xl font-bold text-white">
+        {/* Tactile Mobile Bento Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          {/* Card 1: Consolidated Portfolio Dashboard Card */}
+          <div className="bg-gradient-to-br from-[#964407] to-[#c2652a] text-white rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[260px] sm:min-h-[340px]">
+            <div className="relative z-10 space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/80 block">
+                Global Overview
+              </span>
+              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-white">
                 View All Properties
               </h3>
-              <p className="text-xs text-white/90 leading-relaxed font-normal">
-                Consolidated portfolio dashboard. Manage all active properties and aggregate financial metrics across your entire estate.
+              <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
+                Manage all active properties and aggregated financial metrics across your entire estate.
               </p>
             </div>
 
@@ -121,7 +127,7 @@ export default function HomeWorkspacePage() {
               <Link
                 href="/portfolio/dashboard"
                 id="portfolio-dashboard-btn"
-                className="w-full py-3.5 px-4 rounded-full bg-white text-[#964407] font-bold text-xs hover:bg-[#fff8f6] transition-all flex items-center justify-center gap-2 shadow-md hover:scale-[1.02]"
+                className="w-full py-3.5 px-5 rounded-full bg-white text-[#964407] font-bold text-xs sm:text-sm hover:bg-[#fff8f6] transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
               >
                 View Portfolio Dashboard <ArrowRight className="w-4 h-4" />
               </Link>
@@ -129,47 +135,50 @@ export default function HomeWorkspacePage() {
           </div>
 
           {/* Property Card 1: The Sands Residences */}
-          <div className="bg-white border border-[#d7c2b9] rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
-            <div>
-              <div className="p-6 pb-4 border-b border-[#f8ede3]">
-                <div className="flex justify-between items-start mb-3">
-                  <span className="badge-available px-3 py-1 rounded-full text-[10px] font-bold">
-                    HEALTHY 🟢
-                  </span>
-                  <span className="text-[10px] font-bold text-[#554339] uppercase">
-                    48 BEDS
-                  </span>
-                </div>
-                <h4 className="font-serif text-xl font-bold text-[#201a17]">
-                  The Sands Residences
-                </h4>
-                <p className="text-xs text-[#554339] mt-0.5">Kondapur, Hyderabad</p>
-              </div>
-
-              <div className="p-6 grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339] block">
-                    Occupancy
-                  </span>
-                  <span className="text-xl font-serif font-bold text-[#964407]">
-                    98.5%
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339] block">
-                    Rent Collected
-                  </span>
-                  <span className="text-xl font-serif font-bold text-[#059669]">
-                    100%
-                  </span>
-                </div>
-              </div>
+          <div className="group relative rounded-2xl border border-[#d7c2b9] overflow-hidden min-h-[360px] flex flex-col justify-end shadow-md hover:shadow-xl transition-all duration-300">
+            <div className="absolute inset-0 z-0 bg-[#201a17]">
+              {/* Visual Background Simulation */}
+              <div className="w-full h-full bg-gradient-to-br from-[#725949] to-[#201a17] opacity-90"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#201a17] via-[#201a17]/50 to-transparent"></div>
             </div>
 
-            <div className="p-6 pt-0">
+            <div className="relative z-10 p-6 text-white space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="bg-[#059669]/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-widest uppercase">
+                  <Verified className="w-3 h-3" /> HEALTHY
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+                  48 BEDS
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-serif text-2xl font-bold text-white">
+                  The Sands Residences
+                </h3>
+                <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#ffb68e]" /> Kondapur, Hyderabad
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-white/20 pt-4 text-left">
+                <div>
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    Occupancy
+                  </p>
+                  <p className="font-serif text-xl font-bold text-[#ffb68e]">98.5%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    Rent Collection
+                  </p>
+                  <p className="font-serif text-xl font-bold text-emerald-400">100%</p>
+                </div>
+              </div>
+
               <Link
                 href="/p/sands-residences/dashboard"
-                className="w-full py-3 rounded-full border border-[#d7c2b9] text-[#201a17] font-bold text-xs hover:bg-[#964407] hover:text-white hover:border-[#964407] transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-3.5 px-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs hover:bg-white hover:text-[#964407] transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
               >
                 View Dashboard <ChevronRight className="w-4 h-4" />
               </Link>
@@ -177,47 +186,49 @@ export default function HomeWorkspacePage() {
           </div>
 
           {/* Property Card 2: Meridian PG & Hostel */}
-          <div className="bg-white border border-[#d7c2b9] rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
-            <div>
-              <div className="p-6 pb-4 border-b border-[#f8ede3]">
-                <div className="flex justify-between items-start mb-3">
-                  <span className="badge-booked px-3 py-1 rounded-full text-[10px] font-bold">
-                    3 TASKS PENDING 🟡
-                  </span>
-                  <span className="text-[10px] font-bold text-[#554339] uppercase">
-                    32 BEDS
-                  </span>
-                </div>
-                <h4 className="font-serif text-xl font-bold text-[#201a17]">
-                  Meridian PG & Hostel
-                </h4>
-                <p className="text-xs text-[#554339] mt-0.5">Gachibowli, Hyderabad</p>
-              </div>
-
-              <div className="p-6 grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339] block">
-                    Occupancy
-                  </span>
-                  <span className="text-xl font-serif font-bold text-[#964407]">
-                    92.0%
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339] block">
-                    Rent Collected
-                  </span>
-                  <span className="text-xl font-serif font-bold text-[#964407]">
-                    94%
-                  </span>
-                </div>
-              </div>
+          <div className="group relative rounded-2xl border border-[#d7c2b9] overflow-hidden min-h-[360px] flex flex-col justify-end shadow-md hover:shadow-xl transition-all duration-300">
+            <div className="absolute inset-0 z-0 bg-[#201a17]">
+              <div className="w-full h-full bg-gradient-to-br from-[#964407]/80 to-[#201a17] opacity-90"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#201a17] via-[#201a17]/50 to-transparent"></div>
             </div>
 
-            <div className="p-6 pt-0">
+            <div className="relative z-10 p-6 text-white space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="bg-[#b65c21]/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-widest uppercase">
+                  <AlertCircle className="w-3 h-3" /> 3 TASKS PENDING
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+                  32 BEDS
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-serif text-2xl font-bold text-white">
+                  Meridian PG & Hostel
+                </h3>
+                <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#ffb68e]" /> Gachibowli, Hyderabad
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-white/20 pt-4 text-left">
+                <div>
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    Occupancy
+                  </p>
+                  <p className="font-serif text-xl font-bold text-[#ffb68e]">92.0%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    Rent Collection
+                  </p>
+                  <p className="font-serif text-xl font-bold text-[#ffb68e]">94%</p>
+                </div>
+              </div>
+
               <Link
                 href="/p/meridian-hostel/dashboard"
-                className="w-full py-3 rounded-full border border-[#d7c2b9] text-[#201a17] font-bold text-xs hover:bg-[#964407] hover:text-white hover:border-[#964407] transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-3.5 px-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs hover:bg-white hover:text-[#964407] transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
               >
                 View Dashboard <ChevronRight className="w-4 h-4" />
               </Link>
@@ -225,47 +236,49 @@ export default function HomeWorkspacePage() {
           </div>
 
           {/* Property Card 3: Copper Crest Estate */}
-          <div className="bg-white border border-[#d7c2b9] rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
-            <div>
-              <div className="p-6 pb-4 border-b border-[#f8ede3]">
-                <div className="flex justify-between items-start mb-3">
-                  <span className="badge-available px-3 py-1 rounded-full text-[10px] font-bold">
-                    HEALTHY 🟢
-                  </span>
-                  <span className="text-[10px] font-bold text-[#554339] uppercase">
-                    60 BEDS
-                  </span>
-                </div>
-                <h4 className="font-serif text-xl font-bold text-[#201a17]">
-                  Copper Crest Estate
-                </h4>
-                <p className="text-xs text-[#554339] mt-0.5">Hitech City, Hyderabad</p>
-              </div>
-
-              <div className="p-6 grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339] block">
-                    Occupancy
-                  </span>
-                  <span className="text-xl font-serif font-bold text-[#964407]">
-                    100%
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339] block">
-                    Rent Collected
-                  </span>
-                  <span className="text-xl font-serif font-bold text-[#059669]">
-                    100%
-                  </span>
-                </div>
-              </div>
+          <div className="group relative rounded-2xl border border-[#d7c2b9] overflow-hidden min-h-[360px] flex flex-col justify-end shadow-md hover:shadow-xl transition-all duration-300">
+            <div className="absolute inset-0 z-0 bg-[#201a17]">
+              <div className="w-full h-full bg-gradient-to-br from-[#725949] to-[#201a17] opacity-90"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#201a17] via-[#201a17]/50 to-transparent"></div>
             </div>
 
-            <div className="p-6 pt-0">
+            <div className="relative z-10 p-6 text-white space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="bg-[#059669]/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-widest uppercase">
+                  <Verified className="w-3 h-3" /> HEALTHY
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+                  60 BEDS
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-serif text-2xl font-bold text-white">
+                  Copper Crest Estate
+                </h3>
+                <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#ffb68e]" /> Hitech City, Hyderabad
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-white/20 pt-4 text-left">
+                <div>
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    Occupancy
+                  </p>
+                  <p className="font-serif text-xl font-bold text-[#ffb68e]">100%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    Rent Collection
+                  </p>
+                  <p className="font-serif text-xl font-bold text-emerald-400">100%</p>
+                </div>
+              </div>
+
               <Link
                 href="/p/copper-crest/dashboard"
-                className="w-full py-3 rounded-full border border-[#d7c2b9] text-[#201a17] font-bold text-xs hover:bg-[#964407] hover:text-white hover:border-[#964407] transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-3.5 px-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs hover:bg-white hover:text-[#964407] transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
               >
                 View Dashboard <ChevronRight className="w-4 h-4" />
               </Link>
@@ -273,7 +286,7 @@ export default function HomeWorkspacePage() {
           </div>
 
           {/* Card 5: Add New Property Card */}
-          <button className="group border-2 border-dashed border-[#d7c2b9] rounded-2xl p-6 flex flex-col items-center justify-center min-h-[360px] hover:border-[#964407] hover:bg-[#f8ede3]/40 transition-all text-center">
+          <button className="group border-2 border-dashed border-[#d7c2b9] rounded-2xl p-6 flex flex-col items-center justify-center min-h-[260px] sm:min-h-[360px] hover:border-[#964407] hover:bg-[#f8ede3]/40 transition-all text-center active:scale-98">
             <div className="w-14 h-14 bg-[#f8ede3] rounded-full flex items-center justify-center mb-4 text-[#554339] group-hover:bg-[#964407]/10 group-hover:text-[#964407] transition-colors">
               <Plus className="w-7 h-7 transition-transform group-hover:rotate-90 duration-300" />
             </div>
@@ -284,22 +297,6 @@ export default function HomeWorkspacePage() {
           </button>
         </div>
       </main>
-
-      {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-white/90 backdrop-blur-xl border border-[#d7c2b9] shadow-2xl rounded-full px-6 py-2.5 flex gap-8 items-center text-xs">
-        <Link href="/home" className="flex flex-col items-center text-[#964407] font-bold">
-          <Building2 className="w-5 h-5" />
-          <span className="text-[10px] uppercase tracking-tight mt-0.5">Portfolio</span>
-        </Link>
-        <Link href="/portfolio/dashboard" className="flex flex-col items-center text-[#554339] hover:text-[#964407]">
-          <LayoutDashboard className="w-5 h-5" />
-          <span className="text-[10px] uppercase tracking-tight mt-0.5">Analytics</span>
-        </Link>
-        <Link href="/home" className="flex flex-col items-center text-[#554339] hover:text-[#964407]">
-          <Settings className="w-5 h-5" />
-          <span className="text-[10px] uppercase tracking-tight mt-0.5">Settings</span>
-        </Link>
-      </nav>
 
       {/* Footer */}
       <footer className="py-6 border-t border-[#d7c2b9]/40 text-center text-xs text-[#554339]">
