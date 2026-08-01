@@ -38,7 +38,7 @@ export default function HomeWorkspacePage() {
                 TenoPilot
               </span>
               <span className="text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
-                Home Workspace
+                Home Dashboard
               </span>
             </div>
           </Link>
@@ -171,7 +171,7 @@ export default function HomeWorkspacePage() {
                 href="/p/sands-residences/dashboard"
                 className="w-full py-3 rounded-full border border-[#d7c2b9] text-[#201a17] font-bold text-xs hover:bg-[#964407] hover:text-white hover:border-[#964407] transition-all flex items-center justify-center gap-1.5"
               >
-                View Workspace <ChevronRight className="w-4 h-4" />
+                View Dashboard <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
@@ -219,7 +219,7 @@ export default function HomeWorkspacePage() {
                 href="/p/meridian-hostel/dashboard"
                 className="w-full py-3 rounded-full border border-[#d7c2b9] text-[#201a17] font-bold text-xs hover:bg-[#964407] hover:text-white hover:border-[#964407] transition-all flex items-center justify-center gap-1.5"
               >
-                View Workspace <ChevronRight className="w-4 h-4" />
+                View Dashboard <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
@@ -267,7 +267,7 @@ export default function HomeWorkspacePage() {
                 href="/p/copper-crest/dashboard"
                 className="w-full py-3 rounded-full border border-[#d7c2b9] text-[#201a17] font-bold text-xs hover:bg-[#964407] hover:text-white hover:border-[#964407] transition-all flex items-center justify-center gap-1.5"
               >
-                View Workspace <ChevronRight className="w-4 h-4" />
+                View Dashboard <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           </div>

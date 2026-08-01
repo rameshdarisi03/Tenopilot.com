@@ -202,7 +202,7 @@ export default function LoginPage() {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Sign In to Workspace <ArrowRight className="w-4 h-4" />
+                  Sign In to Dashboard <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>

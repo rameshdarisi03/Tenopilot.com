@@ -93,7 +93,7 @@ export default function Home() {
               id="nav-cta-btn"
               className="px-6 py-2.5 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-sm font-semibold transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
             >
-              Launch Workspace <ArrowRight className="w-4 h-4" />
+              Launch Dashboard <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -722,7 +722,7 @@ export default function Home() {
             id="final-cta-btn"
             className="inline-flex items-center gap-2 px-10 py-4 rounded-full bg-white text-[#964407] font-bold text-base shadow-2xl hover:bg-[#fff8f6] hover:scale-105 transition-all"
           >
-            Open Home Workspace Now <ArrowRight className="w-5 h-5" />
+            Open Main Dashboard <ArrowRight className="w-5 h-5" />
           </Link>
         </div>
       </section>
