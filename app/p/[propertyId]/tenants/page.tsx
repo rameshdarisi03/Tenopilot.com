@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import {
   Search,
   Plus,
@@ -28,6 +29,7 @@ import {
   CreditCard,
   ArrowRightLeft,
   FileText,
+  ArrowUpDown,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -42,16 +44,22 @@ export default function TenantsDirectoryPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Filter & Search states
-  const [searchTerm, setSearchTerm] = useState("");
+  const [rawSearchTerm, setRawSearchTerm] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState<
     "All" | "Booked" | "Active" | "Notice" | "Past" | "Guests"
   >("Active");
 
+  // Dropdown filter states
   const [tenantStatusFilter, setTenantStatusFilter] = useState("Active");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("All");
   const [paymentDueFilter, setPaymentDueFilter] = useState("All");
   const [floorFilter, setFloorFilter] = useState("All Floors");
   const [roomFilter, setRoomFilter] = useState("All Rooms");
+
+  // Sorting state
+  const [sortBy, setSortBy] = useState<
+    "name-asc" | "name-desc" | "room" | "rent-desc" | "due"
+  >("name-asc");
 
   // Selection state for bulk actions
   const [selectedIds, setSelectedIds] = useState<string[]>(["occ-1001"]);
@@ -79,7 +87,6 @@ export default function TenantsDirectoryPage({
     e.preventDefault();
     if (!collectRentOccupant) return;
 
-    // Format selected date (e.g. "2026-07-31" -> "31 Jul 2026")
     const dParts = paymentDate.split("-");
     const formattedPaidDate = `${dParts[2]} ${
       ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
@@ -136,35 +143,64 @@ export default function TenantsDirectoryPage({
     };
   }, []);
 
-  // Filtered dataset
+  // XSS Sanitized & Tokenized Search Filtering + Sorting
   const filteredOccupants = useMemo(() => {
-    return MOCK_OCCUPANTS_200.filter((occ) => {
-      const matchesSearch =
-        occ.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        occ.phone.includes(searchTerm) ||
-        occ.roomNumber.includes(searchTerm) ||
-        occ.aadhaarNumber.includes(searchTerm);
+    // 1. Sanitize raw input against script injection
+    const cleanSearch = sanitizeSearchInput(rawSearchTerm).toLowerCase().trim();
+    const searchTokens = cleanSearch.split(/\s+/).filter(Boolean);
+    const numericDigitsOnly = normalizePhoneNumber(cleanSearch);
 
-      if (!matchesSearch) return false;
+    const matched = MOCK_OCCUPANTS_200.filter((occ) => {
+      // Robust multi-attribute search matching
+      if (searchTokens.length > 0) {
+        const occNameLower = occ.name.toLowerCase();
+        const occRoomLower = occ.roomNumber.toLowerCase();
+        const occPhoneDigits = normalizePhoneNumber(occ.phone);
+        const occAadhaar = occ.aadhaarNumber.toLowerCase();
 
+        // Check if all entered tokens match either name, room, or phone
+        const matchesAllTokens = searchTokens.every(
+          (token) =>
+            occNameLower.includes(token) ||
+            occRoomLower.includes(token) ||
+            occAadhaar.includes(token) ||
+            (numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly))
+        );
+
+        if (!matchesAllTokens) return false;
+      }
+
+      // Status Segmented Tab Filter
       if (activeFilterTab === "Booked" && occ.lifecycleStatus !== "Booked") return false;
       if (activeFilterTab === "Active" && occ.lifecycleStatus !== "Active") return false;
       if (activeFilterTab === "Notice" && occ.lifecycleStatus !== "Notice") return false;
       if (activeFilterTab === "Past" && occ.lifecycleStatus !== "Past") return false;
       if (activeFilterTab === "Guests" && occ.stayType !== "Guest") return false;
 
+      // Dropdown Filters
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
       if (paymentStatusFilter !== "All" && occ.paymentStatus !== paymentStatusFilter) return false;
       if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
 
       return true;
     });
+
+    // 2. Sorting mechanism
+    return matched.sort((a, b) => {
+      if (sortBy === "name-asc") return a.name.localeCompare(b.name);
+      if (sortBy === "name-desc") return b.name.localeCompare(a.name);
+      if (sortBy === "room") return parseInt(a.roomNumber) - parseInt(b.roomNumber);
+      if (sortBy === "rent-desc") return b.rentAmount - a.rentAmount;
+      if (sortBy === "due") return a.dueDay - b.dueDay;
+      return 0;
+    });
   }, [
-    searchTerm,
+    rawSearchTerm,
     activeFilterTab,
     tenantStatusFilter,
     paymentStatusFilter,
     roomFilter,
+    sortBy,
   ]);
 
   // Pagination slice
@@ -212,9 +248,14 @@ export default function TenantsDirectoryPage({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
-        {/* Top Header */}
+        {/* Top Header with Synchronized Search */}
         <PropertyHeader
           title="Tenant Operations"
+          searchValue={rawSearchTerm}
+          onSearchChange={(val) => {
+            setRawSearchTerm(val);
+            setCurrentPage(1);
+          }}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
@@ -437,7 +478,135 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Desktop Data Table with Exact Column Ordering Requested by User */}
+          {/* Filters & Sorting Control Bar */}
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Table Quick Search Input */}
+              <div className="relative min-w-[220px] flex-1 max-w-sm">
+                <input
+                  type="text"
+                  value={rawSearchTerm}
+                  onChange={(e) => {
+                    setRawSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Filter name, phone, room..."
+                  className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-xs md:text-sm bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                />
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                {rawSearchTerm && (
+                  <X
+                    className="w-4 h-4 text-gray-400 absolute right-3 top-2.5 cursor-pointer hover:text-red-500"
+                    onClick={() => setRawSearchTerm("")}
+                  />
+                )}
+              </div>
+
+              {/* Sort By Selector */}
+              <div className="relative min-w-[150px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10 flex items-center gap-1">
+                  <ArrowUpDown className="w-2.5 h-2.5" /> Sort By
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 font-medium focus:ring-1 focus:ring-[#c2652a]"
+                >
+                  <option value="name-asc">Name (A - Z)</option>
+                  <option value="name-desc">Name (Z - A)</option>
+                  <option value="room">Room Number</option>
+                  <option value="rent-desc">Rent (High to Low)</option>
+                  <option value="due">Payment Due Date</option>
+                </select>
+              </div>
+
+              {/* Dropdown Filters */}
+              <div className="relative min-w-[130px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
+                  Payment Status
+                </label>
+                <select
+                  value={paymentStatusFilter}
+                  onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                >
+                  <option value="All">All</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Due">Pending / Due</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+              </div>
+
+              <div className="relative min-w-[120px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
+                  Room
+                </label>
+                <select
+                  value={roomFilter}
+                  onChange={(e) => setRoomFilter(e.target.value)}
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                >
+                  <option value="All Rooms">All Rooms</option>
+                  <option value="101">101</option>
+                  <option value="102">102</option>
+                  <option value="103">103</option>
+                  <option value="201">201</option>
+                  <option value="301">301</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  setTenantStatusFilter("All");
+                  setPaymentStatusFilter("All");
+                  setPaymentDueFilter("All");
+                  setFloorFilter("All Floors");
+                  setRoomFilter("All Rooms");
+                  setRawSearchTerm("");
+                  setSortBy("name-asc");
+                }}
+                className="text-xs font-medium text-gray-400 hover:text-[#c2652a] flex items-center gap-1 ml-auto"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Clear All
+              </button>
+            </div>
+
+            {/* Active Filter Chips */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-[10px] text-gray-400 font-bold uppercase">
+                Active Filters ({filteredOccupants.length} matches):
+              </span>
+              {rawSearchTerm && (
+                <div className="bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-orange-200 font-bold">
+                  Query: "{rawSearchTerm}"
+                  <X
+                    className="w-3 h-3 cursor-pointer hover:text-red-500"
+                    onClick={() => setRawSearchTerm("")}
+                  />
+                </div>
+              )}
+              {tenantStatusFilter !== "All" && (
+                <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
+                  Status: {tenantStatusFilter}
+                  <X
+                    className="w-3 h-3 cursor-pointer hover:text-red-500"
+                    onClick={() => setTenantStatusFilter("All")}
+                  />
+                </div>
+              )}
+              {paymentStatusFilter !== "All" && (
+                <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
+                  Payment: {paymentStatusFilter}
+                  <X
+                    className="w-3 h-3 cursor-pointer hover:text-red-500"
+                    onClick={() => setPaymentStatusFilter("All")}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop Data Table */}
           <div className="hidden md:block bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xs">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -459,19 +628,15 @@ export default function TenantsDirectoryPage({
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Room & Bed
                   </th>
-                  {/* 1. Last Paid Column */}
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Last Paid
                   </th>
-                  {/* 2. Payment Due Column */}
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Payment Due
                   </th>
-                  {/* 3. Days Remaining Column */}
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Days Remaining
                   </th>
-                  {/* 4. Rent Status Column */}
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
                     Rent Status
                   </th>
@@ -502,7 +667,6 @@ export default function TenantsDirectoryPage({
                           />
                         </td>
 
-                        {/* Occupant Name & Contact (Clickable Link to Profile) */}
                         <td className="p-4">
                           <Link
                             href={`/p/${propertyId}/tenants/${occ.id}`}
@@ -529,7 +693,6 @@ export default function TenantsDirectoryPage({
                           </Link>
                         </td>
 
-                        {/* Room & Bed */}
                         <td className="p-4">
                           <div className="text-sm font-bold text-gray-800">
                             Room {occ.roomNumber} ({occ.bedCode})
@@ -537,12 +700,10 @@ export default function TenantsDirectoryPage({
                           <div className="text-[10px] text-gray-500">Sunshine Heights PG</div>
                         </td>
 
-                        {/* 1. Last Paid Date */}
                         <td className="p-4 text-xs text-gray-600 font-medium">
                           {occ.lastPaidDate}
                         </td>
 
-                        {/* 2. Payment Due Date */}
                         <td className="p-4">
                           <div className="text-xs font-semibold text-gray-900">
                             {occ.dueDate}
@@ -556,7 +717,6 @@ export default function TenantsDirectoryPage({
                           )}
                         </td>
 
-                        {/* 3. Days Remaining (Displays hyphen '-' if PAID) */}
                         <td className="p-4">
                           {occ.paymentStatus === "Paid" ? (
                             <span className="text-gray-400 font-bold text-sm">—</span>
@@ -571,7 +731,6 @@ export default function TenantsDirectoryPage({
                           )}
                         </td>
 
-                        {/* 4. Rent Status */}
                         <td className="p-4 text-center">
                           {occ.paymentStatus === "Paid" && (
                             <span className="inline-block px-2.5 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">
@@ -590,7 +749,6 @@ export default function TenantsDirectoryPage({
                           )}
                         </td>
 
-                        {/* Actions */}
                         <td className="p-4 text-right relative">
                           <div className="flex items-center justify-end gap-2 text-gray-400">
                             <button
@@ -608,7 +766,6 @@ export default function TenantsDirectoryPage({
                               <MessageSquare className="w-4 h-4" />
                             </button>
 
-                            {/* 3-Dots Action Menu Trigger */}
                             <div className="relative">
                               <button
                                 onClick={() =>
@@ -668,7 +825,7 @@ export default function TenantsDirectoryPage({
                 ) : (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-xs text-gray-500">
-                      No matching occupants found.
+                      No matching occupants found for "{rawSearchTerm}".
                     </td>
                   </tr>
                 )}
@@ -700,7 +857,7 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Mobile Card List View (`md:hidden`) */}
+          {/* Mobile Card List View */}
           <div className="md:hidden space-y-4">
             {paginatedOccupants.length > 0 ? (
               paginatedOccupants.map((occ) => (
@@ -904,9 +1061,8 @@ export default function TenantsDirectoryPage({
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   >
                     <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
+                    <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
                     <option value="Cash">Cash</option>
-                    <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
-                    <option value="Cheque">Cheque</option>
                   </select>
                 </div>
 

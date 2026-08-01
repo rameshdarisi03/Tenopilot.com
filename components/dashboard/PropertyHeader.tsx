@@ -8,12 +8,16 @@ export function PropertyHeader({
   title = "Tenants & Guests Directory",
   sectionTabs = [],
   activeTab = "",
+  searchValue = "",
+  onSearchChange,
   onTabChange,
   onMobileMenuToggle,
 }: {
   title?: string;
   sectionTabs?: string[];
   activeTab?: string;
+  searchValue?: string;
+  onSearchChange?: (val: string) => void;
   onTabChange?: (tab: string) => void;
   onMobileMenuToggle?: () => void;
 }) {
@@ -36,18 +40,20 @@ export function PropertyHeader({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Full-width Search Bar Input (Stitch TopNav) */}
+        {/* Full-width Search Bar Input (Synchronized with Directory Filter) */}
         <div className="relative w-full">
           <input
             type="text"
-            placeholder="Search by name, phone, room, Aadhaar, agreement ID..."
+            value={searchValue}
+            onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+            placeholder="Search by name, phone, room, Aadhaar..."
             className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs md:text-sm text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all"
           />
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
         </div>
       </div>
 
-      {/* Right: Add Tenant / Notification Bell & User Avatar */}
+      {/* Right: Notification Bell & User Avatar */}
       <div className="flex items-center gap-3 shrink-0">
         {/* Notification Bell */}
         <button
@@ -60,12 +66,12 @@ export function PropertyHeader({
           </span>
         </button>
 
-        {/* User Profile Dropdown Icon */}
-        <Link href="/home" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-full bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs border border-gray-200">
+        {/* User Profile Avatar */}
+        <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#c2652a] to-amber-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
             RD
           </div>
-        </Link>
+        </div>
       </div>
     </header>
   );
