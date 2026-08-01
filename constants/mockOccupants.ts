@@ -8,9 +8,10 @@ export interface Occupant {
   roomNumber: string;
   bedCode: string;
   joiningDate: string;
-  dueDate: string; // Dynamic current cycle due date (e.g., "03 Aug 2026")
+  lastPaidDate: string; // Reference baseline date (e.g., "01 Jul 2026")
+  dueDate: string; // Target billing date (e.g., "01 Aug 2026")
   dueDay: number; // Day of the month (1-28)
-  daysRemainingText: string; // e.g., "Due in 2 Days", "DUE TODAY", "5 DAYS OVERDUE", "PAID"
+  daysRemainingText: string; // e.g., "Due in 2 Days", "DUE TODAY", "5 DAYS OVERDUE", "—"
   daysDiff: number; // Positive = future due, 0 = today, Negative = overdue
   vacatingDate?: string;
   rentAmount: number;
@@ -70,48 +71,52 @@ export function generateMockOccupants(count = 200): Occupant[] {
       rentAmount = 2500;
     }
 
-    // Determine due day in current month (1 to 10)
     const dueDay = (i % 10) + 1; // Days 1 to 10 of August 2026
-    const daysDiff = dueDay - currentDay; // August 1 is reference
+    const daysDiff = dueDay - currentDay; // August 1 reference
 
-    let daysRemainingText = "";
+    let daysRemainingText = "—";
+    let lastPaidDate = `01 Jul 2026`;
 
     if (i <= 10) {
       lifecycleStatus = "Past";
       paymentStatus = "Paid";
-      daysRemainingText = "PAST";
+      daysRemainingText = "—";
+      lastPaidDate = `30 May 2025`;
     } else if (i > 10 && i <= 25) {
       lifecycleStatus = "Notice";
       if (daysDiff < 0) {
         paymentStatus = "Overdue";
         daysRemainingText = `${Math.abs(daysDiff)} DAYS OVERDUE`;
+        lastPaidDate = `01 Jun 2026`;
       } else {
         paymentStatus = "Due";
         daysRemainingText = daysDiff === 0 ? "DUE TODAY" : daysDiff === 1 ? "DUE TOMORROW" : `Due in ${daysDiff} Days`;
+        lastPaidDate = `01 Jul 2026`;
       }
     } else if (i > 25 && i <= 40) {
       lifecycleStatus = "Booked";
       paymentStatus = "Paid";
-      daysRemainingText = "BOOKED";
+      daysRemainingText = "—";
+      lastPaidDate = `15 Jul 2026`;
     } else if (i > 40 && i <= 60) {
-      // Overdue occupants (due days past August 1)
       paymentStatus = "Overdue";
       const overdueDays = (i % 5) + 1;
       daysRemainingText = `${overdueDays} DAYS OVERDUE`;
+      lastPaidDate = `01 Jun 2026`;
     } else if (i > 60 && i <= 120) {
-      // Pending / Due soon occupants
       paymentStatus = "Due";
+      lastPaidDate = `01 Jul 2026`;
       if (daysDiff === 0) {
         daysRemainingText = "DUE TODAY";
       } else if (daysDiff === 1) {
-        daysRemainingText = "DUE TOMORROW font-bold";
+        daysRemainingText = "DUE TOMORROW";
       } else {
         daysRemainingText = `Due in ${daysDiff} Days`;
       }
     } else {
-      // Paid occupants
       paymentStatus = "Paid";
-      daysRemainingText = "PAID";
+      daysRemainingText = "—"; // Clean hyphen for paid occupants per user request
+      lastPaidDate = `01 Aug 2026`;
     }
 
     const joiningDate = `10 Oct 2023`;
@@ -127,6 +132,7 @@ export function generateMockOccupants(count = 200): Occupant[] {
       roomNumber: room,
       bedCode: bed,
       joiningDate,
+      lastPaidDate,
       dueDate: dueDateFormatted,
       dueDay,
       daysRemainingText,

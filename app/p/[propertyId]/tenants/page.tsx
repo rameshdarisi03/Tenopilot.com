@@ -1,9 +1,10 @@
 "use client";
 
 import { use, useState, useMemo } from "react";
+import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
 import {
   Search,
   Plus,
@@ -23,6 +24,10 @@ import {
   UserPlus,
   ShieldCheck,
   ChevronDown,
+  User,
+  CreditCard,
+  ArrowRightLeft,
+  FileText,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -51,6 +56,12 @@ export default function TenantsDirectoryPage({
   // Selection state for bulk actions
   const [selectedIds, setSelectedIds] = useState<string[]>(["occ-1001"]);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
+
+  // Collect Rent Modal State
+  const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(14500);
+  const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Pagination states
@@ -59,10 +70,26 @@ export default function TenantsDirectoryPage({
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Dynamic Rent Metrics Calculations (Real-time computed from 200 occupants)
+  // Handle Rent Collection Submission
+  const handleCollectRentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!collectRentOccupant) return;
+
+    // Mutate mock occupant status
+    collectRentOccupant.paymentStatus = "Paid";
+    collectRentOccupant.lastPaidDate = "01 Aug 2026";
+    collectRentOccupant.daysRemainingText = "—";
+
+    triggerToast(
+      `✓ Rent collected successfully! ₹${paymentAmount.toLocaleString("en-IN")} recorded for ${collectRentOccupant.name}`
+    );
+    setCollectRentOccupant(null);
+  };
+
+  // Dynamic Rent Metrics Calculations
   const rentMetrics = useMemo(() => {
     const dueToday = MOCK_OCCUPANTS_200.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff === 0
@@ -103,7 +130,6 @@ export default function TenantsDirectoryPage({
   // Filtered dataset
   const filteredOccupants = useMemo(() => {
     return MOCK_OCCUPANTS_200.filter((occ) => {
-      // Search filter
       const matchesSearch =
         occ.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         occ.phone.includes(searchTerm) ||
@@ -112,14 +138,12 @@ export default function TenantsDirectoryPage({
 
       if (!matchesSearch) return false;
 
-      // Status Segmented Tab Filter
       if (activeFilterTab === "Booked" && occ.lifecycleStatus !== "Booked") return false;
       if (activeFilterTab === "Active" && occ.lifecycleStatus !== "Active") return false;
       if (activeFilterTab === "Notice" && occ.lifecycleStatus !== "Notice") return false;
       if (activeFilterTab === "Past" && occ.lifecycleStatus !== "Past") return false;
       if (activeFilterTab === "Guests" && occ.stayType !== "Guest") return false;
 
-      // Dropdown Filters
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
       if (paymentStatusFilter !== "All" && occ.paymentStatus !== paymentStatusFilter) return false;
       if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
@@ -141,7 +165,6 @@ export default function TenantsDirectoryPage({
     return filteredOccupants.slice(start, start + pageSize);
   }, [filteredOccupants, currentPage]);
 
-  // Selection handlers
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       setSelectedIds(paginatedOccupants.map((o) => o.id));
@@ -158,7 +181,6 @@ export default function TenantsDirectoryPage({
     }
   };
 
-  // Counts for Segmented Control
   const counts = useMemo(() => {
     return {
       All: MOCK_OCCUPANTS_200.length,
@@ -172,14 +194,14 @@ export default function TenantsDirectoryPage({
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
-      {/* Responsive Left Sidebar (Hidden on mobile < lg, drawer on toggle) */}
+      {/* Responsive Left Sidebar */}
       <PropertySidebar
         propertyId={propertyId}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />
 
-      {/* Main Content Area (100% width on mobile) */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
         {/* Top Header */}
         <PropertyHeader
@@ -236,15 +258,15 @@ export default function TenantsDirectoryPage({
 
           {/* Toast Notification */}
           {toastMessage && (
-            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-xs">
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>{toastMessage}</span>
               </div>
             </div>
           )}
 
-          {/* Color-Coded Status Filter Pills (Stitch UI 100% Match) */}
+          {/* Color-Coded Status Filter Pills */}
           <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-xs overflow-x-auto text-xs font-medium max-w-4xl">
             <button
               onClick={() => {
@@ -336,9 +358,8 @@ export default function TenantsDirectoryPage({
             </button>
           </div>
 
-          {/* Operational Metrics Row (Dynamically calculated sums) */}
+          {/* Operational Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {/* Due Today */}
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-red-50 text-red-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Calendar className="w-5 h-5" />
@@ -352,7 +373,6 @@ export default function TenantsDirectoryPage({
               </div>
             </div>
 
-            {/* Due Tomorrow */}
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Clock className="w-5 h-5" />
@@ -366,7 +386,6 @@ export default function TenantsDirectoryPage({
               </div>
             </div>
 
-            {/* Due in Next 2 Days */}
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Calendar className="w-5 h-5" />
@@ -380,7 +399,6 @@ export default function TenantsDirectoryPage({
               </div>
             </div>
 
-            {/* Overdue */}
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-red-100 text-red-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <AlertTriangle className="w-5 h-5" />
@@ -394,7 +412,6 @@ export default function TenantsDirectoryPage({
               </div>
             </div>
 
-            {/* Collected This Month */}
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-green-50 text-green-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
@@ -411,141 +428,7 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Filters Bar */}
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-[#c2652a] border border-orange-200 rounded-lg text-sm font-semibold shadow-xs">
-                <Filter className="w-4 h-4" /> Filters <ChevronDown className="w-4 h-4 ml-1" />
-              </button>
-
-              <div className="relative min-w-[140px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Tenant Status
-                </label>
-                <select
-                  value={tenantStatusFilter}
-                  onChange={(e) => setTenantStatusFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All">All</option>
-                  <option value="Active">Active</option>
-                  <option value="Booked">Booked</option>
-                  <option value="Notice">Notice</option>
-                  <option value="Past">Past</option>
-                </select>
-              </div>
-
-              <div className="relative min-w-[140px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Payment Status
-                </label>
-                <select
-                  value={paymentStatusFilter}
-                  onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All">All</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Due">Pending / Due</option>
-                  <option value="Overdue">Overdue</option>
-                </select>
-              </div>
-
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Payment Due
-                </label>
-                <select
-                  value={paymentDueFilter}
-                  onChange={(e) => setPaymentDueFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All">All</option>
-                  <option value="Today">Today</option>
-                  <option value="2Days">Due in 2 Days</option>
-                </select>
-              </div>
-
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Floor
-                </label>
-                <select
-                  value={floorFilter}
-                  onChange={(e) => setFloorFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All Floors">All Floors</option>
-                  <option value="Ground">Ground Floor</option>
-                  <option value="1">1st Floor</option>
-                  <option value="2">2nd Floor</option>
-                </select>
-              </div>
-
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Room
-                </label>
-                <select
-                  value={roomFilter}
-                  onChange={(e) => setRoomFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All Rooms">All Rooms</option>
-                  <option value="101">101</option>
-                  <option value="102">102</option>
-                  <option value="201">201</option>
-                  <option value="301">301</option>
-                </select>
-              </div>
-
-              <button
-                onClick={() => {
-                  setTenantStatusFilter("All");
-                  setPaymentStatusFilter("All");
-                  setPaymentDueFilter("All");
-                  setFloorFilter("All Floors");
-                  setRoomFilter("All Rooms");
-                  setSearchTerm("");
-                }}
-                className="text-xs font-medium text-gray-400 hover:text-[#c2652a] flex items-center gap-1 ml-auto"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Clear All
-              </button>
-            </div>
-
-            {/* Active Filter Chips */}
-            <div className="flex items-center gap-2 pt-1">
-              <span className="text-[10px] text-gray-400 font-bold uppercase">
-                Active Filters:
-              </span>
-              <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
-                Tenant Status: {tenantStatusFilter}
-                <X
-                  className="w-3 h-3 cursor-pointer hover:text-red-500"
-                  onClick={() => setTenantStatusFilter("All")}
-                />
-              </div>
-              <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
-                Payment Status: {paymentStatusFilter}
-                <X
-                  className="w-3 h-3 cursor-pointer hover:text-red-500"
-                  onClick={() => setPaymentStatusFilter("All")}
-                />
-              </div>
-              <button
-                onClick={() => {
-                  setTenantStatusFilter("All");
-                  setPaymentStatusFilter("All");
-                }}
-                className="text-xs text-[#c2652a] font-bold underline ml-2"
-              >
-                Clear All
-              </button>
-            </div>
-          </div>
-
-          {/* Desktop Data Table (`hidden md:block`) */}
+          {/* Desktop Data Table with Exact Column Ordering Requested by User */}
           <div className="hidden md:block bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xs">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -567,14 +450,21 @@ export default function TenantsDirectoryPage({
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Room & Bed
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
-                    Rent Status
+                  {/* 1. Last Paid Column */}
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    Last Paid
                   </th>
+                  {/* 2. Payment Due Column */}
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Payment Due
                   </th>
+                  {/* 3. Days Remaining Column */}
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Days Remaining
+                  </th>
+                  {/* 4. Rent Status Column */}
+                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
+                    Rent Status
                   </th>
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">
                     Actions
@@ -585,10 +475,12 @@ export default function TenantsDirectoryPage({
                 {paginatedOccupants.length > 0 ? (
                   paginatedOccupants.map((occ) => {
                     const isSelected = selectedIds.includes(occ.id);
+                    const isDropdownOpen = activeActionDropdownId === occ.id;
+
                     return (
                       <tr
                         key={occ.id}
-                        className={`transition-colors ${
+                        className={`transition-colors relative ${
                           isSelected ? "bg-[#fef6f2]" : "hover:bg-gray-50"
                         }`}
                       >
@@ -600,15 +492,20 @@ export default function TenantsDirectoryPage({
                             className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
                           />
                         </td>
+
+                        {/* Occupant Name & Contact (Clickable Link to Profile) */}
                         <td className="p-4">
-                          <div className="flex items-center gap-3">
+                          <Link
+                            href={`/p/${propertyId}/tenants/${occ.id}`}
+                            className="flex items-center gap-3 group"
+                          >
                             <img
                               src={occ.avatar}
                               alt={occ.name}
-                              className="w-10 h-10 rounded-full border border-gray-200 object-cover"
+                              className="w-10 h-10 rounded-full border border-gray-200 object-cover group-hover:scale-105 transition-transform"
                             />
                             <div>
-                              <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                              <div className="text-sm font-bold text-gray-900 group-hover:text-[#c2652a] transition-colors flex items-center gap-2">
                                 {occ.name}
                                 {occ.stayType === "Guest" && (
                                   <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
@@ -620,14 +517,52 @@ export default function TenantsDirectoryPage({
                                 {occ.phone}
                               </div>
                             </div>
-                          </div>
+                          </Link>
                         </td>
+
+                        {/* Room & Bed */}
                         <td className="p-4">
                           <div className="text-sm font-bold text-gray-800">
                             Room {occ.roomNumber} ({occ.bedCode})
                           </div>
                           <div className="text-[10px] text-gray-500">Sunshine Heights PG</div>
                         </td>
+
+                        {/* 1. Last Paid Date */}
+                        <td className="p-4 text-xs text-gray-600 font-medium">
+                          {occ.lastPaidDate}
+                        </td>
+
+                        {/* 2. Payment Due Date */}
+                        <td className="p-4">
+                          <div className="text-xs font-semibold text-gray-900">
+                            {occ.dueDate}
+                          </div>
+                          {occ.paymentStatus === "Paid" ? (
+                            <span className="text-[10px] text-green-600 font-bold">Paid</span>
+                          ) : occ.paymentStatus === "Overdue" ? (
+                            <span className="text-[10px] text-red-500 font-bold">Overdue</span>
+                          ) : (
+                            <span className="text-[10px] text-orange-600 font-bold">Due Soon</span>
+                          )}
+                        </td>
+
+                        {/* 3. Days Remaining (Displays hyphen '-' if PAID) */}
+                        <td className="p-4">
+                          {occ.paymentStatus === "Paid" ? (
+                            <span className="text-gray-400 font-bold text-sm">—</span>
+                          ) : occ.paymentStatus === "Overdue" ? (
+                            <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
+                              {occ.daysRemainingText}
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
+                              {occ.daysRemainingText}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 4. Rent Status */}
                         <td className="p-4 text-center">
                           {occ.paymentStatus === "Paid" && (
                             <span className="inline-block px-2.5 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">
@@ -645,40 +580,9 @@ export default function TenantsDirectoryPage({
                             </span>
                           )}
                         </td>
-                        <td className="p-4">
-                          <div className="text-xs font-semibold text-gray-900">
-                            {occ.dueDate}
-                          </div>
-                          {occ.paymentStatus === "Overdue" ? (
-                            <div className="text-[10px] text-red-500 font-bold">
-                              Overdue
-                            </div>
-                          ) : occ.paymentStatus === "Paid" ? (
-                            <div className="text-[10px] text-green-600 font-bold">
-                              Paid
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-orange-600 font-bold">
-                              {occ.daysRemainingText}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          {occ.paymentStatus === "Overdue" ? (
-                            <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
-                              {occ.daysRemainingText}
-                            </span>
-                          ) : occ.paymentStatus === "Paid" ? (
-                            <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">
-                              PAID
-                            </span>
-                          ) : (
-                            <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
-                              {occ.daysRemainingText}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-4 text-right">
+
+                        {/* Actions */}
+                        <td className="p-4 text-right relative">
                           <div className="flex items-center justify-end gap-2 text-gray-400">
                             <button
                               onClick={() => triggerToast(`Calling ${occ.phone}`)}
@@ -694,12 +598,59 @@ export default function TenantsDirectoryPage({
                             >
                               <MessageSquare className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => triggerToast(`Viewing details for ${occ.name}`)}
-                              className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
+
+                            {/* 3-Dots Action Menu Trigger */}
+                            <div className="relative">
+                              <button
+                                onClick={() =>
+                                  setActiveActionDropdownId(
+                                    isDropdownOpen ? null : occ.id
+                                  )
+                                }
+                                className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+
+                              {isDropdownOpen && (
+                                <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-2 z-50 text-left text-xs font-semibold text-gray-800">
+                                  <Link
+                                    href={`/p/${propertyId}/tenants/${occ.id}`}
+                                    className="flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
+                                  >
+                                    <User className="w-3.5 h-3.5 text-gray-500" /> View Profile
+                                  </Link>
+                                  <button
+                                    onClick={() => {
+                                      setActiveActionDropdownId(null);
+                                      setCollectRentOccupant(occ);
+                                      setPaymentAmount(occ.rentAmount);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-[#c2652a]"
+                                  >
+                                    <CreditCard className="w-3.5 h-3.5 text-[#c2652a]" /> Collect Rent
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActiveActionDropdownId(null);
+                                      triggerToast(`Initiated Room Transfer for ${occ.name}`);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
+                                  >
+                                    <ArrowRightLeft className="w-3.5 h-3.5 text-gray-500" /> Transfer Room
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActiveActionDropdownId(null);
+                                      triggerToast(`Initiated Notice logging for ${occ.name}`);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-orange-600"
+                                  >
+                                    <FileText className="w-3.5 h-3.5 text-orange-500" /> Log Notice
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -707,7 +658,7 @@ export default function TenantsDirectoryPage({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-xs text-gray-500">
+                    <td colSpan={8} className="py-12 text-center text-xs text-gray-500">
                       No matching occupants found.
                     </td>
                   </tr>
@@ -740,7 +691,7 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Mobile Card List View (`md:hidden` - 100% Mobile Viewport Width) */}
+          {/* Mobile Card List View (`md:hidden`) */}
           <div className="md:hidden space-y-4">
             {paginatedOccupants.length > 0 ? (
               paginatedOccupants.map((occ) => (
@@ -749,14 +700,17 @@ export default function TenantsDirectoryPage({
                   className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-3"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
+                    <Link
+                      href={`/p/${propertyId}/tenants/${occ.id}`}
+                      className="flex items-center gap-3"
+                    >
                       <img
                         src={occ.avatar}
                         alt={occ.name}
                         className="w-11 h-11 rounded-full border border-gray-200 object-cover"
                       />
                       <div>
-                        <h3 className="font-bold text-sm text-gray-900 flex items-center gap-2">
+                        <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2">
                           {occ.name}
                           {occ.stayType === "Guest" && (
                             <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
@@ -766,7 +720,7 @@ export default function TenantsDirectoryPage({
                         </h3>
                         <p className="text-xs text-gray-500">{occ.phone}</p>
                       </div>
-                    </div>
+                    </Link>
 
                     <span
                       className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
@@ -784,15 +738,15 @@ export default function TenantsDirectoryPage({
                   <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
                     <div>
                       <p className="text-[10px] text-gray-400 uppercase font-bold">
-                        Room & Bed
+                        Last Paid Date
                       </p>
                       <p className="font-semibold text-gray-800">
-                        Room {occ.roomNumber} ({occ.bedCode})
+                        {occ.lastPaidDate}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] text-gray-400 uppercase font-bold">
-                        Due Date
+                        Payment Due
                       </p>
                       <p className="font-semibold text-[#c2652a]">
                         {occ.dueDate}
@@ -801,17 +755,20 @@ export default function TenantsDirectoryPage({
                   </div>
 
                   <div className="flex gap-2 pt-2 border-t border-gray-100">
-                    <button
-                      onClick={() => triggerToast(`Calling ${occ.phone}`)}
-                      className="flex-1 py-2 rounded-xl bg-orange-50 text-[#c2652a] font-bold text-xs flex items-center justify-center gap-1.5"
+                    <Link
+                      href={`/p/${propertyId}/tenants/${occ.id}`}
+                      className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-800 font-bold text-xs flex items-center justify-center gap-1.5"
                     >
-                      <Phone className="w-3.5 h-3.5" /> Call
-                    </button>
+                      <User className="w-3.5 h-3.5 text-gray-600" /> View Profile
+                    </Link>
                     <button
-                      onClick={() => triggerToast(`WhatsApp sent to ${occ.phone}`)}
-                      className="flex-1 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5"
+                      onClick={() => {
+                        setCollectRentOccupant(occ);
+                        setPaymentAmount(occ.rentAmount);
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs"
                     >
-                      <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                      <CreditCard className="w-3.5 h-3.5" /> Collect Rent
                     </button>
                   </div>
                 </div>
@@ -824,7 +781,7 @@ export default function TenantsDirectoryPage({
           </div>
         </div>
 
-        {/* Floating Bulk Action Bar (Matching Stitch UI Screenshot) */}
+        {/* Floating Bulk Action Bar */}
         {selectedIds.length > 0 && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 shadow-2xl rounded-2xl p-3 md:px-6 md:py-3.5 flex items-center gap-4 md:gap-6 animate-in slide-in-from-bottom-4">
             <div className="flex items-center gap-2 text-xs">
@@ -864,6 +821,86 @@ export default function TenantsDirectoryPage({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Collect Rent Interactive Modal */}
+        {collectRentOccupant && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Collect Rent
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Log rent collection for {collectRentOccupant.name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCollectRentOccupant(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCollectRentSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Occupant & Room
+                  </label>
+                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 font-semibold text-gray-900">
+                    {collectRentOccupant.name} • Room {collectRentOccupant.roomNumber} ({collectRentOccupant.bedCode})
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Amount Collected (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Payment Mode *
+                  </label>
+                  <select
+                    value={paymentMode}
+                    onChange={(e) => setPaymentMode(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  >
+                    <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setCollectRentOccupant(null)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                  >
+                    Confirm & Record Rent
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
