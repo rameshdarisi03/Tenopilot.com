@@ -238,3 +238,14 @@ The system performs this validation automatically.
 Floor Navigation provides a real-time visual representation of every Bed.
 
 Each Bed displays its operational status using standard status colors and indicators.
+
+---
+
+# Occupied Deletion Protection Rule
+
+During Property Setup and layout configuration:
+
+1. **Deletion Guard**: Floors, Rooms, or Bed Slots containing active `Occupied`, `Vacating`, or `Booked` beds CANNOT be deleted directly.
+2. **Blocked Action Shield**: Attempting to delete an occupied room/bed triggers a protective warning modal detailing the active occupant's name (e.g. `Cannot delete Room 201 Bed A because it is occupied by Rajesh Banerjee`).
+3. **Required Prerequisite**: Property owners MUST first transfer or check-out the active occupant before removing the physical bed, room, or floor structure.
+
