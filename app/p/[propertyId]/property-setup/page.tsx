@@ -304,12 +304,15 @@ export default function PropertySetupPage({
     e.preventDefault();
     if (!activeAddRoomFloorId) return;
 
-    const bedLetters = ["BED A", "BED B", "BED C", "BED D"];
+    // Generate Alphabetic Bed Codes (BED A to BED Z)
+    const bedLetters = Array.from({ length: 26 }, (_, i) => `BED ${String.fromCharCode(65 + i)}`);
     const beds: BedSlotConfig[] = [];
-    for (let i = 0; i < newSharingCapacity; i++) {
+    const count = Math.min(26, Math.max(1, newSharingCapacity));
+
+    for (let i = 0; i < count; i++) {
       beds.push({
         id: `bed-${Date.now()}-${i}`,
-        bedCode: bedLetters[i] || `BED ${i + 1}`,
+        bedCode: bedLetters[i],
         status: "Available",
       });
     }
@@ -317,7 +320,7 @@ export default function PropertySetupPage({
     const newRoom: RoomConfig = {
       id: `rm-${Date.now()}`,
       roomNumber: newRoomNumber,
-      sharingType: newSharingCapacity,
+      sharingType: count,
       beds,
     };
 
@@ -331,7 +334,7 @@ export default function PropertySetupPage({
       })
     );
 
-    triggerToast(`✓ Added Room ${newRoomNumber} (${newSharingCapacity} Sharing)`);
+    triggerToast(`✓ Added Room ${newRoomNumber} (${count} Sharing - Bed A to ${bedLetters[count - 1]})`);
     setActiveAddRoomFloorId(null);
     setNewRoomNumber("");
   };
@@ -478,56 +481,70 @@ export default function PropertySetupPage({
                                 </button>
                               </div>
 
-                              {/* Bed Slot Cards Grid */}
-                              <div className="grid grid-cols-2 gap-2.5 pt-1">
-                                {room.beds.map((bed) => {
-                                  const isOccupied =
-                                    bed.status !== "Available" && bed.occupant;
+                              {/* Bed Slot Cards Grid (Dynamic Grid Sizing for 1 to 26 Beds) */}
+                              {(() => {
+                                const bedCount = room.beds.length;
+                                const gridCols =
+                                  bedCount <= 4
+                                    ? "grid-cols-2"
+                                    : bedCount <= 8
+                                    ? "grid-cols-3"
+                                    : bedCount <= 16
+                                    ? "grid-cols-4 sm:grid-cols-4"
+                                    : "grid-cols-4 sm:grid-cols-5";
 
-                                  return (
-                                    <div
-                                      key={bed.id}
-                                      className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 relative transition-all ${
-                                        isOccupied
-                                          ? "bg-[#f7f2ee] border-amber-200"
-                                          : "bg-emerald-50 border-emerald-200"
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-bold text-xs text-gray-900">
-                                          {bed.bedCode}
-                                        </span>
-                                        <button
-                                          onClick={() =>
-                                            handleDeleteBed(floor.id, room.id, bed)
-                                          }
-                                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
-                                          title="Delete Bed Slot"
+                                return (
+                                  <div className={`grid ${gridCols} gap-2 pt-1`}>
+                                    {room.beds.map((bed) => {
+                                      const isOccupied =
+                                        bed.status !== "Available" && bed.occupant;
+
+                                      return (
+                                        <div
+                                          key={bed.id}
+                                          className={`p-2 rounded-xl border flex flex-col justify-between space-y-1 relative transition-all ${
+                                            isOccupied
+                                              ? "bg-[#f7f2ee] border-amber-200"
+                                              : "bg-emerald-50 border-emerald-200"
+                                          }`}
                                         >
-                                          <X className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-
-                                      <div>
-                                        {isOccupied ? (
-                                          <div>
-                                            <span className="block text-[10px] font-bold text-amber-900 truncate">
-                                              {bed.occupant?.name}
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-bold text-[11px] text-gray-900 truncate">
+                                              {bed.bedCode}
                                             </span>
-                                            <span className="text-[9px] font-bold text-amber-700 uppercase">
-                                              {bed.status}
-                                            </span>
+                                            <button
+                                              onClick={() =>
+                                                handleDeleteBed(floor.id, room.id, bed)
+                                              }
+                                              className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
+                                              title="Delete Bed Slot"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
                                           </div>
-                                        ) : (
-                                          <span className="text-[10px] font-bold text-emerald-700 uppercase">
-                                            VACANT
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+
+                                          <div>
+                                            {isOccupied ? (
+                                              <div>
+                                                <span className="block text-[9px] font-bold text-amber-900 truncate">
+                                                  {bed.occupant?.name}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-amber-700 uppercase">
+                                                  {bed.status}
+                                                </span>
+                                              </div>
+                                            ) : (
+                                              <span className="text-[9px] font-bold text-emerald-700 uppercase">
+                                                VACANT
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
                         </div>
@@ -721,18 +738,24 @@ export default function PropertySetupPage({
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Bed Sharing Capacity *
+                    Bed Sharing Capacity (1 to 26 Beds — Bed A to Bed Z) *
                   </label>
-                  <select
+                  <input
+                    type="number"
+                    min={1}
+                    max={26}
+                    required
                     value={newSharingCapacity}
-                    onChange={(e) => setNewSharingCapacity(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    <option value={1}>1 Sharing (Single Bed)</option>
-                    <option value={2}>2 Sharing (Double Bed)</option>
-                    <option value={3}>3 Sharing (Triple Bed)</option>
-                    <option value={4}>4 Sharing (Four Beds)</option>
-                  </select>
+                    onChange={(e) =>
+                      setNewSharingCapacity(
+                        Math.min(26, Math.max(1, Number(e.target.value)))
+                      )
+                    }
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Enter any number of beds up to 26 (Bed A through Bed Z). Bed icons scale dynamically!
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
