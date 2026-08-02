@@ -24,6 +24,7 @@ import {
   Lock,
   User,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 
 interface PaymentHistoryItem {
@@ -47,6 +48,20 @@ export default function IndividualTenantProfilePage({
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Secure View-Only KYC Modal State
+  const [viewKycModal, setViewKycModal] = useState<{
+    open: boolean;
+    title: string;
+    docType: string;
+  }>({
+    open: false,
+    title: "",
+    docType: "",
+  });
+
+  // Agreement View Modal State
+  const [viewAgreementModal, setViewAgreementModal] = useState<boolean>(false);
 
   // Find occupant in mock dataset or fallback
   const occupant = useMemo(() => {
@@ -506,41 +521,76 @@ export default function IndividualTenantProfilePage({
                 </div>
               </div>
 
-              {/* KYC Documents Card */}
+              {/* KYC Documents Card (SECURE VIEW-ONLY FOR PG OWNERS — NO LOCAL DOWNLOAD) */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
-                  <span className="font-bold text-gray-900 text-sm">
-                    KYC Documents
+                  <div>
+                    <span className="font-bold text-gray-900 text-sm block">
+                      KYC Documents
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-medium">
+                      🔒 Secure View-Only (No Download)
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
+                    {occupantState.kycVerified ? "VERIFIED ✓" : "PENDING 🟡"}
                   </span>
-                  <button className="text-[#c2652a] font-bold hover:underline">
-                    MANAGE
-                  </button>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                  {/* Aadhaar / Govt ID Item */}
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-gray-900">Aadhaar Card</p>
-                      <p className="text-[10px] text-emerald-600 font-medium">
-                        Verified Oct 12, 2023 🟢
+                      <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID
+                      </p>
+                      <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                        Verified & Synced 🟢
                       </p>
                     </div>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewKycModal({
+                          open: true,
+                          title: "Aadhaar Card / Govt ID",
+                          docType: "aadhaar",
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#c2652a]" /> View
+                    </button>
                   </div>
 
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                  {/* Profile Photo Headshot Item */}
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-gray-900">Company ID</p>
-                      <p className="text-[10px] text-emerald-600 font-medium">
-                        Verified Oct 14, 2023 🟢
+                      <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                        <User className="w-4 h-4 text-[#c2652a]" /> Profile Headshot
+                      </p>
+                      <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                        Verified Headshot 🟢
                       </p>
                     </div>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewKycModal({
+                          open: true,
+                          title: "Tenant Profile Headshot",
+                          docType: "photo",
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#c2652a]" /> View
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Active Agreement Card */}
+              {/* Active Agreement Card (VIEW & DOWNLOAD PERMITTED FOR RENTAL AGREEMENT) */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
                   <span className="font-bold text-gray-900 text-sm">
@@ -570,12 +620,21 @@ export default function IndividualTenantProfilePage({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => triggerToast("Downloading Agreement PDF")}
-                  className="w-full py-2.5 rounded-xl border border-[#c2652a] text-[#c2652a] hover:bg-orange-50 font-bold text-xs flex items-center justify-center gap-2 transition-all"
-                >
-                  <Download className="w-4 h-4" /> Download Agreement PDF
-                </button>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => setViewAgreementModal(true)}
+                    className="py-2.5 rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <Eye className="w-4 h-4 text-[#c2652a]" /> View Agreement
+                  </button>
+
+                  <button
+                    onClick={() => triggerToast("✓ Rental Agreement PDF Downloaded")}
+                    className="py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all"
+                  >
+                    <Download className="w-4 h-4" /> Download PDF
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -969,6 +1028,145 @@ export default function IndividualTenantProfilePage({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* 🔒 SECURE VIEW-ONLY KYC DOCUMENT MODAL (NO LOCAL DOWNLOAD FOR PG OWNERS) */}
+        {viewKycModal.open && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in-95 select-none">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      {viewKycModal.title}
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      TENANT: {occupantState.name} ({occupantState.id})
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewKycModal({ open: false, title: "", docType: "" })}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Security Privacy Protection Banner */}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>
+                  <strong>🔒 Secure View-Only Mode:</strong> Direct file downloading is disabled per SaaS privacy regulations to prevent local disk misuse of tenant identity PII.
+                </span>
+              </div>
+
+              {/* Document Image Viewer Container (Right-click & Drag Disabled) */}
+              <div
+                onContextMenu={(e) => e.preventDefault()}
+                className="bg-gray-900 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden border border-gray-800"
+              >
+                {viewKycModal.docType === "photo" ? (
+                  <img
+                    src={occupantState.avatar}
+                    alt={occupantState.name}
+                    className="w-44 h-44 rounded-2xl object-cover border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                  />
+                ) : (
+                  <div className="w-full bg-white/95 rounded-xl p-6 text-center space-y-3 pointer-events-none select-none text-gray-900 font-mono text-xs">
+                    <ShieldCheck className="w-12 h-12 text-blue-600 mx-auto" />
+                    <div className="font-bold text-sm">AADHAAR GOVT IDENTITY CARD</div>
+                    <div className="text-[11px] text-gray-500 font-sans">
+                      DOCUMENT NUMBER: XXXX-XXXX-4819
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] p-2 rounded-lg font-sans font-bold">
+                      ✓ ENCRYPTED & VERIFIED IN FIREBASE STORAGE BUCKET
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setViewKycModal({ open: false, title: "", docType: "" })}
+                  className="px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs"
+                >
+                  Close Viewer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW RENTAL AGREEMENT PREVIEW MODAL */}
+        {viewAgreementModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-xl w-full p-6 md:p-8 space-y-6 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-[#c2652a]" />
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Rental Agreement (AGR-2023-102A)
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewAgreementModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 rounded-2xl border border-gray-300 bg-amber-50/40 space-y-3 font-mono text-xs text-gray-900 leading-relaxed max-h-[350px] overflow-y-auto">
+                <div className="text-center pb-3 border-b border-gray-300">
+                  <h4 className="font-serif font-bold text-sm text-gray-900">
+                    RESIDENTIAL LEASE AGREEMENT
+                  </h4>
+                  <p className="text-[10px] text-gray-500 font-sans mt-0.5">
+                    PROPERTY: SUNSHINE HEIGHTS PG • TENANT: {occupantState.name}
+                  </p>
+                </div>
+
+                <p><strong>TENANT:</strong> {occupantState.name} ({occupantState.phone})</p>
+                <p><strong>ROOM & BED:</strong> Room {occupantState.roomNumber} ({occupantState.bedCode})</p>
+                <p><strong>START DATE:</strong> {occupantState.joiningDate}</p>
+                <p><strong>MONTHLY RENT:</strong> ₹{occupantState.rentAmount.toLocaleString("en-IN")}</p>
+                <p><strong>SECURITY DEPOSIT:</strong> ₹25,000</p>
+                <p className="text-[10px] text-gray-500 font-sans border-t border-gray-300 pt-2">
+                  This legally binding rental agreement is stored in TenoPilot organization records and can be downloaded or printed anytime by both property owner and tenant.
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setViewAgreementModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs"
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewAgreementModal(false);
+                    triggerToast("✓ Rental Agreement PDF Downloaded");
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md"
+                >
+                  <Download className="w-4 h-4" /> Download PDF
+                </button>
+              </div>
             </div>
           </div>
         )}
