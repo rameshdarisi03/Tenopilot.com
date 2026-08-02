@@ -426,6 +426,24 @@ export default function IndividualTenantProfilePage({
                   <UserPlus className="w-4 h-4" /> 👔 Promote to Long-Term Tenant
                 </button>
               )}
+
+              {/* 6. Complete Check-In (Only rendered for Booked profiles) */}
+              {occupantState.lifecycleStatus === "Booked" && (
+                <button
+                  onClick={() => {
+                    const todayStr = new Date().toLocaleDateString("en-GB");
+                    setOccupantState((prev) => ({
+                      ...prev,
+                      lifecycleStatus: "Active",
+                      joiningDate: todayStr,
+                    }));
+                    triggerToast(`🎉 Completed Check-In for ${occupantState.name}! Status updated to Active Tenant.`);
+                  }}
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> 🔑 Complete Check-In (Move to Active)
+                </button>
+              )}
             </div>
           </div>
 

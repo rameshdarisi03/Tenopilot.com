@@ -84,13 +84,38 @@ export default function TenantsDirectoryPage({
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  // Booked Tenant Check-In & Postpone Modal State
+  const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
+  const [showCompleteCheckInPopup, setShowCompleteCheckInPopup] = useState<boolean>(false);
+  const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
+  const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Handle Complete Check-In Submission
+  const handleConfirmCompleteCheckIn = () => {
+    if (!checkInModalOccupant) return;
+    const todayStr = new Date().toLocaleDateString("en-GB");
+    checkInModalOccupant.lifecycleStatus = "Active";
+    checkInModalOccupant.joiningDate = todayStr;
+
+    triggerToast(`🎉 Completed Check-In for ${checkInModalOccupant.name}! Status updated to Active Tenant.`);
+    setShowCompleteCheckInPopup(false);
+    setCheckInModalOccupant(null);
+  };
+
+  // Handle Postpone Check-In Submission
+  const handlePostponeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!checkInModalOccupant) return;
+
+    checkInModalOccupant.joiningDate = postponedDate;
+    triggerToast(`✓ Postponed move-in date for ${checkInModalOccupant.name} to ${postponedDate}`);
+    setShowPostponeModal(false);
+    setCheckInModalOccupant(null);
   };
 
   // Handle Rent Collection Submission
@@ -241,6 +266,10 @@ export default function TenantsDirectoryPage({
       setSortDirection("asc");
     }
   };
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
 
   // Pagination slice
   const totalPages = Math.ceil(filteredOccupants.length / pageSize);
@@ -874,6 +903,30 @@ export default function TenantsDirectoryPage({
 
                               {isDropdownOpen && (
                                 <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-2 z-50 text-left text-xs font-semibold text-gray-800">
+                                  {occ.lifecycleStatus === "Booked" && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setActiveActionDropdownId(null);
+                                          setCheckInModalOccupant(occ);
+                                          setShowCompleteCheckInPopup(true);
+                                        }}
+                                        className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-emerald-50 text-emerald-700 font-bold border-b border-gray-100"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Complete Check-In
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setActiveActionDropdownId(null);
+                                          setCheckInModalOccupant(occ);
+                                          setShowPostponeModal(true);
+                                        }}
+                                        className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-blue-50 text-blue-700 font-bold border-b border-gray-100"
+                                      >
+                                        <Clock className="w-3.5 h-3.5 text-blue-600" /> Postpone Check-In
+                                      </button>
+                                    </>
+                                  )}
                                   <Link
                                     href={`/p/${propertyId}/tenants/${occ.id}`}
                                     className="flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
@@ -1262,6 +1315,131 @@ export default function TenantsDirectoryPage({
                     className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
                   >
                     Confirm & Record Rent
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* COMPLETE CHECK-IN CONFIRMATION POPUP */}
+        {showCompleteCheckInPopup && checkInModalOccupant && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Confirm Tenant Check-In
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      MOVE STATUS: BOOKED 🔵 → ACTIVE 🟢
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCompleteCheckInPopup(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-2">
+                <p className="font-bold text-sm text-emerald-950">
+                  {checkInModalOccupant.name}
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  Allocated Room: <strong>Room {checkInModalOccupant.roomNumber} ({checkInModalOccupant.bedCode})</strong>
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  Move-In Date will be set to today (<strong>{new Date().toLocaleDateString("en-GB")}</strong>). The occupant will immediately transition to the <strong>Active Tenants</strong> tab.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowCompleteCheckInPopup(false)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCompleteCheckIn}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-md"
+                >
+                  Confirm Check-In
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* POSTPONE CHECK-IN DATEPICKER MODAL */}
+        {showPostponeModal && checkInModalOccupant && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Postpone Move-In Date
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      TENANT: {checkInModalOccupant.name}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPostponeModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handlePostponeSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    New Postponed Move-in Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={postponedDate}
+                    onChange={(e) => setPostponedDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    The profile will remain in the Booked section until the tenant completes check-in.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowPostponeModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
+                  >
+                    Confirm & Update Date
                   </button>
                 </div>
               </form>

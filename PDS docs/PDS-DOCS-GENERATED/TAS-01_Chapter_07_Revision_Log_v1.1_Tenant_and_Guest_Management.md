@@ -329,6 +329,27 @@ Clicking a header toggles sorting:
 
 ---
 
+# Update 17 — Booked Tenant Check-In & Postpone Workflow
+
+Tenants onboarded with a future move-in date are tagged with lifecycle status `"Booked"` (`🔵 BOOKED`).
+
+For all profiles tagged as `"BOOKED"`, an interactive **`Check In ▼`** dropdown menu is rendered on both the Tenant Profile page and Directory table action menus:
+
+1. **`Complete Check-In`**:
+   - Displays confirmation popup: `"Confirm Check-In for [Tenant Name] into Room [Room] ([Bed]). Move-in Date will be set to today."`
+   - Upon confirmation:
+     - `lifecycleStatus` updates from `"Booked"` to `"Active"`.
+     - Badge styling transitions to Emerald (`🟢 ACTIVE TENANT`).
+     - Occupant moves from **Booked** tab to **Active** tab in real-time across `occupantStore` and `localStorage`.
+
+2. **`Postpone Check-In`**:
+   - Opens a date selection modal: `"Enter New Postponed Move-in Date"`.
+   - Upon confirmation:
+     - `joiningDate` / `checkInDate` updates to the new postponed date.
+     - Profile remains in the **Booked** tab (`lifecycleStatus: "Booked"`) with the updated future move-in date.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -349,6 +370,7 @@ This revision introduces:
 - Promote Short-Term Guest to Long-Term Tenant Lifecycle Transition
 - Past Tenant Room Display Policy (`— (Vacated)`)
 - Interactive Table Column Sorting (`PAYMENT DUE` and `DAYS REMAINING`)
+- Booked Tenant Check-In & Postpone Workflow (`Complete Check-In` & `Postpone Check-In`)
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
