@@ -34,6 +34,7 @@ import {
   Info,
   Filter,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -42,6 +43,7 @@ import {
 } from "@/utils/documentSecurity";
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
+import { lookupExistingOccupant } from "@/utils/phoneLookup";
 
 export default function OnboardTenantPage({
   params,
@@ -62,6 +64,11 @@ export default function OnboardTenantPage({
   const [fullName, setFullName] = useState("");
   const [countryCode, setCountryCode] = useState("+91");
   const [phone, setPhone] = useState("");
+
+  // Instant lookup match against occupantStore (APPLIES STRICTLY TO PRIMARY PHONE FIELD ONLY)
+  const existingOccupantMatch = useMemo(() => {
+    return lookupExistingOccupant(phone);
+  }, [phone]);
   const [email, setEmail] = useState("");
   const [emergencyCountryCode, setEmergencyCountryCode] = useState("+91");
   const [emergencyPhone, setEmergencyPhone] = useState("");
@@ -442,6 +449,19 @@ export default function OnboardTenantPage({
                   <span className="text-[10px] text-gray-400 mt-1 block">
                     Format: +91 followed by 10 digit mobile number
                   </span>
+
+                  {/* INSTANT EXISTING PROFILE LOOKUP ALERT BANNER */}
+                  {existingOccupantMatch && (
+                    <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-1 animate-in fade-in">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        Existing Profile Found: {existingOccupantMatch.name}
+                      </div>
+                      <p className="text-[11px] text-amber-800">
+                        This mobile number is registered to a <strong>{existingOccupantMatch.stayType}</strong> (Status: <strong>{existingOccupantMatch.lifecycleStatus}</strong>) in Room {existingOccupantMatch.roomNumber} ({existingOccupantMatch.bedCode}).
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>

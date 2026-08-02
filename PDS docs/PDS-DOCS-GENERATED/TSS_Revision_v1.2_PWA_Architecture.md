@@ -127,6 +127,17 @@ The PWA architecture follows these principles:
 
 ---
 
+# Update 29 — Mobile Tactile Long-Press Multi-Select & Batch Reminders
+
+Mobile touch gestures on tenant contact cards support long-press detection (`onTouchStart` 500ms timer).
+
+- Long-pressing a mobile tenant contact card activates **Multi-Card Selection Mode**.
+- Checkboxes appear on mobile cards to select multiple occupants (e.g. overdue tenants).
+- A sticky mobile bottom action bar renders: **`💬 Send Batch WhatsApp / SMS Reminders (X Selected)`**.
+- Tapping triggers native WhatsApp (`wa.me`) or SMS intent URLs prepopulated with custom rent due text.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -139,5 +150,6 @@ This revision introduces:
 - Cross-platform responsive architecture
 - Single shared codebase
 - Future-ready native capabilities
+- Mobile Tactile Long-Press Multi-Select & Batch Reminders
 
 These updates extend the existing Technical System Specification without modifying previously approved business architecture.

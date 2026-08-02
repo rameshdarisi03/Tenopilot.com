@@ -285,6 +285,50 @@ No manual synchronization should be required.
 
 ---
 
+# Update 13 — Existing Occupant Phone Number Lookup Engine
+
+When entering a 10-digit mobile number in the primary contact field of onboarding forms (`onboard-tenant` or `onboard-guest`), the system automatically performs an instant search against `occupantStore`.
+
+If a matching profile is found (Active, Notice, Past, or Guest):
+
+- An instant alert banner is rendered: `"⚠️ Profile already exists with this mobile number: [Tenant Name] ([StayType] - [LifecycleStatus])."`
+- Applies strictly to the primary contact number field (NOT emergency contact).
+
+---
+
+# Update 14 — Promote Short-Term Guest to Long-Term Tenant
+
+A short-term guest (`stayType: "Guest"`) can settle and transition into a long-term tenant (`stayType: "Tenant"`).
+
+On the Guest Profile page (`/p/[propertyId]/tenants/[tenantId]`), a dedicated **`👔 Promote to Long-Term Tenant`** action is available.
+
+Upon confirmation:
+
+- `stayType` updates from `"Guest"` to `"Tenant"`.
+- Badge styling updates from Purple (`🟣 SHORT-TERM GUEST`) to Emerald (`🟢 ACTIVE TENANT`).
+- Lease agreement PDF controls are enabled (`hasPdfAgreement: true`).
+- Real-time updates cascade across frontend state, `occupantStore`, `localStorage`, and Firebase.
+
+---
+
+# Update 15 — Past Tenant Room Display Policy
+
+Past tenants who have checked out no longer occupy an active room. In the **Past Tenants** tab view (`lifecycleStatus: "Past"`), the `ROOM & BED` column displays `— (Vacated)` instead of an active room assignment. Historical room stay data is preserved inside individual profile timeline records.
+
+---
+
+# Update 16 — Interactive Table Column Sorting
+
+Directory table column headers `PAYMENT DUE` and `DAYS REMAINING` are interactive sort controls.
+
+Clicking a header toggles sorting:
+
+- `PAYMENT DUE`: Sorts by payment due date (Earliest $\leftrightarrow$ Latest).
+- `DAYS REMAINING`: Sorts by days remaining or overdue status (Most Overdue $\leftrightarrow$ Most Days Remaining).
+- Displays visual sort indicators (`▲`/`▼`) on the active sorted header.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -301,6 +345,10 @@ This revision introduces:
 - Unified Tenant Directory with Guest support
 - Guest lifecycle automation
 - Room Transfer lifecycle action
+- Instant Existing Occupant Phone Lookup Engine
+- Promote Short-Term Guest to Long-Term Tenant Lifecycle Transition
+- Past Tenant Room Display Policy (`— (Vacated)`)
+- Interactive Table Column Sorting (`PAYMENT DUE` and `DAYS REMAINING`)
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 

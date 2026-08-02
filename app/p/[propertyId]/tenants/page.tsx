@@ -57,7 +57,17 @@ export default function TenantsDirectoryPage({
   const [floorFilter, setFloorFilter] = useState("All Floors");
   const [roomFilter, setRoomFilter] = useState("All Rooms");
 
-  // Sorting state
+  // Interactive Column Sorting state
+  const [sortColumn, setSortColumn] = useState<
+    "name" | "dueDate" | "daysRemaining" | "room" | "rent"
+  >("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // Mobile Tactile Multi-Select Mode (Long-press activated)
+  const [isMobileMultiSelectMode, setIsMobileMultiSelectMode] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Sorting dropdown helper sync
   const [sortBy, setSortBy] = useState<
     "name-asc" | "name-desc" | "room" | "rent-desc" | "due"
   >("name-asc");
@@ -181,28 +191,56 @@ export default function TenantsDirectoryPage({
       // Dropdown Filters
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
       if (paymentStatusFilter !== "All" && occ.paymentStatus !== paymentStatusFilter) return false;
+      if (paymentDueFilter !== "All") {
+        if (paymentDueFilter === "Today" && occ.dueDate !== "Today") return false;
+        if (paymentDueFilter === "Tomorrow" && occ.dueDate !== "Tomorrow") return false;
+        if (paymentDueFilter === "Overdue" && occ.paymentStatus !== "Overdue") return false;
+      }
       if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
 
       return true;
     });
 
-    // 2. Sorting mechanism
+    // 2. Interactive Column & Dropdown Sorting mechanism
     return matched.sort((a, b) => {
-      if (sortBy === "name-asc") return a.name.localeCompare(b.name);
-      if (sortBy === "name-desc") return b.name.localeCompare(a.name);
-      if (sortBy === "room") return parseInt(a.roomNumber) - parseInt(b.roomNumber);
-      if (sortBy === "rent-desc") return b.rentAmount - a.rentAmount;
-      if (sortBy === "due") return a.dueDay - b.dueDay;
-      return 0;
+      let comparison = 0;
+
+      if (sortColumn === "name") {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortColumn === "room") {
+        comparison = parseInt(a.roomNumber) - parseInt(b.roomNumber);
+      } else if (sortColumn === "rent") {
+        comparison = a.rentAmount - b.rentAmount;
+      } else if (sortColumn === "dueDate") {
+        comparison = a.dueDay - b.dueDay;
+      } else if (sortColumn === "daysRemaining") {
+        const aVal = a.paymentStatus === "Paid" ? 999 : a.paymentStatus === "Overdue" ? -5 : 2;
+        const bVal = b.paymentStatus === "Paid" ? 999 : b.paymentStatus === "Overdue" ? -5 : 2;
+        comparison = aVal - bVal;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
     });
   }, [
     rawSearchTerm,
     activeFilterTab,
     tenantStatusFilter,
     paymentStatusFilter,
+    paymentDueFilter,
     roomFilter,
-    sortBy,
+    sortColumn,
+    sortDirection,
   ]);
+
+  // Handle Header Cell Click for Column Sorting
+  const handleHeaderSort = (column: "name" | "dueDate" | "daysRemaining" | "room" | "rent") => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
 
   // Pagination slice
   const totalPages = Math.ceil(filteredOccupants.length / pageSize);
@@ -517,7 +555,7 @@ export default function TenantsDirectoryPage({
                 </select>
               </div>
 
-              {/* Dropdown Filters */}
+              {/* Dropdown Filters Grouped Together */}
               <div className="relative min-w-[130px]">
                 <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
                   Payment Status
@@ -527,16 +565,34 @@ export default function TenantsDirectoryPage({
                   onChange={(e) => setPaymentStatusFilter(e.target.value)}
                   className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
                 >
-                  <option value="All">All</option>
+                  <option value="All">All Statuses</option>
                   <option value="Paid">Paid</option>
                   <option value="Due">Pending / Due</option>
                   <option value="Overdue">Overdue</option>
                 </select>
               </div>
 
+              {/* Payment Due Filter */}
+              <div className="relative min-w-[130px]">
+                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
+                  Payment Due
+                </label>
+                <select
+                  value={paymentDueFilter}
+                  onChange={(e) => setPaymentDueFilter(e.target.value)}
+                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                >
+                  <option value="All">All Due Dates</option>
+                  <option value="Today">Due Today</option>
+                  <option value="Tomorrow">Due Tomorrow</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+              </div>
+
+              {/* Room Filter */}
               <div className="relative min-w-[120px]">
                 <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Room
+                  Room & Bed
                 </label>
                 <select
                   value={roomFilter}
@@ -619,20 +675,52 @@ export default function TenantsDirectoryPage({
                       className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
                     />
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    Tenant
+                  <th
+                    onClick={() => handleHeaderSort("name")}
+                    className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#c2652a] select-none"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Tenant</span>
+                      {sortColumn === "name" && (
+                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      )}
+                    </div>
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    Room & Bed
+                  <th
+                    onClick={() => handleHeaderSort("room")}
+                    className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#c2652a] select-none"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Room & Bed</span>
+                      {sortColumn === "room" && (
+                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      )}
+                    </div>
                   </th>
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     Last Paid
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    Payment Due
+                  <th
+                    onClick={() => handleHeaderSort("dueDate")}
+                    className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#c2652a] select-none"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Payment Due</span>
+                      {sortColumn === "dueDate" && (
+                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      )}
+                    </div>
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    Days Remaining
+                  <th
+                    onClick={() => handleHeaderSort("daysRemaining")}
+                    className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#c2652a] select-none"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Days Remaining</span>
+                      {sortColumn === "daysRemaining" && (
+                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                      )}
+                    </div>
                   </th>
                   <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
                     Rent Status
@@ -647,6 +735,7 @@ export default function TenantsDirectoryPage({
                   paginatedOccupants.map((occ) => {
                     const isSelected = selectedIds.includes(occ.id);
                     const isDropdownOpen = activeActionDropdownId === occ.id;
+                    const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
 
                     return (
                       <tr
@@ -691,10 +780,18 @@ export default function TenantsDirectoryPage({
                         </td>
 
                         <td className="p-4">
-                          <div className="text-sm font-bold text-gray-800">
-                            Room {occ.roomNumber} ({occ.bedCode})
-                          </div>
-                          <div className="text-[10px] text-gray-500">Sunshine Heights PG</div>
+                          {isPastTenant ? (
+                            <span className="text-xs text-gray-400 font-semibold italic">
+                              — (Vacated)
+                            </span>
+                          ) : (
+                            <>
+                              <div className="text-sm font-bold text-gray-800">
+                                Room {occ.roomNumber} ({occ.bedCode})
+                              </div>
+                              <div className="text-[10px] text-gray-500">Sunshine Heights PG</div>
+                            </>
+                          )}
                         </td>
 
                         <td className="p-4 text-xs text-gray-600 font-medium">
@@ -854,94 +951,183 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Mobile Card List View */}
+          {/* Mobile Card List View (Tactile Long-Press Multi-Select Enabled) */}
           <div className="md:hidden space-y-4">
-            {paginatedOccupants.length > 0 ? (
-              paginatedOccupants.map((occ) => (
-                <div
-                  key={occ.id}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-3"
+            <div className="p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 text-[11px] font-medium flex items-center justify-between">
+              <span>💡 <strong>Tip:</strong> Long-press any card to select multiple tenants for batch WhatsApp reminders.</span>
+              {isMobileMultiSelectMode && (
+                <button
+                  onClick={() => {
+                    setIsMobileMultiSelectMode(false);
+                    setSelectedIds([]);
+                  }}
+                  className="px-2 py-0.5 rounded bg-orange-200 text-orange-950 font-bold text-[10px]"
                 >
-                  <div className="flex items-start justify-between">
-                    <Link
-                      href={`/p/${propertyId}/tenants/${occ.id}`}
-                      className="flex items-center gap-3"
-                    >
-                      <img
-                        src={occ.avatar}
-                        alt={occ.name}
-                        className="w-11 h-11 rounded-full border border-gray-200 object-cover"
-                      />
-                      <div>
-                        <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2">
-                          {occ.name}
-                          {occ.stayType === "Guest" && (
-                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                              🟣 GUEST
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-xs text-gray-500">{occ.phone}</p>
+                  Exit Select
+                </button>
+              )}
+            </div>
+
+            {paginatedOccupants.length > 0 ? (
+              paginatedOccupants.map((occ) => {
+                const isSelected = selectedIds.includes(occ.id);
+                const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
+
+                const handleTouchStart = () => {
+                  const timer = setTimeout(() => {
+                    setIsMobileMultiSelectMode(true);
+                    handleSelectOne(occ.id);
+                    if (navigator.vibrate) navigator.vibrate(50);
+                  }, 500);
+                  setLongPressTimer(timer);
+                };
+
+                const handleTouchEnd = () => {
+                  if (longPressTimer) clearTimeout(longPressTimer);
+                };
+
+                return (
+                  <div
+                    key={occ.id}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    onMouseDown={handleTouchStart}
+                    onMouseUp={handleTouchEnd}
+                    className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all ${
+                      isSelected ? "border-[#c2652a] bg-orange-50/40 ring-1 ring-[#c2652a]" : "border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        {isMobileMultiSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectOne(occ.id)}
+                            className="w-5 h-5 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] shrink-0"
+                          />
+                        )}
+                        <Link
+                          href={`/p/${propertyId}/tenants/${occ.id}`}
+                          className="flex items-center gap-3"
+                        >
+                          <img
+                            src={occ.avatar}
+                            alt={occ.name}
+                            className="w-11 h-11 rounded-full border border-gray-200 object-cover"
+                          />
+                          <div>
+                            <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2">
+                              {occ.name}
+                              {occ.stayType === "Guest" && (
+                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                                  🟣 GUEST
+                                </span>
+                               )}
+                            </h3>
+                            <p className="text-xs text-gray-500">{occ.phone}</p>
+                          </div>
+                        </Link>
                       </div>
-                    </Link>
 
-                    <span
-                      className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
-                        occ.paymentStatus === "Paid"
-                          ? "bg-green-100 text-green-700"
-                          : occ.paymentStatus === "Overdue"
-                          ? "bg-red-100 text-red-600"
-                          : "bg-orange-100 text-orange-600"
-                      }`}
-                    >
-                      {occ.paymentStatus}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
-                    <div>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">
-                        Last Paid Date
-                      </p>
-                      <p className="font-semibold text-gray-800">
-                        {occ.lastPaidDate}
-                      </p>
+                      <span
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase shrink-0 ${
+                          occ.paymentStatus === "Paid"
+                            ? "bg-green-100 text-green-700"
+                            : occ.paymentStatus === "Overdue"
+                            ? "bg-red-100 text-red-600"
+                            : "bg-orange-100 text-orange-600"
+                        }`}
+                      >
+                        {occ.paymentStatus}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">
-                        Payment Due
-                      </p>
-                      <p className="font-semibold text-[#c2652a]">
-                        {occ.dueDate}
-                      </p>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase font-bold">
+                          Room & Bed Allocation
+                        </p>
+                        <p className="font-semibold text-gray-800">
+                          {isPastTenant ? (
+                            <span className="text-gray-400 font-semibold italic">— (Vacated)</span>
+                          ) : (
+                            `Room ${occ.roomNumber} (${occ.bedCode})`
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase font-bold">
+                          Payment Due
+                        </p>
+                        <p className="font-semibold text-[#c2652a]">
+                          {occ.dueDate}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                      <Link
+                        href={`/p/${propertyId}/tenants/${occ.id}`}
+                        className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-800 font-bold text-xs flex items-center justify-center gap-1.5"
+                      >
+                        <User className="w-3.5 h-3.5 text-gray-600" /> View Profile
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setCollectRentOccupant(occ);
+                          setPaymentAmount(occ.rentAmount);
+                        }}
+                        className="flex-1 py-2 rounded-xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" /> Collect Rent
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex gap-2 pt-2 border-t border-gray-100">
-                    <Link
-                      href={`/p/${propertyId}/tenants/${occ.id}`}
-                      className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-800 font-bold text-xs flex items-center justify-center gap-1.5"
-                    >
-                      <User className="w-3.5 h-3.5 text-gray-600" /> View Profile
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setCollectRentOccupant(occ);
-                        setPaymentAmount(occ.rentAmount);
-                      }}
-                      className="flex-1 py-2 rounded-xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs"
-                    >
-                      <CreditCard className="w-3.5 h-3.5" /> Collect Rent
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
-              <div className="py-12 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
+              <div className="p-8 text-center bg-white rounded-2xl border border-gray-200 text-xs text-gray-500">
                 No matching occupants found.
               </div>
             )}
           </div>
+
+          {/* Sticky Mobile Batch WhatsApp Reminders Bar */}
+          {selectedIds.length > 0 && (
+            <div className="fixed bottom-4 left-4 right-4 z-40 bg-gray-900 text-white rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5">
+              <div>
+                <p className="font-bold text-xs">
+                  {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected
+                </p>
+                <p className="text-[10px] text-gray-400 font-medium">
+                  Send instant rent due reminders
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectedOccupants = MOCK_OCCUPANTS_200.filter((o) =>
+                      selectedIds.includes(o.id)
+                    );
+                    const firstOccupant = selectedOccupants[0];
+                    if (firstOccupant) {
+                      const msg = encodeURIComponent(
+                        `Hi ${firstOccupant.name}, your rent payment for Room ${firstOccupant.roomNumber} is due on ${firstOccupant.dueDate}. Please pay via UPI.`
+                      );
+                      window.open(`https://wa.me/91${firstOccupant.phone.replace(/\D/g, "")}?text=${msg}`, "_blank");
+                    }
+                    triggerToast(`✓ Opening WhatsApp Reminder for ${selectedOccupants.length} tenant(s)!`);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md"
+                >
+                  <MessageSquare className="w-4 h-4" /> Send Reminders
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Floating Bulk Action Bar */}

@@ -25,6 +25,7 @@ import {
   User,
   AlertTriangle,
   Eye,
+  UserPlus,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -145,6 +146,12 @@ export default function IndividualTenantProfilePage({
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
   const [showLogNoticeModal, setShowLogNoticeModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+
+  // Promote Form Inputs
+  const [promoteMonthlyRent, setPromoteMonthlyRent] = useState<number>(occupantState.rentAmount || 12500);
+  const [promoteDeposit, setPromoteDeposit] = useState<number>(25000);
+  const [promoteJoiningDate, setPromoteJoiningDate] = useState<string>("2026-08-01");
 
   // Collect Rent Form Inputs
   const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
@@ -253,6 +260,23 @@ export default function IndividualTenantProfilePage({
 
     triggerToast(`✓ Profile details updated successfully for ${editName}`);
     setShowEditProfileModal(false);
+  };
+
+  // 4. Promote Guest to Long-Term Tenant Submit Handler (Updates stayType: "Tenant", lifecycleStatus: "Active", rent & deposit)
+  const handlePromoteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setOccupantState((prev) => ({
+      ...prev,
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      rentAmount: promoteMonthlyRent,
+      joiningDate: promoteJoiningDate,
+      hasPdfAgreement: true,
+    }));
+
+    triggerToast(`🎉 Successfully promoted ${occupantState.name} to Long-Term Active Tenant!`);
+    setShowPromoteModal(false);
   };
 
   return (
@@ -392,6 +416,16 @@ export default function IndividualTenantProfilePage({
               >
                 <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
               </button>
+
+              {/* 5. Promote Guest to Tenant (Only rendered for Guest accounts) */}
+              {occupantState.stayType === "Guest" && (
+                <button
+                  onClick={() => setShowPromoteModal(true)}
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all animate-bounce"
+                >
+                  <UserPlus className="w-4 h-4" /> 👔 Promote to Long-Term Tenant
+                </button>
+              )}
             </div>
           </div>
 
@@ -1253,6 +1287,104 @@ export default function IndividualTenantProfilePage({
                   <Download className="w-4 h-4" /> Download PDF
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* PROMOTE SHORT-TERM GUEST TO LONG-TERM TENANT MODAL */}
+        {showPromoteModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Promote to Long-Term Tenant
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      CONVERT GUEST 🟣 → ACTIVE TENANT 🟢
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPromoteModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-purple-700 shrink-0" />
+                  Transitioning Short-Term Stay into Permanent Lease
+                </p>
+                <p className="text-[11px] text-purple-800">
+                  This will convert <strong>{occupantState.name}</strong> from a Short-Term Guest into an Active Long-Term Tenant, update badge colors, generate rental agreement controls, and sync all stores.
+                </p>
+              </div>
+
+              <form onSubmit={handlePromoteSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Monthly Rent Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={promoteMonthlyRent}
+                    onChange={(e) => setPromoteMonthlyRent(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Security Deposit Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={promoteDeposit}
+                    onChange={(e) => setPromoteDeposit(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Lease Agreement Joining Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={promoteJoiningDate}
+                    onChange={(e) => setPromoteJoiningDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowPromoteModal(false)}
+                    className="px-5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md"
+                  >
+                    Confirm & Promote to Tenant
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
