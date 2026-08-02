@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
+import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import {
   Search,
@@ -89,6 +90,11 @@ export default function TenantsDirectoryPage({
   const [showCompleteCheckInPopup, setShowCompleteCheckInPopup] = useState<boolean>(false);
   const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
   const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
+
+  // Silent Automated Move-In Date Auto-Checkin Engine (Runs on page load)
+  useEffect(() => {
+    runAutoCheckInEngine();
+  }, []);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);

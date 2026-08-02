@@ -396,6 +396,22 @@ $$\text{Days Until Check-In} = \text{joiningDate} - \text{onboardingDate}$$
 
 ---
 
+# Update 21 — Silent Automated Move-In Date Auto-Checkin Engine
+
+TenoPilot includes a 100% silent automated move-in date evaluator engine (`utils/autoCheckInEngine.ts`):
+
+$$\text{Auto-Transition Trigger: Today} \ge \text{occupant.joiningDate}$$
+
+1. **Scheduled Date Reached**:
+   - For all occupants with `lifecycleStatus === "Booked"`, when `today >= parseDate(occupant.joiningDate)`, the engine silently converts `lifecycleStatus` from `"Booked"` $\rightarrow$ `"Active"` (`🟢 ACTIVE TENANT`).
+   - Occupant automatically transitions from the **Booked** tab to the **Active** tab across all portal views in real time.
+
+2. **Owner Postponement Override**:
+   - If the property manager explicitly postpones a move-in date via **`Postpone Check-In`**, `occupant.joiningDate` updates to a future date.
+   - The evaluator respects the new date ($\text{Today} < \text{joiningDate}$) and holds the profile in `"Booked"` status until the postponed date arrives.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -420,6 +436,7 @@ This revision introduces:
 - Profile Context Hygiene for Booked Occupants and Short-Term Guests
 - Pending KYC Card Policy & Brand New Profile Financial Isolation
 - Automatic Date-Driven Booked Classification Engine
+- Silent Automated Move-In Date Auto-Checkin Engine
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
