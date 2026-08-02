@@ -492,6 +492,8 @@ export default function IndividualTenantProfilePage({
                         ? "bg-green-100 text-green-700"
                         : occupantState.lifecycleStatus === "Notice"
                         ? "bg-orange-100 text-orange-700"
+                        : occupantState.lifecycleStatus === "Booked"
+                        ? "bg-blue-100 text-blue-700 border border-blue-200 shadow-xs"
                         : "bg-gray-100 text-gray-700"
                     }`}
                   >
@@ -501,6 +503,8 @@ export default function IndividualTenantProfilePage({
                           ? "bg-green-500"
                           : occupantState.lifecycleStatus === "Notice"
                           ? "bg-orange-500"
+                          : occupantState.lifecycleStatus === "Booked"
+                          ? "bg-blue-500"
                           : "bg-gray-400"
                       }`}
                     ></span>
