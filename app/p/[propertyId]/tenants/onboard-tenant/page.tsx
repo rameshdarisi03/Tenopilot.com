@@ -41,6 +41,7 @@ import {
   ProcessedDocument,
 } from "@/utils/documentSecurity";
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
+import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
 
 export default function OnboardTenantPage({
   params,
@@ -478,9 +479,13 @@ export default function OnboardTenantPage({
                       className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
                     />
                   </div>
-                  <span className="text-[10px] text-orange-700 font-medium mt-1 block">
-                    ⚠️ Cannot be identical to primary mobile number
-                  </span>
+                  {phone.trim() &&
+                    emergencyPhone.trim() &&
+                    phone.replace(/\D/g, "") === emergencyPhone.replace(/\D/g, "") && (
+                      <span className="text-[11px] text-red-600 font-bold mt-1 block">
+                        ❌ Error: Emergency contact number matches primary mobile number! Please enter a different number.
+                      </span>
+                    )}
                 </div>
 
                 <div className="md:col-span-2">

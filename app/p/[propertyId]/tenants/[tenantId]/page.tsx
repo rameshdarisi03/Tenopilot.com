@@ -26,6 +26,10 @@ import {
   AlertTriangle,
   Eye,
 } from "lucide-react";
+import {
+  downloadRentalAgreementPdf,
+  downloadRentReceiptPdf,
+} from "@/utils/pdfGenerator";
 
 interface PaymentHistoryItem {
   id: string;
@@ -685,7 +689,18 @@ export default function IndividualTenantProfilePage({
                   </button>
 
                   <button
-                    onClick={() => triggerToast("✓ Rental Agreement PDF Downloaded")}
+                    onClick={() => {
+                      downloadRentalAgreementPdf({
+                        tenantName: occupantState.name,
+                        phone: occupantState.phone,
+                        roomNumber: occupantState.roomNumber,
+                        bedCode: occupantState.bedCode,
+                        joiningDate: occupantState.joiningDate,
+                        monthlyRent: occupantState.rentAmount,
+                        securityDeposit: 25000,
+                      });
+                      triggerToast("✓ Downloaded Rental Agreement Document!");
+                    }}
                     className="py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all"
                   >
                     <Download className="w-4 h-4" /> Download PDF

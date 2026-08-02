@@ -458,9 +458,13 @@ export default function OnboardGuestPage({
                       className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   </div>
-                  <span className="text-[10px] text-purple-700 font-medium mt-1 block">
-                    ⚠️ Cannot be identical to primary mobile number
-                  </span>
+                  {phone.trim() &&
+                    emergencyPhone.trim() &&
+                    phone.replace(/\D/g, "") === emergencyPhone.replace(/\D/g, "") && (
+                      <span className="text-[11px] text-red-600 font-bold mt-1 block">
+                        ❌ Error: Emergency contact number matches primary mobile number! Please enter a different number.
+                      </span>
+                    )}
                 </div>
 
                 <div>
