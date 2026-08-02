@@ -90,9 +90,12 @@ export default function OnboardGuestPage({
   const propertyStructure = useMemo(() => propertyStore.getStructure(), []);
 
   // Intelligent Floor Navigation Filter for Guest Onboarding:
-  // 1. Shows ONLY Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
+  // 1. Shows Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
   // 2. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
+  // 3. Dynamically calculates gap between selected Check-in Date & Bed Vacating Date!
   const onboardingFloorNavigation = useMemo(() => {
+    const checkIn = new Date(checkInDate);
+
     return propertyStructure
       .map((fl) => ({
         ...fl,
@@ -103,14 +106,34 @@ export default function OnboardGuestPage({
           })
           .map((rm) => ({
             ...rm,
-            beds: rm.beds.filter(
-              (bd) => bd.status === "Available" || bd.status === "Vacating"
-            ),
+            beds: rm.beds
+              .filter(
+                (bd) => bd.status === "Available" || bd.status === "Vacating"
+              )
+              .map((bd) => {
+                if (bd.status !== "Vacating") return bd;
+                const vacatingDateStr = bd.vacatingDate || "15 Aug 2026";
+                const vacatingDate = new Date(vacatingDateStr);
+                const diffTime = vacatingDate.getTime() - checkIn.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                let checkInNote = "";
+                if (diffDays <= 0) {
+                  checkInNote = "Ready by check-in";
+                } else {
+                  checkInNote = `Vacating ${vacatingDateStr.replace(" 2026", "")} (${diffDays}d after check-in)`;
+                }
+
+                return {
+                  ...bd,
+                  vacatingNote: checkInNote,
+                };
+              }),
           }))
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyStructure, desiredSharingFilter]);
+  }, [propertyStructure, desiredSharingFilter, checkInDate]);
 
   // Validation per step
   const handleStep1Next = (e: React.FormEvent) => {
@@ -580,7 +603,7 @@ export default function OnboardGuestPage({
                                     {/* Status & Date Badge ONLY — NO Tenant Names! */}
                                     <span className="text-[10px] font-bold">
                                       {isVacating
-                                        ? `Vacating ${bed.vacatingDate || "15 Aug"}`
+                                        ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "15 Aug"}`
                                         : "Available 🟢"}
                                     </span>
                                   </button>
