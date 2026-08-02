@@ -23,6 +23,10 @@ export interface Occupant {
     phone: string;
     relation: string;
   };
+  kycVerified?: boolean;
+  hasPdfAgreement?: boolean;
+  workplace?: string;
+  address?: string;
 }
 
 // 200 Guaranteed 100% Unique Indian Names (No Duplicates)

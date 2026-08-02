@@ -283,25 +283,21 @@ export default function TenantsDirectoryPage({
               </button>
 
               {showAddMenu && (
-                <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg border border-gray-200 shadow-xl py-2 z-50 text-xs font-semibold text-gray-800">
-                  <button
-                    onClick={() => {
-                      setShowAddMenu(false);
-                      triggerToast("Opened Tenant Onboarding Form");
-                    }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-orange-50 flex items-center gap-2 text-[#c2652a]"
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg border border-gray-200 shadow-xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
+                  <Link
+                    href={`/p/${propertyId}/tenants/onboard-tenant`}
+                    onClick={() => setShowAddMenu(false)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-orange-50 flex items-center gap-2 text-[#c2652a] block"
                   >
                     <UserPlus className="w-4 h-4 text-[#c2652a]" /> + New Tenant (Long-term)
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowAddMenu(false);
-                      triggerToast("Opened Guest Onboarding (Skipped Agreement)");
-                    }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700"
+                  </Link>
+                  <Link
+                    href={`/p/${propertyId}/tenants/onboard-guest`}
+                    onClick={() => setShowAddMenu(false)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700 block"
                   >
                     <ShieldCheck className="w-4 h-4 text-purple-700" /> + New Guest (Short-term)
-                  </button>
+                  </Link>
                 </div>
               )}
             </div>

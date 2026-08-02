@@ -1,0 +1,659 @@
+"use client";
+
+import { use, useState, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
+import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
+import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import {
+  propertyStore,
+  FloorConfig,
+  RoomConfig,
+  BedSlotConfig,
+} from "@/constants/propertyLayoutStore";
+import {
+  ChevronLeft,
+  ChevronRight,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  Calendar,
+  CreditCard,
+  CheckCircle2,
+  FileText,
+  Upload,
+  Camera,
+  Bed,
+  Check,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  Info,
+} from "lucide-react";
+
+export default function OnboardGuestPage({
+  params,
+}: {
+  params: Promise<{ propertyId: string }>;
+}) {
+  const resolvedParams = use(params);
+  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const router = useRouter();
+
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Wizard Step State (1: Guest Details, 2: Bed Allocation, 3: Quick KYC Photo — Streamlined 3 steps!)
+  const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // Form State — Step 1: Guest Personal & Stay Details (Excludes workplace/office fields as per Update 03!)
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [address, setAddress] = useState("");
+
+  const [checkInDate, setCheckInDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [checkOutDate, setCheckOutDate] = useState(() => {
+    const future = new Date();
+    future.setDate(future.getDate() + 7); // Default 7-day guest stay
+    return future.toISOString().split("T")[0];
+  });
+
+  const [totalTariff, setTotalTariff] = useState<number>(3500);
+  const [depositAmount, setDepositAmount] = useState<number>(1000);
+
+  // Form State — Step 2: Bed Allocation
+  const [selectedBed, setSelectedBed] = useState<{
+    bedId: string;
+    bedCode: string;
+    roomNumber: string;
+    floorName: string;
+  } | null>(null);
+
+  // Form State — Step 3: Quick KYC Upload
+  const [photoUploaded, setPhotoUploaded] = useState(false);
+
+  // Success Modal State
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
+
+  // Read available property beds from propertyStore (Filtered to Available 🟢 & Vacating 🟧 ONLY)
+  const propertyStructure = useMemo(() => propertyStore.getStructure(), []);
+
+  const availableBedsList = useMemo(() => {
+    const list: Array<{
+      floorName: string;
+      roomNumber: string;
+      sharingType: number;
+      bed: BedSlotConfig;
+    }> = [];
+
+    propertyStructure.forEach((fl) => {
+      fl.rooms.forEach((rm) => {
+        rm.beds.forEach((bd) => {
+          if (bd.status === "Available" || bd.status === "Vacating") {
+            list.push({
+              floorName: fl.floorName,
+              roomNumber: rm.roomNumber,
+              sharingType: rm.sharingType,
+              bed: bd,
+            });
+          }
+        });
+      });
+    });
+
+    return list;
+  }, [propertyStructure]);
+
+  // Validation per step
+  const handleStep1Next = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim() || !phone.trim()) return;
+    setCurrentStep(2);
+  };
+
+  const handleStep2Next = () => {
+    if (!selectedBed) return;
+    setCurrentStep(3);
+  };
+
+  // Final Action: Complete Guest Onboarding directly after Step 3
+  const handleFinalGuestSubmit = () => {
+    const newId = `occ-${Date.now()}`;
+    const formattedCheckIn = new Date(checkInDate).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const formattedCheckOut = new Date(checkOutDate).toLocaleDateString(
+      "en-GB",
+      { day: "2-digit", month: "short" }
+    );
+
+    const newGuest: Occupant = {
+      id: newId,
+      name: fullName.trim(),
+      phone: phone.trim(),
+      email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      stayType: "Guest",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 7,
+      daysRemainingText: "—",
+      rentAmount: totalTariff,
+      dueDate: formattedCheckOut,
+      dueDay: 10,
+      lastPaidDate: formattedCheckIn,
+      roomNumber: selectedBed ? selectedBed.roomNumber : "102",
+      bedCode: selectedBed ? selectedBed.bedCode : "BED D",
+      joiningDate: formattedCheckIn,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+        fullName
+      )}`,
+      kycVerified: photoUploaded,
+      hasPdfAgreement: false,
+      address: address.trim(),
+      aadhaarNumber: "XXXX-XXXX-4567",
+      emergencyContact: {
+        name: "Emergency Contact",
+        phone: emergencyPhone || "+91 98000 11122",
+        relation: "Friend",
+      },
+    };
+
+    // Prepend to MOCK_OCCUPANTS_200
+    MOCK_OCCUPANTS_200.unshift(newGuest);
+
+    // Update bed status in propertyStore
+    if (selectedBed) {
+      const updatedStructure = propertyStructure.map((fl) => {
+        if (fl.floorName !== selectedBed.floorName) return fl;
+        return {
+          ...fl,
+          rooms: fl.rooms.map((rm) => {
+            if (rm.roomNumber !== selectedBed.roomNumber) return rm;
+            return {
+              ...rm,
+              beds: rm.beds.map((bd) => {
+                if (bd.bedCode !== selectedBed.bedCode) return bd;
+                return {
+                  ...bd,
+                  status: "Guest" as const,
+                  occupant: newGuest,
+                  guestCheckoutDate: formattedCheckOut,
+                };
+              }),
+            };
+          }),
+        };
+      });
+
+      propertyStore.updateStructure(updatedStructure);
+    }
+
+    setCreatedGuest(newGuest);
+    setShowSuccessModal(true);
+  };
+
+  return (
+    <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
+      {/* Left Sidebar */}
+      <PropertySidebar
+        propertyId={propertyId}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
+
+      {/* Main Content Area (100% Viewport Width w-full) */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
+        <PropertyHeader
+          title="Guest Onboarding"
+          onMobileMenuToggle={() => setMobileMenuOpen(true)}
+        />
+
+        {/* Content Body */}
+        <div className="p-4 md:p-8 space-y-6 flex-1 pb-28 w-full max-w-4xl mx-auto">
+          {/* Top Breadcrumb */}
+          <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold uppercase tracking-wider">
+            <Link
+              href={`/p/${propertyId}/tenants`}
+              className="hover:text-[#c2652a] flex items-center gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" /> Tenant Operations
+            </Link>
+            <span>/</span>
+            <span className="text-purple-700 font-bold">New Guest Onboarding</span>
+          </div>
+
+          {/* Stepper Header (Desktop & Mobile Compact Progress) */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                    🟣 SHORT-TERM GUEST
+                  </span>
+                </div>
+                <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900 mt-1">
+                  Onboard Short-term Guest
+                </h1>
+                <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                  Streamlined 3-step wizard for short stays (No agreement required)
+                </p>
+              </div>
+
+              {/* Mobile Compact Progress Counter */}
+              <span className="md:hidden text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
+                Step {currentStep} of 3
+              </span>
+            </div>
+
+            {/* Desktop 3-Step Stepper Bar */}
+            <div className="hidden md:flex items-center justify-between pt-2">
+              {[
+                { step: 1, label: "1. Guest Details & Dates" },
+                { step: 2, label: "2. Bed Allocation" },
+                { step: 3, label: "3. Quick KYC Photo" },
+              ].map((s) => {
+                const isActive = currentStep === s.step;
+                const isDone = currentStep > s.step;
+
+                return (
+                  <div
+                    key={s.step}
+                    className={`flex items-center gap-2 text-xs font-bold ${
+                      isActive
+                        ? "text-purple-700"
+                        : isDone
+                        ? "text-emerald-700"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
+                        isActive
+                          ? "bg-purple-700 text-white shadow-xs"
+                          : isDone
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-gray-100 text-gray-400"
+                      }`}
+                    >
+                      {isDone ? <Check className="w-4 h-4" /> : s.step}
+                    </div>
+                    <span>{s.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* STEP 1: GUEST PERSONAL & STAY DETAILS */}
+          {currentStep === 1 && (
+            <form
+              onSubmit={handleStep1Next}
+              className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in"
+            >
+              <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                <User className="w-5 h-5 text-purple-700" /> Guest Details
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Guest Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Vikram Malhotra"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Mobile Phone Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98111 22334"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Emergency Contact Number
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98000 11122"
+                    value={emergencyPhone}
+                    onChange={(e) => setEmergencyPhone(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Permanent Address
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="City / State"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+              </div>
+
+              {/* Guest Stay Dates & Tariff Subsection */}
+              <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3 pt-4">
+                <Calendar className="w-5 h-5 text-purple-700" /> Stay Dates & Guest Tariff
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Check-in Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={checkInDate}
+                    onChange={(e) => setCheckInDate(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Check-out Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={checkOutDate}
+                    onChange={(e) => setCheckOutDate(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Total Stay Tariff (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={totalTariff}
+                    onChange={(e) => setTotalTariff(Number(e.target.value))}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Security Deposit (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(Number(e.target.value))}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-gray-100">
+                <button
+                  type="submit"
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
+                >
+                  Proceed to Bed Allocation <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* STEP 2: SMART ROOM & BED ALLOCATION */}
+          {currentStep === 2 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-gray-100 pb-3">
+                <div>
+                  <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                    <Bed className="w-5 h-5 text-purple-700" /> Select Guest Bed for {fullName || "Guest"}
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Showing available 🟢 & vacating 🟧 beds for dates ({checkInDate} to {checkOutDate})
+                  </p>
+                </div>
+
+                {selectedBed && (
+                  <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5">
+                    Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                  </span>
+                )}
+              </div>
+
+              {/* Bed Selection Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+                {availableBedsList.map((item) => {
+                  const isSelected = selectedBed?.bedId === item.bed.id;
+
+                  return (
+                    <button
+                      type="button"
+                      key={item.bed.id}
+                      onClick={() =>
+                        setSelectedBed({
+                          bedId: item.bed.id,
+                          bedCode: item.bed.bedCode,
+                          roomNumber: item.roomNumber,
+                          floorName: item.floorName,
+                        })
+                      }
+                      className={`p-4 rounded-xl border text-left flex flex-col justify-between gap-3 transition-all cursor-pointer min-h-[70px] ${
+                        isSelected
+                          ? "bg-purple-50 border-purple-600 ring-2 ring-purple-600/20 shadow-sm"
+                          : "bg-white border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-serif font-bold text-sm text-gray-900">
+                          {item.floorName} • Room {item.roomNumber}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            item.bed.status === "Vacating"
+                              ? "bg-orange-100 text-orange-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {item.bed.status === "Vacating"
+                            ? `Vacating ${item.bed.vacatingDate || "15 Aug"}`
+                            : "Available"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-bold text-gray-800 text-xs">
+                          🛏️ {item.bed.bedCode} ({item.sharingType} Sharing)
+                        </span>
+                        <div
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                            isSelected
+                              ? "bg-purple-700 border-purple-700 text-white"
+                              : "border-gray-300"
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3" />}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-between pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
+                >
+                  ← Back to Details
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedBed}
+                  onClick={handleStep2Next}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
+                >
+                  Proceed to Quick KYC <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: QUICK KYC PHOTO & COMPLETE GUEST ONBOARDING */}
+          {currentStep === 3 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in text-xs">
+              <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                <Camera className="w-5 h-5 text-purple-700" /> Quick Guest KYC & Photo
+              </h2>
+
+              <div className="p-5 rounded-2xl border border-gray-200 bg-purple-50/40 space-y-4 text-center flex flex-col items-center justify-center max-w-md mx-auto">
+                <div className="p-3.5 rounded-full bg-purple-100 text-purple-700">
+                  <Camera className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900">
+                    Guest Photo / Govt ID Capture
+                  </h3>
+                  <p className="text-gray-500 text-[11px] mt-0.5">
+                    Optional photo capture for short-term stay verification
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPhotoUploaded(!photoUploaded)}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                    photoUploaded
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                      : "bg-white border border-gray-300 text-gray-800 hover:bg-gray-100"
+                  }`}
+                >
+                  {photoUploaded ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Photo Uploaded ✓
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" /> Upload / Capture Photo
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
+                <Info className="w-4 h-4 text-purple-700 shrink-0" />
+                <span>
+                  Short-term guests do not require formal lease agreements. Click <strong>Complete Guest Onboarding</strong> to finalize.
+                </span>
+              </div>
+
+              <div className="flex justify-between pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(2)}
+                  className="px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
+                >
+                  ← Back to Allocation
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFinalGuestSubmit}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* CENTERED SUCCESS CONFETTI DIALOG WITH PURPLE GUEST BADGE 🟣 */}
+        {showSuccessModal && createdGuest && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-purple-200 shadow-2xl max-w-md w-full p-8 text-center space-y-6 animate-in zoom-in-95">
+              <div className="w-20 h-20 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mx-auto shadow-inner text-3xl">
+                🎉
+              </div>
+
+              <div>
+                <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold">
+                  🟣 GUEST ONBOARDED
+                </span>
+                <h3 className="font-serif font-bold text-2xl text-gray-900 mt-2">
+                  {createdGuest.name}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Assigned to Room {createdGuest.roomNumber} ({createdGuest.bedCode}) until {createdGuest.dueDate}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-xs text-left space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-medium">Total Tariff</span>
+                  <span className="font-mono font-bold text-purple-700">
+                    ₹{createdGuest.rentAmount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-medium">Check-in Date</span>
+                  <span className="font-semibold text-gray-900">
+                    {createdGuest.joiningDate}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-medium">Auto Checkout Date</span>
+                  <span className="font-bold text-purple-700">
+                    {createdGuest.dueDate}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2.5 pt-2">
+                <Link
+                  href={`/p/${propertyId}/tenants/${createdGuest.id}`}
+                  className="w-full py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md"
+                >
+                  View Guest Profile <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href={`/p/${propertyId}/tenants`}
+                  className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs"
+                >
+                  Back to Directory
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
