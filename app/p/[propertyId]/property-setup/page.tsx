@@ -1,10 +1,16 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import {
+  propertyStore,
+  FloorConfig,
+  RoomConfig,
+  BedSlotConfig,
+} from "@/constants/propertyLayoutStore";
 import {
   ChevronLeft,
   Plus,
@@ -21,27 +27,6 @@ import {
   ChevronUp,
 } from "lucide-react";
 
-interface BedSlotConfig {
-  id: string;
-  bedCode: string;
-  status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest";
-  occupant?: Occupant;
-}
-
-interface RoomConfig {
-  id: string;
-  roomNumber: string;
-  sharingType: number; // 1, 2, 3, or 4
-  beds: BedSlotConfig[];
-}
-
-interface FloorConfig {
-  id: string;
-  floorName: string;
-  floorSubtitle: string;
-  rooms: RoomConfig[];
-}
-
 export default function PropertySetupPage({
   params,
 }: {
@@ -54,7 +39,33 @@ export default function PropertySetupPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Accordion open/close state for floors
-  const [openFloorIds, setOpenFloorIds] = useState<string[]>(["fl-02", "fl-01"]);
+  const [openFloorIds, setOpenFloorIds] = useState<string[]>([
+    "fl-05",
+    "fl-04",
+    "fl-03",
+    "fl-02",
+    "fl-01",
+    "fl-00",
+  ]);
+
+  // Reactive Property Layout Structure State
+  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
+    propertyStore.getStructure()
+  );
+
+  // Subscribe to propertyStore updates
+  useEffect(() => {
+    const unsubscribe = propertyStore.subscribe(() => {
+      setPropertyStructure(propertyStore.getStructure());
+    });
+    return unsubscribe;
+  }, []);
+
+  // Update global store whenever structure mutates
+  const updateLayoutStructure = (newStructure: FloorConfig[]) => {
+    setPropertyStructure(newStructure);
+    propertyStore.updateStructure(newStructure);
+  };
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -98,80 +109,8 @@ export default function PropertySetupPage({
     }
   };
 
-  // Property Layout State (Dynamically linked to all 200 Mock Occupants)
-  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() => {
-    const floors: FloorConfig[] = [];
-    const floorConfigs = [
-      { id: "fl-05", name: "FLOOR 05", sub: "PENTHOUSE & TERRACE", roomStart: 501, count: 4 },
-      { id: "fl-04", name: "FLOOR 04", sub: "EXECUTIVE SUITES", roomStart: 401, count: 4 },
-      { id: "fl-03", name: "FLOOR 03", sub: "EXECUTIVE SUITES", roomStart: 301, count: 4 },
-      { id: "fl-02", name: "FLOOR 02", sub: "PREMIUM SUITES", roomStart: 201, count: 4 },
-      { id: "fl-01", name: "FLOOR 01", sub: "DELUXE SUITES", roomStart: 101, count: 4 },
-      { id: "fl-00", name: "GROUND FLOOR", sub: "STANDARD SUITES", roomStart: 1, count: 4 },
-    ];
-
-    let occIndex = 0;
-
-    floorConfigs.forEach((fConfig, fIdx) => {
-      const rooms: RoomConfig[] = [];
-
-      for (let r = 0; r < fConfig.count; r++) {
-        const roomNumStr =
-          fConfig.roomStart < 10
-            ? `00${fConfig.roomStart + r}`
-            : `${fConfig.roomStart + r}`;
-        const sharing = (r % 3 === 0 ? 4 : r % 2 === 0 ? 3 : 2);
-        const beds: BedSlotConfig[] = [];
-        const bedLetters = ["BED A", "BED B", "BED C", "BED D"];
-
-        for (let b = 0; b < sharing; b++) {
-          const currentOcc = MOCK_OCCUPANTS_200[occIndex % MOCK_OCCUPANTS_200.length];
-          occIndex++;
-
-          let status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" = "Occupied";
-
-          if (currentOcc.lifecycleStatus === "Notice") {
-            status = "Vacating";
-          } else if (currentOcc.lifecycleStatus === "Booked") {
-            status = "Booked";
-          } else if (currentOcc.stayType === "Guest") {
-            status = "Guest";
-          } else if (occIndex % 7 === 0) {
-            status = "Available";
-          } else {
-            status = "Occupied";
-          }
-
-          beds.push({
-            id: `bed-${fIdx}-${r}-${b}`,
-            bedCode: bedLetters[b],
-            status,
-            occupant: status === "Available" ? undefined : currentOcc,
-          });
-        }
-
-        rooms.push({
-          id: `rm-${fIdx}-${r}`,
-          roomNumber: roomNumStr,
-          sharingType: sharing,
-          beds,
-        });
-      }
-
-      floors.push({
-        id: fConfig.id,
-        floorName: fConfig.name,
-        floorSubtitle: fConfig.sub,
-        rooms,
-      });
-    });
-
-    return floors;
-  });
-
   // Handle Deletion of Bed Slot
   const handleDeleteBed = (floorId: string, roomId: string, bed: BedSlotConfig) => {
-    // 1. Check if bed is occupied
     if (bed.status !== "Available" && bed.occupant) {
       setBlockedDeleteModal({
         title: `Cannot Delete Occupied ${bed.bedCode}`,
@@ -183,27 +122,26 @@ export default function PropertySetupPage({
       return;
     }
 
-    // 2. If Vacant, prompt confirm
     setConfirmDeleteModal({
       title: `Delete Vacant ${bed.bedCode}`,
       message: `Are you sure you want to remove ${bed.bedCode}? This action cannot be undone.`,
       onConfirm: () => {
-        setPropertyStructure((prev) =>
-          prev.map((fl) => {
-            if (fl.id !== floorId) return fl;
-            return {
-              ...fl,
-              rooms: fl.rooms.map((rm) => {
-                if (rm.id !== roomId) return rm;
-                return {
-                  ...rm,
-                  sharingType: Math.max(1, rm.beds.length - 1),
-                  beds: rm.beds.filter((b) => b.id !== bed.id),
-                };
-              }),
-            };
-          })
-        );
+        const updated = propertyStructure.map((fl) => {
+          if (fl.id !== floorId) return fl;
+          return {
+            ...fl,
+            rooms: fl.rooms.map((rm) => {
+              if (rm.id !== roomId) return rm;
+              return {
+                ...rm,
+                sharingType: Math.max(1, rm.beds.length - 1),
+                beds: rm.beds.filter((b) => b.id !== bed.id),
+              };
+            }),
+          };
+        });
+
+        updateLayoutStructure(updated);
         triggerToast(`✓ Deleted vacant ${bed.bedCode}`);
         setConfirmDeleteModal(null);
       },
@@ -212,7 +150,6 @@ export default function PropertySetupPage({
 
   // Handle Deletion of Room
   const handleDeleteRoom = (floorId: string, room: RoomConfig) => {
-    // Check if any bed in room is occupied
     const occupiedBed = room.beds.find((b) => b.status !== "Available" && b.occupant);
 
     if (occupiedBed && occupiedBed.occupant) {
@@ -230,15 +167,15 @@ export default function PropertySetupPage({
       title: `Delete Room ${room.roomNumber}`,
       message: `Are you sure you want to remove Room ${room.roomNumber} and all its vacant beds?`,
       onConfirm: () => {
-        setPropertyStructure((prev) =>
-          prev.map((fl) => {
-            if (fl.id !== floorId) return fl;
-            return {
-              ...fl,
-              rooms: fl.rooms.filter((rm) => rm.id !== room.id),
-            };
-          })
-        );
+        const updated = propertyStructure.map((fl) => {
+          if (fl.id !== floorId) return fl;
+          return {
+            ...fl,
+            rooms: fl.rooms.filter((rm) => rm.id !== room.id),
+          };
+        });
+
+        updateLayoutStructure(updated);
         triggerToast(`✓ Deleted Room ${room.roomNumber}`);
         setConfirmDeleteModal(null);
       },
@@ -274,7 +211,8 @@ export default function PropertySetupPage({
       title: `Delete ${floor.floorName}`,
       message: `Are you sure you want to delete ${floor.floorName} and all its vacant rooms?`,
       onConfirm: () => {
-        setPropertyStructure((prev) => prev.filter((fl) => fl.id !== floor.id));
+        const updated = propertyStructure.filter((fl) => fl.id !== floor.id);
+        updateLayoutStructure(updated);
         triggerToast(`✓ Deleted ${floor.floorName}`);
         setConfirmDeleteModal(null);
       },
@@ -289,22 +227,23 @@ export default function PropertySetupPage({
       id: newFloorId,
       floorName: newFloorName.toUpperCase(),
       floorSubtitle: newFloorSub,
+      totalBeds: 0,
       rooms: [],
     };
 
-    setPropertyStructure([newFloor, ...propertyStructure]);
+    const updated = [newFloor, ...propertyStructure];
+    updateLayoutStructure(updated);
     setOpenFloorIds([...openFloorIds, newFloorId]);
     triggerToast(`✓ Added ${newFloor.floorName}`);
     setShowAddFloorModal(false);
     setNewFloorName("");
   };
 
-  // Handle Add Room Submit
+  // Handle Add Room Submit (Supports 1 to 26 Beds — Bed A to Bed Z)
   const handleAddRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeAddRoomFloorId) return;
 
-    // Generate Alphabetic Bed Codes (BED A to BED Z)
     const bedLetters = Array.from({ length: 26 }, (_, i) => `BED ${String.fromCharCode(65 + i)}`);
     const beds: BedSlotConfig[] = [];
     const count = Math.min(26, Math.max(1, newSharingCapacity));
@@ -324,16 +263,16 @@ export default function PropertySetupPage({
       beds,
     };
 
-    setPropertyStructure((prev) =>
-      prev.map((fl) => {
-        if (fl.id !== activeAddRoomFloorId) return fl;
-        return {
-          ...fl,
-          rooms: [...fl.rooms, newRoom],
-        };
-      })
-    );
+    const updated = propertyStructure.map((fl) => {
+      if (fl.id !== activeAddRoomFloorId) return fl;
+      return {
+        ...fl,
+        totalBeds: fl.totalBeds + count,
+        rooms: [...fl.rooms, newRoom],
+      };
+    });
 
+    updateLayoutStructure(updated);
     triggerToast(`✓ Added Room ${newRoomNumber} (${count} Sharing - Bed A to ${bedLetters[count - 1]})`);
     setActiveAddRoomFloorId(null);
     setNewRoomNumber("");
@@ -468,7 +407,7 @@ export default function PropertySetupPage({
                                     Room {room.roomNumber}
                                   </h3>
                                   <p className="text-[10px] text-gray-400 uppercase font-bold">
-                                    {room.sharingType} SHARING CAPACITY
+                                    {room.sharingType} SHARING CAPACITY ({room.beds.length} BEDS)
                                   </p>
                                 </div>
 
@@ -561,7 +500,7 @@ export default function PropertySetupPage({
           </div>
         </div>
 
-        {/* ⚠️ OCCUPIED DELETION PROTECTION MODAL (User Directive Requirement) */}
+        {/* ⚠️ OCCUPIED DELETION PROTECTION MODAL */}
         {blockedDeleteModal && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl border border-red-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95">
@@ -660,12 +599,12 @@ export default function PropertySetupPage({
               <form onSubmit={handleAddFloorSubmit} className="space-y-4">
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Floor Name (e.g. FLOOR 04, GROUND FLOOR) *
+                    Floor Name (e.g. FLOOR 06, BASEMENT) *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="FLOOR 04"
+                    placeholder="FLOOR 06"
                     value={newFloorName}
                     onChange={(e) => setNewFloorName(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
@@ -705,7 +644,7 @@ export default function PropertySetupPage({
           </div>
         )}
 
-        {/* ADD ROOM MODAL */}
+        {/* ADD ROOM MODAL (Supports 1 to 26 Beds — Bed A to Bed Z) */}
         {activeAddRoomFloorId && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
@@ -724,12 +663,12 @@ export default function PropertySetupPage({
               <form onSubmit={handleAddRoomSubmit} className="space-y-4">
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Room Number (e.g. 401) *
+                    Room Number (e.g. 601) *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="401"
+                    placeholder="601"
                     value={newRoomNumber}
                     onChange={(e) => setNewRoomNumber(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"

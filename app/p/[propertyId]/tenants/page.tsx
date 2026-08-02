@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { propertyStore } from "@/constants/propertyLayoutStore";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import {
   Search,
@@ -547,11 +548,11 @@ export default function TenantsDirectoryPage({
                   className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
                 >
                   <option value="All Rooms">All Rooms</option>
-                  <option value="101">101</option>
-                  <option value="102">102</option>
-                  <option value="103">103</option>
-                  <option value="201">201</option>
-                  <option value="301">301</option>
+                  {propertyStore.getRoomNumbers().map((rmNum) => (
+                    <option key={rmNum} value={rmNum}>
+                      Room {rmNum}
+                    </option>
+                  ))}
                 </select>
               </div>
 
