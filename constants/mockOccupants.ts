@@ -172,4 +172,91 @@ export function generateMockOccupants(count = 200): Occupant[] {
   return occupants;
 }
 
-export const MOCK_OCCUPANTS_200 = generateMockOccupants(200);
+const OCCUPANTS_STORAGE_KEY = "tenopilot_occupants_store_v1";
+let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
+const occupantListeners: Array<() => void> = [];
+
+function loadOccupants(): Occupant[] {
+  if (GLOBAL_OCCUPANTS_CACHE) return GLOBAL_OCCUPANTS_CACHE;
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem(OCCUPANTS_STORAGE_KEY);
+      if (saved) {
+        GLOBAL_OCCUPANTS_CACHE = JSON.parse(saved);
+        return GLOBAL_OCCUPANTS_CACHE!;
+      }
+    } catch (e) {
+      console.warn("Failed to load occupants from localStorage", e);
+    }
+  }
+  GLOBAL_OCCUPANTS_CACHE = generateMockOccupants(200);
+  return GLOBAL_OCCUPANTS_CACHE;
+}
+
+export const occupantStore = {
+  getOccupants(): Occupant[] {
+    return loadOccupants();
+  },
+
+  updateOccupants(newList: Occupant[]) {
+    GLOBAL_OCCUPANTS_CACHE = newList;
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(newList));
+      } catch (e) {
+        console.warn("Failed to save occupants to localStorage", e);
+      }
+    }
+    occupantListeners.forEach((l) => l());
+  },
+
+  subscribe(listener: () => void) {
+    occupantListeners.push(listener);
+    return () => {
+      const idx = occupantListeners.indexOf(listener);
+      if (idx >= 0) occupantListeners.splice(idx, 1);
+    };
+  },
+};
+
+// Export MOCK_OCCUPANTS_200 as dynamic proxy array accessing occupantStore
+export const MOCK_OCCUPANTS_200: Occupant[] = new Proxy([] as Occupant[], {
+  get(target, prop, receiver) {
+    const current = occupantStore.getOccupants();
+    if (prop === "length") return current.length;
+    if (prop === "unshift") {
+      return (...items: Occupant[]) => {
+        const updated = [...items, ...current];
+        occupantStore.updateOccupants(updated);
+        return updated.length;
+      };
+    }
+    if (prop === "push") {
+      return (...items: Occupant[]) => {
+        const updated = [...current, ...items];
+        occupantStore.updateOccupants(updated);
+        return updated.length;
+      };
+    }
+    if (prop === "find") return current.find.bind(current);
+    if (prop === "filter") return current.filter.bind(current);
+    if (prop === "map") return current.map.bind(current);
+    if (prop === "slice") return current.slice.bind(current);
+    if (prop === "findIndex") return current.findIndex.bind(current);
+    if (prop === "forEach") return current.forEach.bind(current);
+    if (typeof prop === "string" && !isNaN(Number(prop))) {
+      return current[Number(prop)];
+    }
+    return Reflect.get(current, prop, receiver);
+  },
+
+  set(target, prop, value, receiver) {
+    const current = occupantStore.getOccupants();
+    if (typeof prop === "string" && !isNaN(Number(prop))) {
+      current[Number(prop)] = value;
+      occupantStore.updateOccupants([...current]);
+      return true;
+    }
+    return Reflect.set(current, prop, value, receiver);
+  },
+});
