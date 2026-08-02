@@ -21,28 +21,39 @@ const ALLOWED_MIME_TYPES = [
   "application/pdf",
 ];
 
-// Max raw file size (15 MB)
-const MAX_RAW_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+// Max size limits: PDF capped strictly to 1MB; Images raw limit 10MB (auto-compressed to ~400KB)
+const MAX_PDF_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 /**
- * Validate file type and raw size
+ * Validate file type and specific size caps (1MB for PDF, 10MB for Image)
  */
 export function validateDocumentFile(file: File): { valid: boolean; error?: string } {
   if (!file) return { valid: false, error: "No file selected." };
 
+  const mimeType = file.type.toLowerCase();
+
   // Check MIME type
-  if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
     return {
       valid: false,
       error: "Invalid file type. Only JPEG, PNG, and PDF files are allowed.",
     };
   }
 
-  // Check raw size limit (15MB)
-  if (file.size > MAX_RAW_FILE_SIZE_BYTES) {
+  // Cap PDF strictly to 1 MB limit per user directive
+  if (mimeType === "application/pdf" && file.size > MAX_PDF_SIZE_BYTES) {
     return {
       valid: false,
-      error: `File size exceeds 15 MB limit. Selected file is ${(file.size / (1024 * 1024)).toFixed(1)} MB.`,
+      error: `PDF size exceeds 1 MB limit (${(file.size / (1024 * 1024)).toFixed(2)} MB). Please select a smaller PDF or upload Front/Back image photos.`,
+    };
+  }
+
+  // Cap Image raw size to 10 MB (auto-compressed client-side)
+  if (mimeType.startsWith("image/") && file.size > MAX_IMAGE_SIZE_BYTES) {
+    return {
+      valid: false,
+      error: `Image size exceeds 10 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
     };
   }
 

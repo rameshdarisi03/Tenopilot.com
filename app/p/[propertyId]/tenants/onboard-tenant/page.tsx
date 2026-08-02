@@ -82,11 +82,14 @@ export default function OnboardTenantPage({
     floorName: string;
   } | null>(null);
 
-  // Form State — Step 3: KYC Upload & Auto-Compression Documents
+  // Form State — Step 3: KYC Upload & Auto-Compression Documents (Capped PDF 1MB, Front/Back ID Images)
   const [photoUploaded, setPhotoUploaded] = useState(false);
   const [aadhaarUploaded, setAadhaarUploaded] = useState(false);
+  const [idUploadMode, setIdUploadMode] = useState<"IMAGES" | "PDF">("IMAGES");
   const [photoDoc, setPhotoDoc] = useState<ProcessedDocument | null>(null);
   const [aadhaarDoc, setAadhaarDoc] = useState<ProcessedDocument | null>(null);
+  const [aadhaarFrontDoc, setAadhaarFrontDoc] = useState<ProcessedDocument | null>(null);
+  const [aadhaarBackDoc, setAadhaarBackDoc] = useState<ProcessedDocument | null>(null);
 
   // Success Modal State (Step 5)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -716,48 +719,147 @@ export default function OnboardTenantPage({
                   )}
                 </div>
 
-                {/* Aadhaar / Govt ID Card */}
-                <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-3 text-center flex flex-col items-center justify-center">
-                  <div className="p-3 rounded-full bg-blue-100 text-blue-700">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <div>
+                {/* Aadhaar / Govt ID Card Section */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-4 text-center flex flex-col items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="p-3 rounded-full bg-blue-100 text-blue-700 w-12 h-12 flex items-center justify-center mx-auto">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
                     <h3 className="font-bold text-sm text-gray-900">
-                      Aadhaar Card / Govt ID
+                      Aadhaar Card / Govt ID Proof
                     </h3>
-                    <p className="text-gray-500 text-[11px] mt-0.5">
-                      PDF, JPG, PNG (Max 15MB — Auto-validated)
+                    <p className="text-gray-500 text-[11px]">
+                      Choose upload mode below:
                     </p>
                   </div>
 
-                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center gap-2 shadow-2xs transition-all">
-                    <Upload className="w-4 h-4 text-blue-600" />
-                    {aadhaarDoc ? "Change Document" : "Upload Aadhaar / ID"}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,application/pdf"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const val = validateDocumentFile(file);
-                        if (!val.valid) {
-                          alert(val.error);
-                          return;
-                        }
-                        const proc = await autoCompressImage(file);
-                        setAadhaarDoc(proc);
-                        setAadhaarUploaded(true);
-                      }}
-                    />
-                  </label>
+                  {/* ID Upload Mode Tab Selector */}
+                  <div className="flex bg-gray-200/70 p-1 rounded-xl w-full text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setIdUploadMode("IMAGES")}
+                      className={`flex-1 py-1.5 rounded-lg transition-all ${
+                        idUploadMode === "IMAGES"
+                          ? "bg-white text-blue-700 shadow-2xs"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      💳 Front & Back Photos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIdUploadMode("PDF")}
+                      className={`flex-1 py-1.5 rounded-lg transition-all ${
+                        idUploadMode === "PDF"
+                          ? "bg-white text-blue-700 shadow-2xs"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      📄 Single PDF (Max 1MB)
+                    </button>
+                  </div>
 
-                  {aadhaarDoc && (
-                    <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
-                      ✓ Uploaded: <strong>{aadhaarDoc.fileName}</strong> ({aadhaarDoc.compressedSizeMb} MB)
-                      {aadhaarDoc.isCompressed && (
-                        <div className="text-emerald-700 font-mono mt-0.5">
-                          ⚡ Auto-compressed: {aadhaarDoc.originalSizeMb} MB → {aadhaarDoc.compressedSizeMb} MB
+                  {/* MODE A: Front & Back Images */}
+                  {idUploadMode === "IMAGES" ? (
+                    <div className="grid grid-cols-2 gap-3 w-full pt-1">
+                      {/* Front Image Input */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-gray-700 block">
+                          ID Card Front *
+                        </span>
+                        <label className="cursor-pointer px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-[11px] font-bold text-gray-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all w-full">
+                          <Upload className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          {aadhaarFrontDoc ? "Change Front" : "Upload Front"}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const val = validateDocumentFile(file);
+                              if (!val.valid) {
+                                alert(val.error);
+                                return;
+                              }
+                              const proc = await autoCompressImage(file);
+                              setAadhaarFrontDoc(proc);
+                              setAadhaarUploaded(true);
+                            }}
+                          />
+                        </label>
+                        {aadhaarFrontDoc && (
+                          <div className="text-[9px] bg-emerald-50 text-emerald-800 p-1.5 rounded-lg font-medium">
+                            ✓ Front ({aadhaarFrontDoc.compressedSizeMb} MB)
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Back Image Input */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-gray-700 block">
+                          ID Card Back *
+                        </span>
+                        <label className="cursor-pointer px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-[11px] font-bold text-gray-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all w-full">
+                          <Upload className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          {aadhaarBackDoc ? "Change Back" : "Upload Back"}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const val = validateDocumentFile(file);
+                              if (!val.valid) {
+                                alert(val.error);
+                                return;
+                              }
+                              const proc = await autoCompressImage(file);
+                              setAadhaarBackDoc(proc);
+                              setAadhaarUploaded(true);
+                            }}
+                          />
+                        </label>
+                        {aadhaarBackDoc && (
+                          <div className="text-[9px] bg-emerald-50 text-emerald-800 p-1.5 rounded-lg font-medium">
+                            ✓ Back ({aadhaarBackDoc.compressedSizeMb} MB)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* MODE B: Single PDF (Max 1MB) */
+                    <div className="w-full space-y-2 pt-1">
+                      <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center justify-center gap-2 shadow-2xs transition-all w-full">
+                        <Upload className="w-4 h-4 text-blue-600" />
+                        {aadhaarDoc ? "Change PDF File" : "Upload Aadhaar PDF"}
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const val = validateDocumentFile(file);
+                            if (!val.valid) {
+                              alert(val.error);
+                              return;
+                            }
+                            const proc = await autoCompressImage(file);
+                            setAadhaarDoc(proc);
+                            setAadhaarUploaded(true);
+                          }}
+                        />
+                      </label>
+
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        Strictly capped to 1 MB limit for identity PDF documents
+                      </p>
+
+                      {aadhaarDoc && (
+                        <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
+                          ✓ Uploaded PDF: <strong>{aadhaarDoc.fileName}</strong> ({aadhaarDoc.compressedSizeMb} MB)
                         </div>
                       )}
                     </div>
