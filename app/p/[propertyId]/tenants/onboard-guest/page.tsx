@@ -256,6 +256,12 @@ export default function OnboardGuestPage({
         phone: fullEmergencyPhone,
         relation: "Family",
       },
+      kycDocs: {
+        idMode: idUploadMode,
+        photoUrl: photoUrl || photoDoc?.previewUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
+        aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || undefined,
+        aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
+      },
     };
 
     // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)

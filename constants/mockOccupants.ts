@@ -27,6 +27,13 @@ export interface Occupant {
   hasPdfAgreement?: boolean;
   workplace?: string;
   address?: string;
+  kycDocs?: {
+    idMode?: "IMAGES" | "PDF";
+    photoUrl?: string;
+    aadhaarFrontUrl?: string;
+    aadhaarBackUrl?: string;
+    aadhaarPdfUrl?: string;
+  };
 }
 
 // 200 Guaranteed 100% Unique Indian Names (No Duplicates)

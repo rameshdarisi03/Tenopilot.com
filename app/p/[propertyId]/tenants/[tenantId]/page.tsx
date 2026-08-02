@@ -521,7 +521,7 @@ export default function IndividualTenantProfilePage({
                 </div>
               </div>
 
-              {/* KYC Documents Card (SECURE VIEW-ONLY FOR PG OWNERS — NO LOCAL DOWNLOAD) */}
+              {/* KYC Documents Card (DYNAMIC 3 COMPONENTS FOR FRONT/BACK/PHOTO, OR 2 FOR PDF/PHOTO) */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
                   <div>
@@ -529,7 +529,7 @@ export default function IndividualTenantProfilePage({
                       KYC Documents
                     </span>
                     <span className="text-[10px] text-gray-400 font-medium">
-                      🔒 Secure View-Only (No Download)
+                      🔒 Secure View-Only ({occupantState.kycDocs?.idMode === "PDF" ? "2 Documents" : "3 Documents"})
                     </span>
                   </div>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
@@ -538,39 +538,14 @@ export default function IndividualTenantProfilePage({
                 </div>
 
                 <div className="space-y-3">
-                  {/* Aadhaar / Govt ID Item */}
+                  {/* 1. Profile Headshot Component */}
                   <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
                     <div>
                       <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID
+                        <User className="w-4 h-4 text-[#c2652a]" /> Profile Headshot Photo
                       </p>
                       <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                        Verified & Synced 🟢
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setViewKycModal({
-                          open: true,
-                          title: "Aadhaar Card / Govt ID",
-                          docType: "aadhaar",
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#c2652a]" /> View
-                    </button>
-                  </div>
-
-                  {/* Profile Photo Headshot Item */}
-                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                        <User className="w-4 h-4 text-[#c2652a]" /> Profile Headshot
-                      </p>
-                      <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                        Verified Headshot 🟢
+                        Verified & Auto-compressed 🟢
                       </p>
                     </div>
                     <button
@@ -587,6 +562,87 @@ export default function IndividualTenantProfilePage({
                       <Eye className="w-3.5 h-3.5 text-[#c2652a]" /> View
                     </button>
                   </div>
+
+                  {/* 2 & 3: ID Card Components (Front & Back vs PDF) */}
+                  {occupantState.kycDocs?.idMode === "PDF" ? (
+                    /* PDF Mode: Single PDF Component */
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (PDF Document)
+                        </p>
+                        <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                          Single PDF (Max 1MB) 🟢
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setViewKycModal({
+                            open: true,
+                            title: "Aadhaar Card PDF Document",
+                            docType: "pdf",
+                          })
+                        }
+                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-600" /> View PDF
+                      </button>
+                    </div>
+                  ) : (
+                    /* Front & Back Mode: 2 Separate Components (Front + Back) */
+                    <>
+                      {/* Component 2: ID Card Front */}
+                      <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (Front Photo)
+                          </p>
+                          <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                            ID Front Photo 🟢
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setViewKycModal({
+                              open: true,
+                              title: "Aadhaar Card — Front Photo",
+                              docType: "front",
+                            })
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front
+                        </button>
+                      </div>
+
+                      {/* Component 3: ID Card Back */}
+                      <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (Back Photo)
+                          </p>
+                          <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                            ID Back Photo 🟢
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setViewKycModal({
+                              open: true,
+                              title: "Aadhaar Card — Back Photo",
+                              docType: "back",
+                            })
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1075,19 +1131,34 @@ export default function IndividualTenantProfilePage({
               >
                 {viewKycModal.docType === "photo" ? (
                   <img
-                    src={occupantState.avatar}
+                    src={occupantState.kycDocs?.photoUrl || occupantState.avatar}
                     alt={occupantState.name}
-                    className="w-44 h-44 rounded-2xl object-cover border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                  />
+                ) : viewKycModal.docType === "front" ? (
+                  <img
+                    src={occupantState.kycDocs?.aadhaarFrontUrl || occupantState.avatar}
+                    alt="Aadhaar Front"
+                    className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                  />
+                ) : viewKycModal.docType === "back" ? (
+                  <img
+                    src={occupantState.kycDocs?.aadhaarBackUrl || occupantState.avatar}
+                    alt="Aadhaar Back"
+                    className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
                   />
                 ) : (
+                  /* PDF Document View */
                   <div className="w-full bg-white/95 rounded-xl p-6 text-center space-y-3 pointer-events-none select-none text-gray-900 font-mono text-xs">
-                    <ShieldCheck className="w-12 h-12 text-blue-600 mx-auto" />
-                    <div className="font-bold text-sm">AADHAAR GOVT IDENTITY CARD</div>
+                    <FileText className="w-14 h-14 text-blue-600 mx-auto" />
+                    <div className="font-bold text-sm text-gray-900">
+                      {occupantState.name} — AADHAAR GOVT ID (PDF)
+                    </div>
                     <div className="text-[11px] text-gray-500 font-sans">
-                      DOCUMENT NUMBER: XXXX-XXXX-4819
+                      DOCUMENT NUMBER: XXXX-XXXX-4819 • CAPPED TO 1MB
                     </div>
                     <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] p-2 rounded-lg font-sans font-bold">
-                      ✓ ENCRYPTED & VERIFIED IN FIREBASE STORAGE BUCKET
+                      ✓ ENCRYPTED & VERIFIED IN FIREBASE CLOUD STORAGE BUCKET
                     </div>
                   </div>
                 )}

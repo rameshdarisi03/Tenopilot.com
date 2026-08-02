@@ -261,6 +261,13 @@ export default function OnboardTenantPage({
         phone: fullEmergencyPhone,
         relation: "Family",
       },
+      kycDocs: {
+        idMode: idUploadMode,
+        photoUrl: photoUrl || photoDoc?.previewUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
+        aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || aadhaarUrl || undefined,
+        aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
+        aadhaarPdfUrl: aadhaarDoc?.previewUrl || aadhaarUrl || undefined,
+      },
     };
 
     // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)
