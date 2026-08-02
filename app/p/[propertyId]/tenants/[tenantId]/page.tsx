@@ -580,7 +580,7 @@ export default function IndividualTenantProfilePage({
                   onClick={() => setShowExtendStayModal(true)}
                   className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-[#c2652a] font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
                 >
-                  <RefreshCw className="w-4 h-4 text-[#c2652a]" /> 🔁 Extend / Book Next Stay
+                  <RefreshCw className="w-4 h-4 text-[#c2652a]" /> Extend / Book Next Stay
                 </button>
               ) : (
                 <button
@@ -1701,7 +1701,7 @@ export default function IndividualTenantProfilePage({
             <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95">
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+                  <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
                     <RefreshCw className="w-5 h-5" />
                   </div>
                   <div>
@@ -1730,22 +1730,22 @@ export default function IndividualTenantProfilePage({
                   onClick={() => setExtendMode("EXTEND")}
                   className={`flex-1 py-2 rounded-lg transition-all ${
                     extendMode === "EXTEND"
-                      ? "bg-white text-blue-700 shadow-xs"
+                      ? "bg-white text-[#c2652a] shadow-xs"
                       : "text-gray-500 hover:text-gray-900"
                   }`}
                 >
-                  ➕ Extend Current Stay
+                  Extend Current Stay
                 </button>
                 <button
                   type="button"
                   onClick={() => setExtendMode("PREBOOK")}
                   className={`flex-1 py-2 rounded-lg transition-all ${
                     extendMode === "PREBOOK"
-                      ? "bg-white text-blue-700 shadow-xs"
+                      ? "bg-white text-[#c2652a] shadow-xs"
                       : "text-gray-500 hover:text-gray-900"
                   }`}
                 >
-                  📅 Pre-Book Next Visit
+                  Pre-Book Next Visit
                 </button>
               </div>
 
@@ -1768,7 +1768,7 @@ export default function IndividualTenantProfilePage({
               >
                 {extendMode === "EXTEND" ? (
                   <div className="space-y-3">
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-orange-950">
                       <p className="font-bold text-xs">Current Stay Overview</p>
                       <p className="text-[11px] mt-0.5">
                         Room {occupantState.roomNumber} ({occupantState.bedCode}) • Daily Rent: ₹{occupantState.rentAmount?.toLocaleString("en-IN") || "1,000"}
@@ -1787,7 +1787,7 @@ export default function IndividualTenantProfilePage({
                           required
                           value={additionalDays}
                           onChange={(e) => setAdditionalDays(Number(e.target.value))}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                         <span className="font-bold text-gray-600 shrink-0">Days</span>
                       </div>
@@ -1795,7 +1795,7 @@ export default function IndividualTenantProfilePage({
 
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center font-bold">
                       <span className="text-gray-600">Calculated Extension Amount:</span>
-                      <span className="text-blue-700 text-sm">
+                      <span className="text-[#c2652a] text-sm font-mono">
                         ₹{((occupantState.rentAmount || 1000) * additionalDays).toLocaleString("en-IN")}
                       </span>
                     </div>
@@ -1819,7 +1819,7 @@ export default function IndividualTenantProfilePage({
                           required
                           value={nextVisitStartDate}
                           onChange={(e) => setNextVisitStartDate(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700 text-xs"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a] text-xs"
                         />
                       </div>
                       <div>
@@ -1831,7 +1831,7 @@ export default function IndividualTenantProfilePage({
                           required
                           value={nextVisitEndDate}
                           onChange={(e) => setNextVisitEndDate(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700 text-xs"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a] text-xs"
                         />
                       </div>
                     </div>
@@ -1848,7 +1848,7 @@ export default function IndividualTenantProfilePage({
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
+                    className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
                   >
                     {extendMode === "EXTEND" ? "Confirm Extension" : "Confirm Pre-Booking"}
                   </button>
