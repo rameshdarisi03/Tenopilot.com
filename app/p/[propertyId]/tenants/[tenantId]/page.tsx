@@ -691,19 +691,10 @@ export default function IndividualTenantProfilePage({
             <div className="lg:col-span-5 space-y-6">
               {/* Room & Contact Details Card */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
-                <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
-                  <span className="font-bold text-gray-900 text-sm">
+                <div className="pb-3 border-b border-gray-100">
+                  <h3 className="font-bold text-gray-900 text-sm">
                     Occupancy Details
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      occupantState.paymentStatus === "Paid"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {occupantState.paymentStatus === "Paid" ? "PAID 🟢" : "PENDING 🟡"}
-                  </span>
+                  </h3>
                 </div>
 
                 <div className="space-y-3 text-gray-700">
