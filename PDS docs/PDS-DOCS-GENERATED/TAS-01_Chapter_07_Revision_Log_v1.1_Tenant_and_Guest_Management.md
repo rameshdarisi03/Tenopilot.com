@@ -449,6 +449,18 @@ Short-term guests (`stayType === "Guest"`) do not follow long-term 11-month leas
 
 ---
 
+# Update 25 — Hotel-Style Recurring Guest Stay Engine (`Extend / Book Next Stay`)
+
+To support recurring short-term visitors, Guest profiles replace the long-term lease `Log Notice` button with **`🔁 Extend / Book Next Stay`**:
+
+1. **Guest Action Bar Transformation**:
+   - For `stayType === "Guest"`, the **`Log Notice`** button is replaced by **`🔁 Extend / Book Next Stay`**.
+2. **Hotel PMS Modal Workflow**:
+   - **Mode A: Extend Current Stay**: Adds additional days ($+N$ days) or extends departure date. Recalculates stay charges and updates Firestore state.
+   - **Mode B: Pre-Book Next Visit**: Schedules future returning visit dates for recurring guest stays.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -477,6 +489,7 @@ This revision introduces:
 - Firebase Cloud Firestore Single Source of Truth Engine
 - Edit Check-In Date Workflow & Removal of Manual Check-In
 - Short-Term Guest Timeline Exemption Policy
+- Hotel-Style Recurring Guest Stay Engine (`Extend / Book Next Stay`)
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Eye,
   UserPlus,
+  RefreshCw,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -297,6 +298,13 @@ export default function IndividualTenantProfilePage({
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
+  const [showExtendStayModal, setShowExtendStayModal] = useState(false);
+
+  // Guest Extend Stay / Book Next Stay Inputs
+  const [extendMode, setExtendMode] = useState<"EXTEND" | "PREBOOK">("EXTEND");
+  const [additionalDays, setAdditionalDays] = useState<number>(3);
+  const [nextVisitStartDate, setNextVisitStartDate] = useState<string>("2026-08-25");
+  const [nextVisitEndDate, setNextVisitEndDate] = useState<string>("2026-08-30");
 
   // Edit Check-In Date Inputs
   const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
@@ -566,27 +574,22 @@ export default function IndividualTenantProfilePage({
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Log Notice (Disabled for Guests, active for Tenants) */}
-              <button
-                disabled={occupantState.stayType === "Guest"}
-                title={
-                  occupantState.stayType === "Guest"
-                    ? "Log Notice is available for Long-Term Tenants only. Promote guest to tenant to enable."
-                    : undefined
-                }
-                onClick={() => {
-                  if (occupantState.stayType !== "Guest") {
-                    setShowLogNoticeModal(true);
-                  }
-                }}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-xs transition-all ${
-                  occupantState.stayType === "Guest"
-                    ? "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
-                    : "bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 active:scale-95"
-                }`}
-              >
-                <FileText className={`w-4 h-4 ${occupantState.stayType === "Guest" ? "text-gray-400" : "text-[#c2652a]"}`} /> Log Notice
-              </button>
+              {/* 4. Action Button: Log Notice (Tenants) vs Extend / Book Next Stay (Guests) */}
+              {occupantState.stayType === "Guest" ? (
+                <button
+                  onClick={() => setShowExtendStayModal(true)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
+                >
+                  <RefreshCw className="w-4 h-4 text-blue-600" /> 🔁 Extend / Book Next Stay
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowLogNoticeModal(true)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
+                >
+                  <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
+                </button>
+              )}
 
               {/* 5. Promote Guest to Tenant (Only rendered for Guest accounts) */}
               {occupantState.stayType === "Guest" && (
@@ -1685,6 +1688,169 @@ export default function IndividualTenantProfilePage({
                     className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
                   >
                     Confirm & Update Date
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* HOTEL PMS GUEST EXTEND STAY / BOOK NEXT VISIT MODAL */}
+        {showExtendStayModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+                    <RefreshCw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Hotel Stay — Extend / Book Next Visit
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      RECURRING GUEST: {occupantState.name}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowExtendStayModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Mode Toggle Tabs */}
+              <div className="flex bg-gray-100 p-1 rounded-xl gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setExtendMode("EXTEND")}
+                  className={`flex-1 py-2 rounded-lg transition-all ${
+                    extendMode === "EXTEND"
+                      ? "bg-white text-blue-700 shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  ➕ Extend Current Stay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExtendMode("PREBOOK")}
+                  className={`flex-1 py-2 rounded-lg transition-all ${
+                    extendMode === "PREBOOK"
+                      ? "bg-white text-blue-700 shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  📅 Pre-Book Next Visit
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (extendMode === "EXTEND") {
+                    const extraRent = additionalDays * (occupantState.rentAmount || 1000);
+                    triggerToast(`🎉 Extended stay for ${occupantState.name} by +${additionalDays} days! Added ₹${extraRent.toLocaleString("en-IN")} to charges.`);
+                  } else {
+                    const d1Parts = nextVisitStartDate.split("-");
+                    const d2Parts = nextVisitEndDate.split("-");
+                    const formattedStart = `${d1Parts[2]}/${d1Parts[1]}/${d1Parts[0]}`;
+                    const formattedEnd = `${d2Parts[2]}/${d2Parts[1]}/${d2Parts[0]}`;
+                    triggerToast(`🗓️ Pre-booked returning stay for ${occupantState.name} from ${formattedStart} to ${formattedEnd}!`);
+                  }
+                  setShowExtendStayModal(false);
+                }}
+                className="space-y-4 text-xs"
+              >
+                {extendMode === "EXTEND" ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
+                      <p className="font-bold text-xs">Current Stay Overview</p>
+                      <p className="text-[11px] mt-0.5">
+                        Room {occupantState.roomNumber} ({occupantState.bedCode}) • Daily Rent: ₹{occupantState.rentAmount?.toLocaleString("en-IN") || "1,000"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Additional Stay Days *
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          min={1}
+                          max={90}
+                          required
+                          value={additionalDays}
+                          onChange={(e) => setAdditionalDays(Number(e.target.value))}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700"
+                        />
+                        <span className="font-bold text-gray-600 shrink-0">Days</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center font-bold">
+                      <span className="text-gray-600">Calculated Extension Amount:</span>
+                      <span className="text-blue-700 text-sm">
+                        ₹{((occupantState.rentAmount || 1000) * additionalDays).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900">
+                      <p className="font-bold text-xs">Recurring Guest Pre-Booking</p>
+                      <p className="text-[11px] mt-0.5">
+                        Reserve bed for returning guest {occupantState.name}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Arrival Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={nextVisitStartDate}
+                          onChange={(e) => setNextVisitStartDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Departure Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={nextVisitEndDate}
+                          onChange={(e) => setNextVisitEndDate(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowExtendStayModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
+                  >
+                    {extendMode === "EXTEND" ? "Confirm Extension" : "Confirm Pre-Booking"}
                   </button>
                 </div>
               </form>
