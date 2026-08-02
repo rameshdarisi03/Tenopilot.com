@@ -296,6 +296,10 @@ export default function IndividualTenantProfilePage({
   const [showLogNoticeModal, setShowLogNoticeModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
+
+  // Edit Check-In Date Inputs
+  const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
 
   // Promote Form Inputs
   const [promoteMonthlyRent, setPromoteMonthlyRent] = useState<number>(occupantState.rentAmount || 12500);
@@ -570,27 +574,19 @@ export default function IndividualTenantProfilePage({
               {occupantState.stayType === "Guest" && (
                 <button
                   onClick={() => setShowPromoteModal(true)}
-                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all animate-bounce"
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
                 >
                   <UserPlus className="w-4 h-4" /> 👔 Promote to Long-Term Tenant
                 </button>
               )}
 
-              {/* 6. Complete Check-In (Only rendered for Booked profiles) */}
+              {/* 6. Edit Check-In Date (Only rendered for Booked profiles — Auto-checkin runs on move-in date) */}
               {occupantState.lifecycleStatus === "Booked" && (
                 <button
-                  onClick={() => {
-                    const todayStr = new Date().toLocaleDateString("en-GB");
-                    setOccupantState((prev) => ({
-                      ...prev,
-                      lifecycleStatus: "Active",
-                      joiningDate: todayStr,
-                    }));
-                    triggerToast(`🎉 Completed Check-In for ${occupantState.name}! Status updated to Active Tenant.`);
-                  }}
-                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                  onClick={() => setShowEditCheckInModal(true)}
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
                 >
-                  <CheckCircle2 className="w-4 h-4" /> 🔑 Complete Check-In (Move to Active)
+                  <Clock className="w-4 h-4" /> 📅 Edit Check-In Date (Reschedule Move-In)
                 </button>
               )}
             </div>
@@ -1592,6 +1588,92 @@ export default function IndividualTenantProfilePage({
                     className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md"
                   >
                     Confirm & Promote to Tenant
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT CHECK-IN DATE DATEPICKER MODAL */}
+        {showEditCheckInModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Edit Check-In Move-In Date
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      TENANT: {occupantState.name}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowEditCheckInModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  // Format postponed date
+                  const dParts = postponedCheckInDate.split("-");
+                  const formattedDate = `${dParts[2]} ${
+                    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
+                      parseInt(dParts[1], 10) - 1
+                    ] || "Aug"
+                  } ${dParts[0]}`;
+
+                  setOccupantState((prev) => ({
+                    ...prev,
+                    joiningDate: formattedDate,
+                    dueDate: formattedDate,
+                  }));
+
+                  triggerToast(`✓ Updated check-in move-in date for ${occupantState.name} to ${formattedDate}`);
+                  setShowEditCheckInModal(false);
+                }}
+                className="space-y-4 text-xs"
+              >
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    New Target Move-in Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={postponedCheckInDate}
+                    onChange={(e) => setPostponedCheckInDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    The silent auto-checkin engine will automatically transition status to Active when this date arrives.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditCheckInModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
+                  >
+                    Confirm & Update Date
                   </button>
                 </div>
               </form>

@@ -910,28 +910,16 @@ export default function TenantsDirectoryPage({
                               {isDropdownOpen && (
                                 <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-2 z-50 text-left text-xs font-semibold text-gray-800">
                                   {occ.lifecycleStatus === "Booked" && (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          setActiveActionDropdownId(null);
-                                          setCheckInModalOccupant(occ);
-                                          setShowCompleteCheckInPopup(true);
-                                        }}
-                                        className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-emerald-50 text-emerald-700 font-bold border-b border-gray-100"
-                                      >
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Complete Check-In
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setActiveActionDropdownId(null);
-                                          setCheckInModalOccupant(occ);
-                                          setShowPostponeModal(true);
-                                        }}
-                                        className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-blue-50 text-blue-700 font-bold border-b border-gray-100"
-                                      >
-                                        <Clock className="w-3.5 h-3.5 text-blue-600" /> Postpone Check-In
-                                      </button>
-                                    </>
+                                    <button
+                                      onClick={() => {
+                                        setActiveActionDropdownId(null);
+                                        setCheckInModalOccupant(occ);
+                                        setShowPostponeModal(true);
+                                      }}
+                                      className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-blue-50 text-blue-700 font-bold border-b border-gray-100"
+                                    >
+                                      <Clock className="w-3.5 h-3.5 text-blue-600" /> Edit Check-In Date
+                                    </button>
                                   )}
                                   <Link
                                     href={`/p/${propertyId}/tenants/${occ.id}`}

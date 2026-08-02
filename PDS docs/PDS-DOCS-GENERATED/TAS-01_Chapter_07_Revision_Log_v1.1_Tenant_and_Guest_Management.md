@@ -425,6 +425,19 @@ TenoPilot uses Firebase Cloud Firestore (`lib/firebase.ts`) as the primary cloud
 
 ---
 
+# Update 23 — Edit Check-In Date Workflow & Removal of Manual Check-In
+
+To eliminate manual owner overhead during tenant check-ins, manual "Complete Check-In" action controls have been replaced by **`📅 Edit Check-In Date`**:
+
+1. **Automated Transition Dependency**:
+   - Check-ins transition 100% automatically on the scheduled move-in date via `utils/autoCheckInEngine.ts`.
+2. **`📅 Edit Check-In Date` Control**:
+   - Renders on both Tenant Directory action menus and Tenant Profile hero bars for any profile in `"Booked"` status (`lifecycleStatus: "Booked"`).
+   - Opens a calendar datepicker modal asking for the new target move-in date (`joiningDate`).
+   - Updates `joiningDate` across state, `occupantStore`, and Cloud Firestore.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -451,6 +464,7 @@ This revision introduces:
 - Automatic Date-Driven Booked Classification Engine
 - Silent Automated Move-In Date Auto-Checkin Engine
 - Firebase Cloud Firestore Single Source of Truth Engine
+- Edit Check-In Date Workflow & Removal of Manual Check-In
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
