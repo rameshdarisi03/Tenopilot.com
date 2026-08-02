@@ -601,18 +601,18 @@ export default function OnboardTenantPage({
                                     }
                                     className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
                                       isSelected
-                                        ? "bg-orange-50 border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-xs"
+                                        ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-md scale-[1.02]"
                                         : isVacating
                                         ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
                                         : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
                                     }`}
                                   >
-                                    <span className="font-bold text-xs">
+                                    <span className="font-extrabold text-xs">
                                       {bed.bedCode}
                                     </span>
 
                                     {/* Status & Date Badge ONLY — NO Tenant Names! */}
-                                    <span className="text-[10px] font-bold">
+                                    <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
                                       {isVacating
                                         ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "15 Aug"}`
                                         : "Available 🟢"}
