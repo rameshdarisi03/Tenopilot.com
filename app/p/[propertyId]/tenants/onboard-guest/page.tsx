@@ -32,12 +32,14 @@ import {
   Sparkles,
   Info,
   Filter,
+  Loader2,
 } from "lucide-react";
 import {
   validateDocumentFile,
   autoCompressImage,
   ProcessedDocument,
 } from "@/utils/documentSecurity";
+import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 
 export default function OnboardGuestPage({
   params,
@@ -91,6 +93,15 @@ export default function OnboardGuestPage({
   const [aadhaarFrontDoc, setAadhaarFrontDoc] = useState<ProcessedDocument | null>(null);
   const [aadhaarBackDoc, setAadhaarBackDoc] = useState<ProcessedDocument | null>(null);
 
+  // Live Firebase Storage URLs
+  const [photoUrl, setPhotoUrl] = useState<string>("");
+  const [uploadingState, setUploadingState] = useState<{
+    photo?: boolean;
+    front?: boolean;
+    back?: boolean;
+    pdf?: boolean;
+  }>({});
+
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
@@ -99,12 +110,7 @@ export default function OnboardGuestPage({
   const propertyStructure = useMemo(() => propertyStore.getStructure(), []);
 
   // Intelligent Floor Navigation Filter for Guest Onboarding:
-  // 1. Shows Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
-  // 2. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
-  // 3. Dynamically calculates gap between selected Check-in Date & Bed Vacating Date!
   const onboardingFloorNavigation = useMemo(() => {
-    const checkIn = new Date(checkInDate);
-
     return propertyStructure
       .map((fl) => ({
         ...fl,
@@ -132,12 +138,26 @@ export default function OnboardGuestPage({
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyStructure, desiredSharingFilter, checkInDate]);
+  }, [propertyStructure, desiredSharingFilter]);
 
   // Validation per step
   const handleStep1Next = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim()) return;
+    const cleanPrimaryPhone = phone.replace(/\D/g, "");
+    const cleanEmergency = emergencyPhone.replace(/\D/g, "");
+
+    // Rule 1: Primary phone must be exactly 10 digits
+    if (cleanPrimaryPhone.length !== 10) {
+      alert("Mobile phone number must be exactly 10 digits.");
+      return;
+    }
+
+    // Rule 2: Emergency contact number CANNOT be the same as primary phone number
+    if (cleanEmergency && cleanPrimaryPhone === cleanEmergency) {
+      alert("Emergency contact number cannot be the same as your primary mobile phone number. Please enter a different number (e.g. Parent/Guardian).");
+      return;
+    }
+
     setCurrentStep(2);
   };
 
@@ -146,9 +166,49 @@ export default function OnboardGuestPage({
     setCurrentStep(3);
   };
 
-  // Final Action: Complete Guest Onboarding directly after Step 3
+  // Upload handler pushing to Firebase Cloud Storage live bucket
+  const handleFileUpload = async (
+    docType: "photo" | "aadhaar_front" | "aadhaar_back" | "aadhaar_pdf",
+    file: File
+  ) => {
+    const val = validateDocumentFile(file);
+    if (!val.valid) {
+      alert(val.error);
+      return;
+    }
+
+    setUploadingState((prev) => ({ ...prev, [docType]: true }));
+
+    try {
+      // Step 1: Auto-compress client side
+      const proc = await autoCompressImage(file);
+
+      if (docType === "photo") setPhotoDoc(proc);
+      if (docType === "aadhaar_front") setAadhaarFrontDoc(proc);
+      if (docType === "aadhaar_back") setAadhaarBackDoc(proc);
+
+      // Step 2: Push to Live Firebase Storage Container
+      const tempId = `guest-${Date.now()}`;
+      const cloudUrl = await uploadKycDocumentToFirebase(
+        propertyId,
+        tempId,
+        docType,
+        proc.file,
+        proc.fileName
+      );
+
+      if (docType === "photo") setPhotoUrl(cloudUrl);
+      setPhotoUploaded(true);
+    } catch (e: any) {
+      alert(`Error uploading file to storage: ${e?.message || e}`);
+    } finally {
+      setUploadingState((prev) => ({ ...prev, [docType]: false }));
+    }
+  };
+
+  // Final Action: Complete Guest Onboarding
   const handleFinalGuestSubmit = () => {
-    const newId = `occ-${Date.now()}`;
+    const newId = `guest-${Date.now()}`;
     const formattedCheckIn = new Date(checkInDate).toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -156,45 +216,49 @@ export default function OnboardGuestPage({
     });
     const formattedCheckOut = new Date(checkOutDate).toLocaleDateString(
       "en-GB",
-      { day: "2-digit", month: "short" }
+      { day: "2-digit", month: "short", year: "numeric" }
     );
     const fullPhoneNumber = `${countryCode} ${phone.trim()}`;
     const fullEmergencyPhone = emergencyPhone.trim()
       ? `${emergencyCountryCode} ${emergencyPhone.trim()}`
       : "+91 98000 11122";
 
+    // Calculate stay duration
+    const diffTime = Math.abs(
+      new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()
+    );
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 7;
+
     const newGuest: Occupant = {
       id: newId,
       name: fullName.trim(),
       phone: fullPhoneNumber,
-      email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@guest.com`,
       stayType: "Guest",
       lifecycleStatus: "Active",
       paymentStatus: "Paid",
-      daysDiff: 7,
-      daysRemainingText: "—",
+      daysDiff: diffDays,
+      daysRemainingText: `${diffDays} Days Remaining`,
       rentAmount: totalTariff,
       dueDate: formattedCheckOut,
-      dueDay: 10,
+      dueDay: new Date(checkOutDate).getDate(),
       lastPaidDate: formattedCheckIn,
-      roomNumber: selectedBed ? selectedBed.roomNumber : "102",
-      bedCode: selectedBed ? selectedBed.bedCode : "BED D",
+      roomNumber: selectedBed ? selectedBed.roomNumber : "101",
+      bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedCheckIn,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-        fullName
-      )}`,
+      avatar: photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
       kycVerified: photoUploaded,
       hasPdfAgreement: false,
       address: address.trim(),
-      aadhaarNumber: "XXXX-XXXX-4567",
+      aadhaarNumber: "XXXX-XXXX-8811",
       emergencyContact: {
-        name: "Emergency Contact",
+        name: "Parent / Guardian",
         phone: fullEmergencyPhone,
-        relation: "Friend",
+        relation: "Family",
       },
     };
 
-    // Prepend to MOCK_OCCUPANTS_200
+    // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)
     MOCK_OCCUPANTS_200.unshift(newGuest);
 
     // Update bed status in propertyStore
@@ -211,9 +275,8 @@ export default function OnboardGuestPage({
                 if (bd.bedCode !== selectedBed.bedCode) return bd;
                 return {
                   ...bd,
-                  status: "Guest" as const,
+                  status: "Occupied" as const,
                   occupant: newGuest,
-                  guestCheckoutDate: formattedCheckOut,
                 };
               }),
             };
@@ -229,7 +292,7 @@ export default function OnboardGuestPage({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
+    <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-purple-500/20 selection:text-purple-700">
       {/* Left Sidebar */}
       <PropertySidebar
         propertyId={propertyId}
@@ -250,28 +313,23 @@ export default function OnboardGuestPage({
           <div className="flex items-center gap-2 text-xs text-gray-400 font-semibold uppercase tracking-wider">
             <Link
               href={`/p/${propertyId}/tenants`}
-              className="hover:text-[#c2652a] flex items-center gap-1"
+              className="hover:text-purple-700 flex items-center gap-1"
             >
               <ChevronLeft className="w-4 h-4" /> Tenant Operations
             </Link>
             <span>/</span>
-            <span className="text-purple-700 font-bold">New Guest Onboarding</span>
+            <span className="text-purple-900 font-bold">New Short-Term Guest</span>
           </div>
 
-          {/* Stepper Header */}
+          {/* Stepper Header (Streamlined 3 Steps for Guests!) */}
           <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                    🟣 SHORT-TERM GUEST
-                  </span>
-                </div>
-                <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900 mt-1">
-                  Onboard Short-term Guest
+                <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2">
+                  Onboard Short-term Guest <span className="text-xs bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-sans font-bold">🟣 SHORT-STAY</span>
                 </h1>
                 <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                  Streamlined 3-step wizard for short stays (No agreement required)
+                  Streamlined 3-step wizard for daily/weekly guests (No lease agreement required)
                 </p>
               </div>
 
@@ -283,9 +341,9 @@ export default function OnboardGuestPage({
             {/* Desktop 3-Step Stepper Bar */}
             <div className="hidden md:flex items-center justify-between pt-2">
               {[
-                { step: 1, label: "1. Guest Details & Dates" },
+                { step: 1, label: "1. Guest & Stay Details" },
                 { step: 2, label: "2. Bed Allocation" },
-                { step: 3, label: "3. Quick KYC Photo" },
+                { step: 3, label: "3. Quick KYC & Photo" },
               ].map((s) => {
                 const isActive = currentStep === s.step;
                 const isDone = currentStep > s.step;
@@ -319,7 +377,7 @@ export default function OnboardGuestPage({
             </div>
           </div>
 
-          {/* STEP 1: GUEST PERSONAL & STAY DETAILS */}
+          {/* STEP 1: GUEST PERSONAL & STAY DETAILS (NO Workplace/Office fields!) */}
           {currentStep === 1 && (
             <form
               onSubmit={handleStep1Next}
@@ -337,75 +395,85 @@ export default function OnboardGuestPage({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Vikram Malhotra"
+                    placeholder="e.g. Rohan Verma"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
                 </div>
 
+                {/* Primary Mobile Phone (Strict 10 Digits) */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Mobile Phone Number *
+                    Mobile Phone Number * (10 Digits)
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="w-16 px-2.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600 shrink-0 bg-gray-50"
+                      className="w-16 px-2.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700 shrink-0 bg-gray-50"
                       title="Country Code (default +91)"
                     />
                     <input
                       type="tel"
                       required
-                      placeholder="98111 22334"
+                      maxLength={10}
+                      placeholder="9876543210"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   </div>
+                  <span className="text-[10px] text-gray-400 mt-1 block">
+                    Format: +91 followed by 10 digit mobile number
+                  </span>
                 </div>
 
+                {/* Emergency Contact Number (Cannot be same as Primary Phone) */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Emergency Contact Number
+                    Emergency Contact Number * (Must be different)
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={emergencyCountryCode}
                       onChange={(e) => setEmergencyCountryCode(e.target.value)}
-                      className="w-16 px-2.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600 shrink-0 bg-gray-50"
+                      className="w-16 px-2.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700 shrink-0 bg-gray-50"
                       title="Country Code (default +91)"
                     />
                     <input
                       type="tel"
-                      placeholder="98000 11122"
+                      maxLength={10}
+                      placeholder="9812345678 (Parent/Guardian)"
                       value={emergencyPhone}
-                      onChange={(e) => setEmergencyPhone(e.target.value)}
-                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                      onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   </div>
+                  <span className="text-[10px] text-purple-700 font-medium mt-1 block">
+                    ⚠️ Cannot be identical to primary mobile number
+                  </span>
                 </div>
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Permanent Address
+                    Home Address
                   </label>
                   <input
                     type="text"
-                    placeholder="City / State"
+                    placeholder="City, State"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
                 </div>
               </div>
 
               {/* Guest Stay Dates & Tariff Subsection */}
               <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3 pt-4">
-                <Calendar className="w-5 h-5 text-purple-700" /> Stay Dates & Guest Tariff
+                <Calendar className="w-5 h-5 text-purple-700" /> Short Stay Dates & Tariff
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
@@ -418,20 +486,20 @@ export default function OnboardGuestPage({
                     required
                     value={checkInDate}
                     onChange={(e) => setCheckInDate(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
                 </div>
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Check-out Date *
+                    Expected Check-out *
                   </label>
                   <input
                     type="date"
                     required
                     value={checkOutDate}
                     onChange={(e) => setCheckOutDate(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
                 </div>
 
@@ -444,7 +512,7 @@ export default function OnboardGuestPage({
                     required
                     value={totalTariff}
                     onChange={(e) => setTotalTariff(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
                 </div>
 
@@ -456,7 +524,7 @@ export default function OnboardGuestPage({
                     type="number"
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
                 </div>
               </div>
@@ -478,10 +546,10 @@ export default function OnboardGuestPage({
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
                 <div>
                   <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
-                    <Bed className="w-5 h-5 text-purple-700" /> Select Guest Bed for {fullName || "Guest"}
+                    <Bed className="w-5 h-5 text-purple-700" /> Select Bed for {fullName || "Guest"}
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                    Showing available 🟢 & vacating 🟧 beds across floor navigation for dates ({checkInDate} to {checkOutDate})
+                    Showing available 🟢 & vacating 🟧 beds across floor navigation (Occupied beds hidden)
                   </p>
                 </div>
 
@@ -589,7 +657,7 @@ export default function OnboardGuestPage({
                                     }
                                     className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
                                       isSelected
-                                        ? "bg-purple-700 text-white border-purple-800 ring-2 ring-purple-600/30 shadow-md scale-[1.02]"
+                                        ? "bg-purple-700 text-white border-purple-700 ring-2 ring-purple-700/30 shadow-md scale-[1.02]"
                                         : isVacating
                                         ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
                                         : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
@@ -641,7 +709,7 @@ export default function OnboardGuestPage({
             </div>
           )}
 
-          {/* STEP 3: QUICK KYC PHOTO & COMPLETE GUEST ONBOARDING */}
+          {/* STEP 3: QUICK KYC PHOTO & COMPLETE GUEST ONBOARDING WITH LIVE FIREBASE STORAGE UPLOADS */}
           {currentStep === 3 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in text-xs">
               <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
@@ -664,30 +732,26 @@ export default function OnboardGuestPage({
                   </div>
 
                   <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center justify-center gap-2 shadow-2xs transition-all w-full">
-                    <Upload className="w-4 h-4 text-purple-700 shrink-0" />
+                    {uploadingState.photo ? (
+                      <Loader2 className="w-4 h-4 text-purple-700 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4 text-purple-700 shrink-0" />
+                    )}
                     {photoDoc ? "Change Photo" : "Upload / Capture Photo"}
                     <input
                       type="file"
                       accept="image/jpeg,image/png"
                       className="hidden"
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file) return;
-                        const val = validateDocumentFile(file);
-                        if (!val.valid) {
-                          alert(val.error);
-                          return;
-                        }
-                        const proc = await autoCompressImage(file);
-                        setPhotoDoc(proc);
-                        setPhotoUploaded(true);
+                        if (file) handleFileUpload("photo", file);
                       }}
                     />
                   </label>
 
                   {photoDoc && (
                     <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
-                      ✓ Uploaded: <strong>{photoDoc.fileName}</strong> ({photoDoc.compressedSizeMb} MB)
+                      ✓ Uploaded & Synced to Cloud Storage: <strong>{photoDoc.fileName}</strong>
                     </div>
                   )}
                 </div>
@@ -741,23 +805,19 @@ export default function OnboardGuestPage({
                           ID Card Front *
                         </span>
                         <label className="cursor-pointer px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-[11px] font-bold text-gray-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all w-full">
-                          <Upload className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                          {uploadingState.front ? (
+                            <Loader2 className="w-3.5 h-3.5 text-purple-700 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                          )}
                           {aadhaarFrontDoc ? "Change Front" : "Upload Front"}
                           <input
                             type="file"
                             accept="image/jpeg,image/png"
                             className="hidden"
-                            onChange={async (e) => {
+                            onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (!file) return;
-                              const val = validateDocumentFile(file);
-                              if (!val.valid) {
-                                alert(val.error);
-                                return;
-                              }
-                              const proc = await autoCompressImage(file);
-                              setAadhaarFrontDoc(proc);
-                              setPhotoUploaded(true);
+                              if (file) handleFileUpload("aadhaar_front", file);
                             }}
                           />
                         </label>
@@ -774,23 +834,19 @@ export default function OnboardGuestPage({
                           ID Card Back *
                         </span>
                         <label className="cursor-pointer px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-[11px] font-bold text-gray-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all w-full">
-                          <Upload className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                          {uploadingState.back ? (
+                            <Loader2 className="w-3.5 h-3.5 text-purple-700 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                          )}
                           {aadhaarBackDoc ? "Change Back" : "Upload Back"}
                           <input
                             type="file"
                             accept="image/jpeg,image/png"
                             className="hidden"
-                            onChange={async (e) => {
+                            onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (!file) return;
-                              const val = validateDocumentFile(file);
-                              if (!val.valid) {
-                                alert(val.error);
-                                return;
-                              }
-                              const proc = await autoCompressImage(file);
-                              setAadhaarBackDoc(proc);
-                              setPhotoUploaded(true);
+                              if (file) handleFileUpload("aadhaar_back", file);
                             }}
                           />
                         </label>
@@ -805,23 +861,19 @@ export default function OnboardGuestPage({
                     /* MODE B: Single PDF (Max 1MB) */
                     <div className="w-full space-y-2 pt-1">
                       <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center justify-center gap-2 shadow-2xs transition-all w-full">
-                        <Upload className="w-4 h-4 text-purple-700" />
+                        {uploadingState.pdf ? (
+                          <Loader2 className="w-4 h-4 text-purple-700 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4 text-purple-700" />
+                        )}
                         {aadhaarFrontDoc ? "Change PDF File" : "Upload ID PDF"}
                         <input
                           type="file"
                           accept="application/pdf"
                           className="hidden"
-                          onChange={async (e) => {
+                          onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (!file) return;
-                            const val = validateDocumentFile(file);
-                            if (!val.valid) {
-                              alert(val.error);
-                              return;
-                            }
-                            const proc = await autoCompressImage(file);
-                            setAadhaarFrontDoc(proc);
-                            setPhotoUploaded(true);
+                            if (file) handleFileUpload("aadhaar_pdf", file);
                           }}
                         />
                       </label>
@@ -862,6 +914,8 @@ export default function OnboardGuestPage({
                     onClick={() => {
                       setPhotoUploaded(false);
                       setPhotoDoc(null);
+                      setAadhaarFrontDoc(null);
+                      setAadhaarBackDoc(null);
                       handleFinalGuestSubmit();
                     }}
                     className="flex-1 md:flex-none px-5 py-3.5 rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs shadow-2xs min-h-[48px]"
@@ -886,23 +940,29 @@ export default function OnboardGuestPage({
         {showSuccessModal && createdGuest && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl border border-purple-200 shadow-2xl max-w-md w-full p-8 text-center space-y-6 animate-in zoom-in-95">
-              <div className="w-20 h-20 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mx-auto shadow-inner text-3xl">
+              <div className="w-20 h-20 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mx-auto shadow-inner text-3xl">
                 🎉
               </div>
 
               <div>
                 <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold">
-                  🟣 GUEST ONBOARDED
+                  🟣 SHORT-TERM GUEST ONBOARDED
                 </span>
                 <h3 className="font-serif font-bold text-2xl text-gray-900 mt-2">
                   {createdGuest.name}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                  Assigned to Room {createdGuest.roomNumber} ({createdGuest.bedCode}) until {createdGuest.dueDate}
+                  Successfully assigned to Room {createdGuest.roomNumber} ({createdGuest.bedCode})
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-xs text-left space-y-2">
+              <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 text-xs text-left space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-medium">Stay Duration</span>
+                  <span className="font-mono font-bold text-purple-900">
+                    {createdGuest.daysDiff} Days ({createdGuest.joiningDate} → {createdGuest.dueDate})
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500 font-medium">Total Tariff</span>
                   <span className="font-mono font-bold text-purple-700">
@@ -910,15 +970,9 @@ export default function OnboardGuestPage({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 font-medium">Check-in Date</span>
-                  <span className="font-semibold text-gray-900">
-                    {createdGuest.joiningDate}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500 font-medium">Auto Checkout Date</span>
-                  <span className="font-bold text-purple-700">
-                    {createdGuest.dueDate}
+                  <span className="text-gray-500 font-medium">KYC Status</span>
+                  <span className="font-bold text-emerald-600">
+                    {createdGuest.kycVerified ? "VERIFIED ✓" : "PENDING 🟡"}
                   </span>
                 </div>
               </div>
