@@ -578,9 +578,9 @@ export default function IndividualTenantProfilePage({
               {occupantState.stayType === "Guest" ? (
                 <button
                   onClick={() => setShowExtendStayModal(true)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-[#c2652a] font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
                 >
-                  <RefreshCw className="w-4 h-4 text-blue-600" /> 🔁 Extend / Book Next Stay
+                  <RefreshCw className="w-4 h-4 text-[#c2652a]" /> 🔁 Extend / Book Next Stay
                 </button>
               ) : (
                 <button
