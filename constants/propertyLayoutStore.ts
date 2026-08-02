@@ -104,17 +104,43 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
   return floors;
 }
 
-// In-Memory Global Reactive Store for Property Structure (Persists updates across page navigation)
-let GLOBAL_PROPERTY_STRUCTURE: FloorConfig[] = generateInitialPropertyStructure();
+// Persistent Reactive Store for Property Structure (Persists in localStorage across page reloads & code edits)
+const STORAGE_KEY = "tenopilot_property_layout_v1";
+
+let GLOBAL_PROPERTY_STRUCTURE: FloorConfig[] | null = null;
 const listeners: Array<() => void> = [];
+
+function loadStructure(): FloorConfig[] {
+  if (GLOBAL_PROPERTY_STRUCTURE) return GLOBAL_PROPERTY_STRUCTURE;
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        GLOBAL_PROPERTY_STRUCTURE = JSON.parse(saved);
+        return GLOBAL_PROPERTY_STRUCTURE!;
+      }
+    } catch (e) {
+      console.warn("Failed to load property layout from localStorage", e);
+    }
+  }
+  GLOBAL_PROPERTY_STRUCTURE = generateInitialPropertyStructure();
+  return GLOBAL_PROPERTY_STRUCTURE;
+}
 
 export const propertyStore = {
   getStructure(): FloorConfig[] {
-    return GLOBAL_PROPERTY_STRUCTURE;
+    return loadStructure();
   },
 
   updateStructure(newStructure: FloorConfig[]) {
     GLOBAL_PROPERTY_STRUCTURE = newStructure;
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newStructure));
+      } catch (e) {
+        console.warn("Failed to save property layout to localStorage", e);
+      }
+    }
     listeners.forEach((l) => l());
   },
 
@@ -129,7 +155,7 @@ export const propertyStore = {
   // Helper to extract all unique room numbers for filter dropdowns
   getRoomNumbers(): string[] {
     const roomSet = new Set<string>();
-    GLOBAL_PROPERTY_STRUCTURE.forEach((fl) => {
+    this.getStructure().forEach((fl) => {
       fl.rooms.forEach((rm) => roomSet.add(rm.roomNumber));
     });
     return Array.from(roomSet).sort();
@@ -137,6 +163,6 @@ export const propertyStore = {
 
   // Helper to extract all floor names
   getFloorNames(): string[] {
-    return GLOBAL_PROPERTY_STRUCTURE.map((fl) => fl.floorName);
+    return this.getStructure().map((fl) => fl.floorName);
   },
 };
