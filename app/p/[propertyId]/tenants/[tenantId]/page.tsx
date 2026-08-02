@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import {
   ChevronLeft,
   Edit,
@@ -68,66 +68,87 @@ export default function IndividualTenantProfilePage({
   // Agreement View Modal State
   const [viewAgreementModal, setViewAgreementModal] = useState<boolean>(false);
 
-  // Find occupant in mock dataset or fallback
+  // Find occupant in occupantStore or MOCK_OCCUPANTS_200 dataset
   const occupant = useMemo(() => {
-    return (
-      MOCK_OCCUPANTS_200.find((o) => o.id === tenantId) || {
-        id: tenantId,
-        name: "Amara Okafor",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AmaraOkafor",
-        phone: "+91 98765 43210",
-        email: "amara.o@techrec.co",
-        stayType: "Tenant" as const,
-        roomNumber: "102",
-        bedCode: "Bed A",
-        joiningDate: "12 Oct 2023",
-        lastPaidDate: "01 Jul 2026",
-        dueDate: "01 Aug 2026",
-        dueDay: 1,
-        daysRemainingText: "IN 20 DAYS",
-        daysDiff: 20,
-        rentAmount: 24500,
-        paymentStatus: "Paid" as const,
-        lifecycleStatus: "Active" as const,
-        aadhaarNumber: "XXXX-XXXX-4819",
-        emergencyContact: {
-          name: "Suresh Okafor",
-          phone: "+91 98765 11223",
-          relation: "Father",
-        },
-      }
-    );
+    const allStores = occupantStore.getOccupants();
+    const match = allStores.find((o) => o.id === tenantId) || MOCK_OCCUPANTS_200.find((o) => o.id === tenantId);
+    if (match) return match;
+
+    return {
+      id: tenantId,
+      name: "Amara Okafor",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AmaraOkafor",
+      phone: "+91 98765 43210",
+      email: "amara.o@techrec.co",
+      stayType: "Tenant" as const,
+      roomNumber: "102",
+      bedCode: "Bed A",
+      joiningDate: "12 Oct 2023",
+      lastPaidDate: "01 Jul 2026",
+      dueDate: "01 Aug 2026",
+      dueDay: 1,
+      daysRemainingText: "IN 20 DAYS",
+      daysDiff: 20,
+      rentAmount: 24500,
+      paymentStatus: "Paid" as const,
+      lifecycleStatus: "Active" as const,
+      aadhaarNumber: "XXXX-XXXX-4819",
+      emergencyContact: {
+        name: "Suresh Okafor",
+        phone: "+91 98765 11223",
+        relation: "Father",
+      },
+    };
   }, [tenantId]);
 
   // Local state for dynamic occupant edits
   const [occupantState, setOccupantState] = useState<Occupant>(occupant);
 
   // Payment History State (Starts empty [] for Booked status or newly onboarded profiles!)
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>(() => {
-    if (occupant.lifecycleStatus === "Booked") return [];
-    if (occupant.stayType === "Guest" && occupant.id.startsWith("occ-new-")) return [];
-    
-    return [
-      {
-        id: "pay-1",
-        month: "July 2026",
-        date: "01 Jul 2026",
-        amount: occupant.rentAmount,
-        mode: "UPI (HDFC)",
-        receiptNo: "#REC-73104",
-        status: "PAID",
-      },
-      {
-        id: "pay-2",
-        month: "June 2026",
-        date: "01 Jun 2026",
-        amount: occupant.rentAmount,
-        mode: "UPI (GPay)",
-        receiptNo: "#REC-62155",
-        status: "PAID",
-      },
-    ];
-  });
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
+
+  // Synchronize occupantState and paymentHistory whenever tenantId/occupant route parameter changes!
+  useEffect(() => {
+    setOccupantState(occupant);
+    if (occupant.lifecycleStatus === "Booked" || (occupant.stayType === "Guest" && occupant.id.startsWith("occ-new-")) || occupant.id.startsWith("occ-test-")) {
+      if (occupant.lifecycleStatus === "Booked" || occupant.lastPaidDate === "Pending Check-In") {
+        setPaymentHistory([]);
+      } else {
+        setPaymentHistory([
+          {
+            id: "pay-1",
+            month: "August 2026",
+            date: occupant.lastPaidDate || "02 Aug 2026",
+            amount: occupant.rentAmount,
+            mode: "UPI (HDFC)",
+            receiptNo: "#REC-88210",
+            status: "PAID",
+          },
+        ]);
+      }
+    } else {
+      setPaymentHistory([
+        {
+          id: "pay-1",
+          month: "July 2026",
+          date: "01 Jul 2026",
+          amount: occupant.rentAmount,
+          mode: "UPI (HDFC)",
+          receiptNo: "#REC-73104",
+          status: "PAID",
+        },
+        {
+          id: "pay-2",
+          month: "June 2026",
+          date: "01 Jun 2026",
+          amount: occupant.rentAmount,
+          mode: "UPI (GPay)",
+          receiptNo: "#REC-62155",
+          status: "PAID",
+        },
+      ]);
+    }
+  }, [occupant, tenantId]);
 
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
