@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   Sparkles,
   Info,
+  Filter,
 } from "lucide-react";
 
 export default function OnboardTenantPage({
@@ -67,7 +68,8 @@ export default function OnboardTenantPage({
   const [depositAmount, setDepositAmount] = useState<number>(25000);
   const [rentDueDate, setRentDueDate] = useState<string>("1st of month");
 
-  // Form State — Step 2: Bed Allocation
+  // Form State — Step 2: Bed Allocation & Desired Sharing Filter (Defaults to 2 Sharing)
+  const [desiredSharingFilter, setDesiredSharingFilter] = useState<number | "ALL">(2);
   const [selectedBed, setSelectedBed] = useState<{
     bedId: string;
     bedCode: string;
@@ -86,14 +88,18 @@ export default function OnboardTenantPage({
   // Read available property structure from propertyStore
   const propertyStructure = useMemo(() => propertyStore.getStructure(), []);
 
-  // Filter Floor Navigation structure for Onboarding:
-  // Shows ONLY Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
-  // Reuses exact Floor -> Room -> Bed visual hierarchy!
+  // Intelligent Floor Navigation Filter for Onboarding:
+  // 1. Shows ONLY Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
+  // 2. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
   const onboardingFloorNavigation = useMemo(() => {
     return propertyStructure
       .map((fl) => ({
         ...fl,
         rooms: fl.rooms
+          .filter((rm) => {
+            if (desiredSharingFilter === "ALL") return true;
+            return rm.sharingType === desiredSharingFilter;
+          })
           .map((rm) => ({
             ...rm,
             beds: rm.beds.filter(
@@ -103,7 +109,7 @@ export default function OnboardTenantPage({
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyStructure]);
+  }, [propertyStructure, desiredSharingFilter]);
 
   // Validation per step
   const handleStep1Next = (e: React.FormEvent) => {
@@ -465,107 +471,154 @@ export default function OnboardTenantPage({
             </form>
           )}
 
-          {/* STEP 2: REUSED FLOOR NAVIGATION BED ALLOCATION (Privacy Protected - No Tenant Names!) */}
+          {/* STEP 2: REUSED FLOOR NAVIGATION BED ALLOCATION WITH INTELLIGENT DESIRED SHARING FILTER */}
           {currentStep === 2 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-gray-100 pb-3">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
                 <div>
                   <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
                     <Bed className="w-5 h-5 text-[#c2652a]" /> Select Bed for {fullName || "Tenant"}
                   </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5 font-medium">
                     Showing available 🟢 & vacating 🟧 beds across floor navigation (Occupied beds hidden)
                   </p>
                 </div>
 
                 {selectedBed && (
-                  <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs">
+                  <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs shrink-0">
                     ✓ Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
                   </span>
                 )}
               </div>
 
-              {/* Floor Navigation Hierarchy Grid (Reused from Property Map) */}
-              <div className="space-y-6">
-                {onboardingFloorNavigation.map((floor) => (
-                  <div key={floor.id} className="space-y-3">
-                    {/* Floor Header Bar */}
-                    <div className="flex items-center justify-between border-b border-gray-200 pb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-gray-800">
-                          {floor.floorName}
-                        </span>
-                        <span className="text-[11px] text-gray-400 font-bold">
-                          — {floor.floorSubtitle}
-                        </span>
-                      </div>
-                    </div>
+              {/* INTELLIGENT DESIRED ROOM SHARING FILTER (Defaults to 2 Sharing) */}
+              <div className="p-4 rounded-xl bg-orange-50/70 border border-orange-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <Filter className="w-3.5 h-3.5 text-[#c2652a]" /> Filter by Desired Room Sharing:
+                  </label>
+                  <span className="text-[10px] text-gray-500 font-medium">
+                    Pre-selected to 2 Sharing by default
+                  </span>
+                </div>
 
-                    {/* Rooms Cards Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {floor.rooms.map((room) => (
-                        <div
-                          key={room.id}
-                          className="bg-[#fcfcfc] rounded-xl border border-gray-200 p-4 space-y-3 shadow-2xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-serif font-bold text-base text-gray-900">
-                                Room {room.roomNumber}
-                              </h3>
-                              <span className="text-[9px] text-gray-400 font-bold uppercase">
-                                {room.sharingType} SHARING CAPACITY
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                  {[
+                    { val: "ALL", label: "ALL SHARING" },
+                    { val: 1, label: "1 SHARING (Single)" },
+                    { val: 2, label: "2 SHARING (Double)" },
+                    { val: 3, label: "3 SHARING (Triple)" },
+                    { val: 4, label: "4 SHARING (Four)" },
+                  ].map((opt) => {
+                    const isActive = desiredSharingFilter === opt.val;
+                    return (
+                      <button
+                        type="button"
+                        key={String(opt.val)}
+                        onClick={() => setDesiredSharingFilter(opt.val as any)}
+                        className={`px-3.5 py-1.5 rounded-full transition-all ${
+                          isActive
+                            ? "bg-[#c2652a] text-white shadow-xs"
+                            : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Floor Navigation Hierarchy Grid */}
+              {onboardingFloorNavigation.length > 0 ? (
+                <div className="space-y-6">
+                  {onboardingFloorNavigation.map((floor) => (
+                    <div key={floor.id} className="space-y-3">
+                      {/* Floor Header Bar */}
+                      <div className="flex items-center justify-between border-b border-gray-200 pb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-gray-800">
+                            {floor.floorName}
+                          </span>
+                          <span className="text-[11px] text-gray-400 font-bold">
+                            — {floor.floorSubtitle}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Rooms Cards Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {floor.rooms.map((room) => (
+                          <div
+                            key={room.id}
+                            className="bg-[#fcfcfc] rounded-xl border border-gray-200 p-4 space-y-3 shadow-2xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-serif font-bold text-base text-gray-900">
+                                  Room {room.roomNumber}
+                                </h3>
+                                <span className="text-[9px] text-gray-400 font-bold uppercase">
+                                  {room.sharingType} SHARING CAPACITY
+                                </span>
+                              </div>
+                              <span className="bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-[9px] font-bold">
+                                {room.sharingType} SHARING
                               </span>
                             </div>
+
+                            {/* Bed Slot Buttons (NO Tenant Names displayed for privacy!) */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {room.beds.map((bed) => {
+                                const isSelected =
+                                  selectedBed?.bedId === bed.id;
+                                const isVacating = bed.status === "Vacating";
+
+                                return (
+                                  <button
+                                    type="button"
+                                    key={bed.id}
+                                    onClick={() =>
+                                      setSelectedBed({
+                                        bedId: bed.id,
+                                        bedCode: bed.bedCode,
+                                        roomNumber: room.roomNumber,
+                                        floorName: floor.floorName,
+                                      })
+                                    }
+                                    className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
+                                      isSelected
+                                        ? "bg-orange-50 border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-xs"
+                                        : isVacating
+                                        ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
+                                        : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
+                                    }`}
+                                  >
+                                    <span className="font-bold text-xs">
+                                      {bed.bedCode}
+                                    </span>
+
+                                    {/* Status & Date Badge ONLY — NO Tenant Names! */}
+                                    <span className="text-[10px] font-bold">
+                                      {isVacating
+                                        ? `Vacating ${bed.vacatingDate || "15 Aug"}`
+                                        : "Available 🟢"}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-
-                          {/* Bed Slot Buttons (NO Tenant Names displayed for privacy!) */}
-                          <div className="grid grid-cols-2 gap-2">
-                            {room.beds.map((bed) => {
-                              const isSelected =
-                                selectedBed?.bedId === bed.id;
-                              const isVacating = bed.status === "Vacating";
-
-                              return (
-                                <button
-                                  type="button"
-                                  key={bed.id}
-                                  onClick={() =>
-                                    setSelectedBed({
-                                      bedId: bed.id,
-                                      bedCode: bed.bedCode,
-                                      roomNumber: room.roomNumber,
-                                      floorName: floor.floorName,
-                                    })
-                                  }
-                                  className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
-                                    isSelected
-                                      ? "bg-orange-50 border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-xs"
-                                      : isVacating
-                                      ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
-                                      : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
-                                  }`}
-                                >
-                                  <span className="font-bold text-xs">
-                                    {bed.bedCode}
-                                  </span>
-
-                                  {/* Status & Date Badge ONLY — NO Tenant Names! */}
-                                  <span className="text-[10px] font-bold">
-                                    {isVacating
-                                      ? `Vacating ${bed.vacatingDate || "15 Aug"}`
-                                      : "Available 🟢"}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-xs text-gray-500 bg-gray-50 rounded-xl border border-gray-200">
+                  No available or vacating beds match the selected {desiredSharingFilter}-sharing filter. Try selecting "ALL SHARING".
+                </div>
+              )}
 
               <div className="flex justify-between pt-4 border-t border-gray-100">
                 <button
