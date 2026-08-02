@@ -350,6 +350,36 @@ For all profiles tagged as `"BOOKED"`, an interactive **`Check In ▼`** dropdow
 
 ---
 
+# Update 18 — Profile Context Hygiene for Booked Occupants and Short-Term Guests
+
+Profile views (`/p/[propertyId]/tenants/[tenantId]`) enforce strict context hygiene across both Tenants and Guests:
+
+1. **Booked Occupants (`lifecycleStatus: "Booked"`)**:
+   - **Payment History**: Renders `"No payment history recorded yet (Pending Check-In)"` instead of dummy historical transactions.
+   - **Timeline Milestones**: `Booked` milestone is completed (Green). `Checked In` milestone is rendered as `Pending Check-In` (Grey Outline).
+   - **Check-In Actions**: Render **`🔑 Complete Check-In`** and **`📅 Postpone Check-In`** controls for both Tenants and Guests.
+
+2. **Short-Term Guests (`stayType: "Guest"`)**:
+   - **Agreement Card**: Displays `"Short-Term Guest Stay — No Long-Term Lease Agreement Required"` unless promoted.
+   - **Promote Action**: Renders **`👔 Promote to Long-Term Tenant`** action button.
+
+---
+
+# Update 19 — Pending KYC Card Policy & Brand New Profile Financial Isolation
+
+Profile views (`/p/[propertyId]/tenants/[tenantId]`) enforce strict data hygiene for newly created profiles and pending KYC documents:
+
+1. **Brand New Profiles (Newly Onboarded Tenants & Guests)**:
+   - Payment history starts empty (0 transactions). Does NOT inherit dummy mock historical transactions.
+   - Total Rent Paid KPI starts at ₹0 until actual rent payments are submitted.
+
+2. **Pending KYC Document Policy (`kycVerified: false`)**:
+   - Unverified KYC document cards are hidden from display.
+   - A clean privacy status banner renders: `"🟡 KYC Documents Pending Verification — Upload KYC documents during onboarding to enable secure view-only cards."`
+   - Applies to both Tenants and Guests!
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -371,6 +401,8 @@ This revision introduces:
 - Past Tenant Room Display Policy (`— (Vacated)`)
 - Interactive Table Column Sorting (`PAYMENT DUE` and `DAYS REMAINING`)
 - Booked Tenant Check-In & Postpone Workflow (`Complete Check-In` & `Postpone Check-In`)
+- Profile Context Hygiene for Booked Occupants and Short-Term Guests
+- Pending KYC Card Policy & Brand New Profile Financial Isolation
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 

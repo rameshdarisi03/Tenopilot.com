@@ -102,45 +102,32 @@ export default function IndividualTenantProfilePage({
   // Local state for dynamic occupant edits
   const [occupantState, setOccupantState] = useState<Occupant>(occupant);
 
-  // Payment History State
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([
-    {
-      id: "pay-1",
-      month: "July 2026",
-      date: "01 Jul 2026",
-      amount: occupantState.rentAmount,
-      mode: "UPI (HDFC)",
-      receiptNo: "#REC-73104",
-      status: "PAID",
-    },
-    {
-      id: "pay-2",
-      month: "June 2026",
-      date: "01 Jun 2026",
-      amount: occupantState.rentAmount,
-      mode: "UPI (GPay)",
-      receiptNo: "#REC-62155",
-      status: "PAID",
-    },
-    {
-      id: "pay-3",
-      month: "May 2026",
-      date: "01 May 2026",
-      amount: occupantState.rentAmount,
-      mode: "UPI (PhonePe)",
-      receiptNo: "#REC-59210",
-      status: "PAID",
-    },
-    {
-      id: "pay-4",
-      month: "April 2026",
-      date: "01 Apr 2026",
-      amount: occupantState.rentAmount,
-      mode: "Cash",
-      receiptNo: "#REC-48123",
-      status: "PAID",
-    },
-  ]);
+  // Payment History State (Starts empty [] for Booked status or newly onboarded profiles!)
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>(() => {
+    if (occupant.lifecycleStatus === "Booked") return [];
+    if (occupant.stayType === "Guest" && occupant.id.startsWith("occ-new-")) return [];
+    
+    return [
+      {
+        id: "pay-1",
+        month: "July 2026",
+        date: "01 Jul 2026",
+        amount: occupant.rentAmount,
+        mode: "UPI (HDFC)",
+        receiptNo: "#REC-73104",
+        status: "PAID",
+      },
+      {
+        id: "pay-2",
+        month: "June 2026",
+        date: "01 Jun 2026",
+        amount: occupant.rentAmount,
+        mode: "UPI (GPay)",
+        receiptNo: "#REC-62155",
+        status: "PAID",
+      },
+    ];
+  });
 
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
@@ -458,10 +445,10 @@ export default function IndividualTenantProfilePage({
                 Total Rent Paid
               </p>
               <p className="text-2xl font-bold font-serif text-gray-900">
-                ₹2,56,500
+                ₹{paymentHistory.reduce((sum, item) => sum + item.amount, 0).toLocaleString("en-IN")}
               </p>
               <p className="text-[10px] text-green-600 font-bold mt-1.5">
-                ↑ 2.5% THIS MONTH
+                {paymentHistory.length > 0 ? `${paymentHistory.length} PAYMENTS RECORDED 🟢` : "NO PAYMENTS YET ⚪"}
               </p>
             </div>
 
@@ -509,11 +496,15 @@ export default function IndividualTenantProfilePage({
               <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
                 Next Due Date
               </p>
-              <p className="text-xl font-bold font-serif text-gray-900">
-                {occupantState.dueDate}
+              <p className="text-base font-bold font-serif text-gray-900">
+                {occupantState.lifecycleStatus === "Booked"
+                  ? `Due on Check-In`
+                  : occupantState.dueDate}
               </p>
-              <p className="text-[10px] text-red-600 font-bold mt-1.5">
-                IN 20 DAYS
+              <p className="text-[10px] text-[#c2652a] font-bold mt-1.5">
+                {occupantState.lifecycleStatus === "Booked"
+                  ? `TARGET: ${occupantState.joiningDate}`
+                  : "NEXT RENT CYCLE"}
               </p>
             </div>
           </div>
@@ -577,7 +568,7 @@ export default function IndividualTenantProfilePage({
                 </div>
               </div>
 
-              {/* KYC Documents Card (DYNAMIC 3 COMPONENTS FOR FRONT/BACK/PHOTO, OR 2 FOR PDF/PHOTO) */}
+              {/* KYC Documents Card (PENDING KYC CARDS ARE HIDDEN UNTIL VERIFIED) */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
                   <div>
@@ -585,50 +576,31 @@ export default function IndividualTenantProfilePage({
                       KYC Documents
                     </span>
                     <span className="text-[10px] text-gray-400 font-medium">
-                      🔒 Secure View-Only ({occupantState.kycDocs?.idMode === "PDF" ? "2 Documents" : "3 Documents"})
+                      🔒 Secure View-Only ({occupantState.kycVerified ? (occupantState.kycDocs?.idMode === "PDF" ? "2 Documents" : "3 Documents") : "Pending Upload"})
                     </span>
                   </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${occupantState.kycVerified ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
                     {occupantState.kycVerified ? "VERIFIED ✓" : "PENDING 🟡"}
                   </span>
                 </div>
 
-                <div className="space-y-3">
-                  {/* 1. Profile Headshot Component */}
-                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                        <User className="w-4 h-4 text-[#c2652a]" /> Profile Headshot Photo
-                      </p>
-                      <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                        Verified & Auto-compressed 🟢
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setViewKycModal({
-                          open: true,
-                          title: "Tenant Profile Headshot",
-                          docType: "photo",
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#c2652a]" /> View
-                    </button>
+                {!occupantState.kycVerified ? (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1 text-center">
+                    <p className="font-bold">🟡 KYC Documents Pending Verification</p>
+                    <p className="text-[11px] text-amber-800">
+                      Identity proof documents have not been uploaded yet. Upload Aadhaar/Govt ID during onboarding to enable secure view-only cards.
+                    </p>
                   </div>
-
-                  {/* 2 & 3: ID Card Components (Front & Back vs PDF) */}
-                  {occupantState.kycDocs?.idMode === "PDF" ? (
-                    /* PDF Mode: Single PDF Component */
+                ) : (
+                  <div className="space-y-3">
+                    {/* 1. Profile Headshot Component */}
                     <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
                       <div>
                         <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                          <FileText className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (PDF Document)
+                          <User className="w-4 h-4 text-[#c2652a]" /> Profile Headshot Photo
                         </p>
                         <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                          Single PDF (Max 1MB) 🟢
+                          Verified & Auto-compressed 🟢
                         </p>
                       </div>
                       <button
@@ -636,51 +608,26 @@ export default function IndividualTenantProfilePage({
                         onClick={() =>
                           setViewKycModal({
                             open: true,
-                            title: "Aadhaar Card PDF Document",
-                            docType: "pdf",
+                            title: "Tenant Profile Headshot",
+                            docType: "photo",
                           })
                         }
                         className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
                       >
-                        <Eye className="w-3.5 h-3.5 text-blue-600" /> View PDF
+                        <Eye className="w-3.5 h-3.5 text-[#c2652a]" /> View
                       </button>
                     </div>
-                  ) : (
-                    /* Front & Back Mode: 2 Separate Components (Front + Back) */
-                    <>
-                      {/* Component 2: ID Card Front */}
-                      <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (Front Photo)
-                          </p>
-                          <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                            ID Front Photo 🟢
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setViewKycModal({
-                              open: true,
-                              title: "Aadhaar Card — Front Photo",
-                              docType: "front",
-                            })
-                          }
-                          className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front
-                        </button>
-                      </div>
 
-                      {/* Component 3: ID Card Back */}
+                    {/* 2 & 3: ID Card Components (Front & Back vs PDF) */}
+                    {occupantState.kycDocs?.idMode === "PDF" ? (
+                      /* PDF Mode: Single PDF Component */
                       <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
                         <div>
                           <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (Back Photo)
+                            <FileText className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (PDF Document)
                           </p>
                           <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
-                            ID Back Photo 🟢
+                            Single PDF (Max 1MB) 🟢
                           </p>
                         </div>
                         <button
@@ -688,151 +635,231 @@ export default function IndividualTenantProfilePage({
                           onClick={() =>
                             setViewKycModal({
                               open: true,
-                              title: "Aadhaar Card — Back Photo",
-                              docType: "back",
+                              title: "Aadhaar Card PDF Document",
+                              docType: "pdf",
                             })
                           }
                           className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
                         >
-                          <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back
+                          <Eye className="w-3.5 h-3.5 text-blue-600" /> View PDF
                         </button>
                       </div>
-                    </>
-                  )}
-                </div>
+                    ) : (
+                      /* Front & Back Mode: 2 Separate Components (Front + Back) */
+                      <>
+                        {/* Component 2: ID Card Front */}
+                        <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                              <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (Front Photo)
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                              ID Front Photo 🟢
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewKycModal({
+                                open: true,
+                                title: "Aadhaar Card — Front Photo",
+                                docType: "front",
+                              })
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front
+                          </button>
+                        </div>
+
+                        {/* Component 3: ID Card Back */}
+                        <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                              <ShieldCheck className="w-4 h-4 text-blue-600" /> Aadhaar / Govt ID (Back Photo)
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                              ID Back Photo 🟢
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewKycModal({
+                                open: true,
+                                title: "Aadhaar Card — Back Photo",
+                                docType: "back",
+                              })
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center gap-1 shadow-2xs"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Active Agreement Card (VIEW & DOWNLOAD PERMITTED FOR RENTAL AGREEMENT) */}
+              {/* Active Agreement Card (GUESTS DO NOT HAVE LEASE AGREEMENTS UNLESS PROMOTED) */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
                   <span className="font-bold text-gray-900 text-sm">
-                    Active Agreement
+                    {occupantState.stayType === "Guest" ? "Guest Stay Terms" : "Active Agreement"}
                   </span>
                   <span className="font-mono font-bold text-gray-500">
-                    AGR-2023-102A
+                    {occupantState.stayType === "Guest" ? "SHORT-TERM" : "AGR-2023-102A"}
                   </span>
                 </div>
 
-                <div className="space-y-2.5 text-gray-700">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Agreement Period</span>
-                    <span className="font-bold text-gray-900">
-                      12 Oct '23 - 11 Oct '25
-                    </span>
+                {occupantState.stayType === "Guest" ? (
+                  <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 space-y-2">
+                    <p className="font-bold">🟣 Short-Term Guest Stay</p>
+                    <p className="text-[11px] text-purple-800">
+                      This occupant is registered as a short-term guest. No long-term 11-month lease agreement is required.
+                    </p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Notice Period</span>
-                    <span className="font-bold text-gray-900">30 Days</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Monthly Rent</span>
-                    <span className="font-mono font-bold text-[#c2652a]">
-                      ₹{occupantState.rentAmount.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="space-y-2.5 text-gray-700">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Agreement Period</span>
+                        <span className="font-bold text-gray-900">
+                          12 Oct '23 - 11 Oct '25
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Notice Period</span>
+                        <span className="font-bold text-gray-900">30 Days</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Monthly Rent</span>
+                        <span className="font-mono font-bold text-[#c2652a]">
+                          ₹{occupantState.rentAmount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    onClick={() => setViewAgreementModal(true)}
-                    className="py-2.5 rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <Eye className="w-4 h-4 text-[#c2652a]" /> View Agreement
-                  </button>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => setViewAgreementModal(true)}
+                        className="py-2.5 rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <Eye className="w-4 h-4 text-[#c2652a]" /> View Agreement
+                      </button>
 
-                  <button
-                    onClick={() => {
-                      downloadRentalAgreementPdf({
-                        tenantName: occupantState.name,
-                        phone: occupantState.phone,
-                        roomNumber: occupantState.roomNumber,
-                        bedCode: occupantState.bedCode,
-                        joiningDate: occupantState.joiningDate,
-                        monthlyRent: occupantState.rentAmount,
-                        securityDeposit: 25000,
-                      });
-                      triggerToast("✓ Downloaded Rental Agreement Document!");
-                    }}
-                    className="py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all"
-                  >
-                    <Download className="w-4 h-4" /> Download PDF
-                  </button>
-                </div>
+                      <button
+                        onClick={() => {
+                          downloadRentalAgreementPdf({
+                            tenantName: occupantState.name,
+                            phone: occupantState.phone,
+                            roomNumber: occupantState.roomNumber,
+                            bedCode: occupantState.bedCode,
+                            joiningDate: occupantState.joiningDate,
+                            monthlyRent: occupantState.rentAmount,
+                            securityDeposit: 25000,
+                          });
+                          triggerToast("✓ Downloaded Rental Agreement Document!");
+                        }}
+                        className="py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all"
+                      >
+                        <Download className="w-4 h-4" /> Download PDF
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Right Column (Rent Payment History & Timeline) */}
+            {/* Right Column (Rent Payment History & Dynamic Timeline) */}
             <div className="lg:col-span-7 space-y-6">
-              {/* Rent Payment History Table */}
+              {/* Rent Payment History Table (EMPTY FOR BOOKED / BRAND NEW PROFILES) */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <h3 className="font-serif font-bold text-base text-gray-900">
                     Rent Payment History
                   </h3>
-                  <button className="text-[#c2652a] font-bold text-xs hover:underline">
-                    View All Transactions →
-                  </button>
+                  <span className="text-[10px] font-bold text-gray-400">
+                    {paymentHistory.length} Record{paymentHistory.length === 1 ? "" : "s"}
+                  </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400 font-bold">
-                        <th className="pb-3">Month</th>
-                        <th className="pb-3">Date</th>
-                        <th className="pb-3">Amount (₹)</th>
-                        <th className="pb-3">Mode</th>
-                        <th className="pb-3">Receipt</th>
-                        <th className="pb-3 text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {paymentHistory.map((item) => (
-                        <tr key={item.id}>
-                          <td className="py-3.5 font-bold text-gray-900">{item.month}</td>
-                          <td className="py-3.5 text-gray-500">{item.date}</td>
-                          <td className="py-3.5 font-mono font-bold text-gray-900">
-                            ₹{item.amount.toLocaleString("en-IN")}
-                          </td>
-                          <td className="py-3.5 text-gray-700 font-medium">{item.mode}</td>
-                          <td className="py-3.5 font-mono text-[#c2652a]">{item.receiptNo}</td>
-                          <td className="py-3.5 text-right">
-                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                              {item.status}
-                            </span>
-                          </td>
+                {paymentHistory.length === 0 ? (
+                  <div className="py-10 text-center text-gray-500 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-1">
+                    <p className="font-bold text-gray-700">No Payment History Recorded Yet</p>
+                    <p className="text-[11px] text-gray-400">
+                      {occupantState.lifecycleStatus === "Booked"
+                        ? "Occupant is booked for future check-in. Payment history will record upon check-in or rent collection."
+                        : "No past rent transactions logged yet."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                          <th className="pb-2">Month</th>
+                          <th className="pb-2">Date</th>
+                          <th className="pb-2">Amount</th>
+                          <th className="pb-2">Mode</th>
+                          <th className="pb-2">Receipt</th>
+                          <th className="pb-2 text-right">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-xs">
+                        {paymentHistory.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50/50">
+                            <td className="py-3 font-bold text-gray-900">{item.month}</td>
+                            <td className="py-3 text-gray-600">{item.date}</td>
+                            <td className="py-3 font-mono font-bold text-gray-900">
+                              ₹{item.amount.toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-3 text-gray-600">{item.mode}</td>
+                            <td className="py-3 font-mono text-gray-500">{item.receiptNo}</td>
+                            <td className="py-3 text-right">
+                              <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold text-[10px]">
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
-              {/* Tenant Lifecycle Timeline Section */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4">
-                <h3 className="font-serif font-bold text-base text-gray-900">
-                  Tenant Timeline
+              {/* DYNAMIC TIMELINE (ACCURATE FOR BOOKED VS ACTIVE VS NOTICE) */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
+                <h3 className="font-serif font-bold text-base text-gray-900 pb-3 border-b border-gray-100">
+                  Tenant Timeline & Milestones
                 </h3>
 
-                <div className="flex items-center justify-between text-center pt-4 px-2 relative">
-                  <div className="absolute top-8 left-10 right-10 h-0.5 bg-gray-200 -z-0"></div>
+                <div className="relative flex items-center justify-between pt-4 pb-2 px-2">
+                  <div className="absolute left-8 right-8 top-8 h-0.5 bg-gray-200 -z-0"></div>
 
+                  {/* 1. Booked Milestone */}
                   <div className="relative z-10 flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs mb-1">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-sm">
                       ✓
                     </div>
                     <span className="text-[11px] font-bold text-gray-900">Booked</span>
-                    <span className="text-[9px] text-gray-400">05 Oct 2023</span>
+                    <span className="text-[9px] text-gray-400">{occupantState.joiningDate}</span>
                   </div>
 
-                  <div className="relative z-10 flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-sm">
-                      ✓
+                  {/* 2. Checked In Milestone */}
+                  <div className={`relative z-10 flex flex-col items-center ${occupantState.lifecycleStatus === "Booked" ? "opacity-60" : "opacity-100"}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${occupantState.lifecycleStatus === "Booked" ? "bg-gray-100 text-gray-400 border border-gray-300" : "bg-emerald-500 text-white shadow-sm"}`}>
+                      {occupantState.lifecycleStatus === "Booked" ? "○" : "✓"}
                     </div>
                     <span className="text-[11px] font-bold text-gray-900">Checked In</span>
-                    <span className="text-[9px] text-gray-400">12 Oct 2023</span>
+                    <span className="text-[9px] text-gray-400">
+                      {occupantState.lifecycleStatus === "Booked" ? "Pending Check-In" : occupantState.joiningDate}
+                    </span>
                   </div>
 
+                  {/* 3. Notice Logged Milestone */}
                   <div
                     className={`relative z-10 flex flex-col items-center ${
                       occupantState.lifecycleStatus === "Notice" ? "opacity-100" : "opacity-40"
@@ -853,12 +880,15 @@ export default function IndividualTenantProfilePage({
                     </span>
                   </div>
 
-                  <div className="relative z-10 flex flex-col items-center opacity-40">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-bold text-xs mb-1 border border-gray-200">
-                      ○
+                  {/* 4. Past Tenant Milestone */}
+                  <div className={`relative z-10 flex flex-col items-center ${occupantState.lifecycleStatus === "Past" ? "opacity-100" : "opacity-40"}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${occupantState.lifecycleStatus === "Past" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                      {occupantState.lifecycleStatus === "Past" ? "✓" : "○"}
                     </div>
                     <span className="text-[11px] font-bold text-gray-700">Past Tenant</span>
-                    <span className="text-[9px] text-gray-400">Pending</span>
+                    <span className="text-[9px] text-gray-400">
+                      {occupantState.lifecycleStatus === "Past" ? "Vacated" : "Pending"}
+                    </span>
                   </div>
                 </div>
               </div>
