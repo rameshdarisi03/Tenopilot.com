@@ -111,22 +111,11 @@ export default function OnboardTenantPage({
               )
               .map((bd) => {
                 if (bd.status !== "Vacating") return bd;
-                // Calculate days relative to chosen move-in date
                 const vacatingDateStr = bd.vacatingDate || "15 Aug 2026";
-                const vacatingDate = new Date(vacatingDateStr);
-                const diffTime = vacatingDate.getTime() - moveIn.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                let moveInNote = "";
-                if (diffDays <= 0) {
-                  moveInNote = "Ready by move-in";
-                } else {
-                  moveInNote = `Vacating ${vacatingDateStr.replace(" 2026", "")} (${diffDays}d after move-in)`;
-                }
-
+                const cleanDate = vacatingDateStr.replace(" 2026", "");
                 return {
                   ...bd,
-                  vacatingNote: moveInNote,
+                  vacatingNote: `Vacating ${cleanDate}`,
                 };
               }),
           }))

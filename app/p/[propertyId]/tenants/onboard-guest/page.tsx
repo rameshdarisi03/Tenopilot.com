@@ -113,20 +113,10 @@ export default function OnboardGuestPage({
               .map((bd) => {
                 if (bd.status !== "Vacating") return bd;
                 const vacatingDateStr = bd.vacatingDate || "15 Aug 2026";
-                const vacatingDate = new Date(vacatingDateStr);
-                const diffTime = vacatingDate.getTime() - checkIn.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                let checkInNote = "";
-                if (diffDays <= 0) {
-                  checkInNote = "Ready by check-in";
-                } else {
-                  checkInNote = `Vacating ${vacatingDateStr.replace(" 2026", "")} (${diffDays}d after check-in)`;
-                }
-
+                const cleanDate = vacatingDateStr.replace(" 2026", "");
                 return {
                   ...bd,
-                  vacatingNote: checkInNote,
+                  vacatingNote: `Vacating ${cleanDate}`,
                 };
               }),
           }))
