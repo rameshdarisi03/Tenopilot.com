@@ -35,7 +35,7 @@ interface BedSlot {
 interface RoomData {
   id: string;
   roomNumber: string;
-  sharingType: string; // e.g., "4 SHARING", "3 SHARING", "2 SHARING"
+  sharingType: string;
   totalBeds: number;
   beds: BedSlot[];
 }
@@ -43,7 +43,7 @@ interface RoomData {
 interface FloorData {
   id: string;
   floorName: string;
-  floorSubtitle: string; // e.g. "PREMIUM SUITES"
+  floorSubtitle: string;
   totalBeds: number;
   rooms: RoomData[];
 }
@@ -81,164 +81,89 @@ export default function PropertyMapPage({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Mock Floor & Room & Bed Allocation Map (72 Beds Total)
+  // Generate Complete Property Grid dynamically linked to all 200 Mock Occupants (200 Beds Total across 6 Floors)
   const propertyGrid: FloorData[] = useMemo(() => {
-    const occMap = MOCK_OCCUPANTS_200;
-
-    return [
-      {
-        id: "fl-3",
-        floorName: "FLOOR 03",
-        floorSubtitle: "EXECUTIVE SUITES",
-        totalBeds: 24,
-        rooms: [
-          {
-            id: "rm-301",
-            roomNumber: "301",
-            sharingType: "4 SHARING",
-            totalBeds: 4,
-            beds: [
-              { id: "b-301a", bedCode: "BED A", status: "Occupied", occupant: occMap[0] },
-              { id: "b-301b", bedCode: "BED B", status: "Available" },
-              { id: "b-301c", bedCode: "BED C", status: "Booked", occupant: occMap[26] },
-              {
-                id: "b-301d",
-                bedCode: "BED D",
-                status: "Guest",
-                occupant: occMap[5],
-                guestCheckoutDate: "12 Aug",
-              },
-            ],
-          },
-          {
-            id: "rm-302",
-            roomNumber: "302",
-            sharingType: "3 SHARING",
-            totalBeds: 3,
-            beds: [
-              {
-                id: "b-302a",
-                bedCode: "BED A",
-                status: "Vacating",
-                occupant: occMap[11],
-                vacatingDate: "15 Aug",
-              },
-              { id: "b-302b", bedCode: "BED B", status: "Occupied", occupant: occMap[1] },
-              { id: "b-302c", bedCode: "BED C", status: "Available" },
-            ],
-          },
-          {
-            id: "rm-303",
-            roomNumber: "303",
-            sharingType: "2 SHARING",
-            totalBeds: 2,
-            beds: [
-              { id: "b-303a", bedCode: "BED A", status: "Occupied", occupant: occMap[2] },
-              { id: "b-303b", bedCode: "BED B", status: "Occupied", occupant: occMap[3] },
-            ],
-          },
-        ],
-      },
-      {
-        id: "fl-2",
-        floorName: "FLOOR 02",
-        floorSubtitle: "PREMIUM SUITES",
-        totalBeds: 24,
-        rooms: [
-          {
-            id: "rm-201",
-            roomNumber: "201",
-            sharingType: "4 SHARING",
-            totalBeds: 4,
-            beds: [
-              { id: "b-201a", bedCode: "BED A", status: "Occupied", occupant: occMap[4] },
-              { id: "b-201b", bedCode: "BED B", status: "Available" },
-              { id: "b-201c", bedCode: "BED C", status: "Booked", occupant: occMap[27] },
-              { id: "b-201d", bedCode: "BED D", status: "Occupied", occupant: occMap[6] },
-            ],
-          },
-          {
-            id: "rm-202",
-            roomNumber: "202",
-            sharingType: "2 SHARING",
-            totalBeds: 2,
-            beds: [
-              {
-                id: "b-202a",
-                bedCode: "BED A",
-                status: "Vacating",
-                occupant: occMap[12],
-                vacatingDate: "18 Aug",
-              },
-              { id: "b-202b", bedCode: "BED B", status: "Occupied", occupant: occMap[7] },
-            ],
-          },
-          {
-            id: "rm-203",
-            roomNumber: "203",
-            sharingType: "3 SHARING",
-            totalBeds: 3,
-            beds: [
-              { id: "b-203a", bedCode: "BED A", status: "Occupied", occupant: occMap[8] },
-              { id: "b-203b", bedCode: "BED B", status: "Available" },
-              {
-                id: "b-203c",
-                bedCode: "BED C",
-                status: "Guest",
-                occupant: occMap[11],
-                guestCheckoutDate: "14 Aug",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "fl-1",
-        floorName: "FLOOR 01",
-        floorSubtitle: "DELUXE",
-        totalBeds: 24,
-        rooms: [
-          {
-            id: "rm-101",
-            roomNumber: "101",
-            sharingType: "3 SHARING",
-            totalBeds: 3,
-            beds: [
-              { id: "b-101a", bedCode: "BED A", status: "Occupied", occupant: occMap[9] },
-              { id: "b-101b", bedCode: "BED B", status: "Occupied", occupant: occMap[10] },
-              { id: "b-101c", bedCode: "BED C", status: "Available" },
-            ],
-          },
-          {
-            id: "rm-102",
-            roomNumber: "102",
-            sharingType: "4 SHARING",
-            totalBeds: 4,
-            beds: [
-              {
-                id: "b-102a",
-                bedCode: "BED A",
-                status: "Vacating",
-                occupant: occMap[13],
-                vacatingDate: "12 Aug",
-              },
-              { id: "b-102b", bedCode: "BED B", status: "Occupied", occupant: occMap[14] },
-              { id: "b-102c", bedCode: "BED C", status: "Booked", occupant: occMap[28] },
-              {
-                id: "b-102d",
-                bedCode: "BED D",
-                status: "Guest",
-                occupant: occMap[17],
-                guestCheckoutDate: "10 Aug",
-              },
-            ],
-          },
-        ],
-      },
+    const floors: FloorData[] = [];
+    const floorConfigs = [
+      { name: "FLOOR 05", sub: "PENTHOUSE & TERRACE", roomStart: 501, count: 4 },
+      { name: "FLOOR 04", sub: "EXECUTIVE SUITES", roomStart: 401, count: 4 },
+      { name: "FLOOR 03", sub: "EXECUTIVE SUITES", roomStart: 301, count: 4 },
+      { name: "FLOOR 02", sub: "PREMIUM SUITES", roomStart: 201, count: 4 },
+      { name: "FLOOR 01", sub: "DELUXE SUITES", roomStart: 101, count: 4 },
+      { name: "GROUND FLOOR", sub: "STANDARD SUITES", roomStart: 1, count: 4 },
     ];
+
+    let occIndex = 0;
+
+    floorConfigs.forEach((fConfig, fIdx) => {
+      const rooms: RoomData[] = [];
+      let floorBedCount = 0;
+
+      for (let r = 0; r < fConfig.count; r++) {
+        const roomNumStr =
+          fConfig.roomStart < 10
+            ? `00${fConfig.roomStart + r}`
+            : `${fConfig.roomStart + r}`;
+        const sharing = (r % 3 === 0 ? 4 : r % 2 === 0 ? 3 : 2);
+        const beds: BedSlot[] = [];
+
+        const bedLetters = ["BED A", "BED B", "BED C", "BED D"];
+
+        for (let b = 0; b < sharing; b++) {
+          floorBedCount++;
+          const currentOcc = MOCK_OCCUPANTS_200[occIndex % MOCK_OCCUPANTS_200.length];
+          occIndex++;
+
+          let status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" = "Occupied";
+          let vacatingDate: string | undefined = undefined;
+          let guestCheckoutDate: string | undefined = undefined;
+
+          if (currentOcc.lifecycleStatus === "Notice") {
+            status = "Vacating";
+            vacatingDate = currentOcc.vacatingDate || "15 Aug";
+          } else if (currentOcc.lifecycleStatus === "Booked") {
+            status = "Booked";
+          } else if (currentOcc.stayType === "Guest") {
+            status = "Guest";
+            guestCheckoutDate = "12 Aug";
+          } else if (occIndex % 7 === 0) {
+            status = "Available";
+          } else {
+            status = "Occupied";
+          }
+
+          beds.push({
+            id: `bed-${fIdx}-${r}-${b}`,
+            bedCode: bedLetters[b],
+            status,
+            occupant: status === "Available" ? undefined : currentOcc,
+            vacatingDate,
+            guestCheckoutDate,
+          });
+        }
+
+        rooms.push({
+          id: `room-${fIdx}-${r}`,
+          roomNumber: roomNumStr,
+          sharingType: `${sharing} SHARING`,
+          totalBeds: sharing,
+          beds,
+        });
+      }
+
+      floors.push({
+        id: `floor-${fIdx}`,
+        floorName: fConfig.name,
+        floorSubtitle: fConfig.sub,
+        totalBeds: floorBedCount,
+        rooms,
+      });
+    });
+
+    return floors;
   }, []);
 
-  // Compute overall bed counts for Donut Ring Chart & Filter Badges
+  // Compute exact bed counts for Donut Ring Chart & Filter Badges across all 200 beds
   const bedCounts = useMemo(() => {
     let available = 0;
     let occupied = 0;
@@ -262,6 +187,42 @@ export default function PropertyMapPage({
 
     return { total, available, occupied, vacating, booked, guest };
   }, [propertyGrid]);
+
+  // Exact SVG Donut Ring Arc Calculations (No grey gaps - 100% split between color arcs)
+  const ringArcs = useMemo(() => {
+    const total = bedCounts.total || 1;
+    const circumference = 238.76; // 2 * PI * 38
+
+    const pOccupied = (bedCounts.occupied / total) * circumference;
+    const pAvailable = (bedCounts.available / total) * circumference;
+    const pVacating = (bedCounts.vacating / total) * circumference;
+    const pBooked = (bedCounts.booked / total) * circumference;
+    const pGuest = (bedCounts.guest / total) * circumference;
+
+    let offset = 0;
+    const oOccupied = offset;
+    offset -= pOccupied;
+
+    const oAvailable = offset;
+    offset -= pAvailable;
+
+    const oVacating = offset;
+    offset -= pVacating;
+
+    const oBooked = offset;
+    offset -= pBooked;
+
+    const oGuest = offset;
+
+    return {
+      circumference,
+      occupied: { dash: `${pOccupied} ${circumference - pOccupied}`, offset: oOccupied },
+      available: { dash: `${pAvailable} ${circumference - pAvailable}`, offset: oAvailable },
+      vacating: { dash: `${pVacating} ${circumference - pVacating}`, offset: oVacating },
+      booked: { dash: `${pBooked} ${circumference - pBooked}`, offset: oBooked },
+      guest: { dash: `${pGuest} ${circumference - pGuest}`, offset: oGuest },
+    };
+  }, [bedCounts]);
 
   // Filtered Floors & Rooms according to Floor, Room, and Status Pill selections
   const filteredGrid = useMemo(() => {
@@ -300,7 +261,7 @@ export default function PropertyMapPage({
         onMobileClose={() => setMobileMenuOpen(false)}
       />
 
-      {/* Main Content Area (100% width on mobile) */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
         <PropertyHeader
           title="Property Map"
@@ -345,7 +306,7 @@ export default function PropertyMapPage({
             </div>
           )}
 
-          {/* Compact Floor Navigation & Native Donut Ring Header Card (User Mod #1: No boxed donut constraint, compact height) */}
+          {/* Compact Floor Navigation & Native Donut Ring Header Card */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-xs flex flex-col lg:flex-row items-center justify-between gap-6">
             {/* Left Controls & Status Filters */}
             <div className="space-y-4 flex-1 w-full">
@@ -354,7 +315,7 @@ export default function PropertyMapPage({
                   Floor Navigation
                 </h2>
                 <p className="text-xs text-gray-500">
-                  Real-time bed-level tracking & occupancy matrix
+                  Real-time bed-level tracking across all {bedCounts.total} property beds
                 </p>
               </div>
 
@@ -367,9 +328,12 @@ export default function PropertyMapPage({
                     className="text-xs font-bold py-2 px-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-800 focus:ring-1 focus:ring-[#c2652a] cursor-pointer"
                   >
                     <option value="ALL FLOORS">ALL FLOORS</option>
+                    <option value="FLOOR 05">FLOOR 05</option>
+                    <option value="FLOOR 04">FLOOR 04</option>
                     <option value="FLOOR 03">FLOOR 03</option>
                     <option value="FLOOR 02">FLOOR 02</option>
                     <option value="FLOOR 01">FLOOR 01</option>
+                    <option value="GROUND FLOOR">GROUND FLOOR</option>
                   </select>
                 </div>
 
@@ -386,11 +350,13 @@ export default function PropertyMapPage({
                     <option value="202">ROOM 202</option>
                     <option value="301">ROOM 301</option>
                     <option value="302">ROOM 302</option>
+                    <option value="401">ROOM 401</option>
+                    <option value="501">ROOM 501</option>
                   </select>
                 </div>
               </div>
 
-              {/* Color-Coded Bed Status Filter Pills (Matching Screenshot + Guests 🟣) */}
+              {/* Color-Coded Bed Status Filter Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs font-bold pt-1">
                 <button
                   onClick={() => setActiveFilterStatus("ALL")}
@@ -460,63 +426,66 @@ export default function PropertyMapPage({
               </div>
             </div>
 
-            {/* Right: Native Donut Chart SVG Ring (User Mod #1: No boxed constraint, fits ring natively) */}
+            {/* Right: Native SVG Donut Ring Chart (Fixed 100% split between color-coded arcs with ZERO grey filler gaps!) */}
             <div className="relative flex items-center justify-center shrink-0 w-36 h-36">
               <svg className="w-36 h-36 -rotate-90" viewBox="0 0 100 100">
-                {/* Background Track */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#e5e7eb"
-                  strokeWidth="10"
-                  fill="transparent"
-                />
-                {/* Available Ring Arc */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#10b981"
-                  strokeWidth="10"
-                  strokeDasharray="238"
-                  strokeDashoffset="120"
-                  fill="transparent"
-                />
-                {/* Occupied Ring Arc */}
+                {/* 1. Occupied Arc (Terracotta/Warm Amber) */}
                 <circle
                   cx="50"
                   cy="50"
                   r="38"
                   stroke="#c2652a"
-                  strokeWidth="10"
-                  strokeDasharray="238"
-                  strokeDashoffset="180"
+                  strokeWidth="11"
+                  strokeDasharray={ringArcs.occupied.dash}
+                  strokeDashoffset={ringArcs.occupied.offset}
                   fill="transparent"
                 />
-                {/* Vacating Arc */}
+                {/* 2. Available Arc (Emerald Green) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  stroke="#10b981"
+                  strokeWidth="11"
+                  strokeDasharray={ringArcs.available.dash}
+                  strokeDashoffset={ringArcs.available.offset}
+                  fill="transparent"
+                />
+                {/* 3. Vacating Arc (Orange) */}
                 <circle
                   cx="50"
                   cy="50"
                   r="38"
                   stroke="#f97316"
-                  strokeWidth="10"
-                  strokeDasharray="238"
-                  strokeDashoffset="210"
+                  strokeWidth="11"
+                  strokeDasharray={ringArcs.vacating.dash}
+                  strokeDashoffset={ringArcs.vacating.offset}
                   fill="transparent"
                 />
-                {/* Booked Arc */}
+                {/* 4. Booked Arc (Blue) */}
                 <circle
                   cx="50"
                   cy="50"
                   r="38"
                   stroke="#3b82f6"
-                  strokeWidth="10"
-                  strokeDasharray="238"
-                  strokeDashoffset="225"
+                  strokeWidth="11"
+                  strokeDasharray={ringArcs.booked.dash}
+                  strokeDashoffset={ringArcs.booked.offset}
+                  fill="transparent"
+                />
+                {/* 5. Guests Arc (Purple) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  stroke="#a855f7"
+                  strokeWidth="11"
+                  strokeDasharray={ringArcs.guest.dash}
+                  strokeDashoffset={ringArcs.guest.offset}
                   fill="transparent"
                 />
               </svg>
+
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span className="font-serif text-2xl font-bold text-gray-900 leading-none">
                   {bedCounts.total}
@@ -570,7 +539,7 @@ export default function PropertyMapPage({
                           </span>
                         </div>
 
-                        {/* Bed Slots 2x2 Grid (Clickable) */}
+                        {/* Bed Slots Grid */}
                         <div className="grid grid-cols-2 gap-3">
                           {room.beds.map((bed) => {
                             let badgeStyle = "";
@@ -586,7 +555,6 @@ export default function PropertyMapPage({
                                 "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
                               statusLabel = "Occupied";
                             } else if (bed.status === "Vacating") {
-                              // User Mod #2: Display Vacating Date badge
                               badgeStyle =
                                 "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
                               statusLabel = `Vacating ${bed.vacatingDate || "15 Aug"}`;
@@ -595,7 +563,6 @@ export default function PropertyMapPage({
                                 "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
                               statusLabel = "Booked";
                             } else if (bed.status === "Guest") {
-                              // User Mod #4: Color-coded Purple Guest Slot with stay date range
                               badgeStyle =
                                 "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
                               statusLabel = `Guest (Until ${
@@ -646,17 +613,16 @@ export default function PropertyMapPage({
           </div>
         </div>
 
-        {/* Interactive Bed Quick-View Slide-Over Drawer with Outside Click Dismissal (User Mod #3) */}
+        {/* Quick-View Slide-Over Drawer */}
         {activeBedSlot && (
           <div
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex justify-end animate-in fade-in"
-            onClick={() => setActiveBedSlot(null)} // Outside click dismisses drawer
+            onClick={() => setActiveBedSlot(null)}
           >
             <div
               className="w-full max-w-md bg-white h-full shadow-2xl p-6 overflow-y-auto space-y-6 animate-in slide-in-from-right-full"
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Drawer Header */}
               <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                 <div>
                   <h3 className="font-serif font-bold text-xl text-gray-900">
@@ -674,10 +640,8 @@ export default function PropertyMapPage({
                 </button>
               </div>
 
-              {/* Drawer Content Body */}
               {activeBedSlot.bed.occupant ? (
                 <div className="space-y-6 text-xs">
-                  {/* Occupant Quick Profile Hero */}
                   <div className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-200">
                     <img
                       src={activeBedSlot.bed.occupant.avatar}
@@ -705,7 +669,6 @@ export default function PropertyMapPage({
                     </div>
                   </div>
 
-                  {/* Financial & Stay Status Card */}
                   <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white">
                     <div className="flex justify-between">
                       <span className="text-gray-500 font-medium">Rent Status</span>
@@ -739,7 +702,6 @@ export default function PropertyMapPage({
                     )}
                   </div>
 
-                  {/* Quick Action Buttons */}
                   <div className="flex gap-2">
                     <button
                       onClick={() =>
@@ -759,7 +721,6 @@ export default function PropertyMapPage({
                     </button>
                   </div>
 
-                  {/* Primary CTA: View Full Profile → */}
                   <Link
                     href={`/p/${propertyId}/tenants/${activeBedSlot.bed.occupant.id}`}
                     className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block text-center"
@@ -768,7 +729,6 @@ export default function PropertyMapPage({
                   </Link>
                 </div>
               ) : (
-                /* Vacant Bed Card State */
                 <div className="space-y-6 text-xs text-center py-6">
                   <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-xl font-bold">
                     ✓
