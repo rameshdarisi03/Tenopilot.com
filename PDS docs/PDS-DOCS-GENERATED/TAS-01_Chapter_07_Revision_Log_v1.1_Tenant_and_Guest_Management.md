@@ -49,7 +49,7 @@ The selection is made before entering the onboarding flow.
 
 A dedicated Guest onboarding workflow has been introduced.
 
-Guest Onboarding
+Guest Onboarding (Streamlined 3-Step Flow)
 
 ↓
 
@@ -65,13 +65,9 @@ Documents & KYC
 
 ↓
 
-Agreement Preview
+Guest Profile Created (Confetti Dialog)
 
-↓
-
-Guest Profile Created
-
-The Guest onboarding experience should reuse the Tenant onboarding interface wherever possible while displaying only fields relevant to short-term stays.
+The Guest onboarding experience reuses the Tenant onboarding interface while removing unnecessary steps (such as Agreement Preview, since short-term guests do not require formal lease agreements).
 
 ---
 
@@ -161,23 +157,17 @@ Documents can be uploaded later from the occupant profile.
 
 ---
 
-# Update 07 — Agreement Preview
+# Update 07 — Agreement Preview (Tenants Only)
 
-Before creating the record, the system should generate an agreement preview using the entered information.
+Before creating a long-term Tenant record, the system generates a Rental Agreement preview using the entered information.
 
 Tenant
 
 Rental Agreement
 
-Guest
+The final action becomes: Agree & Onboard Tenant.
 
-Guest Stay Agreement
-
-The final action becomes
-
-Agree & Continue
-
-Only after confirmation should the profile be created.
+Short-term Guests skip the Agreement Preview step entirely and complete onboarding directly after Step 3 (Documents & KYC).
 
 ---
 
