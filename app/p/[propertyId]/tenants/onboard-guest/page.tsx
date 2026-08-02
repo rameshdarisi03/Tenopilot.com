@@ -236,20 +236,30 @@ export default function OnboardGuestPage({
     );
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 7;
 
+    // Automatic Date Evaluation Engine (Onboarding Date vs Check-In Date)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetCheckIn = checkInDate ? new Date(checkInDate) : today;
+    targetCheckIn.setHours(0, 0, 0, 0);
+    const isFutureCheckIn = targetCheckIn > today;
+
+    const initialLifecycleStatus: "Active" | "Booked" = isFutureCheckIn ? "Booked" : "Active";
+    const initialPaymentStatus: "Paid" | "Due" = isFutureCheckIn ? "Due" : "Paid";
+
     const newGuest: Occupant = {
       id: newId,
       name: fullName.trim(),
       phone: fullPhoneNumber,
       email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@guest.com`,
       stayType: "Guest",
-      lifecycleStatus: "Active",
-      paymentStatus: "Paid",
-      daysDiff: diffDays,
-      daysRemainingText: `${diffDays} Days Remaining`,
+      lifecycleStatus: initialLifecycleStatus,
+      paymentStatus: initialPaymentStatus,
+      daysDiff: isFutureCheckIn ? 0 : diffDays,
+      daysRemainingText: isFutureCheckIn ? "Due on Check-In" : `${diffDays} Days Remaining`,
       rentAmount: totalTariff,
       dueDate: formattedCheckOut,
       dueDay: new Date(checkOutDate).getDate(),
-      lastPaidDate: formattedCheckIn,
+      lastPaidDate: isFutureCheckIn ? "Pending Check-In" : formattedCheckIn,
       roomNumber: selectedBed ? selectedBed.roomNumber : "101",
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedCheckIn,

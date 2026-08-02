@@ -380,6 +380,22 @@ Profile views (`/p/[propertyId]/tenants/[tenantId]`) enforce strict data hygiene
 
 ---
 
+# Update 20 — Automatic Date-Driven Booked Classification Engine
+
+Onboarding workflows (`/onboard-tenant` & `/onboard-guest`) automatically evaluate the desired move-in date (`joiningDate`) against the present onboarding date (`new Date()`):
+
+$$\text{Days Until Check-In} = \text{joiningDate} - \text{onboardingDate}$$
+
+1. **Future Move-In Date (`joiningDate > onboardingDate`)**:
+   - `lifecycleStatus` automatically becomes **`"Booked"`** (`🔵 BOOKED`).
+   - `paymentStatus` is set to `"Due"` / `daysRemainingText` reads `"Due on Check-In"`.
+   - Occupant enters the system in the **Booked** tab with active **`Check In ▼`** controls (`Complete Check-In` & `Postpone Check-In`).
+
+2. **Immediate Move-In Date (`joiningDate <= onboardingDate`)**:
+   - `lifecycleStatus` automatically becomes **`"Active"`** (`🟢 ACTIVE TENANT`).
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -403,6 +419,7 @@ This revision introduces:
 - Booked Tenant Check-In & Postpone Workflow (`Complete Check-In` & `Postpone Check-In`)
 - Profile Context Hygiene for Booked Occupants and Short-Term Guests
 - Pending KYC Card Policy & Brand New Profile Financial Isolation
+- Automatic Date-Driven Booked Classification Engine
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 

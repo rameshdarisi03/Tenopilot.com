@@ -241,20 +241,30 @@ export default function OnboardTenantPage({
 
     const isVerified = photoUploaded || aadhaarUploaded;
 
+    // Automatic Date Evaluation Engine (Onboarding Date vs Target Joining Date)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetJoiningDate = joiningDate ? new Date(joiningDate) : today;
+    targetJoiningDate.setHours(0, 0, 0, 0);
+    const isFutureMoveIn = targetJoiningDate > today;
+
+    const initialLifecycleStatus: "Active" | "Booked" = isFutureMoveIn ? "Booked" : "Active";
+    const initialPaymentStatus: "Paid" | "Due" = isFutureMoveIn ? "Due" : "Paid";
+
     const newTenant: Occupant = {
       id: newId,
       name: fullName.trim(),
       phone: fullPhoneNumber,
       email: email.trim() || `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
       stayType: "Tenant",
-      lifecycleStatus: "Active",
-      paymentStatus: "Paid",
-      daysDiff: 30,
-      daysRemainingText: "—",
+      lifecycleStatus: initialLifecycleStatus,
+      paymentStatus: initialPaymentStatus,
+      daysDiff: isFutureMoveIn ? 0 : 30,
+      daysRemainingText: isFutureMoveIn ? "Due on Check-In" : "—",
       rentAmount: monthlyRent,
-      dueDate: "01 Sep 2026",
+      dueDate: isFutureMoveIn ? formattedJoiningDate : "01 Sep 2026",
       dueDay: 1,
-      lastPaidDate: formattedJoiningDate,
+      lastPaidDate: isFutureMoveIn ? "Pending Check-In" : formattedJoiningDate,
       roomNumber: selectedBed ? selectedBed.roomNumber : "101",
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedJoiningDate,
