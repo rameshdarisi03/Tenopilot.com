@@ -68,9 +68,16 @@ export default function IndividualTenantProfilePage({
   // Agreement View Modal State
   const [viewAgreementModal, setViewAgreementModal] = useState<boolean>(false);
 
-  // Find occupant in occupantStore or MOCK_OCCUPANTS_200 dataset
+  // Client Hydration state to prevent SSR mismatch
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Find occupant in MOCK_OCCUPANTS_200 dataset or occupantStore
   const occupant = useMemo(() => {
-    const allStores = occupantStore.getOccupants();
+    const allStores = typeof window !== "undefined" ? occupantStore.getOccupants() : MOCK_OCCUPANTS_200;
     const match = allStores.find((o) => o.id === tenantId) || MOCK_OCCUPANTS_200.find((o) => o.id === tenantId);
     if (match) return match;
 
@@ -107,9 +114,11 @@ export default function IndividualTenantProfilePage({
   // Payment History State (Starts empty [] for Booked status or newly onboarded profiles!)
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
 
-  // Synchronize occupantState and paymentHistory whenever tenantId/occupant route parameter changes!
+  // Synchronize occupantState and paymentHistory whenever tenantId/occupant route parameter changes or on client mount!
   useEffect(() => {
+    if (!isMounted) return;
     setOccupantState(occupant);
+
     if (occupant.lifecycleStatus === "Booked" || (occupant.stayType === "Guest" && occupant.id.startsWith("occ-new-")) || occupant.id.startsWith("occ-test-")) {
       if (occupant.lifecycleStatus === "Booked" || occupant.lastPaidDate === "Pending Check-In") {
         setPaymentHistory([]);
@@ -148,7 +157,7 @@ export default function IndividualTenantProfilePage({
         },
       ]);
     }
-  }, [occupant, tenantId]);
+  }, [occupant, tenantId, isMounted]);
 
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
