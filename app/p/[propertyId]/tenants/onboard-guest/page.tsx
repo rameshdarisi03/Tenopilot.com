@@ -33,6 +33,11 @@ import {
   Info,
   Filter,
 } from "lucide-react";
+import {
+  validateDocumentFile,
+  autoCompressImage,
+  ProcessedDocument,
+} from "@/utils/documentSecurity";
 
 export default function OnboardGuestPage({
   params,
@@ -79,8 +84,9 @@ export default function OnboardGuestPage({
     floorName: string;
   } | null>(null);
 
-  // Form State — Step 3: Quick KYC Upload
+  // Form State — Step 3: Quick KYC Upload & Auto-Compression Documents
   const [photoUploaded, setPhotoUploaded] = useState(false);
+  const [photoDoc, setPhotoDoc] = useState<ProcessedDocument | null>(null);
 
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -648,53 +654,81 @@ export default function OnboardGuestPage({
                     Guest Photo / Govt ID Capture
                   </h3>
                   <p className="text-gray-500 text-[11px] mt-0.5">
-                    Optional photo capture for short-term stay verification
+                    JPG, PNG, PDF (Max 15MB raw — Auto-compressed to ~400KB)
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setPhotoUploaded(!photoUploaded)}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                    photoUploaded
-                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                      : "bg-white border border-gray-300 text-gray-800 hover:bg-gray-100"
-                  }`}
-                >
-                  {photoUploaded ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Photo Uploaded ✓
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" /> Upload / Capture Photo
-                    </>
-                  )}
-                </button>
+                <label className="cursor-pointer px-5 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center gap-2 shadow-2xs transition-all">
+                  <Upload className="w-4 h-4 text-purple-700" />
+                  {photoDoc ? "Change Photo / Document" : "Upload / Capture Photo"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,application/pdf"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const val = validateDocumentFile(file);
+                      if (!val.valid) {
+                        alert(val.error);
+                        return;
+                      }
+                      const proc = await autoCompressImage(file);
+                      setPhotoDoc(proc);
+                      setPhotoUploaded(true);
+                    }}
+                  />
+                </label>
+
+                {photoDoc && (
+                  <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
+                    ✓ Uploaded: <strong>{photoDoc.fileName}</strong> ({photoDoc.compressedSizeMb} MB)
+                    {photoDoc.isCompressed && (
+                      <div className="text-emerald-700 font-mono mt-0.5">
+                        ⚡ Auto-compressed: {photoDoc.originalSizeMb} MB → {photoDoc.compressedSizeMb} MB
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
                 <Info className="w-4 h-4 text-purple-700 shrink-0" />
                 <span>
-                  Short-term guests do not require formal lease agreements. Click <strong>Complete Guest Onboarding</strong> to finalize.
+                  Don't have ID handy? Click <strong>Skip for Now</strong> below. Guest profile status will show <strong>KYC Pending 🟡</strong> until updated.
                 </span>
               </div>
 
-              <div className="flex justify-between pt-4 border-t border-gray-100">
+              <div className="flex flex-col md:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
+                  className="w-full md:w-auto px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
                 >
                   ← Back to Allocation
                 </button>
-                <button
-                  type="button"
-                  onClick={handleFinalGuestSubmit}
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
-                </button>
+
+                <div className="flex w-full md:w-auto items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoUploaded(false);
+                      setPhotoDoc(null);
+                      handleFinalGuestSubmit();
+                    }}
+                    className="flex-1 md:flex-none px-5 py-3.5 rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs shadow-2xs min-h-[48px]"
+                  >
+                    Skip for Now (KYC Pending 🟡)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleFinalGuestSubmit}
+                    className="flex-1 md:flex-none px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
+                  </button>
+                </div>
               </div>
             </div>
           )}

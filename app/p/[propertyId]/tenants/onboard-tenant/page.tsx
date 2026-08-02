@@ -34,6 +34,11 @@ import {
   Info,
   Filter,
 } from "lucide-react";
+import {
+  validateDocumentFile,
+  autoCompressImage,
+  ProcessedDocument,
+} from "@/utils/documentSecurity";
 
 export default function OnboardTenantPage({
   params,
@@ -77,9 +82,11 @@ export default function OnboardTenantPage({
     floorName: string;
   } | null>(null);
 
-  // Form State — Step 3: KYC Upload
+  // Form State — Step 3: KYC Upload & Auto-Compression Documents
   const [photoUploaded, setPhotoUploaded] = useState(false);
   const [aadhaarUploaded, setAadhaarUploaded] = useState(false);
+  const [photoDoc, setPhotoDoc] = useState<ProcessedDocument | null>(null);
+  const [aadhaarDoc, setAadhaarDoc] = useState<ProcessedDocument | null>(null);
 
   // Success Modal State (Step 5)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -661,6 +668,7 @@ export default function OnboardTenantPage({
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Photo Card */}
                 <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-3 text-center flex flex-col items-center justify-center">
                   <div className="p-3 rounded-full bg-orange-100 text-[#c2652a]">
                     <Camera className="w-6 h-6" />
@@ -670,31 +678,45 @@ export default function OnboardTenantPage({
                       Tenant Profile Photo
                     </h3>
                     <p className="text-gray-500 text-[11px] mt-0.5">
-                      Upload recent headshot or capture from camera
+                      JPG, PNG (Max 15MB raw — Auto-compressed to ~400KB)
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setPhotoUploaded(!photoUploaded)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                      photoUploaded
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                        : "bg-white border border-gray-300 text-gray-800 hover:bg-gray-100"
-                    }`}
-                  >
-                    {photoUploaded ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Photo Uploaded ✓
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" /> Upload Photo
-                      </>
-                    )}
-                  </button>
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center gap-2 shadow-2xs transition-all">
+                    <Upload className="w-4 h-4 text-[#c2652a]" />
+                    {photoDoc ? "Change Photo" : "Upload Photo / Camera"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const val = validateDocumentFile(file);
+                        if (!val.valid) {
+                          alert(val.error);
+                          return;
+                        }
+                        const proc = await autoCompressImage(file);
+                        setPhotoDoc(proc);
+                        setPhotoUploaded(true);
+                      }}
+                    />
+                  </label>
+
+                  {photoDoc && (
+                    <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
+                      ✓ Uploaded: <strong>{photoDoc.fileName}</strong>
+                      {photoDoc.isCompressed && (
+                        <div className="text-emerald-700 font-mono mt-0.5">
+                          ⚡ Auto-compressed: {photoDoc.originalSizeMb} MB → {photoDoc.compressedSizeMb} MB
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
+                {/* Aadhaar / Govt ID Card */}
                 <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-3 text-center flex flex-col items-center justify-center">
                   <div className="p-3 rounded-full bg-blue-100 text-blue-700">
                     <ShieldCheck className="w-6 h-6" />
@@ -704,54 +726,84 @@ export default function OnboardTenantPage({
                       Aadhaar Card / Govt ID
                     </h3>
                     <p className="text-gray-500 text-[11px] mt-0.5">
-                      PDF Document or Front & Back Image
+                      PDF, JPG, PNG (Max 15MB — Auto-validated)
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setAadhaarUploaded(!aadhaarUploaded)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                      aadhaarUploaded
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                        : "bg-white border border-gray-300 text-gray-800 hover:bg-gray-100"
-                    }`}
-                  >
-                    {aadhaarUploaded ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Aadhaar Verified ✓
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" /> Upload Aadhaar
-                      </>
-                    )}
-                  </button>
+                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center gap-2 shadow-2xs transition-all">
+                    <Upload className="w-4 h-4 text-blue-600" />
+                    {aadhaarDoc ? "Change Document" : "Upload Aadhaar / ID"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,application/pdf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const val = validateDocumentFile(file);
+                        if (!val.valid) {
+                          alert(val.error);
+                          return;
+                        }
+                        const proc = await autoCompressImage(file);
+                        setAadhaarDoc(proc);
+                        setAadhaarUploaded(true);
+                      }}
+                    />
+                  </label>
+
+                  {aadhaarDoc && (
+                    <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
+                      ✓ Uploaded: <strong>{aadhaarDoc.fileName}</strong> ({aadhaarDoc.compressedSizeMb} MB)
+                      {aadhaarDoc.isCompressed && (
+                        <div className="text-emerald-700 font-mono mt-0.5">
+                          ⚡ Auto-compressed: {aadhaarDoc.originalSizeMb} MB → {aadhaarDoc.compressedSizeMb} MB
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 text-xs flex items-center gap-2">
                 <Info className="w-4 h-4 text-[#c2652a] shrink-0" />
                 <span>
-                  Uploading documents is optional. You can click <strong>Skip & Proceed</strong> to upload later.
+                  Don't have Aadhaar handy? Click <strong>Skip for Now</strong> below. Tenant status will show <strong>KYC Pending 🟡</strong> until uploaded later from their profile.
                 </span>
               </div>
 
-              <div className="flex justify-between pt-4 border-t border-gray-100">
+              <div className="flex flex-col md:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
+                  className="w-full md:w-auto px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
                 >
                   ← Back to Allocation
                 </button>
-                <button
-                  type="button"
-                  onClick={handleStep3Next}
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
-                >
-                  Proceed to Agreement Preview <ArrowRight className="w-4 h-4" />
-                </button>
+
+                <div className="flex w-full md:w-auto items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoUploaded(false);
+                      setAadhaarUploaded(false);
+                      setPhotoDoc(null);
+                      setAadhaarDoc(null);
+                      handleStep3Next();
+                    }}
+                    className="flex-1 md:flex-none px-5 py-3.5 rounded-xl border border-orange-300 bg-orange-50 hover:bg-orange-100 text-[#c2652a] font-bold text-xs shadow-2xs min-h-[48px]"
+                  >
+                    Skip for Now (KYC Pending 🟡)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleStep3Next}
+                    className="flex-1 md:flex-none px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
+                  >
+                    Proceed to Agreement Preview <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
