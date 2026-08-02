@@ -1,3 +1,5 @@
+import { saveOccupantToFirestore } from "@/lib/firestoreService";
+
 export interface Occupant {
   id: string;
   name: string;
@@ -327,13 +329,17 @@ export const occupantStore = {
     return loadOccupants();
   },
 
-  updateOccupants(newList: Occupant[]) {
+  updateOccupants(newList: Occupant[], propertyId: string = "sunshine-pg") {
     GLOBAL_OCCUPANTS_CACHE = newList;
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(newList));
+        // Asynchronously sync to Firebase Cloud Firestore collection: properties/{propertyId}/occupants
+        newList.forEach((occ) => {
+          saveOccupantToFirestore(propertyId, occ);
+        });
       } catch (e) {
-        console.warn("Failed to save occupants to localStorage", e);
+        console.warn("Failed to save occupants store:", e);
       }
     }
     occupantListeners.forEach((l) => l());

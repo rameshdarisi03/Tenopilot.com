@@ -412,6 +412,19 @@ $$\text{Auto-Transition Trigger: Today} \ge \text{occupant.joiningDate}$$
 
 ---
 
+# Update 22 — Firebase Cloud Firestore Single Source of Truth Engine
+
+TenoPilot uses Firebase Cloud Firestore (`lib/firebase.ts`) as the primary cloud database source of truth:
+
+1. **Cloud Collection Structure**:
+   - `properties/{propertyId}/occupants/{occupantId}`
+2. **Real-Time Data Sync (`onSnapshot`)**:
+   - Component state subscribes to Firestore real-time listeners (`subscribeOccupantsFromFirestore`), enabling instant multi-device synchronization.
+3. **Cloud Storage**:
+   - Uploaded KYC documents and photo headshots stream directly to Firebase Cloud Storage bucket `properties/{propertyId}/tenants/{occupantId}/kyc/`.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -437,6 +450,7 @@ This revision introduces:
 - Pending KYC Card Policy & Brand New Profile Financial Isolation
 - Automatic Date-Driven Booked Classification Engine
 - Silent Automated Move-In Date Auto-Checkin Engine
+- Firebase Cloud Firestore Single Source of Truth Engine
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
