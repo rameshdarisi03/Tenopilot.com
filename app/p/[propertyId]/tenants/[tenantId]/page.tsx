@@ -997,68 +997,70 @@ export default function IndividualTenantProfilePage({
                 )}
               </div>
 
-              {/* DYNAMIC TIMELINE (ACCURATE FOR BOOKED VS ACTIVE VS NOTICE) */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
-                <h3 className="font-serif font-bold text-base text-gray-900 pb-3 border-b border-gray-100">
-                  Tenant Timeline & Milestones
-                </h3>
+              {/* DYNAMIC TIMELINE (RENDERED FOR LONG-TERM TENANTS ONLY — EXEMPT FOR SHORT-TERM GUESTS) */}
+              {occupantState.stayType !== "Guest" && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
+                  <h3 className="font-serif font-bold text-base text-gray-900 pb-3 border-b border-gray-100">
+                    Tenant Timeline & Milestones
+                  </h3>
 
-                <div className="relative flex items-center justify-between pt-4 pb-2 px-2">
-                  <div className="absolute left-8 right-8 top-8 h-0.5 bg-gray-200 -z-0"></div>
+                  <div className="relative flex items-center justify-between pt-4 pb-2 px-2">
+                    <div className="absolute left-8 right-8 top-8 h-0.5 bg-gray-200 -z-0"></div>
 
-                  {/* 1. Booked Milestone */}
-                  <div className="relative z-10 flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-sm">
-                      ✓
+                    {/* 1. Booked Milestone */}
+                    <div className="relative z-10 flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-sm">
+                        ✓
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-900">Booked</span>
+                      <span className="text-[9px] text-gray-400">{occupantState.joiningDate}</span>
                     </div>
-                    <span className="text-[11px] font-bold text-gray-900">Booked</span>
-                    <span className="text-[9px] text-gray-400">{occupantState.joiningDate}</span>
-                  </div>
 
-                  {/* 2. Checked In Milestone */}
-                  <div className={`relative z-10 flex flex-col items-center ${occupantState.lifecycleStatus === "Booked" ? "opacity-60" : "opacity-100"}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${occupantState.lifecycleStatus === "Booked" ? "bg-gray-100 text-gray-400 border border-gray-300" : "bg-emerald-500 text-white shadow-sm"}`}>
-                      {occupantState.lifecycleStatus === "Booked" ? "○" : "✓"}
+                    {/* 2. Checked In Milestone */}
+                    <div className={`relative z-10 flex flex-col items-center ${occupantState.lifecycleStatus === "Booked" ? "opacity-60" : "opacity-100"}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${occupantState.lifecycleStatus === "Booked" ? "bg-gray-100 text-gray-400 border border-gray-300" : "bg-emerald-500 text-white shadow-sm"}`}>
+                        {occupantState.lifecycleStatus === "Booked" ? "○" : "✓"}
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-900">Checked In</span>
+                      <span className="text-[9px] text-gray-400">
+                        {occupantState.lifecycleStatus === "Booked" ? "Pending Check-In" : occupantState.joiningDate}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-bold text-gray-900">Checked In</span>
-                    <span className="text-[9px] text-gray-400">
-                      {occupantState.lifecycleStatus === "Booked" ? "Pending Check-In" : occupantState.joiningDate}
-                    </span>
-                  </div>
 
-                  {/* 3. Notice Logged Milestone */}
-                  <div
-                    className={`relative z-10 flex flex-col items-center ${
-                      occupantState.lifecycleStatus === "Notice" ? "opacity-100" : "opacity-40"
-                    }`}
-                  >
+                    {/* 3. Notice Logged Milestone */}
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${
-                        occupantState.lifecycleStatus === "Notice"
-                          ? "bg-orange-500 text-white shadow-sm"
-                          : "bg-gray-100 text-gray-400 border border-gray-200"
+                      className={`relative z-10 flex flex-col items-center ${
+                        occupantState.lifecycleStatus === "Notice" ? "opacity-100" : "opacity-40"
                       }`}
                     >
-                      {occupantState.lifecycleStatus === "Notice" ? "✓" : "○"}
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${
+                          occupantState.lifecycleStatus === "Notice"
+                            ? "bg-orange-500 text-white shadow-sm"
+                            : "bg-gray-100 text-gray-400 border border-gray-200"
+                        }`}
+                      >
+                        {occupantState.lifecycleStatus === "Notice" ? "✓" : "○"}
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-900">Notice Logged</span>
+                      <span className="text-[9px] text-gray-400">
+                        {occupantState.vacatingDate || "Pending"}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-bold text-gray-900">Notice Logged</span>
-                    <span className="text-[9px] text-gray-400">
-                      {occupantState.vacatingDate || "Pending"}
-                    </span>
-                  </div>
 
-                  {/* 4. Past Tenant Milestone */}
-                  <div className={`relative z-10 flex flex-col items-center ${occupantState.lifecycleStatus === "Past" ? "opacity-100" : "opacity-40"}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${occupantState.lifecycleStatus === "Past" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
-                      {occupantState.lifecycleStatus === "Past" ? "✓" : "○"}
+                    {/* 4. Past Tenant Milestone */}
+                    <div className={`relative z-10 flex flex-col items-center ${occupantState.lifecycleStatus === "Past" ? "opacity-100" : "opacity-40"}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1 ${occupantState.lifecycleStatus === "Past" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                        {occupantState.lifecycleStatus === "Past" ? "✓" : "○"}
+                      </div>
+                      <span className="text-[11px] font-bold text-gray-700">Past Tenant</span>
+                      <span className="text-[9px] text-gray-400">
+                        {occupantState.lifecycleStatus === "Past" ? "Vacated" : "Pending"}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-bold text-gray-700">Past Tenant</span>
-                    <span className="text-[9px] text-gray-400">
-                      {occupantState.lifecycleStatus === "Past" ? "Vacated" : "Pending"}
-                    </span>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

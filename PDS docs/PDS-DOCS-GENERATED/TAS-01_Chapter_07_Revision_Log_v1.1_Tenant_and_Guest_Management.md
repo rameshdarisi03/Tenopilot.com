@@ -438,6 +438,17 @@ To eliminate manual owner overhead during tenant check-ins, manual "Complete Che
 
 ---
 
+# Update 24 — Short-Term Guest Timeline Exemption Policy
+
+Short-term guests (`stayType === "Guest"`) do not follow long-term 11-month lease lifecycle milestones:
+
+1. **Timeline Card Exemption**:
+   - The **Tenant Timeline & Milestones** card is hidden for all profiles with `stayType === "Guest"`.
+2. **Promote Re-Activation**:
+   - When a short-term guest is promoted to a long-term tenant (`stayType === "Tenant"`), the timeline card automatically unlocks and renders full milestone progression.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -465,6 +476,7 @@ This revision introduces:
 - Silent Automated Move-In Date Auto-Checkin Engine
 - Firebase Cloud Firestore Single Source of Truth Engine
 - Edit Check-In Date Workflow & Removal of Manual Check-In
+- Short-Term Guest Timeline Exemption Policy
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
