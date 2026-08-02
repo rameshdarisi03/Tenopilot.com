@@ -562,19 +562,33 @@ export default function IndividualTenantProfilePage({
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Log Notice */}
+              {/* 4. Log Notice (Disabled for Guests, active for Tenants) */}
               <button
-                onClick={() => setShowLogNoticeModal(true)}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all"
+                disabled={occupantState.stayType === "Guest"}
+                title={
+                  occupantState.stayType === "Guest"
+                    ? "Log Notice is available for Long-Term Tenants only. Promote guest to tenant to enable."
+                    : undefined
+                }
+                onClick={() => {
+                  if (occupantState.stayType !== "Guest") {
+                    setShowLogNoticeModal(true);
+                  }
+                }}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  occupantState.stayType === "Guest"
+                    ? "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                    : "bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 active:scale-95"
+                }`}
               >
-                <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
+                <FileText className={`w-4 h-4 ${occupantState.stayType === "Guest" ? "text-gray-400" : "text-[#c2652a]"}`} /> Log Notice
               </button>
 
               {/* 5. Promote Guest to Tenant (Only rendered for Guest accounts) */}
               {occupantState.stayType === "Guest" && (
                 <button
                   onClick={() => setShowPromoteModal(true)}
-                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
                 >
                   <UserPlus className="w-4 h-4" /> 👔 Promote to Long-Term Tenant
                 </button>
