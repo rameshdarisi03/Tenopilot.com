@@ -98,83 +98,75 @@ export default function PropertySetupPage({
     }
   };
 
-  // Property Layout State
+  // Property Layout State (Dynamically linked to all 200 Mock Occupants)
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() => {
-    const occMap = MOCK_OCCUPANTS_200;
-    return [
-      {
-        id: "fl-03",
-        floorName: "FLOOR 03",
-        floorSubtitle: "EXECUTIVE SUITES",
-        rooms: [
-          {
-            id: "rm-301",
-            roomNumber: "301",
-            sharingType: 4,
-            beds: [
-              { id: "b-301a", bedCode: "BED A", status: "Occupied", occupant: occMap[0] },
-              { id: "b-301b", bedCode: "BED B", status: "Available" },
-              { id: "b-301c", bedCode: "BED C", status: "Booked", occupant: occMap[26] },
-              { id: "b-301d", bedCode: "BED D", status: "Guest", occupant: occMap[5] },
-            ],
-          },
-          {
-            id: "rm-302",
-            roomNumber: "302",
-            sharingType: 3,
-            beds: [
-              { id: "b-302a", bedCode: "BED A", status: "Vacating", occupant: occMap[11] },
-              { id: "b-302b", bedCode: "BED B", status: "Occupied", occupant: occMap[1] },
-              { id: "b-302c", bedCode: "BED C", status: "Available" },
-            ],
-          },
-        ],
-      },
-      {
-        id: "fl-02",
-        floorName: "FLOOR 02",
-        floorSubtitle: "PREMIUM SUITES",
-        rooms: [
-          {
-            id: "rm-201",
-            roomNumber: "201",
-            sharingType: 4,
-            beds: [
-              { id: "b-201a", bedCode: "BED A", status: "Occupied", occupant: occMap[4] },
-              { id: "b-201b", bedCode: "BED B", status: "Available" },
-              { id: "b-201c", bedCode: "BED C", status: "Booked", occupant: occMap[27] },
-              { id: "b-201d", bedCode: "BED D", status: "Occupied", occupant: occMap[6] },
-            ],
-          },
-          {
-            id: "rm-202",
-            roomNumber: "202",
-            sharingType: 2,
-            beds: [
-              { id: "b-202a", bedCode: "BED A", status: "Vacating", occupant: occMap[12] },
-              { id: "b-202b", bedCode: "BED B", status: "Occupied", occupant: occMap[7] },
-            ],
-          },
-        ],
-      },
-      {
-        id: "fl-01",
-        floorName: "FLOOR 01",
-        floorSubtitle: "DELUXE SUITES",
-        rooms: [
-          {
-            id: "rm-101",
-            roomNumber: "101",
-            sharingType: 3,
-            beds: [
-              { id: "b-101a", bedCode: "BED A", status: "Occupied", occupant: occMap[9] },
-              { id: "b-101b", bedCode: "BED B", status: "Occupied", occupant: occMap[10] },
-              { id: "b-101c", bedCode: "BED C", status: "Available" },
-            ],
-          },
-        ],
-      },
+    const floors: FloorConfig[] = [];
+    const floorConfigs = [
+      { id: "fl-05", name: "FLOOR 05", sub: "PENTHOUSE & TERRACE", roomStart: 501, count: 4 },
+      { id: "fl-04", name: "FLOOR 04", sub: "EXECUTIVE SUITES", roomStart: 401, count: 4 },
+      { id: "fl-03", name: "FLOOR 03", sub: "EXECUTIVE SUITES", roomStart: 301, count: 4 },
+      { id: "fl-02", name: "FLOOR 02", sub: "PREMIUM SUITES", roomStart: 201, count: 4 },
+      { id: "fl-01", name: "FLOOR 01", sub: "DELUXE SUITES", roomStart: 101, count: 4 },
+      { id: "fl-00", name: "GROUND FLOOR", sub: "STANDARD SUITES", roomStart: 1, count: 4 },
     ];
+
+    let occIndex = 0;
+
+    floorConfigs.forEach((fConfig, fIdx) => {
+      const rooms: RoomConfig[] = [];
+
+      for (let r = 0; r < fConfig.count; r++) {
+        const roomNumStr =
+          fConfig.roomStart < 10
+            ? `00${fConfig.roomStart + r}`
+            : `${fConfig.roomStart + r}`;
+        const sharing = (r % 3 === 0 ? 4 : r % 2 === 0 ? 3 : 2);
+        const beds: BedSlotConfig[] = [];
+        const bedLetters = ["BED A", "BED B", "BED C", "BED D"];
+
+        for (let b = 0; b < sharing; b++) {
+          const currentOcc = MOCK_OCCUPANTS_200[occIndex % MOCK_OCCUPANTS_200.length];
+          occIndex++;
+
+          let status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" = "Occupied";
+
+          if (currentOcc.lifecycleStatus === "Notice") {
+            status = "Vacating";
+          } else if (currentOcc.lifecycleStatus === "Booked") {
+            status = "Booked";
+          } else if (currentOcc.stayType === "Guest") {
+            status = "Guest";
+          } else if (occIndex % 7 === 0) {
+            status = "Available";
+          } else {
+            status = "Occupied";
+          }
+
+          beds.push({
+            id: `bed-${fIdx}-${r}-${b}`,
+            bedCode: bedLetters[b],
+            status,
+            occupant: status === "Available" ? undefined : currentOcc,
+          });
+        }
+
+        rooms.push({
+          id: `rm-${fIdx}-${r}`,
+          roomNumber: roomNumStr,
+          sharingType: sharing,
+          beds,
+        });
+      }
+
+      floors.push({
+        id: fConfig.id,
+        floorName: fConfig.name,
+        floorSubtitle: fConfig.sub,
+        rooms,
+      });
+    });
+
+    return floors;
   });
 
   // Handle Deletion of Bed Slot
