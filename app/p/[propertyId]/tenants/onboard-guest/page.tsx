@@ -50,7 +50,9 @@ export default function OnboardGuestPage({
 
   // Form State — Step 1: Guest Personal & Stay Details (Excludes workplace/office fields as per Update 03!)
   const [fullName, setFullName] = useState("");
+  const [countryCode, setCountryCode] = useState("+91");
   const [phone, setPhone] = useState("");
+  const [emergencyCountryCode, setEmergencyCountryCode] = useState("+91");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [address, setAddress] = useState("");
 
@@ -322,27 +324,45 @@ export default function OnboardGuestPage({
                   <label className="block font-bold text-gray-700 mb-1">
                     Mobile Phone Number *
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 98111 22334"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="w-16 px-2.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600 shrink-0 bg-gray-50"
+                      title="Country Code (default +91)"
+                    />
+                    <input
+                      type="tel"
+                      required
+                      placeholder="98111 22334"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
                     Emergency Contact Number
                   </label>
-                  <input
-                    type="tel"
-                    placeholder="+91 98000 11122"
-                    value={emergencyPhone}
-                    onChange={(e) => setEmergencyPhone(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={emergencyCountryCode}
+                      onChange={(e) => setEmergencyCountryCode(e.target.value)}
+                      className="w-16 px-2.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600 shrink-0 bg-gray-50"
+                      title="Country Code (default +91)"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="98000 11122"
+                      value={emergencyPhone}
+                      onChange={(e) => setEmergencyPhone(e.target.value)}
+                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-600"
+                    />
+                  </div>
                 </div>
 
                 <div>
