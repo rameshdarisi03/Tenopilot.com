@@ -84,33 +84,26 @@ export default function OnboardGuestPage({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
 
-  // Read available property beds from propertyStore (Filtered to Available 🟢 & Vacating 🟧 ONLY)
+  // Read available property structure from propertyStore
   const propertyStructure = useMemo(() => propertyStore.getStructure(), []);
 
-  const availableBedsList = useMemo(() => {
-    const list: Array<{
-      floorName: string;
-      roomNumber: string;
-      sharingType: number;
-      bed: BedSlotConfig;
-    }> = [];
-
-    propertyStructure.forEach((fl) => {
-      fl.rooms.forEach((rm) => {
-        rm.beds.forEach((bd) => {
-          if (bd.status === "Available" || bd.status === "Vacating") {
-            list.push({
-              floorName: fl.floorName,
-              roomNumber: rm.roomNumber,
-              sharingType: rm.sharingType,
-              bed: bd,
-            });
-          }
-        });
-      });
-    });
-
-    return list;
+  // Filter Floor Navigation structure for Guest Onboarding:
+  // Shows ONLY Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
+  // Reuses exact Floor -> Room -> Bed visual hierarchy!
+  const onboardingFloorNavigation = useMemo(() => {
+    return propertyStructure
+      .map((fl) => ({
+        ...fl,
+        rooms: fl.rooms
+          .map((rm) => ({
+            ...rm,
+            beds: rm.beds.filter(
+              (bd) => bd.status === "Available" || bd.status === "Vacating"
+            ),
+          }))
+          .filter((rm) => rm.beds.length > 0),
+      }))
+      .filter((fl) => fl.rooms.length > 0);
   }, [propertyStructure]);
 
   // Validation per step
@@ -137,11 +130,15 @@ export default function OnboardGuestPage({
       "en-GB",
       { day: "2-digit", month: "short" }
     );
+    const fullPhoneNumber = `${countryCode} ${phone.trim()}`;
+    const fullEmergencyPhone = emergencyPhone.trim()
+      ? `${emergencyCountryCode} ${emergencyPhone.trim()}`
+      : "+91 98000 11122";
 
     const newGuest: Occupant = {
       id: newId,
       name: fullName.trim(),
-      phone: phone.trim(),
+      phone: fullPhoneNumber,
       email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
       stayType: "Guest",
       lifecycleStatus: "Active",
@@ -164,7 +161,7 @@ export default function OnboardGuestPage({
       aadhaarNumber: "XXXX-XXXX-4567",
       emergencyContact: {
         name: "Emergency Contact",
-        phone: emergencyPhone || "+91 98000 11122",
+        phone: fullEmergencyPhone,
         relation: "Friend",
       },
     };
@@ -233,7 +230,7 @@ export default function OnboardGuestPage({
             <span className="text-purple-700 font-bold">New Guest Onboarding</span>
           </div>
 
-          {/* Stepper Header (Desktop & Mobile Compact Progress) */}
+          {/* Stepper Header */}
           <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -250,7 +247,6 @@ export default function OnboardGuestPage({
                 </p>
               </div>
 
-              {/* Mobile Compact Progress Counter */}
               <span className="md:hidden text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
                 Step {currentStep} of 3
               </span>
@@ -448,7 +444,7 @@ export default function OnboardGuestPage({
             </form>
           )}
 
-          {/* STEP 2: SMART ROOM & BED ALLOCATION */}
+          {/* STEP 2: REUSED FLOOR NAVIGATION BED ALLOCATION (Privacy Protected - No Tenant Names!) */}
           {currentStep === 2 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-gray-100 pb-3">
@@ -457,74 +453,97 @@ export default function OnboardGuestPage({
                     <Bed className="w-5 h-5 text-purple-700" /> Select Guest Bed for {fullName || "Guest"}
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Showing available 🟢 & vacating 🟧 beds for dates ({checkInDate} to {checkOutDate})
+                    Showing available 🟢 & vacating 🟧 beds across floor navigation for dates ({checkInDate} to {checkOutDate})
                   </p>
                 </div>
 
                 {selectedBed && (
-                  <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5">
-                    Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                  <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs">
+                    ✓ Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
                   </span>
                 )}
               </div>
 
-              {/* Bed Selection Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-                {availableBedsList.map((item) => {
-                  const isSelected = selectedBed?.bedId === item.bed.id;
-
-                  return (
-                    <button
-                      type="button"
-                      key={item.bed.id}
-                      onClick={() =>
-                        setSelectedBed({
-                          bedId: item.bed.id,
-                          bedCode: item.bed.bedCode,
-                          roomNumber: item.roomNumber,
-                          floorName: item.floorName,
-                        })
-                      }
-                      className={`p-4 rounded-xl border text-left flex flex-col justify-between gap-3 transition-all cursor-pointer min-h-[70px] ${
-                        isSelected
-                          ? "bg-purple-50 border-purple-600 ring-2 ring-purple-600/20 shadow-sm"
-                          : "bg-white border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-serif font-bold text-sm text-gray-900">
-                          {item.floorName} • Room {item.roomNumber}
+              {/* Floor Navigation Hierarchy Grid (Reused from Property Map) */}
+              <div className="space-y-6">
+                {onboardingFloorNavigation.map((floor) => (
+                  <div key={floor.id} className="space-y-3">
+                    {/* Floor Header Bar */}
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-gray-800">
+                          {floor.floorName}
                         </span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            item.bed.status === "Vacating"
-                              ? "bg-orange-100 text-orange-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {item.bed.status === "Vacating"
-                            ? `Vacating ${item.bed.vacatingDate || "15 Aug"}`
-                            : "Available"}
+                        <span className="text-[11px] text-gray-400 font-bold">
+                          — {floor.floorSubtitle}
                         </span>
                       </div>
+                    </div>
 
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="font-bold text-gray-800 text-xs">
-                          🛏️ {item.bed.bedCode} ({item.sharingType} Sharing)
-                        </span>
+                    {/* Rooms Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {floor.rooms.map((room) => (
                         <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                            isSelected
-                              ? "bg-purple-700 border-purple-700 text-white"
-                              : "border-gray-300"
-                          }`}
+                          key={room.id}
+                          className="bg-[#fcfcfc] rounded-xl border border-gray-200 p-4 space-y-3 shadow-2xs"
                         >
-                          {isSelected && <Check className="w-3 h-3" />}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-serif font-bold text-base text-gray-900">
+                                Room {room.roomNumber}
+                              </h3>
+                              <span className="text-[9px] text-gray-400 font-bold uppercase">
+                                {room.sharingType} SHARING CAPACITY
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Bed Slot Buttons (NO Tenant Names displayed for privacy!) */}
+                          <div className="grid grid-cols-2 gap-2">
+                            {room.beds.map((bed) => {
+                              const isSelected =
+                                selectedBed?.bedId === bed.id;
+                              const isVacating = bed.status === "Vacating";
+
+                              return (
+                                <button
+                                  type="button"
+                                  key={bed.id}
+                                  onClick={() =>
+                                    setSelectedBed({
+                                      bedId: bed.id,
+                                      bedCode: bed.bedCode,
+                                      roomNumber: room.roomNumber,
+                                      floorName: floor.floorName,
+                                    })
+                                  }
+                                  className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
+                                    isSelected
+                                      ? "bg-purple-50 border-purple-600 ring-2 ring-purple-600/20 shadow-xs"
+                                      : isVacating
+                                      ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
+                                      : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
+                                  }`}
+                                >
+                                  <span className="font-bold text-xs">
+                                    {bed.bedCode}
+                                  </span>
+
+                                  {/* Status & Date Badge ONLY — NO Tenant Names! */}
+                                  <span className="text-[10px] font-bold">
+                                    {isVacating
+                                      ? `Vacating ${bed.vacatingDate || "15 Aug"}`
+                                      : "Available 🟢"}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="flex justify-between pt-4 border-t border-gray-100">
