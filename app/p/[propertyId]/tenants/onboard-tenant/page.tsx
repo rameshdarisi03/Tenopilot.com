@@ -286,6 +286,10 @@ export default function OnboardTenantPage({
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
         aadhaarPdfUrl: aadhaarDoc?.previewUrl || aadhaarUrl || undefined,
       },
+      securityDeposit: depositAmount || 25000,
+      depositStatus: "PAID",
+      partialPaidThisCycle: 0,
+      arrearsBalance: 0,
     };
 
     // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)

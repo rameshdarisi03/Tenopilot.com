@@ -279,6 +279,10 @@ export default function OnboardGuestPage({
         aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || undefined,
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
       },
+      securityDeposit: 0,
+      depositStatus: "PAID",
+      partialPaidThisCycle: 0,
+      arrearsBalance: 0,
     };
 
     // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)
