@@ -331,12 +331,34 @@ export default function IndividualTenantProfilePage({
   const [editEmail, setEditEmail] = useState<string>(occupantState.email);
   const [editRent, setEditRent] = useState<number>(occupantState.rentAmount);
 
+  // Room Transfer Modal State
+  const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
+  const [transferRoomNumber, setTransferRoomNumber] = useState<string>("304");
+  const [transferBedCode, setTransferBedCode] = useState<string>("BED B");
+  const [transferEffectiveDate, setTransferEffectiveDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleRoomTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setOccupantState((prev) => ({
+      ...prev,
+      roomNumber: transferRoomNumber,
+      bedCode: transferBedCode,
+    }));
+
+    triggerToast(
+      `🎉 Room transfer complete! ${occupantState.name} transferred to Room ${transferRoomNumber} (${transferBedCode}). New tariff effective next billing cycle (5th of month).`
+    );
+    setShowTransferModal(false);
   };
 
   // 1. Collect Rent Submit Handler (No Cheques, Transaction ID for UPI/Bank, Updates State)
@@ -562,13 +584,9 @@ export default function IndividualTenantProfilePage({
                 <CreditCard className="w-4 h-4" /> Collect Rent
               </button>
 
-              {/* 3. Transfer Room (Deferred until Property Map pages) */}
+              {/* 3. Transfer Room (Interactive Bed & Room Shift Modal) */}
               <button
-                onClick={() =>
-                  triggerToast(
-                    "Room Transfer option will be active after Property Map setup"
-                  )
-                }
+                onClick={() => setShowTransferModal(true)}
                 className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all"
               >
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
@@ -1941,6 +1959,110 @@ export default function IndividualTenantProfilePage({
                     className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
                   >
                     {extendMode === "EXTEND" ? "Confirm Extension" : "Confirm Pre-Booking"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 5. Transfer Room Modal (Interactive Bed Shift) */}
+        {showTransferModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
+                    <ArrowRightLeft className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Transfer Room & Bed
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-semibold">
+                      REASSIGN BED FOR: {occupantState.name}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTransferModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Current Allocation Callout */}
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1 text-xs">
+                <span className="text-[10px] font-bold uppercase text-gray-400 block">Current Location</span>
+                <p className="font-bold text-gray-900">
+                  Floor 01 • Room {occupantState.roomNumber} ({occupantState.bedCode}) • Rent: ₹{occupantState.rentAmount.toLocaleString("en-IN")}/mo
+                </p>
+              </div>
+
+              <form onSubmit={handleRoomTransferSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Select Target Room *
+                  </label>
+                  <select
+                    value={transferRoomNumber}
+                    onChange={(e) => setTransferRoomNumber(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  >
+                    <option value="304">Room 304 (2-Sharing • ₹14,500/mo)</option>
+                    <option value="205">Room 205 (3-Sharing • ₹11,000/mo)</option>
+                    <option value="108">Room 108 (1-Sharing Private • ₹18,000/mo)</option>
+                    <option value="301">Room 301 (2-Sharing • ₹14,500/mo)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Select Target Bed Slot *
+                  </label>
+                  <select
+                    value={transferBedCode}
+                    onChange={(e) => setTransferBedCode(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  >
+                    <option value="BED A">BED A (Vacant 🟢)</option>
+                    <option value="BED B">BED B (Vacant 🟢)</option>
+                    <option value="BED C">BED C (Vacant 🟢)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Effective Transfer Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={transferEffectiveDate}
+                    onChange={(e) => setTransferEffectiveDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Bed assignment updates immediately. Rent tariff changes apply from next 5th billing cycle.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                  >
+                    Confirm Room Transfer
                   </button>
                 </div>
               </form>

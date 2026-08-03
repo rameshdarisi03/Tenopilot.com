@@ -200,7 +200,7 @@ export default function TenantsDirectoryPage({
     const numericDigitsOnly = normalizePhoneNumber(cleanSearch);
 
     const matched = MOCK_OCCUPANTS_200.filter((occ) => {
-      // Robust multi-attribute search matching
+      // 1. Robust multi-attribute search matching (Global Search Override)
       if (searchTokens.length > 0) {
         const occNameLower = occ.name.toLowerCase();
         const occRoomLower = occ.roomNumber.toLowerCase();
@@ -216,10 +216,11 @@ export default function TenantsDirectoryPage({
             (numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly))
         );
 
-        if (!matchesAllTokens) return false;
+        // If searching, return true if matches query (Ignore tab & dropdown filters for True Global Search)
+        return matchesAllTokens;
       }
 
-      // Status Segmented Tab Filter
+      // 2. Status Segmented Tab Filter (Only applied when NOT searching)
       if (activeFilterTab === "Booked" && occ.lifecycleStatus !== "Booked") return false;
       if (activeFilterTab === "Active" && occ.lifecycleStatus !== "Active") return false;
       if (activeFilterTab === "Notice" && occ.lifecycleStatus !== "Notice") return false;
