@@ -567,6 +567,10 @@ This revision introduces:
    - Add a Photo Gallery trigger icon/section on the top-right of each Room Card.
    - Clicking opens a lightbox gallery view popup of the specific room.
 
+3. **Onboarding Authentication via Biometrics or Digital Signature Process (`/onboard-tenant` & `/onboard-guest`)**:
+   - Authenticate tenant onboarding via fingerprint/biometric capture or digital e-signature canvas.
+   - Owner/tenant signs agreement digitally during onboarding.
+
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
 ---
