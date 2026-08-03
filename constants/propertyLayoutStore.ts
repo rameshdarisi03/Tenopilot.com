@@ -165,4 +165,22 @@ export const propertyStore = {
   getFloorNames(): string[] {
     return this.getStructure().map((fl) => fl.floorName);
   },
+
+  // Helper to extract all rooms that have available/vacant beds (prevents double bookings!)
+  getAvailableRooms(): { roomNumber: string; sharingType: number; availableBeds: string[] }[] {
+    const result: { roomNumber: string; sharingType: number; availableBeds: string[] }[] = [];
+    this.getStructure().forEach((fl) => {
+      fl.rooms.forEach((rm) => {
+        const availBeds = rm.beds.filter((b) => b.status === "Available").map((b) => b.bedCode);
+        if (availBeds.length > 0) {
+          result.push({
+            roomNumber: rm.roomNumber,
+            sharingType: rm.sharingType,
+            availableBeds: availBeds,
+          });
+        }
+      });
+    });
+    return result;
+  },
 };

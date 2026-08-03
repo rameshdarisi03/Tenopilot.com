@@ -205,6 +205,34 @@ export function generateMockOccupants(count = 200): Occupant[] {
 
   occupants.push(...testOccupants);
 
+  // Reserved test beds: 201 BED A, 202 BED B, 203 BED A, 204 BED C
+  const reservedBeds = new Set(["201-BED A", "202-BED B", "203-BED A", "204-BED C"]);
+
+  // Generate all unique property bed slots across 24 rooms
+  const uniquePropertyBeds: { roomNumber: string; bedCode: string }[] = [];
+  const roomPrefixes = [
+    { start: 1 },
+    { start: 101 },
+    { start: 201 },
+    { start: 301 },
+    { start: 401 },
+    { start: 501 },
+  ];
+
+  roomPrefixes.forEach((f) => {
+    for (let r = 0; r < 4; r++) {
+      const roomNumStr = f.start < 10 ? `00${f.start + r}` : `${f.start + r}`;
+      const sharing = r % 3 === 0 ? 4 : r % 2 === 0 ? 3 : 2;
+      for (let b = 0; b < sharing; b++) {
+        const bedLetter = `BED ${String.fromCharCode(65 + b)}`;
+        const key = `${roomNumStr}-${bedLetter}`;
+        if (!reservedBeds.has(key)) {
+          uniquePropertyBeds.push({ roomNumber: roomNumStr, bedCode: bedLetter });
+        }
+      }
+    }
+  });
+
   const currentDay = 1; // August 1st 2026 reference
 
   for (let i = 1; i <= count; i++) {
@@ -212,8 +240,6 @@ export function generateMockOccupants(count = 200): Occupant[] {
     const nameParts = name.split(" ");
     const fn = nameParts[0];
     const ln = nameParts.slice(1).join(" ") || "Kumar";
-    const room = roomNumbers[i % roomNumbers.length];
-    const bed = bedCodes[i % bedCodes.length];
 
     let stayType: "Tenant" | "Guest" = "Tenant";
     let lifecycleStatus: "Active" | "Booked" | "Notice" | "Past" = "Active";
@@ -231,12 +257,21 @@ export function generateMockOccupants(count = 200): Occupant[] {
     let daysRemainingText = "—";
     let lastPaidDate = `01 Jul 2026`;
 
+    let room = "—";
+    let bed = "— (Vacated)";
+
     if (i <= 10) {
       lifecycleStatus = "Past";
       paymentStatus = "Paid";
       daysRemainingText = "—";
       lastPaidDate = `30 May 2025`;
-    } else if (i > 10 && i <= 25) {
+    } else {
+      // Assign 100% UNIQUE Room & Bed slot for active/notice/booked occupants
+      const slot = uniquePropertyBeds[(i - 11) % uniquePropertyBeds.length];
+      room = slot.roomNumber;
+      bed = slot.bedCode;
+
+      if (i > 10 && i <= 25) {
       lifecycleStatus = "Notice";
       if (daysDiff < 0) {
         paymentStatus = "Overdue";
@@ -271,6 +306,7 @@ export function generateMockOccupants(count = 200): Occupant[] {
       paymentStatus = "Paid";
       daysRemainingText = "—";
       lastPaidDate = `01 Aug 2026`;
+    }
     }
 
     const joiningDate = `10 Oct 2023`;

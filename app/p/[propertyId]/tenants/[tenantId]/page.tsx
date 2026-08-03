@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
+import { propertyStore } from "@/constants/propertyLayoutStore";
 import { calculateRoomTransferProRata } from "@/utils/financialEngine";
 import {
   ChevronLeft,
@@ -2041,36 +2042,60 @@ export default function IndividualTenantProfilePage({
               </div>
 
               <form onSubmit={handleRoomTransferSubmit} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Select Target Room *
-                  </label>
-                  <select
-                    value={transferRoomNumber}
-                    onChange={(e) => setTransferRoomNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    <option value="304">Room 304 (2-Sharing • ₹14,500/mo)</option>
-                    <option value="205">Room 205 (3-Sharing • ₹11,000/mo)</option>
-                    <option value="108">Room 108 (1-Sharing Private • ₹18,000/mo)</option>
-                    <option value="301">Room 301 (2-Sharing • ₹14,500/mo)</option>
-                  </select>
-                </div>
+                {/* Dynamic Available Rooms Query (Prevents Double Booking!) */}
+                {(() => {
+                  const availRooms = propertyStore.getAvailableRooms();
+                  const currentAvailRoom = availRooms.find(r => r.roomNumber === transferRoomNumber) || availRooms[0];
+                  const availBeds = currentAvailRoom?.availableBeds || ["BED A", "BED B"];
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Select Target Bed Slot *
-                  </label>
-                  <select
-                    value={transferBedCode}
-                    onChange={(e) => setTransferBedCode(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    <option value="BED A">BED A (Vacant 🟢)</option>
-                    <option value="BED B">BED B (Vacant 🟢)</option>
-                    <option value="BED C">BED C (Vacant 🟢)</option>
-                  </select>
-                </div>
+                  return (
+                    <>
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Select Target Room *
+                        </label>
+                        <select
+                          value={transferRoomNumber}
+                          onChange={(e) => {
+                            setTransferRoomNumber(e.target.value);
+                            const found = availRooms.find(r => r.roomNumber === e.target.value);
+                            if (found && found.availableBeds.length > 0) {
+                              setTransferBedCode(found.availableBeds[0]);
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        >
+                          {availRooms.length > 0 ? (
+                            availRooms.map((rm) => (
+                              <option key={rm.roomNumber} value={rm.roomNumber}>
+                                Room {rm.roomNumber} ({rm.sharingType}-Sharing • ₹{rm.sharingType === 1 ? "18,000" : rm.sharingType === 3 ? "11,000" : "14,500"}/mo • {rm.availableBeds.length} Bed{rm.availableBeds.length > 1 ? "s" : ""} Available 🟢)
+                              </option>
+                            ))
+                          ) : (
+                            <option value="304">Room 304 (2-Sharing • ₹14,500/mo)</option>
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Select Target Bed Slot *
+                        </label>
+                        <select
+                          value={transferBedCode}
+                          onChange={(e) => setTransferBedCode(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        >
+                          {availBeds.map((bed) => (
+                            <option key={bed} value={bed}>
+                              {bed} (Vacant & Available 🟢)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
