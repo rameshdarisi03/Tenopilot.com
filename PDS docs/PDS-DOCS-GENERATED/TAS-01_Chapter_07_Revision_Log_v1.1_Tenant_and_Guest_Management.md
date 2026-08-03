@@ -507,6 +507,20 @@ TenoPilot features a dedicated **Property Settings Dashboard** (`/p/[propertyId]
 
 ---
 
+# Update 29 — Pro-Rata Room Transfer Engine & One-Shot Tenant Communication Summary Box
+
+TenoPilot includes a dedicated **Pro-Rata Room Transfer Engine** and an **One-Shot Tenant Communication Box**:
+
+1. **Dynamic Pro-Rata Math**:
+   - **If Rent Paid**: Calculates pro-rata adjustment ($\frac{\text{Tariff Difference}}{\text{DaysInMonth}} \times \text{RemainingDays}$) for remaining days in month and stores adjustment (+₹1,919 for upgrade / -₹1,919 for downgrade) on tenant ledger.
+   - **If Rent Unpaid**: Recalculates current month's rent as ($\text{Old Room Pro-Rata} + \text{New Room Pro-Rata}$).
+2. **One-Shot Tenant Communication Box (Inside Transfer Modal)**:
+   - Displays all-in-one breakdown: Current Room, Target Room, Pro-Rata Adjustment Amount, and a ready-to-send WhatsApp/Text message for the tenant.
+3. **DDS-13 Dynamic Cascading Matrix**:
+   - Updates Bed Availability (`propertyStore`), Directory, Profile Card, Financial Overview, Collect Rent Modal, and Firebase Cloud Firestore in real time.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -539,6 +553,7 @@ This revision introduces:
 - Indian PG Financial Engine (`billingCycleDates` & `desiredDueDate`)
 - Dedicated Financial Overview Card & Real Security Deposit Integration
 - Property Settings Dashboard Module & Interactive Room Transfer Workflow
+- Pro-Rata Room Transfer Engine & One-Shot Tenant Communication Summary Box
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 

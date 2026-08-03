@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
+import { calculateRoomTransferProRata } from "@/utils/financialEngine";
 import {
   ChevronLeft,
   Edit,
@@ -349,14 +350,30 @@ export default function IndividualTenantProfilePage({
 
   const handleRoomTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const targetRent =
+      transferRoomNumber === "108"
+        ? 18000
+        : transferRoomNumber === "205"
+        ? 11000
+        : 14500;
+
+    const calc = calculateRoomTransferProRata(
+      occupantState.rentAmount,
+      targetRent,
+      transferEffectiveDate,
+      occupantState.paymentStatus
+    );
+
     setOccupantState((prev) => ({
       ...prev,
       roomNumber: transferRoomNumber,
       bedCode: transferBedCode,
+      rentAmount: targetRent,
+      arrearsBalance: (prev.arrearsBalance || 0) + calc.adjustmentAmount,
     }));
 
     triggerToast(
-      `🎉 Room transfer complete! ${occupantState.name} transferred to Room ${transferRoomNumber} (${transferBedCode}). New tariff effective next billing cycle (5th of month).`
+      `🎉 Room transfer complete! ${occupantState.name} moved to Room ${transferRoomNumber} (${transferBedCode}). Pro-rata adjustment (${calc.adjustmentAmount >= 0 ? "+" : ""}₹${calc.adjustmentAmount.toLocaleString("en-IN")}) updated in Net Dues.`
     );
     setShowTransferModal(false);
   };
@@ -2045,10 +2062,59 @@ export default function IndividualTenantProfilePage({
                     onChange={(e) => setTransferEffectiveDate(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Bed assignment updates immediately. Rent tariff changes apply from next 5th billing cycle.
-                  </p>
                 </div>
+
+                {/* 🌟 ONE-SHOT TENANT COMMUNICATION SUMMARY BOX */}
+                {(() => {
+                  const targetRent =
+                    transferRoomNumber === "108"
+                      ? 18000
+                      : transferRoomNumber === "205"
+                      ? 11000
+                      : 14500;
+                  const calc = calculateRoomTransferProRata(
+                    occupantState.rentAmount,
+                    targetRent,
+                    transferEffectiveDate,
+                    occupantState.paymentStatus
+                  );
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-orange-50/80 border border-orange-200 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[#c2652a] uppercase tracking-wider text-[10px] flex items-center gap-1">
+                          💬 One-Shot Tenant Communication
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${
+                          calc.isUpgrade
+                            ? "bg-orange-100 text-orange-800"
+                            : calc.isDowngrade
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-gray-100 text-gray-700"
+                        }`}>
+                          {calc.isUpgrade ? "UPGRADE 🔺" : calc.isDowngrade ? "DOWNGRADE 🔻" : "SAME SHIFT 🔁"}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 font-medium text-gray-800 text-[11px]">
+                        <p>
+                          • Remaining Days in Cycle: <strong>{calc.remainingDays} Days</strong>
+                        </p>
+                        <p>
+                          • Pro-Rata Adjustment:{" "}
+                          <strong className={calc.isUpgrade ? "text-orange-700 font-mono" : "text-emerald-700 font-mono"}>
+                            {calc.isUpgrade ? `+₹${calc.adjustmentAmount.toLocaleString("en-IN")}` : calc.isDowngrade ? `-₹${Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}` : "₹0"}
+                          </strong>
+                        </p>
+                      </div>
+
+                      {/* Ready-to-Send Communication Copy */}
+                      <div className="p-2.5 bg-white rounded-xl border border-orange-200/60 font-semibold text-gray-900 text-[10px] italic">
+                        "{calc.communicationMessage}"
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
                   <button
