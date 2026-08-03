@@ -272,6 +272,113 @@ export default function PropertySettingsPage({
                     </p>
                   </div>
                 </div>
+
+                {/* Global Monthly Rental Tiers */}
+                <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
+                    <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                      <DollarSign className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-gray-900">Room Sharing Monthly Rental Tiers</h3>
+                      <p className="text-[11px] text-gray-500">Default monthly rent tariffs per bed sharing type (Auto-fills in onboarding & room transfers)</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-700">1-Sharing (Single Private)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <input
+                          type="number"
+                          required
+                          value={settings.rentalTiers?.sharing1 || 18000}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              rentalTiers: {
+                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                sharing1: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                    </div>
+
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-700">2-Sharing (Double)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <input
+                          type="number"
+                          required
+                          value={settings.rentalTiers?.sharing2 || 14500}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              rentalTiers: {
+                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                sharing2: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                    </div>
+
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-700">3-Sharing (Triple)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <input
+                          type="number"
+                          required
+                          value={settings.rentalTiers?.sharing3 || 11000}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              rentalTiers: {
+                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                sharing3: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                    </div>
+
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-700">4-Sharing (Four)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <input
+                          type="number"
+                          required
+                          value={settings.rentalTiers?.sharing4 || 8500}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              rentalTiers: {
+                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                sharing4: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

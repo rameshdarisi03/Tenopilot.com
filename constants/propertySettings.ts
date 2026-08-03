@@ -10,6 +10,12 @@ export interface PropertySettingsData {
   upiPaymentId: string;
   propertyName: string;
   managerPhone: string;
+  rentalTiers: {
+    sharing1: number; // 1-Sharing Private Room (e.g. ₹18,000)
+    sharing2: number; // 2-Sharing Double Room (e.g. ₹14,500)
+    sharing3: number; // 3-Sharing Triple Room (e.g. ₹11,000)
+    sharing4: number; // 4-Sharing Four Room (e.g. ₹8,500)
+  };
 }
 
 export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
@@ -20,6 +26,12 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   upiPaymentId: "tenopilot.sunshine@okicici",
   propertyName: "Sunshine Heights PG",
   managerPhone: "+91 98765 43210",
+  rentalTiers: {
+    sharing1: 18000,
+    sharing2: 14500,
+    sharing3: 11000,
+    sharing4: 8500,
+  },
 };
 
 let currentSettings: PropertySettingsData = { ...DEFAULT_PROPERTY_SETTINGS };
