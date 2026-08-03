@@ -147,15 +147,15 @@ export function calculateRoomTransferProRata(
 
     let communicationMessage = "";
     if (tariffDiff === 0) {
-      communicationMessage = `Room shift confirmed! Monthly rent remains ₹${newRent.toLocaleString("en-IN")}/mo (No change in rent bill).`;
+      communicationMessage = `Room shift: Monthly rent remains ₹${newRent.toLocaleString("en-IN")}/mo (No change in rent bill).`;
     } else if (paymentStatus === "Paid") {
       if (isUpgrade) {
-        communicationMessage = `Room upgrade confirmed! A pro-rata adjustment of +₹${adjustmentAmount.toLocaleString("en-IN")} (${remainingDays} days in new room) will be added to your next 5th rent bill.`;
+        communicationMessage = `Room upgrade quote: A pro-rata adjustment of +₹${adjustmentAmount.toLocaleString("en-IN")} (${remainingDays} days in new room) will be added to your next 5th rent bill.`;
       } else {
-        communicationMessage = `Room downgrade confirmed! A pro-rata credit of -₹${Math.abs(adjustmentAmount).toLocaleString("en-IN")} (${remainingDays} days) will be deducted from your next 5th rent bill.`;
+        communicationMessage = `Room downgrade quote: A pro-rata credit of -₹${Math.abs(adjustmentAmount).toLocaleString("en-IN")} (${remainingDays} days) will be deducted from your next 5th rent bill.`;
       }
     } else {
-      communicationMessage = `Room shift confirmed! Current month rent has been revised based on transfer date.`;
+      communicationMessage = `Room shift quote: Current month rent will be revised to reflect transfer date.`;
     }
 
     return {
