@@ -400,7 +400,7 @@ export default function TenantsDirectoryPage({
                   : "text-gray-500 hover:text-[#c2652a]"
               }`}
             >
-              All <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.All}</span>
+              All <span suppressHydrationWarning className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.All}</span>
             </button>
 
             <button
@@ -415,7 +415,7 @@ export default function TenantsDirectoryPage({
                   : "text-gray-500 hover:text-blue-600"
               }`}
             >
-              Booked <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Booked}</span>
+              Booked <span suppressHydrationWarning className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Booked}</span>
             </button>
 
             <button
@@ -430,7 +430,7 @@ export default function TenantsDirectoryPage({
                   : "text-gray-500 hover:text-green-600"
               }`}
             >
-              Active <span className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Active}</span>
+              Active <span suppressHydrationWarning className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Active}</span>
             </button>
 
             <button
@@ -445,7 +445,7 @@ export default function TenantsDirectoryPage({
                   : "text-gray-500 hover:text-orange-600"
               }`}
             >
-              Notice <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Notice}</span>
+              Notice <span suppressHydrationWarning className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Notice}</span>
             </button>
 
             <button
@@ -460,7 +460,7 @@ export default function TenantsDirectoryPage({
                   : "text-gray-500 hover:text-gray-800"
               }`}
             >
-              Past <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Past}</span>
+              Past <span suppressHydrationWarning className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Past}</span>
             </button>
 
             <button
@@ -474,7 +474,7 @@ export default function TenantsDirectoryPage({
                   : "text-gray-500 hover:text-purple-600"
               }`}
             >
-              Guests <span className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Guests}</span>
+              Guests <span suppressHydrationWarning className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Guests}</span>
             </button>
           </div>
 
