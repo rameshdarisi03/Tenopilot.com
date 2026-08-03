@@ -36,6 +36,10 @@ export interface Occupant {
     aadhaarBackUrl?: string;
     aadhaarPdfUrl?: string;
   };
+  securityDeposit?: number;
+  depositStatus?: "PAID" | "PENDING" | "PARTIAL";
+  partialPaidThisCycle?: number;
+  arrearsBalance?: number;
 }
 
 // 200 Guaranteed 100% Unique Indian Names (No Duplicates)

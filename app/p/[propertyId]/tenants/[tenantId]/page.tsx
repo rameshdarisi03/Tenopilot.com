@@ -660,10 +660,10 @@ export default function IndividualTenantProfilePage({
                 Security Deposit
               </p>
               <p className="text-2xl font-bold font-serif text-gray-900">
-                ₹25,000
+                ₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}
               </p>
-              <p className="text-[10px] text-gray-400 font-bold mt-1.5">
-                LOCKED / ACTIVE
+              <p className="text-[10px] text-gray-500 font-bold mt-1.5 flex items-center gap-1">
+                STATUS: <span className="text-purple-700 font-extrabold">{occupantState.depositStatus || "PAID 🟢"}</span>
               </p>
             </div>
 
@@ -690,8 +690,98 @@ export default function IndividualTenantProfilePage({
 
           {/* Details & History Split Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Column (Details, KYC, Agreement) */}
+            {/* Left Column (Financial Overview, Details, KYC, Agreement) */}
             <div className="lg:col-span-5 space-y-6">
+
+              {/* 🌟 DEDICATED FINANCIAL SUMMARY & NET DUES CARD (Replaces external Excel sheets) */}
+              <div className="bg-gradient-to-br from-white to-orange-50/40 rounded-2xl border border-orange-200 p-6 shadow-sm space-y-5 text-xs">
+                <div className="flex justify-between items-center pb-3 border-b border-orange-100">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-gray-900">
+                        Financial Summary & Net Dues
+                      </h3>
+                      <p className="text-[10px] text-gray-500 font-semibold">
+                        Real-time calculated account balance
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Net Due Hero Banner */}
+                <div className="p-4 rounded-xl bg-white border border-orange-200/80 flex justify-between items-center shadow-xs">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block">
+                      Total Net Amount Due
+                    </span>
+                    <span className="font-mono text-2xl font-extrabold text-gray-900">
+                      ₹{((occupantState.paymentStatus === "Paid" ? 0 : occupantState.rentAmount) + (occupantState.arrearsBalance || 0) - (occupantState.partialPaidThisCycle || 0)).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-extrabold ${
+                    occupantState.paymentStatus === "Paid"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-orange-100 text-orange-800 border border-orange-200"
+                  }`}>
+                    {occupantState.paymentStatus === "Paid" ? "ALL CLEAR 🟢" : "PAYMENT DUE 🟡"}
+                  </span>
+                </div>
+
+                {/* Itemized Financial Ledger Breakdown */}
+                <div className="space-y-2.5 pt-1 text-gray-700">
+                  <div className="flex justify-between items-center pb-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 font-medium">Base Monthly Rent</span>
+                    <span className="font-mono font-bold text-gray-900">
+                      ₹{occupantState.rentAmount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 font-medium">Security Deposit</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-gray-900">
+                        ₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                        occupantState.depositStatus === "PAID" || !occupantState.depositStatus
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {occupantState.depositStatus || "PAID 🟢"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 font-medium">Prior Arrears Balance</span>
+                    <span className="font-mono font-bold text-gray-900">
+                      ₹{(occupantState.arrearsBalance || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-medium">Partial Payments Received</span>
+                    <span className="font-mono font-bold text-emerald-600">
+                      -₹{(occupantState.partialPaidThisCycle || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 1-Click Action */}
+                <button
+                  onClick={() => {
+                    setPaymentAmount(occupantState.paymentStatus === "Paid" ? 0 : occupantState.rentAmount);
+                    setShowCollectRentModal(true);
+                  }}
+                  className="w-full py-2.5 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <CreditCard className="w-4 h-4" /> Collect Rent & Log Payment
+                </button>
+              </div>
+
               {/* Room & Contact Details Card */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100">

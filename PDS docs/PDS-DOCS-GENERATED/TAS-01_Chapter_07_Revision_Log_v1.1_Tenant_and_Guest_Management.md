@@ -461,6 +461,34 @@ To support recurring short-term visitors, Guest profiles replace the long-term l
 
 ---
 
+# Update 26 — Indian PG Financial Engine (`billingCycleDates` & `desiredDueDate`)
+
+TenoPilot includes a dedicated Indian PG financial calculation engine (`utils/financialEngine.ts`):
+
+1. **Property Financial Variables**:
+   - **`billingCycleDates`**: `"1st to End of Month"` (1st $\rightarrow$ Month-End).
+   - **`desiredDueDate`**: `5` (Rent due on 5th of every month).
+2. **Tenant Rent Policy (`stayType === "Tenant"`)**:
+   - Tenants are billed on a **Fixed Monthly Rent** basis (e.g., ₹14,500/month).
+   - Pro-rata daily calculation ($\frac{\text{MonthlyRent}}{\text{DaysInMonth}} \times \text{RemainingDays}$) is used **ONLY** when a tenant joins mid-month during their first month.
+3. **Guest Rent Policy (`stayType === "Guest"`)**:
+   - Guests are billed strictly on a **Daily Rate** basis ($\text{dailyRate} \times \text{stayDays}$) between Check-In and Check-Out dates.
+
+---
+
+# Update 27 — Dedicated Financial Overview Card & Real Security Deposit Integration
+
+To replace external Excel sheets, Tenant/Guest Profile pages feature a **Dedicated Financial Summary Card**:
+
+1. **Real Security Deposit Tracking**:
+   - Stores and renders exact `securityDeposit` and `depositStatus` ("PAID" | "PENDING" | "PARTIAL") captured during onboarding.
+2. **Total Net Dues Calculation**:
+   - Calculates $\text{Net Dues} = \text{Current Rent} + \text{Arrears} + \text{Unpaid Deposit} - \text{Partial Payments}$.
+3. **Itemized Financial Ledger**:
+   - Renders clear breakdown of Base Monthly Rent (or Daily Guest Charge), Prior Arrears, Deposit Status, and Partial Payments.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -490,6 +518,8 @@ This revision introduces:
 - Edit Check-In Date Workflow & Removal of Manual Check-In
 - Short-Term Guest Timeline Exemption Policy
 - Hotel-Style Recurring Guest Stay Engine (`Extend / Book Next Stay`)
+- Indian PG Financial Engine (`billingCycleDates` & `desiredDueDate`)
+- Dedicated Financial Overview Card & Real Security Deposit Integration
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
