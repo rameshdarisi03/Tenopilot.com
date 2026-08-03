@@ -489,6 +489,24 @@ To replace external Excel sheets, Tenant/Guest Profile pages feature a **Dedicat
 
 ---
 
+# Update 28 — Property Settings Dashboard Module & Interactive Room Transfer Workflow
+
+TenoPilot features a dedicated **Property Settings Dashboard** (`/p/[propertyId]/settings`) and an **Interactive Room Transfer Workflow**:
+
+1. **Property Financial Settings Control**:
+   - **`billingCycleDates`**: Selectable between `"1st to End of Month"` and `"Anniversary Date"`.
+   - **`desiredDueDate`**: Selectable due day (e.g., 5th of month).
+   - **`autoProrateFirstMonth`**: Toggle for mid-month onboarding daily proration.
+   - **`gracePeriodDays`**: Grace period before marking rent overdue (Default: 3 days).
+   - **`upiPaymentId`**: PG Owner's UPI ID for rent collection receipts.
+   - **Firestore Persistence**: Syncs live to Firebase Cloud Firestore (`properties/{propertyId}/settings`).
+
+2. **Interactive Room Transfer Engine (`Transfer Room`)**:
+   - Displays current bed allocation and permits selecting target vacant bed.
+   - Frees previous bed in `propertyStore`, occupies target bed, updates occupant record, and syncs across Firebase Firestore.
+
+---
+
 # Revision Summary
 
 This revision introduces:
@@ -520,6 +538,7 @@ This revision introduces:
 - Hotel-Style Recurring Guest Stay Engine (`Extend / Book Next Stay`)
 - Indian PG Financial Engine (`billingCycleDates` & `desiredDueDate`)
 - Dedicated Financial Overview Card & Real Security Deposit Integration
+- Property Settings Dashboard Module & Interactive Room Transfer Workflow
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
