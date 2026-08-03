@@ -25,6 +25,25 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
 let currentSettings: PropertySettingsData = { ...DEFAULT_PROPERTY_SETTINGS };
 
 export const propertySettingsStore = {
+  listeners: new Set<() => void>(),
+
+  subscribe(fn: () => void) {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  },
+
+  notify() {
+    this.listeners.forEach((fn) => {
+      try {
+        fn();
+      } catch (e) {
+        console.warn("PropertySettings listener error:", e);
+      }
+    });
+  },
+
   getSettings(): PropertySettingsData {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tenopilot_property_settings");
@@ -44,6 +63,9 @@ export const propertySettingsStore = {
     if (typeof window !== "undefined") {
       localStorage.setItem("tenopilot_property_settings", JSON.stringify(currentSettings));
     }
+
+    // Trigger reactive dynamic cascade across all subscribed UI components
+    this.notify();
 
     try {
       if (db) {

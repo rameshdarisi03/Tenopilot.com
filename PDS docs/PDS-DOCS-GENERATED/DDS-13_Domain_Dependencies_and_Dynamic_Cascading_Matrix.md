@@ -43,6 +43,9 @@ It guarantees that any state mutation, layout change, or operational update perf
 | **Financial Domain (`DDS-06`)** | Collect Rent Payment | **Tenant Profile (`/tenants/[id]`)** | • Decreases Outstanding Balance to `₹0`<br>• Prepends payment row to Payment History table<br>• Updates Next Due Date |
 | **Financial Domain (`DDS-06`)** | Collect Rent Payment | **Overview & Financial Hub** | • Updates `Collected This Month` metric<br>• Appends credit entry to Financial Hub Ledger |
 | **Agreement Domain (`DDS-07`)** | Generate Agreement | **Tenant Profile (`/tenants/[id]`)** | • Activates PDF download link (`Download Agreement PDF`) |
+| **Property Settings Domain (`DDS-13`)** | Update `desiredDueDate` / `gracePeriodDays` | **Tenant Directory & Profile** | • Recalculates `dueDate` for all active tenants<br>• Recalculates `DAYS REMAINING` countdown text<br>• Recalculates filter tab counts (`Active`, `Notice`, `Overdue`) |
+| **Property Settings Domain (`DDS-13`)** | Update `defaultSecurityDeposit` | **Onboarding Wizards (`/onboard-tenant`)** | • Pre-fills default security deposit amount in onboarding form |
+| **Property Settings Domain (`DDS-13`)** | Update `upiPaymentId` / `propertyName` | **Headers & Payment Receipts** | • Renders owner's custom UPI VPA ID on receipts & payment dialogs<br>• Updates PG property name across headers |
 
 ---
 

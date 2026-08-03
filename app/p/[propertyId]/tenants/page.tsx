@@ -7,6 +7,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import {
   Search,
@@ -91,9 +92,15 @@ export default function TenantsDirectoryPage({
   const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
   const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
 
-  // Silent Automated Move-In Date Auto-Checkin Engine (Runs on page load)
+  const [currentSettings, setCurrentSettings] = useState(() => propertySettingsStore.getSettings());
+
+  // Silent Automated Move-In Date Auto-Checkin Engine & Property Settings Reactive Subscriber
   useEffect(() => {
     runAutoCheckInEngine();
+    const unsubscribe = propertySettingsStore.subscribe(() => {
+      setCurrentSettings({ ...propertySettingsStore.getSettings() });
+    });
+    return () => unsubscribe();
   }, []);
 
   const triggerToast = (msg: string) => {
