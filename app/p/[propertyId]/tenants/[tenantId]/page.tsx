@@ -28,6 +28,8 @@ import {
   Eye,
   UserPlus,
   RefreshCw,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -2099,32 +2101,63 @@ export default function IndividualTenantProfilePage({
                   );
 
                   return (
-                    <div className="p-3.5 rounded-2xl bg-orange-50/80 border border-orange-200 space-y-2 text-xs">
+                    <div className={`p-4 rounded-2xl border space-y-3 text-xs ${
+                      calc.isUpgrade
+                        ? "bg-emerald-50/60 border-emerald-200"
+                        : calc.isDowngrade
+                        ? "bg-orange-50/60 border-orange-200"
+                        : "bg-gray-50 border-gray-200"
+                    }`}>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-gray-700 text-xs">
+                        <span className="font-bold text-gray-900 text-xs">
                           Transfer Summary
                         </span>
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 ${
                           calc.isUpgrade
-                            ? "bg-orange-100 text-orange-800"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                             : calc.isDowngrade
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-gray-100 text-gray-700"
+                            ? "bg-orange-100 text-orange-800 border border-orange-300"
+                            : "bg-gray-100 text-gray-700 border border-gray-300"
                         }`}>
-                          {calc.isUpgrade ? "UPGRADE 🔺" : calc.isDowngrade ? "DOWNGRADE 🔻" : "SAME SHIFT 🔁"}
+                          {calc.isUpgrade ? (
+                            <>
+                              <TrendingUp className="w-3.5 h-3.5 text-emerald-700" /> UPGRADE
+                            </>
+                          ) : calc.isDowngrade ? (
+                            <>
+                              <TrendingDown className="w-3.5 h-3.5 text-orange-700" /> DOWNGRADE
+                            </>
+                          ) : (
+                            "SAME SHIFT 🔁"
+                          )}
                         </span>
                       </div>
 
-                      <div className="space-y-1 font-medium text-gray-800 text-xs">
+                      <div className="space-y-1.5 font-medium text-gray-800 text-xs">
                         <p>
                           • Remaining Days in Cycle: <strong>{calc.remainingDays} Days</strong>
                         </p>
-                        <p>
+                        <p className="flex items-center gap-1.5">
                           • Rent Adjustment:{" "}
-                          <strong className={calc.isUpgrade ? "text-orange-700 font-mono" : "text-emerald-700 font-mono"}>
+                          <strong className={calc.isUpgrade ? "text-emerald-700 font-mono text-sm font-extrabold" : calc.isDowngrade ? "text-orange-700 font-mono text-sm font-extrabold" : "text-gray-900 font-mono text-sm font-bold"}>
                             {calc.isUpgrade ? `+₹${calc.adjustmentAmount.toLocaleString("en-IN")}` : calc.isDowngrade ? `-₹${Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}` : "₹0"}
                           </strong>
                         </p>
+                      </div>
+
+                      {/* Simple English Explanation Note */}
+                      <div className="p-2.5 bg-white/90 rounded-xl border border-gray-200/80 text-[11px] text-gray-600 font-medium leading-relaxed">
+                        {occupantState.paymentStatus === "Paid" ? (
+                          calc.isUpgrade ? (
+                            <span>💡 Since current month rent is already paid, <strong>+₹{calc.adjustmentAmount.toLocaleString("en-IN")}</strong> extra rent for {calc.remainingDays} days will be added to the next 5th month rent bill.</span>
+                          ) : calc.isDowngrade ? (
+                            <span>💡 Since current month rent is already paid, <strong>-₹{Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}</strong> discount credit for {calc.remainingDays} days will be deducted from the next 5th month rent bill.</span>
+                          ) : (
+                            <span>💡 Room shifted within same tariff tier. No change in rent bill.</span>
+                          )
+                        ) : (
+                          <span>💡 Current month's unpaid rent due is revised based on {calc.remainingDays} days in the new room.</span>
+                        )}
                       </div>
                     </div>
                   );

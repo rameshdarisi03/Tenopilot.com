@@ -59,7 +59,7 @@ export default function PropertySettingsPage({
     setIsSaving(true);
     await propertySettingsStore.updateSettings(settings, propertyId);
     setIsSaving(false);
-    triggerToast("🎉 Property Settings & Financial Rules updated successfully!");
+    triggerToast("🎉 Settings saved! Revised monthly rental tariffs will take effect starting from the next 5th billing cycle (existing current month rent stays locked).");
   };
 
   const handleResetDefaults = () => {
