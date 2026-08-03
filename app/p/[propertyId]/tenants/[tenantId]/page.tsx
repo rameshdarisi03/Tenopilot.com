@@ -1983,10 +1983,13 @@ export default function IndividualTenantProfilePage({
           </div>
         )}
 
-        {/* 5. Transfer Room Modal (Interactive Bed Shift) */}
+        {/* 5. Transfer Room Modal (Interactive Bed Shift - Mobile Single-Handed Bottom Sheet) */}
         {showTransferModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-4 animate-in fade-in">
+            <div className="bg-white rounded-t-3xl md:rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in slide-in-from-bottom-8 md:zoom-in-95 max-h-[90vh] overflow-y-auto">
+              {/* Mobile Drag Handle Pill for Single-Handed Thumb Dismiss */}
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto md:hidden mb-1 shrink-0" />
+
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
@@ -2116,17 +2119,17 @@ export default function IndividualTenantProfilePage({
                   );
                 })()}
 
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-3 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => setShowTransferModal(false)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                    className="w-full sm:w-auto px-5 min-h-[48px] py-3 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100 active:scale-98 transition-all"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                    className="w-full sm:w-auto px-7 min-h-[48px] py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md active:scale-98 transition-all"
                   >
                     Confirm Room Transfer
                   </button>
