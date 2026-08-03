@@ -2083,10 +2083,10 @@ export default function IndividualTenantProfilePage({
                   );
 
                   return (
-                    <div className="p-4 rounded-2xl bg-orange-50/80 border border-orange-200 space-y-2.5 text-xs">
+                    <div className="p-3.5 rounded-2xl bg-orange-50/80 border border-orange-200 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-[#c2652a] uppercase tracking-wider text-[10px] flex items-center gap-1">
-                          💬 One-Shot Tenant Communication
+                        <span className="font-bold text-gray-700 text-xs">
+                          Transfer Summary
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${
                           calc.isUpgrade
@@ -2099,21 +2099,16 @@ export default function IndividualTenantProfilePage({
                         </span>
                       </div>
 
-                      <div className="space-y-1 font-medium text-gray-800 text-[11px]">
+                      <div className="space-y-1 font-medium text-gray-800 text-xs">
                         <p>
                           • Remaining Days in Cycle: <strong>{calc.remainingDays} Days</strong>
                         </p>
                         <p>
-                          • Pro-Rata Adjustment:{" "}
+                          • Rent Adjustment:{" "}
                           <strong className={calc.isUpgrade ? "text-orange-700 font-mono" : "text-emerald-700 font-mono"}>
                             {calc.isUpgrade ? `+₹${calc.adjustmentAmount.toLocaleString("en-IN")}` : calc.isDowngrade ? `-₹${Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}` : "₹0"}
                           </strong>
                         </p>
-                      </div>
-
-                      {/* Ready-to-Send Communication Copy */}
-                      <div className="p-2.5 bg-white rounded-xl border border-orange-200/60 font-semibold text-gray-900 text-[10px] italic">
-                        "{calc.communicationMessage}"
                       </div>
                     </div>
                   );
