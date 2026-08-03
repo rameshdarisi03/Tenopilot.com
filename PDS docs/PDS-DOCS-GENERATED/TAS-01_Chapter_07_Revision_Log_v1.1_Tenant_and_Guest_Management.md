@@ -552,8 +552,20 @@ This revision introduces:
 - Hotel-Style Recurring Guest Stay Engine (`Extend / Book Next Stay`)
 - Indian PG Financial Engine (`billingCycleDates` & `desiredDueDate`)
 - Dedicated Financial Overview Card & Real Security Deposit Integration
-- Property Settings Dashboard Module & Interactive Room Transfer Workflow
 - Pro-Rata Room Transfer Engine & One-Shot Tenant Communication Summary Box
+- Double Booking Protection Shield & Dynamic Vacant Bed Filter
+
+---
+
+# 📌 Future Implementation Backlog & Reminders (Logged for User Guidance)
+
+1. **Room Amenity & Attribute Tags in Property Setup (`/p/[propertyId]/property-setup`)**:
+   - Each Room Card during property setup will include configurable amenity tags: `Balcony`, `Ventilation`, `Window`, `AC`, `Attached Washroom`, etc.
+   - Owner configures room attributes during property setup wizard.
+
+2. **Top-Right Room Photo Gallery Popup**:
+   - Add a Photo Gallery trigger icon/section on the top-right of each Room Card.
+   - Clicking opens a lightbox gallery view popup of the specific room.
 
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
