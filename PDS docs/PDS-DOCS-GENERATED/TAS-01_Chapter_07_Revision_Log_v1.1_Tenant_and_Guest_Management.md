@@ -571,6 +571,12 @@ This revision introduces:
    - Authenticate tenant onboarding via fingerprint/biometric capture or digital e-signature canvas.
    - Owner/tenant signs agreement digitally during onboarding.
 
+4. **Amenity-Based Room Custom Pricing & Historical vs Dynamic Pricing Isolation**:
+   - **Room-Level Flexibility**: PG owner can set custom room prices during setup based on premium amenities (`AC`, `Balcony`, `Ventilation`).
+   - **Available Beds Category**: Reflects current active room price.
+   - **Occupied Beds Category**: Locks and displays the **historical price** at which the tenant originally entered into agreement.
+   - **Guest Beds Category**: Billed on dynamic current rates like available beds.
+
 All other workflows defined in TAS Chapter 07 remain unchanged.
 
 ---
