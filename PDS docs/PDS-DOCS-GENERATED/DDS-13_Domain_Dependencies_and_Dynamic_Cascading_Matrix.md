@@ -46,6 +46,7 @@ It guarantees that any state mutation, layout change, or operational update perf
 | **Property Settings Domain (`DDS-13`)** | Update `desiredDueDate` / `gracePeriodDays` | **Tenant Directory & Profile** | • Recalculates `dueDate` for all active tenants<br>• Recalculates `DAYS REMAINING` countdown text<br>• Recalculates filter tab counts (`Active`, `Notice`, `Overdue`) |
 | **Property Settings Domain (`DDS-13`)** | Update `defaultSecurityDeposit` | **Onboarding Wizards (`/onboard-tenant`)** | • Pre-fills default security deposit amount in onboarding form |
 | **Property Settings Domain (`DDS-13`)** | Update `upiPaymentId` / `propertyName` | **Headers & Payment Receipts** | • Renders owner's custom UPI VPA ID on receipts & payment dialogs<br>• Updates PG property name across headers |
+| **Property Settings Domain (`DDS-13`)** | Update `rentalTiers` (Monthly Sharing Tariffs) | **Billing Engine & Onboarding** | • New onboarding defaults to revised tariffs immediately<br>• Existing active tenants' current month rent remains untouched<br>• Revised tariffs take effect starting from the **next 5th billing cycle** |
 
 ---
 
