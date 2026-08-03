@@ -5,8 +5,7 @@ import { db } from "@/lib/firebase";
 export interface PropertySettingsData {
   billingCycleDates: "1st to End of Month" | "Anniversary Date";
   desiredDueDate: number; // e.g. 5 for 5th of every month
-  autoProrateFirstMonth: boolean;
-  gracePeriodDays: number;
+  gracePeriodDays: number; // 5 days grace period
   defaultSecurityDeposit: number;
   upiPaymentId: string;
   propertyName: string;
@@ -16,8 +15,7 @@ export interface PropertySettingsData {
 export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   billingCycleDates: "1st to End of Month",
   desiredDueDate: 5,
-  autoProrateFirstMonth: true,
-  gracePeriodDays: 3,
+  gracePeriodDays: 5,
   defaultSecurityDeposit: 25000,
   upiPaymentId: "tenopilot.sunshine@okicici",
   propertyName: "Sunshine Heights PG",

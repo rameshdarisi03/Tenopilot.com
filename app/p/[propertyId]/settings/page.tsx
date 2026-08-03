@@ -237,37 +237,6 @@ export default function PropertySettingsPage({
                   </div>
                 </div>
 
-                {/* Mid-Month Onboarding Proration */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-gray-900">Mid-Month Initial Proration</h3>
-                      <p className="text-[11px] text-gray-500">Auto-calculate pro-rata daily rent on joining</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-200">
-                    <div>
-                      <span className="font-bold text-xs text-gray-900 block">Auto Pro-Rata Daily Rate</span>
-                      <span className="text-[10px] text-gray-500">Calculates (MonthlyRent / DaysInMonth) * RemainingDays</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={settings.autoProrateFirstMonth}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          autoProrateFirstMonth: e.target.checked,
-                        })
-                      }
-                      className="w-5 h-5 rounded text-[#c2652a] focus:ring-[#c2652a]"
-                    />
-                  </div>
-                </div>
-
                 {/* Grace Period Days */}
                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5">
@@ -299,7 +268,7 @@ export default function PropertySettingsPage({
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
                     <p className="text-[10px] text-gray-400 mt-1">
-                      If due date is 5th and grace period is 3 days, rent marks overdue on 9th.
+                      Set to 5 days. If due date is 5th and grace period is 5 days, rent marks overdue after 10th.
                     </p>
                   </div>
                 </div>

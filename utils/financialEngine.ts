@@ -4,15 +4,13 @@ import { Occupant } from "@/constants/mockOccupants";
 export interface PropertyFinancialSettings {
   billingCycleDates: "1st to End of Month" | "Anniversary Date";
   desiredDueDate: number; // e.g., 5 (5th of every month)
-  autoProrateFirstMonth: boolean;
-  gracePeriodDays: number; // e.g., 3 days after due date
+  gracePeriodDays: number; // 5 days grace period
 }
 
 export const DEFAULT_PROPERTY_SETTINGS: PropertyFinancialSettings = {
   billingCycleDates: "1st to End of Month",
   desiredDueDate: 5,
-  autoProrateFirstMonth: true,
-  gracePeriodDays: 3,
+  gracePeriodDays: 5,
 };
 
 /**
