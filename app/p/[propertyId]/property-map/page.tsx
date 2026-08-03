@@ -509,6 +509,22 @@ export default function PropertyMapPage({
                                     <span className="text-[9px] font-semibold opacity-90 leading-tight truncate w-full">
                                       {bed.occupant ? bed.occupant.name : statusLabel}
                                     </span>
+                                    {/* Explicit Vacating / Move-In Date Badge */}
+                                    {bed.status === "Vacating" && (
+                                      <span className="text-[8px] font-extrabold bg-orange-200/80 text-orange-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
+                                        Vacating: {bed.occupant?.vacatingDate || bed.vacatingDate || "15 Aug"}
+                                      </span>
+                                    )}
+                                    {bed.status === "Booked" && (
+                                      <span className="text-[8px] font-extrabold bg-blue-200/80 text-blue-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
+                                        Move-In: {bed.occupant?.joiningDate || "15 Aug"}
+                                      </span>
+                                    )}
+                                    {bed.status === "Guest" && (
+                                      <span className="text-[8px] font-extrabold bg-purple-200/80 text-purple-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
+                                        Out: {bed.guestCheckoutDate || "12 Aug"}
+                                      </span>
+                                    )}
                                   </button>
                                 );
                               })}
@@ -597,6 +613,20 @@ export default function PropertyMapPage({
                         ₹{activeBedSlot.bed.occupant.rentAmount.toLocaleString("en-IN")}
                       </span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-medium">Move-In / Joining Date</span>
+                      <span className="font-bold text-blue-700">
+                        {activeBedSlot.bed.occupant.joiningDate || "15 Aug 2026"}
+                      </span>
+                    </div>
+                    {activeBedSlot.bed.occupant.vacatingDate && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-medium">Vacating Date</span>
+                        <span className="font-bold text-orange-600">
+                          {activeBedSlot.bed.occupant.vacatingDate}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-gray-500 font-medium">Last Paid Date</span>
                       <span className="font-semibold text-gray-900">
