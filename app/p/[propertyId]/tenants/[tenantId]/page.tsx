@@ -571,6 +571,19 @@ export default function IndividualTenantProfilePage({
                     </span>
                   )}
                 </div>
+
+                {/* Mobile Single-Handed Occupancy Quick Badge (Name + Room Integrated for Mobile) */}
+                <div className="md:hidden mt-3 p-2.5 bg-orange-50/90 rounded-xl border border-orange-200/90 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#c2652a]" />
+                    <span className="font-bold text-gray-900">
+                      Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-[#c2652a]">
+                    ₹{occupantState.rentAmount.toLocaleString("en-IN")}/mo
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -728,7 +741,56 @@ export default function IndividualTenantProfilePage({
             {/* Left Column (Financial Overview, Details, KYC, Agreement) */}
             <div className="lg:col-span-5 space-y-6">
 
-              {/* 🌟 DEDICATED FINANCIAL SUMMARY & NET DUES CARD (Replaces external Excel sheets) */}
+              {/* 🏠 1. OCCUPANCY & ROOM STAY DETAILS CARD (Priority 1 - Placed above Financial Summary) */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
+                <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#c2652a]" /> Occupancy & Room Details
+                  </h3>
+                  <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full">
+                    PRIMARY OCCUPANT
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-gray-700">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Property</span>
+                    <span className="font-bold text-gray-900">Sunshine Heights PG</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Room & Bed</span>
+                    <span className="font-bold text-gray-900">
+                      Floor 01 • Room {occupantState.roomNumber} - {occupantState.bedCode}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Monthly Rent</span>
+                    <span className="font-mono font-bold text-[#c2652a]">
+                      ₹{occupantState.rentAmount.toLocaleString("en-IN")} / mo
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Last Paid Date</span>
+                    <span className="font-semibold text-gray-900">
+                      {occupantState.lastPaidDate}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Phone</span>
+                    <span className="font-bold text-gray-900 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.phone}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Email</span>
+                    <span className="font-bold text-gray-900 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.email}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 💳 2. DEDICATED FINANCIAL SUMMARY & NET DUES CARD */}
               <div className="bg-gradient-to-br from-white to-orange-50/40 rounded-2xl border border-orange-200 p-6 shadow-sm space-y-5 text-xs">
                 <div className="flex justify-between items-center pb-3 border-b border-orange-100">
                   <div className="flex items-center gap-2">
@@ -815,52 +877,6 @@ export default function IndividualTenantProfilePage({
                 >
                   <CreditCard className="w-4 h-4" /> Collect Rent & Log Payment
                 </button>
-              </div>
-
-              {/* Room & Contact Details Card */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
-                <div className="pb-3 border-b border-gray-100">
-                  <h3 className="font-bold text-gray-900 text-sm">
-                    Occupancy Details
-                  </h3>
-                </div>
-
-                <div className="space-y-3 text-gray-700">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-medium">Property</span>
-                    <span className="font-bold text-gray-900">Sunshine Heights PG</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-medium">Room & Bed</span>
-                    <span className="font-bold text-gray-900">
-                      Floor 01 • Room {occupantState.roomNumber} - {occupantState.bedCode}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-medium">Monthly Rent</span>
-                    <span className="font-mono font-bold text-[#c2652a]">
-                      ₹{occupantState.rentAmount.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-medium">Last Paid Date</span>
-                    <span className="font-semibold text-gray-900">
-                      {occupantState.lastPaidDate}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-medium">Phone</span>
-                    <span className="font-bold text-gray-900 flex items-center gap-1">
-                      <Phone className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.phone}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-medium">Email</span>
-                    <span className="font-bold text-gray-900 flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.email}
-                    </span>
-                  </div>
-                </div>
               </div>
 
               {/* KYC Documents Card (PENDING KYC CARDS ARE HIDDEN UNTIL VERIFIED) */}
