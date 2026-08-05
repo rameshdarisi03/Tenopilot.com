@@ -9,6 +9,8 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { calculateRoomTransferProRata } from "@/utils/financialEngine";
 import {
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Edit,
   CreditCard,
   ArrowRightLeft,
@@ -335,10 +337,11 @@ export default function IndividualTenantProfilePage({
   const [editEmail, setEditEmail] = useState<string>(occupantState.email);
   const [editRent, setEditRent] = useState<number>(occupantState.rentAmount);
 
-  // Room Transfer Modal State
+  // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
-  const [transferRoomNumber, setTransferRoomNumber] = useState<string>("304");
-  const [transferBedCode, setTransferBedCode] = useState<string>("BED B");
+  const [transferRoomNumber, setTransferRoomNumber] = useState<string>("");
+  const [transferBedCode, setTransferBedCode] = useState<string>("");
+  const [expandedTransferFloorIds, setExpandedTransferFloorIds] = useState<string[]>([]);
   const [transferEffectiveDate, setTransferEffectiveDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -2049,32 +2052,64 @@ export default function IndividualTenantProfilePage({
                     <span className="text-[10px] text-gray-400">Showing Available 🟢 & Vacating 🟧 beds</span>
                   </label>
 
-                  {/* Selected Target Bed Callout Badge */}
-                  {transferRoomNumber && transferBedCode && (
+                  {/* Selected Target Bed Callout Badge or Placeholder */}
+                  {transferRoomNumber && transferBedCode ? (
                     <div className="p-2.5 rounded-xl bg-emerald-100/90 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between shadow-2xs">
                       <span>✓ Target Destination: Room {transferRoomNumber} ({transferBedCode})</span>
                       <span className="text-[10px] bg-emerald-200 px-2 py-0.5 rounded-full text-emerald-900 font-extrabold">
                         Selected
                       </span>
                     </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-xs flex items-center justify-between shadow-2xs animate-pulse">
+                      <span>👉 Please select a target bed from the floor map below</span>
+                      <span className="text-[10px] bg-amber-100 px-2 py-0.5 rounded-full text-amber-800 font-extrabold">
+                        Pending Selection
+                      </span>
+                    </div>
                   )}
 
-                  {/* Scrollable Visual Floor Grid Container */}
-                  <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-2xl p-3 space-y-4 bg-gray-50/70 text-xs">
+                  {/* Scrollable Visual Floor Grid Container with Collapsible Floor Accordions */}
+                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-2xl p-3 space-y-3 bg-gray-50/70 text-xs">
                     {propertyStore.getStructure().map((floor) => {
                       const roomsWithVacantBeds = floor.rooms.filter((rm) =>
                         rm.beds.some((b) => b.status === "Available" || b.status === "Vacating")
                       );
 
                       if (roomsWithVacantBeds.length === 0) return null;
+                      const isExpanded = expandedTransferFloorIds.includes(floor.id) || expandedTransferFloorIds.length === 0;
 
                       return (
-                        <div key={floor.id} className="space-y-2">
-                          <div className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider flex items-center justify-between border-b border-gray-200 pb-1">
-                            <span>{floor.floorName} — {floor.floorSubtitle}</span>
-                          </div>
+                        <div key={floor.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden shadow-2xs">
+                          {/* Collapsible Accordion Header */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (expandedTransferFloorIds.includes(floor.id)) {
+                                setExpandedTransferFloorIds(expandedTransferFloorIds.filter((f) => f !== floor.id));
+                              } else {
+                                setExpandedTransferFloorIds([...expandedTransferFloorIds, floor.id]);
+                              }
+                            }}
+                            className="w-full px-3 py-2 bg-gray-100/80 hover:bg-gray-100 flex items-center justify-between text-left transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-gray-800">
+                                {floor.floorName}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-bold">
+                                — {floor.floorSubtitle}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-gray-500 text-[10px] font-bold">
+                              <span>{roomsWithVacantBeds.length} Vacant Room{roomsWithVacantBeds.length > 1 ? "s" : ""}</span>
+                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </div>
+                          </button>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {/* Collapsible Floor Body */}
+                          {isExpanded && (
+                            <div className="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
                             {roomsWithVacantBeds.map((room) => {
                               const roomTariff =
                                 room.customRentAmount ||
@@ -2127,7 +2162,8 @@ export default function IndividualTenantProfilePage({
                                 </div>
                               );
                             })}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -2241,7 +2277,8 @@ export default function IndividualTenantProfilePage({
                   </button>
                   <button
                     type="submit"
-                    className="w-full sm:w-auto px-7 min-h-[48px] py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md active:scale-98 transition-all"
+                    disabled={!transferRoomNumber || !transferBedCode}
+                    className="w-full sm:w-auto px-7 min-h-[48px] py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold shadow-md active:scale-98 transition-all"
                   >
                     Confirm Room Transfer
                   </button>
