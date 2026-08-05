@@ -14,6 +14,9 @@ export interface RoomConfig {
   roomNumber: string;
   sharingType: number;
   beds: BedSlotConfig[];
+  customRentAmount?: number; // Optional room-level custom tariff override (e.g. ₹16,000 for Room 108)
+  specialFeatureTag?: string; // Optional feature tagline (e.g. "Balcony & Park View")
+  roomPhotos?: string[]; // Optional array of up to 8 compressed room photo URLs
 }
 
 export interface FloorConfig {
@@ -84,11 +87,34 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
         });
       }
 
+      const samplePhotos = [
+        "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80",
+      ];
+
+      let specialTag: string | undefined = undefined;
+      let customRent: number | undefined = undefined;
+      let photos: string[] | undefined = undefined;
+
+      if (roomNumStr === "108" || roomNumStr === "202" || roomNumStr === "304") {
+        specialTag = "Balcony & Park View 🌿";
+        customRent = 16000;
+        photos = samplePhotos;
+      } else if (roomNumStr === "101" || roomNumStr === "501") {
+        specialTag = "Corner Room • Extra Ventilation 💨";
+        customRent = 18000;
+        photos = samplePhotos.slice(0, 2);
+      }
+
       rooms.push({
         id: `rm-${fIdx}-${r}`,
         roomNumber: roomNumStr,
         sharingType: sharing,
         beds,
+        customRentAmount: customRent,
+        specialFeatureTag: specialTag,
+        roomPhotos: photos,
       });
     }
 

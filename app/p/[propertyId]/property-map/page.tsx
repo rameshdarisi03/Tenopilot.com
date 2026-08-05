@@ -27,6 +27,10 @@ import {
   CheckCircle2,
   ChevronDown,
   Info,
+  Eye,
+  EyeOff,
+  Camera,
+  Download,
 } from "lucide-react";
 
 export default function PropertyMapPage({
@@ -68,6 +72,16 @@ export default function PropertyMapPage({
     bed: BedSlotConfig;
     roomNumber: string;
     floorName: string;
+  } | null>(null);
+
+  // Global Price Privacy Mode Toggle state (Masks prices as ₹ ••••• when showing screen to tenants)
+  const [isPrivacyMode, setIsPrivacyMode] = useState<boolean>(false);
+
+  // Active Photo Gallery Lightbox state
+  const [activePhotoGallery, setActivePhotoGallery] = useState<{
+    roomNumber: string;
+    photos: string[];
+    specialTag?: string;
   } | null>(null);
 
   // Toast notification state
@@ -265,6 +279,37 @@ export default function PropertyMapPage({
                     ))}
                   </select>
                 </div>
+
+                {/* 👁️ Global Price Privacy Mode Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPrivacyMode(!isPrivacyMode);
+                    triggerToast(
+                      !isPrivacyMode
+                        ? "🙈 Privacy Mode ON: Prices masked for tenant display!"
+                        : "👁️ Privacy Mode OFF: Rent tariffs visible!"
+                    );
+                  }}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border shadow-2xs ${
+                    isPrivacyMode
+                      ? "bg-slate-900 text-amber-400 border-slate-800 shadow-md"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  }`}
+                  title="Toggle Price Privacy Mode when showing screen to visiting tenants"
+                >
+                  {isPrivacyMode ? (
+                    <>
+                      <EyeOff className="w-4 h-4 text-amber-400" />
+                      <span>🙈 Hide Prices (ON)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4 text-[#c2652a]" />
+                      <span>👁️ Show Prices</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Color-Coded Bed Status Filter Pills */}
@@ -531,6 +576,46 @@ export default function PropertyMapPage({
                             </div>
                           );
                         })()}
+
+                        {/* 🌟 BOTTOM-LEFT ROOM ATTRIBUTE STRIP (Tariff + Photos + Feature Tag) */}
+                        <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Monthly Rent Tariff (Privacy Mode Aware) */}
+                            <span className="font-mono font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/60">
+                              {isPrivacyMode
+                                ? "₹ ••••• / mo"
+                                : `₹${(
+                                    room.customRentAmount ||
+                                    (room.sharingType === 1 ? 18000 : room.sharingType === 3 ? 11000 : 14500)
+                                  ).toLocaleString("en-IN")} / mo`}
+                            </span>
+
+                            {/* 📷 Room Photos Lightbox Trigger Button */}
+                            {room.roomPhotos && room.roomPhotos.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActivePhotoGallery({
+                                    roomNumber: room.roomNumber,
+                                    photos: room.roomPhotos!,
+                                    specialTag: room.specialFeatureTag,
+                                  })
+                                }
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold transition-all"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-[#c2652a]" />
+                                <span>Photos ({room.roomPhotos.length})</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* 🌿 Special Feature Tagline Badge */}
+                          {room.specialFeatureTag && (
+                            <span className="text-[10px] font-extrabold bg-emerald-100/80 text-emerald-900 px-2.5 py-1 rounded-full truncate max-w-full">
+                              {room.specialFeatureTag}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -687,6 +772,90 @@ export default function PropertyMapPage({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 📷 ROOM LIGHTBOX PHOTO GALLERY MODAL (With 1-Click Download Action) */}
+        {activePhotoGallery && (
+          <div
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setActivePhotoGallery(null)}
+          >
+            <div
+              className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-2xl w-full p-6 space-y-4 animate-in zoom-in-95"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
+                    <Camera className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                      Room {activePhotoGallery.roomNumber} Photos
+                      {activePhotoGallery.specialTag && (
+                        <span className="text-xs bg-emerald-100 text-emerald-900 font-extrabold px-2.5 py-0.5 rounded-full">
+                          {activePhotoGallery.specialTag}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">
+                      {activePhotoGallery.photos.length} High-Res Room Images Available
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActivePhotoGallery(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Photo Gallery Grid & Lightbox */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto p-1">
+                {activePhotoGallery.photos.map((photo, idx) => (
+                  <div
+                    key={idx}
+                    className="relative group rounded-2xl overflow-hidden border border-gray-200 aspect-4/3 bg-gray-100"
+                  >
+                    <img
+                      src={photo}
+                      alt={`Room ${activePhotoGallery.roomNumber} Photo ${idx + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <a
+                      href={photo}
+                      download={`Room-${activePhotoGallery.roomNumber}-Photo-${idx + 1}.jpg`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-2 right-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg backdrop-blur-xs transition-all opacity-90 hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerToast(`📥 Downloading Room ${activePhotoGallery.roomNumber} Photo ${idx + 1}...`);
+                      }}
+                    >
+                      <Download className="w-3.5 h-3.5" /> Download
+                    </a>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center pt-3 border-t border-gray-100 text-xs">
+                <span className="text-gray-500 font-medium">
+                  💡 Share room photos with inquiring tenants directly via WhatsApp!
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActivePhotoGallery(null)}
+                  className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                >
+                  Close Gallery
+                </button>
+              </div>
             </div>
           </div>
         )}

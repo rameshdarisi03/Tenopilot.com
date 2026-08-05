@@ -91,10 +91,68 @@ export default function PropertySetupPage({
   const [newFloorName, setNewFloorName] = useState("");
   const [newFloorSub, setNewFloorSub] = useState("DELUXE SUITES");
 
-  // Add Room Modal State
+  // Add Room & Edit Room Modal State (Supports Custom Rent, Feature Tag, and Max 8 Compressed Photos)
   const [activeAddRoomFloorId, setActiveAddRoomFloorId] = useState<string | null>(null);
   const [newRoomNumber, setNewRoomNumber] = useState("");
   const [newSharingCapacity, setNewSharingCapacity] = useState<number>(3);
+  const [newRoomSpecialTag, setNewRoomSpecialTag] = useState("");
+  const [newRoomCustomRent, setNewRoomCustomRent] = useState("");
+  const [newRoomPhotos, setNewRoomPhotos] = useState<string[]>([]);
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
+
+  // Auto canvas image compressor (max 1200px, 0.85 JPEG quality)
+  const compressRoomImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+      };
+    });
+  };
+
+  const handleRoomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    if (newRoomPhotos.length >= 8) {
+      triggerToast("⚠️ Maximum 8 photos allowed per room!");
+      return;
+    }
+
+    setIsCompressingImage(true);
+    const files = Array.from(e.target.files).slice(0, 8 - newRoomPhotos.length);
+    const compressedList: string[] = [];
+
+    for (const f of files) {
+      try {
+        const compressed = await compressRoomImage(f);
+        compressedList.push(compressed);
+      } catch (err) {
+        console.warn("Failed to compress image", err);
+      }
+    }
+
+    setNewRoomPhotos((prev) => [...prev, ...compressedList].slice(0, 8));
+    setIsCompressingImage(false);
+    triggerToast(`📸 ${compressedList.length} photo(s) added & compressed!`);
+  };
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -256,11 +314,17 @@ export default function PropertySetupPage({
       });
     }
 
+    const customRent = newRoomCustomRent ? Number(newRoomCustomRent) : undefined;
+    const specialTag = newRoomSpecialTag.trim() || undefined;
+
     const newRoom: RoomConfig = {
       id: `rm-${Date.now()}`,
       roomNumber: newRoomNumber,
       sharingType: count,
       beds,
+      customRentAmount: customRent,
+      specialFeatureTag: specialTag,
+      roomPhotos: newRoomPhotos.length > 0 ? newRoomPhotos : undefined,
     };
 
     const updated = propertyStructure.map((fl) => {
@@ -276,6 +340,9 @@ export default function PropertySetupPage({
     triggerToast(`✓ Added Room ${newRoomNumber} (${count} Sharing - Bed A to ${bedLetters[count - 1]})`);
     setActiveAddRoomFloorId(null);
     setNewRoomNumber("");
+    setNewRoomSpecialTag("");
+    setNewRoomCustomRent("");
+    setNewRoomPhotos([]);
   };
 
   return (
@@ -695,6 +762,88 @@ export default function PropertySetupPage({
                   <p className="text-[10px] text-gray-400 mt-1">
                     Enter any number of beds up to 26 (Bed A through Bed Z). Bed icons scale dynamically!
                   </p>
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Room Special Feature / Tagline (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Balcony & Park View, Corner Room"
+                    value={newRoomSpecialTag}
+                    onChange={(e) => setNewRoomSpecialTag(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Appears as a feature pill badge on top-right of room cards (e.g. "Balcony View 🌿").
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Custom Monthly Rent (₹) (Optional Override)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 16000 (Leave blank for default sharing rate)"
+                    value={newRoomCustomRent}
+                    onChange={(e) => setNewRoomCustomRent(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Overrides property default rent for premium rooms (e.g. Rooms with Balcony/AC).
+                  </p>
+                </div>
+
+                {/* 📷 Max 8 Room Photos Uploader */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Upload Room Photos (Max 8 Images • Auto-Compressed)
+                  </label>
+                  <div className="space-y-2">
+                    {newRoomPhotos.length < 8 && (
+                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-[#c2652a] hover:bg-orange-50/50 cursor-pointer transition-all text-center">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#c2652a]">
+                          <span>📷 Upload Room Photo</span>
+                          <span className="text-[10px] bg-orange-100 px-2 py-0.5 rounded-full">
+                            {newRoomPhotos.length}/8
+                          </span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleRoomImageUpload}
+                          className="hidden"
+                          disabled={isCompressingImage}
+                        />
+                      </label>
+                    )}
+
+                    {isCompressingImage && (
+                      <p className="text-[10px] font-bold text-[#c2652a] animate-pulse text-center">
+                        ⚡ Auto-compressing room photos without quality loss...
+                      </p>
+                    )}
+
+                    {newRoomPhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 pt-1">
+                        {newRoomPhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200 aspect-square">
+                            <img src={photo} alt={`Room photo ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setNewRoomPhotos(newRoomPhotos.filter((_, i) => i !== idx))}
+                              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 text-[9px]"
+                              title="Remove photo"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">

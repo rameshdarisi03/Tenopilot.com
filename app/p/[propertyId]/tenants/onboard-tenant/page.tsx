@@ -583,19 +583,6 @@ export default function OnboardTenantPage({
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Monthly Rent (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={monthlyRent}
-                    onChange={(e) => setMonthlyRent(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
                     Security Deposit (₹) *
                   </label>
                   <input
@@ -726,14 +713,16 @@ export default function OnboardTenantPage({
                                   <button
                                     type="button"
                                     key={bed.id}
-                                    onClick={() =>
+                                    onClick={() => {
                                       setSelectedBed({
                                         bedId: bed.id,
                                         bedCode: bed.bedCode,
                                         roomNumber: room.roomNumber,
                                         floorName: floor.floorName,
-                                      })
-                                    }
+                                      });
+                                      const autoRent = room.customRentAmount || (room.sharingType === 1 ? 18000 : room.sharingType === 3 ? 11000 : 14500);
+                                      setMonthlyRent(autoRent);
+                                    }}
                                     className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
                                       isSelected
                                         ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-md scale-[1.02]"
@@ -765,6 +754,30 @@ export default function OnboardTenantPage({
               ) : (
                 <div className="py-12 text-center text-xs text-gray-500 bg-gray-50 rounded-xl border border-gray-200">
                   No available or vacating beds match the selected {desiredSharingFilter}-sharing filter. Try selecting "ALL SHARING".
+                </div>
+              )}
+
+              {/* 💡 AUTO-FILLED EDITABLE MONTHLY RENT TARIFF INPUT */}
+              {selectedBed && (
+                <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200 space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-gray-900 text-xs flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-[#c2652a]" /> Monthly Rent Tariff for {selectedBed.roomNumber} ({selectedBed.bedCode}) *
+                    </label>
+                    <span className="text-[10px] bg-orange-100 text-[#c2652a] font-extrabold px-2.5 py-0.5 rounded-full">
+                      ✓ Auto-filled from Room Config (Editable)
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    required
+                    value={monthlyRent}
+                    onChange={(e) => setMonthlyRent(Number(e.target.value))}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
+                  />
+                  <p className="text-[10px] text-gray-500 font-medium">
+                    Owner Flexibility: You can edit or give a special discount to this tenant.
+                  </p>
                 </div>
               )}
 
