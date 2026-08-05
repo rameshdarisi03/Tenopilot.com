@@ -603,6 +603,21 @@ TenoPilot replaces plain text dropdown selects in the **Transfer Room & Bed Moda
    - Clicking any vacant bed pill directly selects it as the destination bed slot.
    - Highlights the selected target bed with an emerald badge (`✓ Target Bed Selected: Floor 01 • Room 108 (BED B)`) and instantly updates the pro-rata rent adjustment calculation.
 
+- Modularized Guest Profile View & Tailored Short-Term Stay Metrics
+
+---
+
+# Update 33 — Modularized Guest Profile View & Tailored Short-Term Stay Metrics
+
+TenoPilot introduces clean component-level Separation of Concerns (SoC) for short-term guests:
+
+1. **Modular Sub-Component Architecture**:
+   - Route `/p/[propertyId]/tenants/[tenantId]` delegates rendering to `<GuestProfileView>` for guests (`stayType === "Guest"`) and `<TenantProfileView>` for monthly tenants (`stayType === "Tenant"`), preventing monolithic `if (isGuest)` pollution in `page.tsx`.
+2. **Tailored Guest UI & Metrics**:
+   - **Removal of Irrelevant Terms**: ₹25,000 Security Deposit card removed (or replaced with optional `Key/Gate Deposit`); `NEXT DUE DATE` replaced with **`CHECKOUT DATE`**; `Monthly Rent` replaced with **`Stay Tariff`** (e.g. `₹3,500 - ₹500/day`).
+   - **Visual Stay Progress Bar**: Displays Check-In to Checkout stay timeline (`02 Aug to 09 Aug • 4 Days Remaining`).
+   - **Primary Guest Actions**: `Check-Out Guest & Vacate Bed 🏁`, `Extend Guest Stay 🗓️`, `Promote to Tenant 🟢`.
+
 ---
 
 # 📌 Future Implementation Backlog & Reminders (Logged for User Guidance)

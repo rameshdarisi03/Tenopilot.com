@@ -4,6 +4,7 @@ import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
+import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import {
@@ -507,18 +508,6 @@ export default function IndividualTenantProfilePage({
 
         {/* Profile Content Body */}
         <div className="p-4 md:p-8 space-y-6 flex-1 pb-24">
-          {/* Breadcrumb Navigation */}
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-            <Link
-              href={`/p/${propertyId}/tenants`}
-              className="hover:text-[#c2652a] flex items-center gap-1"
-            >
-              <ChevronLeft className="w-4 h-4" /> Tenants
-            </Link>
-            <span>/</span>
-            <span suppressHydrationWarning className="text-gray-900 font-bold">{occupantState.name}</span>
-          </div>
-
           {/* Toast Callout */}
           {toastMessage && (
             <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in">
@@ -529,7 +518,31 @@ export default function IndividualTenantProfilePage({
             </div>
           )}
 
-          {/* Profile Hero Section */}
+          {occupantState.stayType === "Guest" ? (
+            <GuestProfileView
+              occupantState={occupantState}
+              propertyId={propertyId}
+              onEditProfile={() => setShowEditProfileModal(true)}
+              onCollectPayment={() => setShowCollectRentModal(true)}
+              onTransferRoom={() => setShowTransferModal(true)}
+              onPromoteToTenant={() => setShowPromoteModal(true)}
+              onCheckOutGuest={() => setShowLogNoticeModal(true)}
+            />
+          ) : (
+            <>
+              {/* Breadcrumb Navigation */}
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                <Link
+                  href={`/p/${propertyId}/tenants`}
+                  className="hover:text-[#c2652a] flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Tenants
+                </Link>
+                <span>/</span>
+                <span suppressHydrationWarning className="text-gray-900 font-bold">{occupantState.name}</span>
+              </div>
+
+              {/* Profile Hero Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs">
             <div className="flex items-center gap-4">
               <img
@@ -566,11 +579,6 @@ export default function IndividualTenantProfilePage({
                     ></span>
                     {occupantState.lifecycleStatus.toUpperCase()}
                   </span>
-                  {occupantState.stayType === "Guest" && (
-                    <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
-                      🟣 GUEST
-                    </span>
-                  )}
                   <span className="text-xs text-gray-500 font-medium">
                     Resident since {occupantState.joiningDate}
                   </span>
@@ -631,32 +639,13 @@ export default function IndividualTenantProfilePage({
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Action Button: Log Notice (Tenants) vs Extend / Book Next Stay (Guests) */}
-              {occupantState.stayType === "Guest" ? (
-                <button
-                  onClick={() => setShowExtendStayModal(true)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-[#c2652a] font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
-                >
-                  <RefreshCw className="w-4 h-4 text-[#c2652a]" /> Extend / Book Next Stay
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowLogNoticeModal(true)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
-                >
-                  <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
-                </button>
-              )}
-
-              {/* 5. Promote Guest to Tenant (Only rendered for Guest accounts) */}
-              {occupantState.stayType === "Guest" && (
-                <button
-                  onClick={() => setShowPromoteModal(true)}
-                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
-                >
-                  <UserPlus className="w-4 h-4" /> 👔 Promote to Long-Term Tenant
-                </button>
-              )}
+              {/* 4. Action Button: Log Notice (Tenants) */}
+              <button
+                onClick={() => setShowLogNoticeModal(true)}
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
+              >
+                <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
+              </button>
 
               {/* 6. Edit Check-In Date (Only rendered for Booked profiles — Auto-checkin runs on move-in date) */}
               {occupantState.lifecycleStatus === "Booked" && (
@@ -1022,27 +1011,18 @@ export default function IndividualTenantProfilePage({
                 )}
               </div>
 
-              {/* Active Agreement Card (GUESTS DO NOT HAVE LEASE AGREEMENTS UNLESS PROMOTED) */}
+              {/* Active Agreement Card */}
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                 <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
                   <span className="font-bold text-gray-900 text-sm">
-                    {occupantState.stayType === "Guest" ? "Guest Stay Terms" : "Active Agreement"}
+                    Active Agreement
                   </span>
                   <span className="font-mono font-bold text-gray-500">
-                    {occupantState.stayType === "Guest" ? "SHORT-TERM" : "AGR-2023-102A"}
+                    AGR-2023-102A
                   </span>
                 </div>
 
-                {occupantState.stayType === "Guest" ? (
-                  <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 space-y-2">
-                    <p className="font-bold">🟣 Short-Term Guest Stay</p>
-                    <p className="text-[11px] text-purple-800">
-                      This occupant is registered as a short-term guest. No long-term 11-month lease agreement is required.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2.5 text-gray-700">
+                <div className="space-y-2.5 text-gray-700">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Agreement Period</span>
                         <span className="font-bold text-gray-900">
@@ -1087,8 +1067,7 @@ export default function IndividualTenantProfilePage({
                         <Download className="w-4 h-4" /> Download PDF
                       </button>
                     </div>
-                  </>
-                )}
+              </div>
               </div>
             </div>
 
@@ -1150,12 +1129,11 @@ export default function IndividualTenantProfilePage({
                 )}
               </div>
 
-              {/* DYNAMIC TIMELINE (RENDERED FOR LONG-TERM TENANTS ONLY — EXEMPT FOR SHORT-TERM GUESTS) */}
-              {occupantState.stayType !== "Guest" && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
-                  <h3 className="font-serif font-bold text-base text-gray-900 pb-3 border-b border-gray-100">
-                    Tenant Timeline & Milestones
-                  </h3>
+              {/* DYNAMIC TIMELINE (RENDERED FOR LONG-TERM TENANTS ONLY) */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
+                <h3 className="font-serif font-bold text-base text-gray-900 pb-3 border-b border-gray-100">
+                  Tenant Timeline & Milestones
+                </h3>
 
                   <div className="relative flex items-center justify-between pt-4 pb-2 px-2">
                     <div className="absolute left-8 right-8 top-8 h-0.5 bg-gray-200 -z-0"></div>
@@ -1213,10 +1191,10 @@ export default function IndividualTenantProfilePage({
                     </div>
                   </div>
                 </div>
-              )}
             </div>
-          </div>
-        </div>
+          </>
+        )}
+      </div>
 
         {/* 1. Collect Rent Modal (UPI / Bank / Cash with Transaction ID - No Cheques) */}
         {showCollectRentModal && (
