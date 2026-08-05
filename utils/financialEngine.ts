@@ -179,3 +179,69 @@ export function calculateRoomTransferProRata(
     };
   }
 }
+
+/**
+ * Calculate Short-Term Guest Room Transfer Adjustment
+ * Based on remaining days in guest stay (Check-In to Checkout) instead of monthly cycle
+ */
+export function calculateGuestRoomTransferAdjustment(
+  currentRent: number,
+  newRent: number,
+  transferDateStr: string,
+  joiningDateStr?: string,
+  checkoutDateStr?: string
+): {
+  tariffDiff: number;
+  remainingDays: number;
+  totalStayDays: number;
+  adjustmentAmount: number;
+  isUpgrade: boolean;
+  isDowngrade: boolean;
+  communicationMessage: string;
+} {
+  try {
+    const tDate = new Date(transferDateStr);
+    const now = isNaN(tDate.getTime()) ? new Date() : tDate;
+    const cDate = checkoutDateStr ? new Date(checkoutDateStr) : new Date(now.getTime() + 5 * 86400000);
+    const jDate = joiningDateStr ? new Date(joiningDateStr) : new Date(now.getTime() - 2 * 86400000);
+
+    const totalStayDays = Math.max(1, Math.round((cDate.getTime() - jDate.getTime()) / (1000 * 3600 * 24)));
+    const remainingDays = Math.max(1, Math.round((cDate.getTime() - now.getTime()) / (1000 * 3600 * 24)));
+
+    const tariffDiff = newRent - currentRent;
+    const isUpgrade = tariffDiff > 0;
+    const isDowngrade = tariffDiff < 0;
+
+    const dailyDiff = tariffDiff / Math.max(1, totalStayDays);
+    const adjustmentAmount = Math.round(dailyDiff * remainingDays);
+
+    let communicationMessage = "";
+    if (tariffDiff === 0) {
+      communicationMessage = `Guest room transfer: Room rate remains identical (No additional charge).`;
+    } else if (isUpgrade) {
+      communicationMessage = `Guest room upgrade: Additional +₹${adjustmentAmount.toLocaleString("en-IN")} for ${remainingDays} remaining days will be added upon checkout.`;
+    } else {
+      communicationMessage = `Guest room downgrade: Discount credit of -₹${Math.abs(adjustmentAmount).toLocaleString("en-IN")} for ${remainingDays} remaining days will be adjusted upon checkout.`;
+    }
+
+    return {
+      tariffDiff,
+      remainingDays,
+      totalStayDays,
+      adjustmentAmount,
+      isUpgrade,
+      isDowngrade,
+      communicationMessage,
+    };
+  } catch {
+    return {
+      tariffDiff: 0,
+      remainingDays: 3,
+      totalStayDays: 7,
+      adjustmentAmount: 0,
+      isUpgrade: false,
+      isDowngrade: false,
+      communicationMessage: `Guest room transfer quote!`,
+    };
+  }
+}

@@ -6,7 +6,10 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
-import { calculateRoomTransferProRata } from "@/utils/financialEngine";
+import {
+  calculateRoomTransferProRata,
+  calculateGuestRoomTransferAdjustment,
+} from "@/utils/financialEngine";
 import {
   ChevronLeft,
   ChevronDown,
@@ -2183,8 +2186,9 @@ export default function IndividualTenantProfilePage({
                   />
                 </div>
 
-                {/* 🌟 ONE-SHOT TENANT COMMUNICATION SUMMARY BOX */}
+                {/* 🌟 DUAL FINANCIAL CALCULATION ENGINE (Tenant Monthly Cycle vs Guest Stay Duration) */}
                 {(() => {
+                  const isGuest = occupantState.stayType === "Guest";
                   const selectedTargetRoomObj = propertyStore
                     .getStructure()
                     .flatMap((f) => f.rooms)
@@ -2197,12 +2201,21 @@ export default function IndividualTenantProfilePage({
                       : selectedTargetRoomObj?.sharingType === 3
                       ? 11000
                       : 14500);
-                  const calc = calculateRoomTransferProRata(
-                    occupantState.rentAmount,
-                    targetRent,
-                    transferEffectiveDate,
-                    occupantState.paymentStatus
-                  );
+
+                  const calc = isGuest
+                    ? calculateGuestRoomTransferAdjustment(
+                        occupantState.rentAmount,
+                        targetRent,
+                        transferEffectiveDate,
+                        occupantState.joiningDate,
+                        occupantState.vacatingDate
+                      )
+                    : calculateRoomTransferProRata(
+                        occupantState.rentAmount,
+                        targetRent,
+                        transferEffectiveDate,
+                        occupantState.paymentStatus
+                      );
 
                   return (
                     <div className={`p-4 rounded-2xl border space-y-3 text-xs ${
@@ -2213,9 +2226,17 @@ export default function IndividualTenantProfilePage({
                         : "bg-gray-50 border-gray-200"
                     }`}>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-gray-900 text-xs">
-                          Transfer Summary
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 text-xs">
+                            {isGuest ? "🟣 Guest Transfer Summary" : "🟢 Tenant Transfer Summary"}
+                          </span>
+                          {isGuest && (
+                            <span className="text-[10px] bg-purple-100 text-purple-700 font-extrabold px-2 py-0.5 rounded-full">
+                              Short-Term Stay
+                            </span>
+                          )}
+                        </div>
+
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 ${
                           calc.isUpgrade
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
@@ -2239,7 +2260,7 @@ export default function IndividualTenantProfilePage({
 
                       <div className="space-y-1.5 font-medium text-gray-800 text-xs">
                         <p>
-                          • Remaining Days in Cycle: <strong>{calc.remainingDays} Days</strong>
+                          • {isGuest ? "Remaining Days in Guest Stay" : "Remaining Days in Cycle"}: <strong>{calc.remainingDays} Days</strong>
                         </p>
                         <p className="flex items-center gap-1.5">
                           • Rent Adjustment:{" "}
@@ -2249,9 +2270,17 @@ export default function IndividualTenantProfilePage({
                         </p>
                       </div>
 
-                      {/* Simple English Explanation Note */}
+                      {/* Simple English Explanation Note Differentiated by Stay Type */}
                       <div className="p-2.5 bg-white/90 rounded-xl border border-gray-200/80 text-[11px] text-gray-600 font-medium leading-relaxed">
-                        {occupantState.paymentStatus === "Paid" ? (
+                        {isGuest ? (
+                          calc.isUpgrade ? (
+                            <span>💡 Active short-term guest stay: <strong>+₹{calc.adjustmentAmount.toLocaleString("en-IN")}</strong> tariff difference for {calc.remainingDays} remaining stay days will be added upon checkout.</span>
+                          ) : calc.isDowngrade ? (
+                            <span>💡 Active short-term guest stay: <strong>-₹{Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}</strong> discount credit for {calc.remainingDays} remaining stay days will be adjusted upon checkout.</span>
+                          ) : (
+                            <span>💡 Guest shifted within same room tariff tier. No rate adjustment.</span>
+                          )
+                        ) : occupantState.paymentStatus === "Paid" ? (
                           calc.isUpgrade ? (
                             <span>💡 Since current month rent is already paid, <strong>+₹{calc.adjustmentAmount.toLocaleString("en-IN")}</strong> extra rent for {calc.remainingDays} days will be added to the next 5th month rent bill.</span>
                           ) : calc.isDowngrade ? (
