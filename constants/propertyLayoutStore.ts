@@ -1,4 +1,5 @@
 import { MOCK_OCCUPANTS_200, Occupant, generateMockOccupants } from "./mockOccupants";
+import { savePropertyLayoutToFirestore } from "@/lib/firestoreService";
 
 export interface BedSlotConfig {
   id: string;
@@ -153,11 +154,13 @@ export const propertyStore = {
     return loadStructure();
   },
 
-  updateStructure(newStructure: FloorConfig[]) {
+  updateStructure(newStructure: FloorConfig[], propertyId: string = "sunshine-pg") {
     GLOBAL_PROPERTY_STRUCTURE = newStructure;
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newStructure));
+        // Asynchronously sync layout structure to Firebase Cloud Firestore: properties/{propertyId}/layout/structure
+        savePropertyLayoutToFirestore(propertyId, newStructure);
       } catch (e) {
         console.warn("Failed to save property layout to localStorage", e);
       }

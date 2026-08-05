@@ -111,3 +111,21 @@ export function subscribeOccupantsFromFirestore(
     return () => {};
   }
 }
+
+/**
+ * Save or update full property layout structure in Firebase Cloud Firestore
+ * Document Path: properties/{propertyId}/layout/structure
+ */
+export async function savePropertyLayoutToFirestore(
+  propertyId: string = "sunshine-pg",
+  structure: any
+): Promise<boolean> {
+  try {
+    const layoutRef = doc(db, "properties", propertyId, "layout", "structure");
+    await setDoc(layoutRef, { floors: structure, updatedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (error) {
+    console.warn("Firestore save layout fallback:", error);
+    return false;
+  }
+}
