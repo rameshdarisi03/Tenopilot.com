@@ -45,11 +45,12 @@ export default function PropertyMapPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Reactive Property Layout Structure State (Subscribed to propertyStore)
-  const [propertyGrid, setPropertyGrid] = useState<FloorConfig[]>(() =>
-    propertyStore.getStructure()
-  );
+  const [propertyGrid, setPropertyGrid] = useState<FloorConfig[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+    setPropertyGrid(propertyStore.getStructure());
     const unsubscribe = propertyStore.subscribe(() => {
       setPropertyGrid(propertyStore.getStructure());
     });
