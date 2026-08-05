@@ -33,6 +33,7 @@ import {
   User,
   AlertTriangle,
   Eye,
+  LogOut,
   UserPlus,
   RefreshCw,
   TrendingUp,
@@ -305,6 +306,10 @@ export default function IndividualTenantProfilePage({
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
   const [showLogNoticeModal, setShowLogNoticeModal] = useState(false);
+  const [showGuestCheckoutModal, setShowGuestCheckoutModal] = useState(false);
+  const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>("2026-08-01");
+  const [guestRefundKeyDeposit, setGuestRefundKeyDeposit] = useState<boolean>(true);
+  const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
@@ -456,6 +461,43 @@ export default function IndividualTenantProfilePage({
     setShowLogNoticeModal(false);
   };
 
+  // 2b. Guest Checkout & Bed Clearance Submit Handler (DDS-13 Dynamic Cascading Matrix Compliance!)
+  const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setOccupantState((prev) => ({
+      ...prev,
+      lifecycleStatus: "Past",
+      vacatingDate: guestCheckoutDate,
+    }));
+
+    // Vacate bed slot in propertyStore singleton (DDS-13 Compliance: Bed returns to Available 🟢)
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              status: "Available" as const,
+              occupant: undefined,
+            };
+          }),
+        };
+      }),
+    }));
+    propertyStore.updateStructure(updatedStructure);
+
+    triggerToast(
+      `🏁 Guest Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & available 🟢`
+    );
+    setShowGuestCheckoutModal(false);
+  };
+
   // 3. Edit Profile Submit Handler (Updates Name, Phone, Email, Rent across state)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -526,7 +568,7 @@ export default function IndividualTenantProfilePage({
               onCollectPayment={() => setShowCollectRentModal(true)}
               onTransferRoom={() => setShowTransferModal(true)}
               onPromoteToTenant={() => setShowPromoteModal(true)}
-              onCheckOutGuest={() => setShowLogNoticeModal(true)}
+              onCheckOutGuest={() => setShowGuestCheckoutModal(true)}
             />
           ) : (
             <>
@@ -1384,6 +1426,111 @@ export default function IndividualTenantProfilePage({
                     className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
                   >
                     Confirm Notice
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 2b. 🏁 GUEST CHECKOUT & BED CLEARANCE MODAL (Replaces 30-day notice form for short-term guests!) */}
+        {showGuestCheckoutModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                    <LogOut className="w-5 h-5 text-red-600" /> Guest Checkout & Bed Clearance
+                  </h3>
+                  <p className="text-[10px] text-gray-500 font-semibold">
+                    Vacate bed & complete short-term stay for {occupantState.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGuestCheckoutModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleGuestCheckoutSubmit} className="space-y-4">
+                <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 space-y-1 text-xs">
+                  <span className="text-[10px] font-extrabold uppercase text-purple-700 block">Current Guest Allocation</span>
+                  <p className="font-bold text-gray-900">
+                    Sunshine Heights PG • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Actual Checkout Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={guestCheckoutDate}
+                    onChange={(e) => setGuestCheckoutDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-red-500"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Defaults to expected checkout date. Change if guest vacates early or late.
+                  </p>
+                </div>
+
+                {/* Key / Gate Pass Deposit Handover Box */}
+                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-gray-800">🔑 Key & Gate Pass Handover</span>
+                    <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                      ₹500 Deposit
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-gray-700 text-[11px]">
+                    <input
+                      type="checkbox"
+                      checked={guestRefundKeyDeposit}
+                      onChange={(e) => setGuestRefundKeyDeposit(e.target.checked)}
+                      className="rounded text-red-600 focus:ring-red-500"
+                    />
+                    <span>Room Key & Gate Pass returned (Refund ₹500 key deposit to guest)</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Checkout Inspection Notes (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={guestCheckoutNotes}
+                    onChange={(e) => setGuestCheckoutNotes(e.target.value)}
+                    placeholder="e.g. Room inspected, key returned, no damages found..."
+                    className="w-full p-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-red-500"
+                  ></textarea>
+                </div>
+
+                <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[10px] text-emerald-900 font-semibold space-y-0.5">
+                  <span className="font-extrabold block">⚡ DDS-13 Dynamic Bed Clearance:</span>
+                  <span>
+                    Submitting will immediately mark Bed {occupantState.roomNumber} ({occupantState.bedCode}) as <strong>Available 🟢</strong> across the Property Map and Overview Dashboard.
+                  </span>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowGuestCheckoutModal(false)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md"
+                  >
+                    Confirm Checkout & Vacate Bed 🏁
                   </button>
                 </div>
               </form>

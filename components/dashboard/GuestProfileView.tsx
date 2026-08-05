@@ -23,6 +23,7 @@ import {
   Sparkles,
   TrendingUp,
   TrendingDown,
+  Eye,
 } from "lucide-react";
 
 interface GuestProfileViewProps {
@@ -45,6 +46,11 @@ export function GuestProfileView({
   onCheckOutGuest,
 }: GuestProfileViewProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "kyc">("overview");
+  const [viewKycModal, setViewKycModal] = useState<{
+    open: boolean;
+    title: string;
+    docType: "front" | "back";
+  } | null>(null);
 
   // Calculate stay duration & days remaining
   const checkInDateStr = occupantState.joiningDate || occupantState.lastPaidDate || "02 Aug 2026";
@@ -87,7 +93,7 @@ export function GuestProfileView({
                 {occupantState.name}
               </h1>
               <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
-                🟣 SHORT-TERM GUEST
+                🟣 GUEST
               </span>
             </div>
             <p className="text-xs text-gray-500 font-medium mt-1">
@@ -293,7 +299,98 @@ export function GuestProfileView({
               </div>
             </div>
           </div>
+
+          {/* 🪪 KYC Verification & Identity Card for Guests */}
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-blue-600" /> Identity & KYC Verification
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                VERIFIED 🟢
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Aadhaar / Govt ID</span>
+                <span className="font-bold font-mono text-gray-900">
+                  {occupantState.aadhaarNumber || "XXXX-XXXX-8821"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Front Photo", docType: "front" })}
+                  className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front ID
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Back Photo", docType: "back" })}
+                  className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back ID
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* 📷 KYC DOCUMENT LIGHTBOX MODAL */}
+        {viewKycModal && viewKycModal.open && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" /> {viewKycModal.title}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setViewKycModal(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center justify-center space-y-3">
+                <div className="w-full aspect-video bg-gradient-to-br from-blue-900 to-indigo-950 rounded-xl p-4 text-white flex flex-col justify-between shadow-md">
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-blue-200">
+                      GOVERNMENT OF INDIA • AADHAAR
+                    </span>
+                    <span className="text-[9px] bg-emerald-500/30 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-400/40">
+                      VERIFIED 🟢
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm">{occupantState.name}</p>
+                    <p className="font-mono text-xs text-blue-200">
+                      {occupantState.aadhaarNumber || "XXXX-XXXX-8821"}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 font-semibold">
+                  Encrypted Digital KYC Card Copy • TenoPilot Verification Engine
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setViewKycModal(null)}
+                  className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold"
+                >
+                  Close Document
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Right Column: Guest Billing & Stay Log */}
         <div className="lg:col-span-2 space-y-6">
