@@ -570,6 +570,10 @@ TenoPilot implements room-level custom pricing, feature badges, photo gallery dr
    - Header button toggles `👁️ Show Prices` / `🙈 Hide Prices`. When Privacy Mode is ON, all prices render masked as `₹ •••••`.
 4. **Onboarding Step 2 Rent Auto-Fill**:
    - Rent input moved from Step 1 to Step 2 (Room & Bed selection). Selecting a room auto-fills its configured tariff while remaining 100% editable for discounts.
+5. **Max 8 Room Images & Lossless Canvas Compression**:
+   - Up to 8 room photos per room card auto-compressed (max 1200px, 0.85 JPEG quality) for fast loading without quality loss.
+6. **Historical Rent Contract Locking Policy (DDS-13 Compliance)**:
+   - Updating a room's custom price in Property Setup locks existing active tenants' rents at their historical contract rate (`occupant.rentAmount`). New tariffs apply only to vacant beds for new joiners, room transfers, and short-term guests.
 
 ---
 
