@@ -552,8 +552,24 @@ This revision introduces:
 - Hotel-Style Recurring Guest Stay Engine (`Extend / Book Next Stay`)
 - Indian PG Financial Engine (`billingCycleDates` & `desiredDueDate`)
 - Dedicated Financial Overview Card & Real Security Deposit Integration
-- Pro-Rata Room Transfer Engine & One-Shot Tenant Communication Summary Box
-- Double Booking Protection Shield & Dynamic Vacant Bed Filter
+- Room Custom Pricing, Feature Tags, Lightbox Photo Gallery, Privacy Eye Toggle & Step 2 Rent Auto-Fill
+
+---
+
+# Update 30 — Room Custom Pricing, Feature Tags, Photo Gallery, Privacy Mode & Onboarding Step 2 Rent Auto-Fill
+
+TenoPilot implements room-level custom pricing, feature badges, photo gallery drawers, global price privacy toggling, and Step 2 onboarding rent auto-fill:
+
+1. **Room Configuration Extensions (`customRentAmount`, `specialFeatureTag`, `roomPhotos`)**:
+   - **`specialFeatureTag`**: Optional text (e.g., *"Balcony & Park View"*) rendered as a feature pill badge.
+   - **`customRentAmount`**: Optional custom rent tariff override (e.g. ₹16,000 for Room 108 with Balcony).
+   - **`roomPhotos`**: Optional array of uploaded room photos.
+2. **Room Card Attribute Strip (Bottom-Left Footer)**:
+   - Renders Rent Tariff (`₹16,000/mo`), `📷 Room Photos (X)` button (opens Lightbox drawer with 1-click Download photo action), and `🌿 Feature Tag`.
+3. **Global Price Privacy Eye Toggle (`Property Map` Header)**:
+   - Header button toggles `👁️ Show Prices` / `🙈 Hide Prices`. When Privacy Mode is ON, all prices render masked as `₹ •••••`.
+4. **Onboarding Step 2 Rent Auto-Fill**:
+   - Rent input moved from Step 1 to Step 2 (Room & Bed selection). Selecting a room auto-fills its configured tariff while remaining 100% editable for discounts.
 
 ---
 
