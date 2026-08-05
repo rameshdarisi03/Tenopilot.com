@@ -417,12 +417,20 @@ export default function IndividualTenantProfilePage({
           occupantState.paymentStatus
         );
 
+    // Format pending extended notice date if room transfer was triggered to resolve a notice conflict
+    let revisedVacatingDate = occupantState.vacatingDate;
+    if (conflictModalData?.pendingDate) {
+      const dateParts = conflictModalData.pendingDate.split("-");
+      revisedVacatingDate = `${dateParts[2]} Aug 2026`;
+    }
+
     // 3. Update local occupant state
     const updatedOccupant: Occupant = {
       ...occupantState,
       roomNumber: transferRoomNumber,
       bedCode: transferBedCode,
       rentAmount: targetRent,
+      vacatingDate: revisedVacatingDate,
       arrearsBalance: (occupantState.arrearsBalance || 0) + calc.adjustmentAmount,
     };
     setOccupantState(updatedOccupant);
@@ -470,6 +478,7 @@ export default function IndividualTenantProfilePage({
 
     // 5. Sync occupantStore
     occupantStore.updateOccupant(updatedOccupant);
+    setConflictModalData(null);
 
     triggerToast(
       `🎉 Room transfer complete! ${occupantState.name} moved from Room ${oldRoomNumber} (${oldBedCode}) to Room ${transferRoomNumber} (${transferBedCode}). Pro-rata adjustment (${calc.adjustmentAmount >= 0 ? "+" : ""}₹${calc.adjustmentAmount.toLocaleString("en-IN")}) updated in Net Dues.`

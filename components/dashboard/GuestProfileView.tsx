@@ -37,6 +37,29 @@ interface GuestProfileViewProps {
   onExtendGuestStay?: () => void;
 }
 
+function parseAppDate(dateStr?: string): Date {
+  if (!dateStr) return new Date(2026, 7, 5);
+
+  const parts = dateStr.trim().split(" ");
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const monthMap: Record<string, number> = {
+      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+    };
+    const month = monthMap[parts[1]] ?? 7;
+    const year = parseInt(parts[2], 10);
+    return new Date(year, month, day);
+  }
+
+  const isoParts = dateStr.trim().split("-");
+  if (isoParts.length === 3) {
+    return new Date(parseInt(isoParts[0], 10), parseInt(isoParts[1], 10) - 1, parseInt(isoParts[2], 10));
+  }
+
+  return new Date(2026, 7, 5);
+}
+
 export function GuestProfileView({
   occupantState,
   propertyId,
@@ -54,14 +77,32 @@ export function GuestProfileView({
     docType: "front" | "back";
   } | null>(null);
 
-  // Calculate stay duration & days remaining
+  // Calculate stay duration & days remaining dynamically
   const checkInDateStr = occupantState.joiningDate || occupantState.lastPaidDate || "02 Aug 2026";
   const checkOutDateStr = occupantState.vacatingDate || occupantState.dueDate || "09 Aug 2026";
 
-  const totalStayDays = 7;
-  const daysElapsed = 3;
-  const daysRemaining = Math.max(0, totalStayDays - daysElapsed);
-  const progressPercent = Math.min(100, Math.round((daysElapsed / totalStayDays) * 100));
+  const today = new Date(2026, 7, 5); // Simulated app reference date: 05 Aug 2026
+  const checkInDate = parseAppDate(checkInDateStr);
+  const checkOutDate = parseAppDate(checkOutDateStr);
+
+  const totalStayDays = Math.max(1, Math.round((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+  const isBookedGuest = occupantState.lifecycleStatus === "Booked" || checkInDate > today;
+
+  let daysElapsed = 0;
+  let daysRemaining = 0;
+  let daysUntilCheckIn = 0;
+  let progressPercent = 0;
+
+  if (isBookedGuest) {
+    daysElapsed = 0;
+    daysUntilCheckIn = Math.max(0, Math.round((checkInDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+    daysRemaining = totalStayDays;
+    progressPercent = 0;
+  } else {
+    daysElapsed = Math.max(0, Math.round((today.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+    daysRemaining = Math.max(0, Math.round((checkOutDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+    progressPercent = Math.min(100, Math.max(0, Math.round((daysElapsed / totalStayDays) * 100)));
+  }
 
   return (
     <div className="space-y-6">
@@ -95,7 +136,7 @@ export function GuestProfileView({
                 {occupantState.name}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300">
-                🟣 GUEST
+                {isBookedGuest ? "🟦 BOOKED GUEST" : "🟣 GUEST"}
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -159,7 +200,11 @@ export function GuestProfileView({
           </div>
 
           <div className="text-purple-950 font-extrabold text-xs">
-            {daysRemaining > 0 ? (
+            {isBookedGuest ? (
+              <span className="text-blue-800 bg-blue-100 px-2.5 py-1 rounded-full border border-blue-300">
+                📅 Check-In in {daysUntilCheckIn} Days ({checkInDateStr})
+              </span>
+            ) : daysRemaining > 0 ? (
               <span>⏳ {daysRemaining} Days Remaining Until Checkout ({checkOutDateStr})</span>
             ) : (
               <span className="text-red-700">⚠️ Checkout Date Reached Today!</span>
@@ -171,13 +216,21 @@ export function GuestProfileView({
         <div className="space-y-1">
           <div className="w-full bg-gray-200/80 h-3 rounded-full overflow-hidden p-0.5">
             <div
-              className="bg-gradient-to-r from-purple-600 to-[#c2652a] h-full rounded-full transition-all duration-500 shadow-xs"
+              className={`h-full rounded-full transition-all duration-500 shadow-xs ${
+                isBookedGuest
+                  ? "bg-blue-400"
+                  : "bg-gradient-to-r from-purple-600 to-[#c2652a]"
+              }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
           <div className="flex justify-between text-[10px] text-gray-500 font-bold">
-            <span>Check-In: {checkInDateStr} ({daysElapsed} days elapsed)</span>
+            <span>
+              {isBookedGuest
+                ? `Check-In Date: ${checkInDateStr} (Check-in pending)`
+                : `Check-In: ${checkInDateStr} (${daysElapsed} days elapsed)`}
+            </span>
             <span>Checkout: {checkOutDateStr}</span>
           </div>
         </div>
