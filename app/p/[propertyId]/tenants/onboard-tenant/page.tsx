@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
@@ -115,8 +115,16 @@ export default function OnboardTenantPage({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
 
-  // Read available property structure from propertyStore
-  const propertyStructure = useMemo(() => propertyStore.getStructure(), []);
+  // Reactive property structure state subscribed to propertyStore
+  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>([]);
+
+  useEffect(() => {
+    setPropertyStructure(propertyStore.getStructure());
+    const unsubscribe = propertyStore.subscribe(() => {
+      setPropertyStructure(propertyStore.getStructure());
+    });
+    return unsubscribe;
+  }, []);
 
   // Intelligent Floor Navigation Filter for Onboarding:
   // 1. Shows Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
@@ -137,11 +145,12 @@ export default function OnboardTenantPage({
                 (bd) => bd.status === "Available" || bd.status === "Vacating"
               )
               .map((bd) => {
-                if (bd.status !== "Vacating") return bd;
-                const vacatingDateStr = bd.vacatingDate || "15 Aug 2026";
+                const vacatingDateStr = bd.occupant?.vacatingDate || bd.vacatingDate || "15 Aug 2026";
                 const cleanDate = vacatingDateStr.replace(" 2026", "");
+                if (bd.status !== "Vacating") return bd;
                 return {
                   ...bd,
+                  vacatingDate: vacatingDateStr,
                   vacatingNote: `Vacating ${cleanDate}`,
                 };
               }),
