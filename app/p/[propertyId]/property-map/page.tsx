@@ -543,15 +543,8 @@ export default function PropertyMapPage({
                                         floorName: floor.floorName,
                                       })
                                     }
-                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
+                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 ${badgeStyle}`}
                                   >
-                                    {/* 🟣 TOP-RIGHT GUEST BADGE PILL (Exact position marked in screenshot markup!) */}
-                                    {(bed.status === "Guest" || bed.occupant?.stayType === "Guest") && (
-                                      <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-purple-200 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs">
-                                        GUEST
-                                      </span>
-                                    )}
-
                                     <div className="p-1 rounded-full bg-white/70 shadow-2xs">
                                       {icon}
                                     </div>
@@ -561,20 +554,20 @@ export default function PropertyMapPage({
                                     <span className="text-[9px] font-semibold opacity-90 leading-tight truncate w-full">
                                       {bed.occupant ? bed.occupant.name : statusLabel}
                                     </span>
-                                    {/* Explicit Vacating / Joining Date Badges */}
+                                    {/* Explicit Vacating / Move-In Date Badge */}
                                     {bed.status === "Vacating" && (
                                       <span className="text-[8px] font-extrabold bg-orange-200/80 text-orange-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
                                         Vacating: {bed.occupant?.vacatingDate || bed.vacatingDate || "15 Aug"}
                                       </span>
                                     )}
-                                    {(bed.status === "Occupied" || bed.status === "Booked") && (
+                                    {bed.status === "Booked" && (
                                       <span className="text-[8px] font-extrabold bg-blue-200/80 text-blue-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                        Joining: {bed.occupant?.joiningDate || "10 Oct 2023"}
+                                        Move-In: {bed.occupant?.joiningDate || "15 Aug"}
                                       </span>
                                     )}
                                     {bed.status === "Guest" && (
                                       <span className="text-[8px] font-extrabold bg-purple-200/80 text-purple-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                        Vacating: {bed.guestCheckoutDate || bed.occupant?.vacatingDate || "12 Aug"}
+                                        Out: {bed.guestCheckoutDate || "12 Aug"}
                                       </span>
                                     )}
                                   </button>
