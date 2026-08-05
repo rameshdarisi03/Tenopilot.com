@@ -339,6 +339,21 @@ export default function IndividualTenantProfilePage({
   const [vacatingDate, setVacatingDate] = useState<string>("2026-08-15");
   const [vacatingReason, setVacatingReason] = useState<string>("Job Relocation");
   const [noticeNotes, setNoticeNotes] = useState<string>("");
+  // Extend Notice & Cancel Notice State
+  const [showExtendNoticeModal, setShowExtendNoticeModal] = useState<boolean>(false);
+  const [extendedNoticeDate, setExtendedNoticeDate] = useState<string>("2026-08-30");
+
+  const [showCancelNoticeModal, setShowCancelNoticeModal] = useState<boolean>(false);
+  const [showExtendGuestStayModal, setShowExtendGuestStayModal] = useState<boolean>(false);
+  const [extendedGuestCheckoutDate, setExtendedGuestCheckoutDate] = useState<string>("2026-08-12");
+
+  // Future Booking Conflict Resolution Modal State
+  const [conflictModalData, setConflictModalData] = useState<{
+    open: boolean;
+    bookedOccupant?: Occupant;
+    actionType: "EXTEND_NOTICE" | "CANCEL_NOTICE" | "EXTEND_GUEST_STAY";
+    pendingDate?: string;
+  } | null>(null);
 
   // Edit Profile Form Inputs
   const [editName, setEditName] = useState<string>(occupantState.name);
@@ -526,6 +541,126 @@ export default function IndividualTenantProfilePage({
       `✓ Notice period logged for ${occupantState.name}. Vacating Date: ${formattedVacatingDate}`
     );
     setShowLogNoticeModal(false);
+  };
+
+  // 2a-1. Extend Notice Submit Handler with Automated Conflict Check
+  const handleExtendNoticeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const conflict = propertyStore.checkBedBookingConflict(
+      occupantState.roomNumber,
+      occupantState.bedCode,
+      occupantState.id
+    );
+
+    if (conflict.hasConflict) {
+      setShowExtendNoticeModal(false);
+      setConflictModalData({
+        open: true,
+        bookedOccupant: conflict.bookedOccupant,
+        actionType: "EXTEND_NOTICE",
+        pendingDate: extendedNoticeDate,
+      });
+      return;
+    }
+
+    const dateParts = extendedNoticeDate.split("-");
+    const formattedVacatingDate = `${dateParts[2]} Aug 2026`;
+
+    const updated: Occupant = {
+      ...occupantState,
+      vacatingDate: formattedVacatingDate,
+    };
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+    setShowExtendNoticeModal(false);
+    triggerToast(`✓ Notice period extended to ${formattedVacatingDate} for ${occupantState.name}`);
+  };
+
+  // 2a-2. Cancel Notice & Stay Submit Handler with Automated Conflict Check
+  const handleCancelNoticeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const conflict = propertyStore.checkBedBookingConflict(
+      occupantState.roomNumber,
+      occupantState.bedCode,
+      occupantState.id
+    );
+
+    if (conflict.hasConflict) {
+      setShowCancelNoticeModal(false);
+      setConflictModalData({
+        open: true,
+        bookedOccupant: conflict.bookedOccupant,
+        actionType: "CANCEL_NOTICE",
+      });
+      return;
+    }
+
+    const updated: Occupant = {
+      ...occupantState,
+      lifecycleStatus: "Active",
+      vacatingDate: undefined,
+    };
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+
+    // Sync bed status in propertyStore back to Occupied 🟤
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              status: "Occupied" as const,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
+    }));
+    propertyStore.updateStructure(updatedStructure);
+
+    setShowCancelNoticeModal(false);
+    triggerToast(`🎉 Notice cancelled! ${occupantState.name} is now an Active Tenant on Bed ${occupantState.roomNumber} (${occupantState.bedCode}) 🟢`);
+  };
+
+  // 2a-3. Extend Guest Stay Submit Handler with Automated Conflict Check
+  const handleExtendGuestStaySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const conflict = propertyStore.checkBedBookingConflict(
+      occupantState.roomNumber,
+      occupantState.bedCode,
+      occupantState.id
+    );
+
+    if (conflict.hasConflict) {
+      setShowExtendGuestStayModal(false);
+      setConflictModalData({
+        open: true,
+        bookedOccupant: conflict.bookedOccupant,
+        actionType: "EXTEND_GUEST_STAY",
+        pendingDate: extendedGuestCheckoutDate,
+      });
+      return;
+    }
+
+    const dateParts = extendedGuestCheckoutDate.split("-");
+    const formattedCheckoutDate = `${dateParts[2]} Aug 2026`;
+
+    const updated: Occupant = {
+      ...occupantState,
+      vacatingDate: formattedCheckoutDate,
+      dueDate: formattedCheckoutDate,
+    };
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+
+    setShowExtendGuestStayModal(false);
+    triggerToast(`⏳ Guest stay extended until ${formattedCheckoutDate} for ${occupantState.name}!`);
   };
 
   // 2b. Guest Checkout & Bed Clearance Submit Handler (DDS-13 Dynamic Cascading Matrix Compliance!)
@@ -2508,6 +2643,260 @@ export default function IndividualTenantProfilePage({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        {/* 📅 1. EXTEND NOTICE MODAL */}
+        {showExtendNoticeModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-purple-700" /> Extend Move-Out Notice Date 📅
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowExtendNoticeModal(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleExtendNoticeSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    New Extended Vacating Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={extendedNoticeDate}
+                    onChange={(e) => setExtendedNoticeDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1.5">
+                    Before confirming, the system will check if Bed {occupantState.roomNumber} ({occupantState.bedCode}) is free or pre-booked.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowExtendNoticeModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-md"
+                  >
+                    Confirm & Extend Notice Date
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 🟢 2. CANCEL NOTICE MODAL */}
+        {showCancelNoticeModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-700" /> Cancel Notice & Stay 🟢
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelNoticeModal(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCancelNoticeSubmit} className="space-y-4 text-xs">
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900">
+                  <p className="font-semibold">
+                    Are you sure you want to cancel the move-out notice for <strong>{occupantState.name}</strong>?
+                  </p>
+                  <p className="text-[11px] text-emerald-800 mt-1">
+                    Status will revert to <strong>Active Tenant</strong> and Bed {occupantState.roomNumber} ({occupantState.bedCode}) will remain occupied.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelNoticeModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-md"
+                  >
+                    Confirm & Cancel Notice
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ⏳ 3. EXTEND GUEST STAY MODAL */}
+        {showExtendGuestStayModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h2 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-purple-700" /> Extend Short-Term Guest Stay ⏳
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowExtendGuestStayModal(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleExtendGuestStaySubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    New Extended Guest Checkout Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={extendedGuestCheckoutDate}
+                    onChange={(e) => setExtendedGuestCheckoutDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1.5">
+                    The system will verify that Bed {occupantState.roomNumber} ({occupantState.bedCode}) is free for the extended stay.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowExtendGuestStayModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-md"
+                  >
+                    Confirm & Extend Guest Stay
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ⚠️ 4. AUTOMATED FUTURE BOOKING CONFLICT RESOLUTION MODAL */}
+        {conflictModalData?.open && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border-2 border-red-300 space-y-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-700 font-bold flex items-center justify-center text-xl shrink-0">
+                    ⚠️
+                  </div>
+                  <div>
+                    <h2 className="font-serif font-bold text-lg text-red-950">
+                      Bed Booking Conflict Detected!
+                    </h2>
+                    <p className="text-xs text-red-700 font-medium">
+                      Bed {occupantState.roomNumber} ({occupantState.bedCode}) has ALREADY been pre-booked!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConflictModalData(null)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Pre-Booked Incoming Occupant Card */}
+              {conflictModalData.bookedOccupant && (
+                <div className="bg-red-50/80 p-4 rounded-2xl border border-red-200 space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-red-900 text-[11px] uppercase tracking-wider">
+                      Pre-Booked Incoming Occupant
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                      {conflictModalData.bookedOccupant.stayType === "Guest" ? "🟣 BOOKED GUEST" : "🟦 BOOKED TENANT"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-red-100 shadow-2xs">
+                    <img
+                      src={conflictModalData.bookedOccupant.avatar}
+                      alt={conflictModalData.bookedOccupant.name}
+                      className="w-12 h-12 rounded-xl bg-gray-100 object-cover border border-gray-200"
+                    />
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm">
+                        {conflictModalData.bookedOccupant.name}
+                      </h4>
+                      <p className="text-gray-500 text-[11px] mt-0.5">
+                        Expected Check-In: <strong>{conflictModalData.bookedOccupant.joiningDate || conflictModalData.bookedOccupant.dueDate}</strong>
+                      </p>
+                      <p className="text-gray-400 text-[10px]">
+                        Phone: {conflictModalData.bookedOccupant.phone} • {conflictModalData.bookedOccupant.workplace || "Private Visit"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-red-900 text-[11px] font-medium leading-relaxed">
+                    Because {conflictModalData.bookedOccupant.name} is scheduled to move into Bed {occupantState.roomNumber} ({occupantState.bedCode}), you cannot extend or cancel notice on this bed without resolving the conflict.
+                  </p>
+                </div>
+              )}
+
+              {/* 1-Click Resolution Shortcuts */}
+              <div className="space-y-2.5 pt-2">
+                <p className="font-bold text-xs text-gray-800">
+                  Select a Resolution Action:
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConflictModalData(null);
+                    setShowTransferModal(true);
+                  }}
+                  className="w-full py-3 px-4 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer active:scale-98"
+                >
+                  <ArrowRightLeft className="w-4 h-4" /> Suggest Room Transfer for {occupantState.name} 🟢
+                </button>
+
+                {conflictModalData.bookedOccupant && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const msg = encodeURIComponent(
+                        `Hi ${conflictModalData.bookedOccupant?.name}, regarding your booking for Room ${occupantState.roomNumber} (${occupantState.bedCode}) on ${conflictModalData.bookedOccupant?.joiningDate}...`
+                      );
+                      window.open(`https://wa.me/91${conflictModalData.bookedOccupant?.phone.replace(/\D/g, "")}?text=${msg}`, "_blank");
+                    }}
+                    className="w-full py-3 px-4 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Mail className="w-4 h-4 text-emerald-700" /> Contact Incoming {conflictModalData.bookedOccupant.name} via WhatsApp 💬
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

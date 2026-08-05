@@ -34,6 +34,7 @@ interface GuestProfileViewProps {
   onTransferRoom: () => void;
   onPromoteToTenant: () => void;
   onCheckOutGuest: () => void;
+  onExtendGuestStay?: () => void;
 }
 
 export function GuestProfileView({
@@ -44,6 +45,7 @@ export function GuestProfileView({
   onTransferRoom,
   onPromoteToTenant,
   onCheckOutGuest,
+  onExtendGuestStay,
 }: GuestProfileViewProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "kyc">("overview");
   const [viewKycModal, setViewKycModal] = useState<{
@@ -80,42 +82,44 @@ export function GuestProfileView({
       </div>
 
       {/* 👤 Guest Profile Header Banner */}
-      <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-xs flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div className="flex items-center gap-4">
           <img
             src={occupantState.avatar}
             alt={occupantState.name}
-            className="w-16 h-16 rounded-2xl bg-orange-100 border border-orange-200 object-cover shadow-sm"
+            className="w-16 h-16 rounded-2xl bg-purple-50 p-1 border border-purple-200 object-cover shadow-2xs"
           />
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="font-serif font-bold text-2xl text-gray-900">
+            <div className="flex items-center gap-2">
+              <h1 className="font-serif text-2xl font-bold text-gray-900">
                 {occupantState.name}
               </h1>
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300">
                 🟣 GUEST
               </span>
             </div>
-            <p className="text-xs text-gray-500 font-medium mt-1">
-              Joining Date: <strong>{checkInDateStr}</strong> • Expected Checkout: <strong>{checkOutDateStr}</strong>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Room {occupantState.roomNumber} ({occupantState.bedCode}) • Sunshine Heights PG
             </p>
           </div>
         </div>
 
         {/* 🚀 Quick Guest Actions Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={onEditProfile}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Edit className="w-3.5 h-3.5 text-gray-500" /> Edit Profile
-          </button>
+          {onExtendGuestStay && (
+            <button
+              onClick={onExtendGuestStay}
+              className="px-4 py-2.5 rounded-xl border border-purple-300 bg-purple-50 text-purple-900 font-bold text-xs hover:bg-purple-100 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            >
+              <Clock className="w-3.5 h-3.5 text-purple-700" /> Extend Stay ⏳
+            </button>
+          )}
 
           <button
             onClick={onCollectPayment}
-            className="px-4 py-2.5 rounded-xl bg-[#c2652a] text-white font-bold text-xs hover:bg-[#c2652a]/90 flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
-            <CreditCard className="w-3.5 h-3.5" /> Collect Payment
+            <CreditCard className="w-3.5 h-3.5" /> Collect Payment 💰
           </button>
 
           <button

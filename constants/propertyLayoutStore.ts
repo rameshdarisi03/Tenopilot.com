@@ -218,4 +218,19 @@ export const propertyStore = {
     });
     return result;
   },
+  checkBedBookingConflict(roomNumber: string, bedCode: string, currentOccupantId?: string): { hasConflict: boolean; bookedOccupant?: Occupant } {
+    const occupants = MOCK_OCCUPANTS_200;
+    const bookedOcc = occupants.find(
+      (o) =>
+        o.id !== currentOccupantId &&
+        o.roomNumber === roomNumber &&
+        o.bedCode.toUpperCase() === bedCode.toUpperCase() &&
+        o.lifecycleStatus === "Booked"
+    );
+
+    if (bookedOcc) {
+      return { hasConflict: true, bookedOccupant: bookedOcc };
+    }
+    return { hasConflict: false };
+  },
 };

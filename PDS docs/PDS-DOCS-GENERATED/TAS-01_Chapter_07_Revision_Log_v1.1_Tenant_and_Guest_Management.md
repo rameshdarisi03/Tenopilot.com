@@ -620,6 +620,21 @@ TenoPilot introduces clean component-level Separation of Concerns (SoC) for shor
 
 ---
 
+# Update 36 — Tenant & Guest Extension, Cancellation & Automated Booking Conflict Engine
+
+TenoPilot introduces an automated, PG-owner-friendly Extension & Cancellation Engine for both Tenants and Guests:
+
+1. **Notice Extension (`Extend Notice 📅`) & Notice Cancellation (`Cancel Notice & Stay 🟢`)**:
+   - Tenants on move-out notice can extend their vacating date or cancel notice to stay.
+2. **Guest Stay Extension (`Extend Stay ⏳`)**:
+   - Short-term guests can extend their stay duration from the `<GuestProfileView>` toolbar.
+3. **Automated Future Booking Conflict Detection Engine**:
+   - `propertyStore.checkBedBookingConflict(roomNumber, bedCode)` scans for pre-booked incoming occupants (`Booked` tenants OR `Booked` guests).
+   - If the bed is free, extension/cancellation proceeds immediately and updates bed status (`Occupied 🟤` for notice cancellation).
+   - If pre-booked, intercepts with **Automated Conflict Resolution Modal** displaying pre-booked occupant's avatar, name, phone, check-in date, and workplace. Offers 1-click **Suggest Room Transfer** and **Contact Incoming Occupant via WhatsApp** shortcuts.
+
+---
+
 # 📌 Future Implementation Backlog & Reminders (Logged for User Guidance)
 
 1. **Room Amenity & Attribute Tags in Property Setup (`/p/[propertyId]/property-setup`)**:

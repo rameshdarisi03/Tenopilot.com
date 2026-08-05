@@ -68,8 +68,9 @@ useEffect(() => {
 }, []);
 ```
 
-## 2. Protected Deletion Shield Execution Path
-When attempting to delete a Floor, Room, or Bed:
-1. `Property Setup` queries `propertyStore` for active bed allocations.
-2. If any bed within the entity is `Occupied`, `Vacating`, or `Booked`, deletion is intercepted.
-3. Triggers the **Protective Warning Modal** containing the occupant's name and direct link to `/p/[propertyId]/tenants/[tenantId]`.
+## 3. Notice Extension, Notice Cancellation & Guest Stay Extension Conflict Detection Engine (Update 36)
+When a Tenant extends/cancels notice or a Guest extends stay duration:
+1. `propertyStore.checkBedBookingConflict(roomNumber, bedCode)` scans `occupantStore` and `propertyStore` for pre-booked incoming occupants (`Booked` tenants OR `Booked` guests).
+2. **Unbooked Bed**: Notice extension/cancellation or guest stay extension proceeds immediately, updating `occupantStore` and `propertyStore` bed status in real time.
+3. **Conflict Detected**: Intercepts action with **Automated Conflict Resolution Modal** displaying pre-booked occupant's avatar, name, phone, check-in date, and workplace. Offers 1-click **Suggest Room Transfer** and **Contact Incoming Occupant via WhatsApp** shortcuts.
+
