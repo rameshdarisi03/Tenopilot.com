@@ -322,7 +322,7 @@ export default function PropertyMapPage({
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  ALL ({bedCounts.total})
+                  ALL (<span suppressHydrationWarning>{bedCounts.total}</span>)
                 </button>
 
                 <button
@@ -333,7 +333,7 @@ export default function PropertyMapPage({
                       : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> AVAILABLE ({bedCounts.available})
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> AVAILABLE (<span suppressHydrationWarning>{bedCounts.available}</span>)
                 </button>
 
                 <button
@@ -344,7 +344,7 @@ export default function PropertyMapPage({
                       : "bg-[#f7f2ee] text-amber-900 hover:bg-amber-100"
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-amber-700"></span> OCCUPIED ({bedCounts.occupied})
+                  <span className="w-2 h-2 rounded-full bg-amber-700"></span> OCCUPIED (<span suppressHydrationWarning>{bedCounts.occupied}</span>)
                 </button>
 
                 <button
@@ -355,7 +355,7 @@ export default function PropertyMapPage({
                       : "bg-orange-50 text-orange-700 hover:bg-orange-100"
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-orange-500"></span> VACATING ({bedCounts.vacating})
+                  <span className="w-2 h-2 rounded-full bg-orange-500"></span> VACATING (<span suppressHydrationWarning>{bedCounts.vacating}</span>)
                 </button>
 
                 <button
@@ -366,7 +366,7 @@ export default function PropertyMapPage({
                       : "bg-blue-50 text-blue-700 hover:bg-blue-100"
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span> BOOKED ({bedCounts.booked})
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span> BOOKED (<span suppressHydrationWarning>{bedCounts.booked}</span>)
                 </button>
 
                 <button
@@ -377,7 +377,7 @@ export default function PropertyMapPage({
                       : "bg-purple-50 text-purple-700 hover:bg-purple-100"
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-purple-500"></span> GUESTS ({bedCounts.guest})
+                  <span className="w-2 h-2 rounded-full bg-purple-500"></span> GUESTS (<span suppressHydrationWarning>{bedCounts.guest}</span>)
                 </button>
               </div>
             </div>
@@ -438,7 +438,7 @@ export default function PropertyMapPage({
               </svg>
 
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="font-serif text-2xl font-bold text-gray-900 leading-none">
+                <span suppressHydrationWarning className="font-serif text-2xl font-bold text-gray-900 leading-none">
                   {bedCounts.total}
                 </span>
                 <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider mt-0.5">
