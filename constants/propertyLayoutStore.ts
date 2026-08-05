@@ -237,3 +237,11 @@ export const propertyStore = {
     return { hasConflict: false };
   },
 };
+
+/**
+ * Single Source of Truth helper to resolve an occupant's vacating date from a bed slot.
+ * Ensures 100% data consistency regardless of whether bed.vacatingDate or bed.occupant.vacatingDate is accessed.
+ */
+export function getBedVacatingDate(bed: BedSlotConfig): string | undefined {
+  return bed.occupant?.vacatingDate || bed.vacatingDate;
+}

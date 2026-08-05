@@ -8,6 +8,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
 import {
   propertyStore,
+  getBedVacatingDate,
   FloorConfig,
   RoomConfig,
   BedSlotConfig,
@@ -141,7 +142,7 @@ export default function OnboardGuestPage({
                 (bd) => bd.status === "Available" || bd.status === "Vacating"
               )
               .map((bd) => {
-                const vacatingDateStr = bd.occupant?.vacatingDate || bd.vacatingDate || "15 Aug 2026";
+                const vacatingDateStr = getBedVacatingDate(bd) || "15 Aug 2026";
                 const cleanDate = vacatingDateStr.replace(" 2026", "");
                 if (bd.status !== "Vacating") return bd;
                 return {
