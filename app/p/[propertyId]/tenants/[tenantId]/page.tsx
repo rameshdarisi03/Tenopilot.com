@@ -584,6 +584,28 @@ export default function IndividualTenantProfilePage({
     };
     setOccupantState(updated);
     occupantStore.updateOccupant(updated);
+
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant vacatingDate in propertyStore for real-time Property Map sync!
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              status: "Vacating" as const,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
+    }));
+    propertyStore.updateStructure(updatedStructure);
+
     setShowExtendNoticeModal(false);
     setShowManageNoticeModal(false);
     triggerToast(`✓ Notice period extended to ${formattedVacatingDate} for ${occupantState.name}`);
@@ -673,6 +695,26 @@ export default function IndividualTenantProfilePage({
     };
     setOccupantState(updated);
     occupantStore.updateOccupant(updated);
+
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant checkout date in propertyStore for real-time Property Map sync!
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
+    }));
+    propertyStore.updateStructure(updatedStructure);
 
     setShowExtendGuestStayModal(false);
     triggerToast(`⏳ Guest stay extended until ${formattedCheckoutDate} for ${occupantState.name}!`);
