@@ -514,13 +514,35 @@ export default function IndividualTenantProfilePage({
       status: "PAID",
     };
 
-    // Update occupant state
-    setOccupantState((prev) => ({
-      ...prev,
+    const updated: Occupant = {
+      ...occupantState,
       paymentStatus: "Paid",
       lastPaidDate: formattedPaidDate,
       daysRemainingText: "—",
+    };
+
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant payment status in propertyStore!
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
     }));
+    propertyStore.updateStructure(updatedStructure);
 
     // Prepend to payment history
     setPaymentHistory([newReceipt, ...paymentHistory]);
@@ -542,11 +564,35 @@ export default function IndividualTenantProfilePage({
     const dateParts = vacatingDate.split("-");
     const formattedVacatingDate = `${dateParts[2]} Aug 2026`;
 
-    setOccupantState((prev) => ({
-      ...prev,
+    const updated: Occupant = {
+      ...occupantState,
       lifecycleStatus: "Notice",
       vacatingDate: formattedVacatingDate,
+    };
+
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed status to Vacating in propertyStore!
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              status: "Vacating" as const,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
     }));
+    propertyStore.updateStructure(updatedStructure);
 
     triggerToast(
       `✓ Notice period logged for ${occupantState.name}. Vacating Date: ${formattedVacatingDate}`
@@ -764,13 +810,36 @@ export default function IndividualTenantProfilePage({
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    setOccupantState((prev) => ({
-      ...prev,
+    const updated: Occupant = {
+      ...occupantState,
       name: editName,
       phone: editPhone,
       email: editEmail,
       rentAmount: editRent,
+    };
+
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant details in propertyStore!
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
     }));
+    propertyStore.updateStructure(updatedStructure);
 
     triggerToast(`✓ Profile details updated successfully for ${editName}`);
     setShowEditProfileModal(false);
@@ -780,14 +849,38 @@ export default function IndividualTenantProfilePage({
   const handlePromoteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    setOccupantState((prev) => ({
-      ...prev,
+    const updated: Occupant = {
+      ...occupantState,
       stayType: "Tenant",
       lifecycleStatus: "Active",
       rentAmount: promoteMonthlyRent,
       joiningDate: promoteJoiningDate,
       hasPdfAgreement: true,
+    };
+
+    setOccupantState(updated);
+    occupantStore.updateOccupant(updated);
+
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed status from Guest 🟣 to Occupied 🟤 in propertyStore!
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              status: "Occupied" as const,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
     }));
+    propertyStore.updateStructure(updatedStructure);
 
     triggerToast(`🎉 Successfully promoted ${occupantState.name} to Long-Term Active Tenant!`);
     setShowPromoteModal(false);
