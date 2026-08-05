@@ -385,6 +385,12 @@ export const occupantStore = {
     occupantListeners.forEach((l) => l());
   },
 
+  updateOccupant(updatedOcc: Occupant, propertyId: string = "sunshine-pg") {
+    const list = this.getOccupants();
+    const updatedList = list.map((o) => (o.id === updatedOcc.id ? updatedOcc : o));
+    this.updateOccupants(updatedList, propertyId);
+  },
+
   subscribe(listener: () => void) {
     occupantListeners.push(listener);
     return () => {

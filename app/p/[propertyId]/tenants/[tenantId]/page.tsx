@@ -365,30 +365,97 @@ export default function IndividualTenantProfilePage({
 
   const handleRoomTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isGuest = occupantState.stayType === "Guest";
+    const oldRoomNumber = occupantState.roomNumber;
+    const oldBedCode = occupantState.bedCode;
+
+    // 1. Query target room's price from propertyStore
+    const selectedTargetRoomObj = propertyStore
+      .getStructure()
+      .flatMap((f) => f.rooms)
+      .find((r) => r.roomNumber === transferRoomNumber);
+
     const targetRent =
-      transferRoomNumber === "108"
+      selectedTargetRoomObj?.customRentAmount ||
+      (selectedTargetRoomObj?.sharingType === 1
         ? 18000
-        : transferRoomNumber === "205"
+        : selectedTargetRoomObj?.sharingType === 3
         ? 11000
-        : 14500;
+        : 14500);
 
-    const calc = calculateRoomTransferProRata(
-      occupantState.rentAmount,
-      targetRent,
-      transferEffectiveDate,
-      occupantState.paymentStatus
-    );
+    // 2. Perform financial calculation based on stayType (Guest vs Tenant)
+    const calc = isGuest
+      ? calculateGuestRoomTransferAdjustment(
+          occupantState.rentAmount,
+          targetRent,
+          transferEffectiveDate,
+          occupantState.joiningDate,
+          occupantState.vacatingDate
+        )
+      : calculateRoomTransferProRata(
+          occupantState.rentAmount,
+          targetRent,
+          transferEffectiveDate,
+          occupantState.paymentStatus
+        );
 
-    setOccupantState((prev) => ({
-      ...prev,
+    // 3. Update local occupant state
+    const updatedOccupant: Occupant = {
+      ...occupantState,
       roomNumber: transferRoomNumber,
       bedCode: transferBedCode,
       rentAmount: targetRent,
-      arrearsBalance: (prev.arrearsBalance || 0) + calc.adjustmentAmount,
+      arrearsBalance: (occupantState.arrearsBalance || 0) + calc.adjustmentAmount,
+    };
+    setOccupantState(updatedOccupant);
+
+    // 4. DDS-13 Dynamic Cascading Mutation across Property Store!
+    // Vacates OLD bed slot (Available 🟢) and occupies TARGET bed slot (Occupied 🟤 / Guest 🟣)
+    const currentStructure = propertyStore.getStructure();
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        let updatedBeds = [...room.beds];
+
+        // Vacate old bed slot
+        if (room.roomNumber === oldRoomNumber) {
+          updatedBeds = updatedBeds.map((bed) => {
+            if (bed.bedCode === oldBedCode) {
+              return { ...bed, status: "Available" as const, occupant: undefined };
+            }
+            return bed;
+          });
+        }
+
+        // Occupy target bed slot
+        if (room.roomNumber === transferRoomNumber) {
+          updatedBeds = updatedBeds.map((bed) => {
+            if (bed.bedCode === transferBedCode) {
+              return {
+                ...bed,
+                status: isGuest ? ("Guest" as const) : ("Occupied" as const),
+                occupant: updatedOccupant,
+              };
+            }
+            return bed;
+          });
+        }
+
+        return {
+          ...room,
+          beds: updatedBeds,
+        };
+      }),
     }));
 
+    propertyStore.updateStructure(updatedStructure);
+
+    // 5. Sync occupantStore
+    occupantStore.updateOccupant(updatedOccupant);
+
     triggerToast(
-      `🎉 Room transfer complete! ${occupantState.name} moved to Room ${transferRoomNumber} (${transferBedCode}). Pro-rata adjustment (${calc.adjustmentAmount >= 0 ? "+" : ""}₹${calc.adjustmentAmount.toLocaleString("en-IN")}) updated in Net Dues.`
+      `🎉 Room transfer complete! ${occupantState.name} moved from Room ${oldRoomNumber} (${oldBedCode}) to Room ${transferRoomNumber} (${transferBedCode}). Pro-rata adjustment (${calc.adjustmentAmount >= 0 ? "+" : ""}₹${calc.adjustmentAmount.toLocaleString("en-IN")}) updated in Net Dues.`
     );
     setShowTransferModal(false);
   };
