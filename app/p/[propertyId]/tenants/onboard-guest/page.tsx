@@ -302,7 +302,8 @@ export default function OnboardGuestPage({
                 if (bd.bedCode !== selectedBed.bedCode) return bd;
                 return {
                   ...bd,
-                  status: "Occupied" as const,
+                  status: "Guest" as const,
+                  guestCheckoutDate: formattedCheckOut,
                   occupant: newGuest,
                 };
               }),

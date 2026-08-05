@@ -505,73 +505,85 @@ export default function PropertyMapPage({
                           return (
                             <div className={`grid ${gridCols} gap-2.5`}>
                               {room.beds.map((bed) => {
-                                let badgeStyle = "";
-                                let icon = <User className="w-3.5 h-3.5" />;
-                                let statusLabel: string = bed.status;
+                                  let badgeStyle = "";
+                                  let icon = <User className="w-3.5 h-3.5" />;
+                                  let statusLabel: string = bed.status;
 
-                                if (bed.status === "Available") {
-                                  badgeStyle =
-                                    "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
-                                  statusLabel = "Available";
-                                } else if (bed.status === "Occupied") {
-                                  badgeStyle =
-                                    "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
-                                  statusLabel = "Occupied";
-                                } else if (bed.status === "Vacating") {
-                                  badgeStyle =
-                                    "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
-                                  statusLabel = `Vacating ${bed.vacatingDate || "15 Aug"}`;
-                                } else if (bed.status === "Booked") {
-                                  badgeStyle =
-                                    "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
-                                  statusLabel = "Booked";
-                                } else if (bed.status === "Guest") {
-                                  badgeStyle =
-                                    "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
-                                  statusLabel = `Guest (Until ${
-                                    bed.guestCheckoutDate || "10 Aug"
-                                  })`;
-                                }
+                                  const isGuestBed = bed.status === "Guest" || bed.occupant?.stayType === "Guest";
 
-                                return (
-                                  <button
-                                    key={bed.id}
-                                    onClick={() =>
-                                      setActiveBedSlot({
-                                        bed,
-                                        roomNumber: room.roomNumber,
-                                        floorName: floor.floorName,
-                                      })
-                                    }
-                                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 ${badgeStyle}`}
-                                  >
-                                    <div className="p-1 rounded-full bg-white/70 shadow-2xs">
-                                      {icon}
-                                    </div>
-                                    <span className="font-bold text-[11px] truncate w-full">
-                                      {bed.bedCode}
-                                    </span>
-                                    <span className="text-[9px] font-semibold opacity-90 leading-tight truncate w-full">
-                                      {bed.occupant ? bed.occupant.name : statusLabel}
-                                    </span>
-                                    {/* Explicit Vacating / Move-In Date Badge */}
-                                    {bed.status === "Vacating" && (
-                                      <span className="text-[8px] font-extrabold bg-orange-200/80 text-orange-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                        Vacating: {bed.occupant?.vacatingDate || bed.vacatingDate || "15 Aug"}
+                                  if (bed.status === "Available") {
+                                    badgeStyle =
+                                      "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
+                                    statusLabel = "Available";
+                                  } else if (isGuestBed) {
+                                    badgeStyle =
+                                      "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
+                                    statusLabel = `Guest (Until ${
+                                      bed.guestCheckoutDate || bed.occupant?.dueDate || bed.occupant?.vacatingDate || "10 Aug"
+                                    })`;
+                                  } else if (bed.status === "Vacating") {
+                                    badgeStyle =
+                                      "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
+                                    statusLabel = `Vacating ${bed.vacatingDate || "15 Aug"}`;
+                                  } else if (bed.status === "Booked") {
+                                    badgeStyle =
+                                      "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
+                                    statusLabel = "Booked";
+                                  } else if (bed.status === "Occupied") {
+                                    badgeStyle =
+                                      "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
+                                    statusLabel = "Occupied";
+                                  }
+
+                                  return (
+                                    <button
+                                      key={bed.id}
+                                      onClick={() =>
+                                        setActiveBedSlot({
+                                          bed,
+                                          roomNumber: room.roomNumber,
+                                          floorName: floor.floorName,
+                                        })
+                                      }
+                                      className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
+                                    >
+                                      {/* 🟣 TOP-RIGHT GUEST BADGE PILL (Instant 1-second identification for PG owners!) */}
+                                      {isGuestBed && (
+                                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-purple-200 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs">
+                                          GUEST
+                                        </span>
+                                      )}
+
+                                      <div className="p-1 rounded-full bg-white/70 shadow-2xs">
+                                        {icon}
+                                      </div>
+                                      <span className="font-bold text-[11px] truncate w-full">
+                                        {bed.bedCode}
                                       </span>
-                                    )}
-                                    {bed.status === "Booked" && (
-                                      <span className="text-[8px] font-extrabold bg-blue-200/80 text-blue-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                        Move-In: {bed.occupant?.joiningDate || "15 Aug"}
+                                      <span className="text-[9px] font-semibold opacity-90 leading-tight truncate w-full">
+                                        {bed.occupant ? bed.occupant.name : statusLabel}
                                       </span>
-                                    )}
-                                    {bed.status === "Guest" && (
-                                      <span className="text-[8px] font-extrabold bg-purple-200/80 text-purple-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                        Out: {bed.guestCheckoutDate || "12 Aug"}
-                                      </span>
-                                    )}
-                                  </button>
-                                );
+
+                                      {/* Explicit Vacating / Move-In / Guest Out Date Badge */}
+                                      {bed.status === "Vacating" && (
+                                        <span className="text-[8px] font-extrabold bg-orange-200/80 text-orange-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
+                                          Vacating: {bed.occupant?.vacatingDate || bed.vacatingDate || "15 Aug"}
+                                        </span>
+                                      )}
+                                      {bed.status === "Booked" && !isGuestBed && (
+                                        <span className="text-[8px] font-extrabold bg-blue-200/80 text-blue-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
+                                          Move-In: {bed.occupant?.joiningDate || "15 Aug"}
+                                        </span>
+                                      )}
+                                      {isGuestBed && (
+                                        <span className="text-[8px] font-extrabold bg-purple-200/80 text-purple-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
+                                          {bed.occupant?.joiningDate && bed.occupant.joiningDate !== "02 Aug 2026" && !bed.occupant.joiningDate.includes("10 Oct") && bed.occupant.lifecycleStatus === "Booked"
+                                            ? `Joining: ${bed.occupant.joiningDate}`
+                                            : `Out: ${bed.guestCheckoutDate || bed.occupant?.dueDate || bed.occupant?.vacatingDate || "12 Aug"}`}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
                               })}
                             </div>
                           );
