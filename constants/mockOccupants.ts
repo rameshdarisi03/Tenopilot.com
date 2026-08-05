@@ -81,42 +81,12 @@ const roomNumbers = [
 
 const bedCodes = ["Bed A", "Bed B", "Bed C"];
 
-export function generateMockOccupants(count = 200): Occupant[] {
-  const occupants: Occupant[] = [];
-  // 4 Explicit Test Profiles for End-to-End Date & Lifecycle Matrix Verification
-  const testOccupants: Occupant[] = [
+export function generateMockOccupants(count = 25): Occupant[] {
+  const curatedCases: Occupant[] = [
+    // Case 1: Rohan Varma (Tenant - Active, 6 Months Tenure, Fully Paid)
     {
-      id: "occ-test-tenant-future",
-      name: "Vikram Malhotra (Future Tenant)",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VikramMalhotra",
-      phone: "+91 98111 22334",
-      email: "vikram.m@example.com",
-      stayType: "Tenant",
-      lifecycleStatus: "Booked",
-      paymentStatus: "Due",
-      daysDiff: 13,
-      daysRemainingText: "Due on Check-In",
-      rentAmount: 14500,
-      dueDate: "15 Aug 2026",
-      dueDay: 15,
-      lastPaidDate: "Pending Check-In",
-      roomNumber: "201",
-      bedCode: "BED A",
-      joiningDate: "15 Aug 2026",
-      kycVerified: false,
-      hasPdfAgreement: true,
-      workplace: "TCS Systems",
-      address: "HSR Layout, Bengaluru",
-      aadhaarNumber: "XXXX-XXXX-1122",
-      emergencyContact: {
-        name: "Rajesh Malhotra",
-        phone: "+91 98111 99999",
-        relation: "Father",
-      },
-    },
-    {
-      id: "occ-test-tenant-today",
-      name: "Rohan Varma (Today Tenant)",
+      id: "occ-test-tenant-6m",
+      name: "Rohan Varma",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RohanVarma",
       phone: "+91 98222 33445",
       email: "rohan.v@example.com",
@@ -125,225 +95,734 @@ export function generateMockOccupants(count = 200): Occupant[] {
       paymentStatus: "Paid",
       daysDiff: 30,
       daysRemainingText: "—",
-      rentAmount: 14500,
+      rentAmount: 18000,
       dueDate: "01 Sep 2026",
       dueDay: 1,
       lastPaidDate: "02 Aug 2026",
-      roomNumber: "202",
-      bedCode: "BED B",
-      joiningDate: "02 Aug 2026",
+      roomNumber: "101",
+      bedCode: "BED A",
+      joiningDate: "01 Feb 2026", // Joined 6 months ago!
       kycVerified: true,
       hasPdfAgreement: true,
       workplace: "Infosys Labs",
       address: "Koramangala, Bengaluru",
       aadhaarNumber: "XXXX-XXXX-3344",
-      emergencyContact: {
-        name: "Sunita Varma",
-        phone: "+91 98222 88888",
-        relation: "Mother",
-      },
+      emergencyContact: { name: "Sunita Varma", phone: "+91 98222 88888", relation: "Mother" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
     },
+    // Case 2: Kavya Sharma (Tenant - Active, 5 Months Tenure, Skipped Month 3, Arrears Accumulated)
     {
-      id: "occ-test-guest-future",
-      name: "Ananya Deshmukh (Future Guest)",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AnanyaDeshmukh",
-      phone: "+91 98333 44556",
-      email: "ananya.d@guest.com",
-      stayType: "Guest",
+      id: "occ-test-tenant-skipped-month",
+      name: "Kavya Sharma",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=KavyaSharma",
+      phone: "+91 98333 11223",
+      email: "kavya.s@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Overdue",
+      daysDiff: -5,
+      daysRemainingText: "5 DAYS OVERDUE",
+      rentAmount: 18000,
+      dueDate: "01 Aug 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Jun 2026",
+      roomNumber: "101",
+      bedCode: "BED B",
+      joiningDate: "01 Mar 2026", // Joined 5 months ago! Skipped May payment!
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "TCS Innovation",
+      address: "Indiranagar, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-9911",
+      emergencyContact: { name: "Rajesh Sharma", phone: "+91 98333 99999", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 18000, // 1 month arrears accumulated
+    },
+    // Case 3: Amit Singh (Tenant - Active, 4 Months Tenure, Due Today)
+    {
+      id: "occ-test-tenant-due-today",
+      name: "Amit Singh",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AmitSingh",
+      phone: "+91 98444 22334",
+      email: "amit.s@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Due",
+      daysDiff: 0,
+      daysRemainingText: "DUE TODAY",
+      rentAmount: 14500,
+      dueDate: "05 Aug 2026",
+      dueDay: 5,
+      lastPaidDate: "05 Jul 2026",
+      roomNumber: "102",
+      bedCode: "BED A",
+      joiningDate: "01 Apr 2026", // Joined 4 months ago!
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Wipro Tech",
+      address: "HSR Layout, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-2233",
+      emergencyContact: { name: "Mahesh Singh", phone: "+91 98444 88888", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 4: Priya Nair (Tenant - Active, 3 Months Tenure, Due in 2 Days)
+    {
+      id: "occ-test-tenant-due-soon",
+      name: "Priya Nair",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=PriyaNair",
+      phone: "+91 98555 33445",
+      email: "priya.n@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Due",
+      daysDiff: 2,
+      daysRemainingText: "Due in 2 Days",
+      rentAmount: 14500,
+      dueDate: "07 Aug 2026",
+      dueDay: 7,
+      lastPaidDate: "07 Jul 2026",
+      roomNumber: "102",
+      bedCode: "BED B",
+      joiningDate: "01 May 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Accenture Digital",
+      address: "Whitefield, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-4455",
+      emergencyContact: { name: "Geeta Nair", phone: "+91 98555 77777", relation: "Mother" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 5: Vikram Patel (Tenant - Active, 2 Months Tenure, Overdue 5 Days)
+    {
+      id: "occ-test-tenant-overdue",
+      name: "Vikram Patel",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VikramPatel",
+      phone: "+91 98666 44556",
+      email: "vikram.p@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Overdue",
+      daysDiff: -5,
+      daysRemainingText: "5 DAYS OVERDUE",
+      rentAmount: 14500,
+      dueDate: "31 Jul 2026",
+      dueDay: 31,
+      lastPaidDate: "30 Jun 2026",
+      roomNumber: "103",
+      bedCode: "BED A",
+      joiningDate: "01 Jun 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Amazon Dev",
+      address: "Bellandur, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-5566",
+      emergencyContact: { name: "Ramesh Patel", phone: "+91 98666 66666", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 14500,
+    },
+    // Case 6: Neha Gupta (Tenant - Notice Period, 5 Months Tenure)
+    {
+      id: "occ-test-tenant-notice",
+      name: "Neha Gupta",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=NehaGupta",
+      phone: "+91 98777 55667",
+      email: "neha.g@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Notice",
+      paymentStatus: "Paid",
+      daysDiff: 10,
+      daysRemainingText: "Vacating on 15 Aug",
+      rentAmount: 14500,
+      dueDate: "15 Aug 2026",
+      dueDay: 15,
+      lastPaidDate: "01 Jul 2026",
+      roomNumber: "103",
+      bedCode: "BED B",
+      joiningDate: "01 Mar 2026",
+      vacatingDate: "15 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Flipkart Internet",
+      address: "Electronic City, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-6677",
+      emergencyContact: { name: "Sanjay Gupta", phone: "+91 98777 55555", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 7: Siddharth Roy (Tenant - Booked, Future Check-In 15 Aug)
+    {
+      id: "occ-test-tenant-booked",
+      name: "Siddharth Roy",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=SiddharthRoy",
+      phone: "+91 98888 66778",
+      email: "siddharth.r@example.com",
+      stayType: "Tenant",
       lifecycleStatus: "Booked",
       paymentStatus: "Due",
-      daysDiff: 8,
+      daysDiff: 10,
       daysRemainingText: "Due on Check-In",
-      rentAmount: 3500,
-      dueDate: "17 Aug 2026",
-      dueDay: 17,
+      rentAmount: 14500,
+      dueDate: "15 Aug 2026",
+      dueDay: 15,
       lastPaidDate: "Pending Check-In",
-      roomNumber: "203",
+      roomNumber: "104",
       bedCode: "BED A",
-      joiningDate: "10 Aug 2026",
+      joiningDate: "15 Aug 2026",
       kycVerified: false,
-      hasPdfAgreement: false,
-      workplace: "Design Studio",
-      address: "Indiranagar, Bengaluru",
-      aadhaarNumber: "XXXX-XXXX-5566",
-      emergencyContact: {
-        name: "Prakash Deshmukh",
-        phone: "+91 98333 77777",
-        relation: "Father",
-      },
+      hasPdfAgreement: true,
+      workplace: "Swiggy Tech",
+      address: "BTM Layout, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-7788",
+      emergencyContact: { name: "Alok Roy", phone: "+91 98888 44444", relation: "Father" },
+      securityDeposit: 5000,
+      depositStatus: "PARTIAL",
+      arrearsBalance: 0,
     },
+    // Case 8: Ananya Reddy (Tenant - Past Vacated Tenant)
+    {
+      id: "occ-test-tenant-past",
+      name: "Ananya Reddy",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AnanyaReddy",
+      phone: "+91 98999 77889",
+      email: "ananya.r@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Past",
+      paymentStatus: "Paid",
+      daysDiff: 0,
+      daysRemainingText: "Vacated",
+      rentAmount: 14500,
+      dueDate: "31 Jul 2026",
+      dueDay: 31,
+      lastPaidDate: "01 Jul 2026",
+      roomNumber: "104",
+      bedCode: "BED B",
+      joiningDate: "01 Jan 2026",
+      vacatingDate: "31 Jul 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Deloitte India",
+      address: "Marathahalli, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-8899",
+      emergencyContact: { name: "Venkatesh Reddy", phone: "+91 98999 33333", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 9: Bobby Deol (Guest - Active 7-Day Package, Fully Paid)
     {
       id: "occ-test-guest-today",
-      name: "Karan Johar (Today Guest)",
+      name: "Bobby Deol",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=BobbyDeol",
+      phone: "+91 98185 18400",
+      email: "bobby.deol150@example.com",
+      stayType: "Guest",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 4,
+      daysRemainingText: "4 Days Remaining",
+      rentAmount: 2500,
+      dueDate: "09 Aug 2026",
+      dueDay: 9,
+      lastPaidDate: "02 Aug 2026",
+      roomNumber: "107",
+      bedCode: "BED A",
+      joiningDate: "02 Aug 2026",
+      vacatingDate: "09 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: false,
+      workplace: "Exam / Corporate Visit",
+      address: "Bandra West, Mumbai",
+      aadhaarNumber: "XXXX-XXXX-8821",
+      emergencyContact: { name: "Dharmendra Singh", phone: "+91 98185 00000", relation: "Father" },
+      securityDeposit: 500,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 10: Karan Johar (Guest - Active 3-Day Package, Partial Paid)
+    {
+      id: "occ-test-guest-partial",
+      name: "Karan Johar",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=KaranJohar",
       phone: "+91 98444 55667",
       email: "karan.j@guest.com",
       stayType: "Guest",
       lifecycleStatus: "Active",
-      paymentStatus: "Paid",
-      daysDiff: 7,
-      daysRemainingText: "7 Days Remaining",
-      rentAmount: 3500,
-      dueDate: "09 Aug 2026",
-      dueDay: 9,
-      lastPaidDate: "02 Aug 2026",
-      roomNumber: "204",
-      bedCode: "BED C",
-      joiningDate: "02 Aug 2026",
+      paymentStatus: "Due",
+      daysDiff: 2,
+      daysRemainingText: "2 Days Remaining",
+      rentAmount: 2100,
+      dueDate: "07 Aug 2026",
+      dueDay: 7,
+      lastPaidDate: "04 Aug 2026",
+      roomNumber: "107",
+      bedCode: "BED B",
+      joiningDate: "04 Aug 2026",
+      vacatingDate: "07 Aug 2026",
       kycVerified: true,
       hasPdfAgreement: false,
-      workplace: "Freelance",
-      address: "Jayanagar, Bengaluru",
+      workplace: "Film Shooting Visit",
+      address: "Juhu, Mumbai",
       aadhaarNumber: "XXXX-XXXX-7788",
-      emergencyContact: {
-        name: "Meena Johar",
-        phone: "+91 98444 66666",
-        relation: "Mother",
-      },
+      emergencyContact: { name: "Hiroo Johar", phone: "+91 98444 66666", relation: "Mother" },
+      securityDeposit: 500,
+      depositStatus: "PAID",
+      arrearsBalance: 1100,
+    },
+    // Case 11: Ranbir Kapoor (Guest - Booked, Joining Tomorrow 06 Aug)
+    {
+      id: "occ-test-guest-booked-tomorrow",
+      name: "Ranbir Kapoor",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RanbirKapoor",
+      phone: "+91 98111 55443",
+      email: "ranbir.k@guest.com",
+      stayType: "Guest",
+      lifecycleStatus: "Booked",
+      paymentStatus: "Due",
+      daysDiff: 1,
+      daysRemainingText: "Due on Check-In",
+      rentAmount: 3000,
+      dueDate: "12 Aug 2026",
+      dueDay: 12,
+      lastPaidDate: "Pending Check-In",
+      roomNumber: "606",
+      bedCode: "BED B",
+      joiningDate: "06 Aug 2026",
+      vacatingDate: "12 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: false,
+      workplace: "Pali Hill, Mumbai",
+      address: "Mumbai",
+      aadhaarNumber: "XXXX-XXXX-3321",
+      emergencyContact: { name: "Neetu Kapoor", phone: "+91 98111 00000", relation: "Mother" },
+      securityDeposit: 500,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 12: Deepika Padukone (Guest - Checkout Candidate)
+    {
+      id: "occ-test-guest-checkout",
+      name: "Deepika Padukone",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=DeepikaPadukone",
+      phone: "+91 98222 66554",
+      email: "deepika.p@guest.com",
+      stayType: "Guest",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 0,
+      daysRemainingText: "CHECKOUT TODAY",
+      rentAmount: 3500,
+      dueDate: "05 Aug 2026",
+      dueDay: 5,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "108",
+      bedCode: "BED B",
+      joiningDate: "01 Aug 2026",
+      vacatingDate: "05 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: false,
+      workplace: "Prabhadevi, Mumbai",
+      address: "Mumbai",
+      aadhaarNumber: "XXXX-XXXX-4432",
+      emergencyContact: { name: "Prakash Padukone", phone: "+91 98222 11111", relation: "Father" },
+      securityDeposit: 500,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 13: Shah Rukh Khan (Guest - Candidate for Promotion to Tenant)
+    {
+      id: "occ-test-guest-promote",
+      name: "Shah Rukh Khan",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=ShahRukhKhan",
+      phone: "+91 98333 77665",
+      email: "srk@guest.com",
+      stayType: "Guest",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 5,
+      daysRemainingText: "5 Days Remaining",
+      rentAmount: 5000,
+      dueDate: "10 Aug 2026",
+      dueDay: 10,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "201",
+      bedCode: "BED C",
+      joiningDate: "01 Aug 2026",
+      vacatingDate: "10 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: false,
+      workplace: "Mannat, Mumbai",
+      address: "Mumbai",
+      aadhaarNumber: "XXXX-XXXX-5543",
+      emergencyContact: { name: "Gauri Khan", phone: "+91 98333 22222", relation: "Spouse" },
+      securityDeposit: 500,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 14: Tarun Mehta (Tenant - Same Tariff Transfer Candidate)
+    {
+      id: "occ-test-tenant-transfer-same",
+      name: "Tarun Mehta",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=TarunMehta",
+      phone: "+91 98444 88776",
+      email: "tarun.m@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 14500,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "202",
+      bedCode: "BED A",
+      joiningDate: "01 Jun 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Ather Energy",
+      address: "Indiranagar, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-6654",
+      emergencyContact: { name: "Anand Mehta", phone: "+91 98444 33333", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 15: Meera Iyer (Tenant - Tariff Upgrade Transfer Candidate)
+    {
+      id: "occ-test-tenant-transfer-upgrade",
+      name: "Meera Iyer",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=MeeraIyer",
+      phone: "+91 98555 99887",
+      email: "meera.i@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 14500,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "203",
+      bedCode: "BED A",
+      joiningDate: "01 May 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "KPMG Advisory",
+      address: "MG Road, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-7765",
+      emergencyContact: { name: "Srinivasan Iyer", phone: "+91 98555 44444", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 16: Arjun Das (Tenant - Tariff Downgrade Transfer Candidate)
+    {
+      id: "occ-test-tenant-transfer-downgrade",
+      name: "Arjun Das",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=ArjunDas",
+      phone: "+91 98666 00998",
+      email: "arjun.d@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 18000,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "108",
+      bedCode: "BED A",
+      joiningDate: "01 Apr 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Cisco Systems",
+      address: "Outer Ring Road, Bengaluru",
+      aadhaarNumber: "XXXX-XXXX-8876",
+      emergencyContact: { name: "Bikram Das", phone: "+91 98666 55555", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 17: Suresh Raina (Guest - Guest Room Transfer Candidate)
+    {
+      id: "occ-test-guest-transfer",
+      name: "Suresh Raina",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=SureshRaina",
+      phone: "+91 98777 11009",
+      email: "suresh.r@guest.com",
+      stayType: "Guest",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 6,
+      daysRemainingText: "6 Days Remaining",
+      rentAmount: 3500,
+      dueDate: "11 Aug 2026",
+      dueDay: 11,
+      lastPaidDate: "04 Aug 2026",
+      roomNumber: "301",
+      bedCode: "BED C",
+      joiningDate: "04 Aug 2026",
+      vacatingDate: "11 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: false,
+      workplace: "Cricket Coaching",
+      address: "Ghaziabad, UP",
+      aadhaarNumber: "XXXX-XXXX-9987",
+      emergencyContact: { name: "Priyanka Raina", phone: "+91 98777 66666", relation: "Spouse" },
+      securityDeposit: 500,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 18: Gautam Gambhir (Tenant - Privacy Mode Test Case)
+    {
+      id: "occ-test-tenant-privacy",
+      name: "Gautam Gambhir",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=GautamGambhir",
+      phone: "+91 98888 22110",
+      email: "gautam.g@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 14500,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "302",
+      bedCode: "BED A",
+      joiningDate: "01 Mar 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "BCCI Coach",
+      address: "New Delhi",
+      aadhaarNumber: "XXXX-XXXX-1109",
+      emergencyContact: { name: "Natasha Gambhir", phone: "+91 98888 77777", relation: "Spouse" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 19: Hardik Pandya (Tenant - Batch WhatsApp Reminder Test Case)
+    {
+      id: "occ-test-tenant-batch-wa",
+      name: "Hardik Pandya",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=HardikPandya",
+      phone: "+91 98999 33221",
+      email: "hardik.p@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Overdue",
+      daysDiff: -3,
+      daysRemainingText: "3 DAYS OVERDUE",
+      rentAmount: 14500,
+      dueDate: "02 Aug 2026",
+      dueDay: 2,
+      lastPaidDate: "02 Jul 2026",
+      roomNumber: "303",
+      bedCode: "BED A",
+      joiningDate: "01 Jan 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "MI Captain",
+      address: "Baroda, Gujarat",
+      aadhaarNumber: "XXXX-XXXX-2210",
+      emergencyContact: { name: "Krunal Pandya", phone: "+91 98999 88888", relation: "Brother" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 14500,
+    },
+    // Case 20: KL Rahul (Tenant - Multi-Attribute Search Test Case)
+    {
+      id: "occ-test-tenant-search",
+      name: "KL Rahul",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed-[#112233]",
+      phone: "+91 99887 76655",
+      email: "kl.rahul@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 18000,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "401",
+      bedCode: "BED A",
+      joiningDate: "01 Feb 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "LSG Captain",
+      address: "Mangaluru, Karnataka",
+      aadhaarNumber: "4433-2211-0099",
+      emergencyContact: { name: "Athiya Shetty", phone: "+91 99887 11111", relation: "Spouse" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 21: Jasprit Bumrah (Tenant - Executive Suite Floor 04)
+    {
+      id: "occ-test-tenant-fl4",
+      name: "Jasprit Bumrah",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=JaspritBumrah",
+      phone: "+91 98111 44332",
+      email: "jasprit.b@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 18000,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "402",
+      bedCode: "BED A",
+      joiningDate: "01 Dec 2025",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Speedster Bowler",
+      address: "Ahmedabad, Gujarat",
+      aadhaarNumber: "XXXX-XXXX-3322",
+      emergencyContact: { name: "Sanjana Ganesan", phone: "+91 98111 77777", relation: "Spouse" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 22: Ravindra Jadeja (Tenant - Penthouse Floor 05)
+    {
+      id: "occ-test-tenant-fl5",
+      name: "Ravindra Jadeja",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RavindraJadeja",
+      phone: "+91 98222 55443",
+      email: "jaddu@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 18000,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "501",
+      bedCode: "BED A",
+      joiningDate: "01 Nov 2025",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "CSK Allrounder",
+      address: "Jamnagar, Gujarat",
+      aadhaarNumber: "XXXX-XXXX-4433",
+      emergencyContact: { name: "Rivaba Jadeja", phone: "+91 98222 66666", relation: "Spouse" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 23: Shubman Gill (Tenant - Notice Floor 05)
+    {
+      id: "occ-test-tenant-fl5-notice",
+      name: "Shubman Gill",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=ShubmanGill",
+      phone: "+91 98333 66554",
+      email: "shubman.g@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Notice",
+      paymentStatus: "Paid",
+      daysDiff: 10,
+      daysRemainingText: "Vacating on 15 Aug",
+      rentAmount: 14500,
+      dueDate: "15 Aug 2026",
+      dueDay: 15,
+      lastPaidDate: "01 Jul 2026",
+      roomNumber: "502",
+      bedCode: "BED A",
+      joiningDate: "01 Jan 2026",
+      vacatingDate: "15 Aug 2026",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "GT Captain",
+      address: "Fazilka, Punjab",
+      aadhaarNumber: "XXXX-XXXX-5544",
+      emergencyContact: { name: "Lakhwinder Singh", phone: "+91 98333 88888", relation: "Father" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 24: Mohammed Shami (Tenant - Ground Floor Standard Suite)
+    {
+      id: "occ-test-tenant-fl0-1",
+      name: "Mohammed Shami",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=MohammedShami",
+      phone: "+91 98444 77665",
+      email: "shami@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 11000,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "001",
+      bedCode: "BED A",
+      joiningDate: "01 Oct 2025",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "Fast Bowler",
+      address: "Amroha, UP",
+      aadhaarNumber: "XXXX-XXXX-6655",
+      emergencyContact: { name: "Touseef Ali", phone: "+91 98444 99999", relation: "Brother" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
+    },
+    // Case 25: Rishabh Pant (Tenant - Ground Floor Standard Suite)
+    {
+      id: "occ-test-tenant-fl0-2",
+      name: "Rishabh Pant",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RishabhPant",
+      phone: "+91 98555 88776",
+      email: "pant@example.com",
+      stayType: "Tenant",
+      lifecycleStatus: "Active",
+      paymentStatus: "Paid",
+      daysDiff: 25,
+      daysRemainingText: "—",
+      rentAmount: 11000,
+      dueDate: "01 Sep 2026",
+      dueDay: 1,
+      lastPaidDate: "01 Aug 2026",
+      roomNumber: "002",
+      bedCode: "BED A",
+      joiningDate: "01 Sep 2025",
+      kycVerified: true,
+      hasPdfAgreement: true,
+      workplace: "DC Captain",
+      address: "Roorkee, Uttarakhand",
+      aadhaarNumber: "XXXX-XXXX-7766",
+      emergencyContact: { name: "Saroj Pant", phone: "+91 98555 11111", relation: "Mother" },
+      securityDeposit: 25000,
+      depositStatus: "PAID",
+      arrearsBalance: 0,
     },
   ];
 
-  occupants.push(...testOccupants);
-
-  // Reserved test beds: 201 BED A, 202 BED B, 203 BED A, 204 BED C
-  const reservedBeds = new Set(["201-BED A", "202-BED B", "203-BED A", "204-BED C"]);
-
-  // Generate all unique property bed slots across 24 rooms
-  const uniquePropertyBeds: { roomNumber: string; bedCode: string }[] = [];
-  const roomPrefixes = [
-    { start: 1 },
-    { start: 101 },
-    { start: 201 },
-    { start: 301 },
-    { start: 401 },
-    { start: 501 },
-  ];
-
-  roomPrefixes.forEach((f) => {
-    for (let r = 0; r < 4; r++) {
-      const roomNumStr = f.start < 10 ? `00${f.start + r}` : `${f.start + r}`;
-      const sharing = r % 3 === 0 ? 4 : r % 2 === 0 ? 3 : 2;
-      for (let b = 0; b < sharing; b++) {
-        const bedLetter = `BED ${String.fromCharCode(65 + b)}`;
-        const key = `${roomNumStr}-${bedLetter}`;
-        if (!reservedBeds.has(key)) {
-          uniquePropertyBeds.push({ roomNumber: roomNumStr, bedCode: bedLetter });
-        }
-      }
-    }
-  });
-
-  const currentDay = 1; // August 1st 2026 reference
-
-  for (let i = 1; i <= count; i++) {
-    const name = UNIQUE_INDIAN_NAMES[(i - 1) % UNIQUE_INDIAN_NAMES.length];
-    const nameParts = name.split(" ");
-    const fn = nameParts[0];
-    const ln = nameParts.slice(1).join(" ") || "Kumar";
-
-    let stayType: "Tenant" | "Guest" = "Tenant";
-    let lifecycleStatus: "Active" | "Booked" | "Notice" | "Past" = "Active";
-    let paymentStatus: "Paid" | "Due" | "Overdue" = "Paid";
-    let rentAmount = 14500;
-
-    if (i % 6 === 0) {
-      stayType = "Guest";
-      rentAmount = 2500;
-    }
-
-    const dueDay = (i % 10) + 1;
-    const daysDiff = dueDay - currentDay;
-
-    let daysRemainingText = "—";
-    let lastPaidDate = `01 Jul 2026`;
-
-    let room = "—";
-    let bed = "— (Vacated)";
-
-    if (i <= 10) {
-      lifecycleStatus = "Past";
-      paymentStatus = "Paid";
-      daysRemainingText = "—";
-      lastPaidDate = `30 May 2025`;
-    } else {
-      // Assign 100% UNIQUE Room & Bed slot for active/notice/booked occupants
-      const slot = uniquePropertyBeds[(i - 11) % uniquePropertyBeds.length];
-      room = slot.roomNumber;
-      bed = slot.bedCode;
-
-      if (i > 10 && i <= 25) {
-      lifecycleStatus = "Notice";
-      if (daysDiff < 0) {
-        paymentStatus = "Overdue";
-        daysRemainingText = `${Math.abs(daysDiff)} DAYS OVERDUE`;
-        lastPaidDate = `01 Jun 2026`;
-      } else {
-        paymentStatus = "Due";
-        daysRemainingText = daysDiff === 0 ? "DUE TODAY" : daysDiff === 1 ? "DUE TOMORROW" : `Due in ${daysDiff} Days`;
-        lastPaidDate = `01 Jul 2026`;
-      }
-    } else if (i > 25 && i <= 40) {
-      lifecycleStatus = "Booked";
-      paymentStatus = "Paid";
-      daysRemainingText = "—";
-      lastPaidDate = `15 Jul 2026`;
-    } else if (i > 40 && i <= 60) {
-      paymentStatus = "Overdue";
-      const overdueDays = (i % 5) + 1;
-      daysRemainingText = `${overdueDays} DAYS OVERDUE`;
-      lastPaidDate = `01 Jun 2026`;
-    } else if (i > 60 && i <= 120) {
-      paymentStatus = "Due";
-      lastPaidDate = `01 Jul 2026`;
-      if (daysDiff === 0) {
-        daysRemainingText = "DUE TODAY";
-      } else if (daysDiff === 1) {
-        daysRemainingText = "DUE TOMORROW";
-      } else {
-        daysRemainingText = `Due in ${daysDiff} Days`;
-      }
-    } else {
-      paymentStatus = "Paid";
-      daysRemainingText = "—";
-      lastPaidDate = `01 Aug 2026`;
-    }
-    }
-
-    const joiningDate = `10 Oct 2023`;
-    const dueDateFormatted = `${dueDay.toString().padStart(2, "0")} Aug 2026`;
-
-    occupants.push({
-      id: `occ-${1000 + i}`,
-      name,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${fn}${ln}${i}`,
-      phone: `+91 ${9800000000 + (i * 123456) % 900000000}`,
-      email: `${fn.toLowerCase()}.${ln.toLowerCase().replace(/\s+/g, "")}${i}@example.com`,
-      stayType,
-      roomNumber: room,
-      bedCode: bed,
-      joiningDate,
-      lastPaidDate,
-      dueDate: dueDateFormatted,
-      dueDay,
-      daysRemainingText,
-      daysDiff,
-      vacatingDate: lifecycleStatus === "Notice" ? "15 Aug 2026" : undefined,
-      rentAmount,
-      paymentStatus,
-      lifecycleStatus,
-      aadhaarNumber: `XXXX-XXXX-${(1000 + i * 7) % 9000 + 1000}`,
-      emergencyContact: {
-        name: `Suresh ${ln}`,
-        phone: `+91 98765${(10000 + i * 3) % 90000}`,
-        relation: i % 2 === 0 ? "Father" : "Mother",
-      },
-    });
-  }
-
-  return occupants;
+  return curatedCases;
 }
 
-const OCCUPANTS_STORAGE_KEY = "tenopilot_occupants_store_clean_v2";
+const OCCUPANTS_STORAGE_KEY = "tenopilot_occupants_store_clean_v3";
 let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
 const occupantListeners: Array<() => void> = [];
 
@@ -360,8 +839,8 @@ function loadOccupants(): Occupant[] {
       console.warn("Failed to load occupants from localStorage", e);
     }
   }
-  // Reset default to empty array (0 fake mock occupants) for clean manual onboarding!
-  GLOBAL_OCCUPANTS_CACHE = [];
+  // Initialize with 25 curated test cases covering full scenario range!
+  GLOBAL_OCCUPANTS_CACHE = generateMockOccupants(25);
   return GLOBAL_OCCUPANTS_CACHE;
 }
 

@@ -1,4 +1,4 @@
-import { MOCK_OCCUPANTS_200, Occupant } from "./mockOccupants";
+import { MOCK_OCCUPANTS_200, Occupant, generateMockOccupants } from "./mockOccupants";
 
 export interface BedSlotConfig {
   id: string;
@@ -29,7 +29,8 @@ export interface FloorConfig {
 
 // Initial 6-floor 200-bed property structure mapped to mock occupants
 export function generateInitialPropertyStructure(): FloorConfig[] {
-  const floors: FloorConfig[] = [];
+  const initialOccupants = generateMockOccupants(25);
+
   const floorConfigs = [
     { id: "fl-05", name: "FLOOR 05", sub: "PENTHOUSE & TERRACE", roomStart: 501, count: 4 },
     { id: "fl-04", name: "FLOOR 04", sub: "EXECUTIVE SUITES", roomStart: 401, count: 4 },
@@ -37,11 +38,7 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
     { id: "fl-02", name: "FLOOR 02", sub: "PREMIUM SUITES", roomStart: 201, count: 4 },
     { id: "fl-01", name: "FLOOR 01", sub: "DELUXE SUITES", roomStart: 101, count: 4 },
     { id: "fl-00", name: "GROUND FLOOR", sub: "STANDARD SUITES", roomStart: 1, count: 4 },
-  ];
-
-  let occIndex = 0;
-
-  floorConfigs.forEach((fConfig, fIdx) => {
+  ];  const floors: FloorConfig[] = floorConfigs.map((fConfig, fIdx) => {
     const rooms: RoomConfig[] = [];
     let floorBedCount = 0;
 
@@ -57,14 +54,31 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
       for (let b = 0; b < sharing; b++) {
         floorBedCount++;
 
-        // Initialize 100% clean Available beds ready for real manual onboarding (0 fake mock occupants)
+        const currentBedLetter = bedLetters[b];
+        const matchingOcc = initialOccupants.find(
+          (o) => o.roomNumber === roomNumStr && o.bedCode.toUpperCase() === currentBedLetter.toUpperCase()
+        );
+
+        let status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" = "Available";
+        if (matchingOcc) {
+          if (matchingOcc.stayType === "Guest") {
+            status = "Guest";
+          } else if (matchingOcc.lifecycleStatus === "Notice") {
+            status = "Vacating";
+          } else if (matchingOcc.lifecycleStatus === "Booked") {
+            status = "Booked";
+          } else {
+            status = "Occupied";
+          }
+        }
+
         beds.push({
           id: `bed-${fIdx}-${r}-${b}`,
-          bedCode: bedLetters[b],
-          status: "Available",
-          occupant: undefined,
-          vacatingDate: undefined,
-          guestCheckoutDate: undefined,
+          bedCode: currentBedLetter,
+          status,
+          occupant: matchingOcc,
+          vacatingDate: matchingOcc?.vacatingDate,
+          guestCheckoutDate: matchingOcc?.stayType === "Guest" ? matchingOcc.vacatingDate : undefined,
         });
       }
 
@@ -89,7 +103,7 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
       }
 
       rooms.push({
-        id: `rm-${fIdx}-${r}`,
+        id: `room-${fIdx}-${r}`,
         roomNumber: roomNumStr,
         sharingType: sharing,
         beds,
@@ -99,20 +113,20 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
       });
     }
 
-    floors.push({
+    return {
       id: fConfig.id,
       floorName: fConfig.name,
       floorSubtitle: fConfig.sub,
       totalBeds: floorBedCount,
       rooms,
-    });
+    };
   });
 
   return floors;
 }
 
-// Persistent Reactive Store for Property Structure (Clean v2 with 0 mock occupants)
-const STORAGE_KEY = "tenopilot_property_layout_clean_v2";
+// Persistent Reactive Store for Property Structure (Clean v3 with 25 curated test occupants)
+const STORAGE_KEY = "tenopilot_property_layout_clean_v3";
 
 let GLOBAL_PROPERTY_STRUCTURE: FloorConfig[] | null = null;
 const listeners: Array<() => void> = [];
