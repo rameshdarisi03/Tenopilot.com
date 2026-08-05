@@ -340,6 +340,8 @@ export default function IndividualTenantProfilePage({
   const [vacatingReason, setVacatingReason] = useState<string>("Job Relocation");
   const [noticeNotes, setNoticeNotes] = useState<string>("");
   // Extend Notice & Cancel Notice State
+  const [showManageNoticeModal, setShowManageNoticeModal] = useState<boolean>(false);
+  const [noticeActionTab, setNoticeActionTab] = useState<"extend" | "cancel">("extend");
   const [showExtendNoticeModal, setShowExtendNoticeModal] = useState<boolean>(false);
   const [extendedNoticeDate, setExtendedNoticeDate] = useState<string>("2026-08-30");
 
@@ -554,6 +556,7 @@ export default function IndividualTenantProfilePage({
 
     if (conflict.hasConflict) {
       setShowExtendNoticeModal(false);
+      setShowManageNoticeModal(false);
       setConflictModalData({
         open: true,
         bookedOccupant: conflict.bookedOccupant,
@@ -573,6 +576,7 @@ export default function IndividualTenantProfilePage({
     setOccupantState(updated);
     occupantStore.updateOccupant(updated);
     setShowExtendNoticeModal(false);
+    setShowManageNoticeModal(false);
     triggerToast(`✓ Notice period extended to ${formattedVacatingDate} for ${occupantState.name}`);
   };
 
@@ -587,6 +591,7 @@ export default function IndividualTenantProfilePage({
 
     if (conflict.hasConflict) {
       setShowCancelNoticeModal(false);
+      setShowManageNoticeModal(false);
       setConflictModalData({
         open: true,
         bookedOccupant: conflict.bookedOccupant,
@@ -625,6 +630,7 @@ export default function IndividualTenantProfilePage({
     propertyStore.updateStructure(updatedStructure);
 
     setShowCancelNoticeModal(false);
+    setShowManageNoticeModal(false);
     triggerToast(`🎉 Notice cancelled! ${occupantState.name} is now an Active Tenant on Bed ${occupantState.roomNumber} (${occupantState.bedCode}) 🟢`);
   };
 
@@ -886,23 +892,14 @@ export default function IndividualTenantProfilePage({
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Dynamic Notice Actions (Log Notice vs Extend/Cancel Notice) */}
+              {/* 4. Action Button 4: Log Notice vs Manage Notice (Single Combined Option!) */}
               {occupantState.lifecycleStatus === "Notice" ? (
-                <>
-                  <button
-                    onClick={() => setShowExtendNoticeModal(true)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-purple-50 border border-purple-300 hover:bg-purple-100 rounded-xl text-xs font-bold text-purple-900 shadow-2xs active:scale-95 transition-all cursor-pointer"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-purple-700" /> Extend Notice 📅
-                  </button>
-
-                  <button
-                    onClick={() => setShowCancelNoticeModal(true)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Cancel Notice & Stay 🟢
-                  </button>
-                </>
+                <button
+                  onClick={() => setShowManageNoticeModal(true)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-purple-50 border border-purple-300 hover:bg-purple-100 text-purple-900 font-bold rounded-xl text-xs shadow-xs active:scale-95 transition-all cursor-pointer"
+                >
+                  <Calendar className="w-4 h-4 text-purple-700" /> Manage Notice ⚙️
+                </button>
               ) : (
                 <button
                   onClick={() => setShowLogNoticeModal(true)}
@@ -941,19 +938,12 @@ export default function IndividualTenantProfilePage({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <button
-                  onClick={() => setShowExtendNoticeModal(true)}
-                  className="px-3.5 py-2 rounded-xl bg-purple-100 border border-purple-300 text-purple-900 font-bold text-xs hover:bg-purple-200 transition-all cursor-pointer flex items-center gap-1.5"
+                  onClick={() => setShowManageNoticeModal(true)}
+                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
                 >
-                  <Calendar className="w-3.5 h-3.5 text-purple-700" /> Extend Notice Date 📅
-                </button>
-
-                <button
-                  onClick={() => setShowCancelNoticeModal(true)}
-                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Cancel Notice & Stay 🟢
+                  <Calendar className="w-4 h-4 text-purple-200" /> Manage Move-Out Notice ⚙️
                 </button>
               </div>
             </div>
@@ -2699,6 +2689,143 @@ export default function IndividualTenantProfilePage({
             </div>
           </div>
         )}
+        {/* ⚙️ UNIFIED SINGLE MANAGE NOTICE MODAL */}
+        {showManageNoticeModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 border border-purple-200">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-purple-100 rounded-xl text-purple-800">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-serif font-bold text-lg text-gray-900">
+                      Manage Move-Out Notice ⚙️
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      {occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowManageNoticeModal(false)}
+                  className="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Current Notice Status Pill */}
+              <div className="bg-orange-50 p-3.5 rounded-2xl border border-orange-200 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-orange-700">Scheduled Vacating Date</span>
+                  <p className="font-serif text-base font-bold text-gray-900 mt-0.5">
+                    {occupantState.vacatingDate || "15 Aug 2026"}
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-orange-100 text-orange-800 border border-orange-200">
+                  🟧 NOTICE ACTIVE
+                </span>
+              </div>
+
+              {/* Segmented Tab Options: Extend Notice vs Cancel Notice */}
+              <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-2xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setNoticeActionTab("extend")}
+                  className={`py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    noticeActionTab === "extend"
+                      ? "bg-white text-purple-950 shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5 text-purple-700" /> Extend Date 📅
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNoticeActionTab("cancel")}
+                  className={`py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    noticeActionTab === "cancel"
+                      ? "bg-white text-emerald-950 shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Cancel Notice 🟢
+                </button>
+              </div>
+
+              {/* TAB CONTENT 1: EXTEND NOTICE */}
+              {noticeActionTab === "extend" && (
+                <form onSubmit={handleExtendNoticeSubmit} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      New Extended Vacating Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={extendedNoticeDate}
+                      onChange={(e) => setExtendedNoticeDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1.5">
+                      Before extending, the system will verify if Bed {occupantState.roomNumber} ({occupantState.bedCode}) is free or pre-booked.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowManageNoticeModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-md cursor-pointer"
+                    >
+                      Confirm & Extend Notice Date
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* TAB CONTENT 2: CANCEL NOTICE & STAY */}
+              {noticeActionTab === "cancel" && (
+                <form onSubmit={handleCancelNoticeSubmit} className="space-y-4 text-xs">
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-900 space-y-1">
+                    <p className="font-bold text-sm">
+                      Cancel Move-Out Notice for {occupantState.name}?
+                    </p>
+                    <p className="text-xs text-emerald-800 leading-relaxed">
+                      This will cancel the move-out notice, revert their status back to <strong>Active Tenant</strong>, and keep Bed {occupantState.roomNumber} ({occupantState.bedCode}) assigned as <strong>Occupied 🟤</strong>.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowManageNoticeModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-md cursor-pointer"
+                    >
+                      Confirm & Cancel Notice 🟢
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 📅 1. EXTEND NOTICE MODAL */}
         {showExtendNoticeModal && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
