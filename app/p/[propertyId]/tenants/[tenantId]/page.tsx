@@ -1314,9 +1314,8 @@ export default function IndividualTenantProfilePage({
                         <Download className="w-4 h-4" /> Download PDF
                       </button>
                     </div>
-              </div>
-              </div>
-            </div>
+                  </div>
+                </div>
 
             {/* Right Column (Rent Payment History & Dynamic Timeline) */}
             <div className="lg:col-span-7 space-y-6">
@@ -1438,6 +1437,7 @@ export default function IndividualTenantProfilePage({
                     </div>
                   </div>
                 </div>
+              </div>
             </div>
           </>
         )}
