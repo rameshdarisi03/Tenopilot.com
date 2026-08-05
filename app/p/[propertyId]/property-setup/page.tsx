@@ -93,6 +93,10 @@ export default function PropertySetupPage({
 
   // Add Room & Edit Room Modal State (Supports Custom Rent, Feature Tag, and Max 8 Compressed Photos)
   const [activeAddRoomFloorId, setActiveAddRoomFloorId] = useState<string | null>(null);
+  const [activeEditRoom, setActiveEditRoom] = useState<{
+    floorId: string;
+    room: RoomConfig;
+  } | null>(null);
   const [newRoomNumber, setNewRoomNumber] = useState("");
   const [newSharingCapacity, setNewSharingCapacity] = useState<number>(3);
   const [newRoomSpecialTag, setNewRoomSpecialTag] = useState("");
@@ -345,6 +349,69 @@ export default function PropertySetupPage({
     setNewRoomPhotos([]);
   };
 
+  // Handle Edit Room Submit (With Smart Capacity Threshold Guard for Occupied Beds)
+  const handleEditRoomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeEditRoom) return;
+
+    const { floorId, room } = activeEditRoom;
+    const occupiedCount = room.beds.filter((b) => b.status !== "Available" && b.occupant).length;
+
+    if (newSharingCapacity < occupiedCount) {
+      triggerToast(`⚠️ Cannot reduce capacity below ${occupiedCount} beds! Room has ${occupiedCount} active occupant(s).`);
+      return;
+    }
+
+    const bedLetters = Array.from({ length: 26 }, (_, i) => `BED ${String.fromCharCode(65 + i)}`);
+    let updatedBeds = [...room.beds];
+
+    if (newSharingCapacity > room.beds.length) {
+      // Append new vacant beds
+      for (let i = room.beds.length; i < newSharingCapacity; i++) {
+        updatedBeds.push({
+          id: `bed-${Date.now()}-${i}`,
+          bedCode: bedLetters[i] || `BED ${i + 1}`,
+          status: "Available",
+        });
+      }
+    } else if (newSharingCapacity < room.beds.length) {
+      // Safely trim vacant beds from the end
+      updatedBeds = updatedBeds.slice(0, newSharingCapacity);
+    }
+
+    const customRent = newRoomCustomRent ? Number(newRoomCustomRent) : undefined;
+    const specialTag = newRoomSpecialTag.trim() || undefined;
+
+    const updatedStructure = propertyStructure.map((fl) => {
+      if (fl.id !== floorId) return fl;
+      const diff = updatedBeds.length - room.beds.length;
+      return {
+        ...fl,
+        totalBeds: fl.totalBeds + diff,
+        rooms: fl.rooms.map((rm) => {
+          if (rm.id !== room.id) return rm;
+          return {
+            ...rm,
+            roomNumber: newRoomNumber,
+            sharingType: updatedBeds.length,
+            beds: updatedBeds,
+            customRentAmount: customRent,
+            specialFeatureTag: specialTag,
+            roomPhotos: newRoomPhotos.length > 0 ? newRoomPhotos : undefined,
+          };
+        }),
+      };
+    });
+
+    updateLayoutStructure(updatedStructure);
+    triggerToast(`✓ Updated Room ${newRoomNumber} (${updatedBeds.length} Beds Capacity)`);
+    setActiveEditRoom(null);
+    setNewRoomNumber("");
+    setNewRoomSpecialTag("");
+    setNewRoomCustomRent("");
+    setNewRoomPhotos([]);
+  };
+
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
       {/* Left Sidebar */}
@@ -478,13 +545,29 @@ export default function PropertySetupPage({
                                   </p>
                                 </div>
 
-                                <button
-                                  onClick={() => handleDeleteRoom(floor.id, room)}
-                                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
-                                  title="Delete Room"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setActiveEditRoom({ floorId: floor.id, room });
+                                      setNewRoomNumber(room.roomNumber);
+                                      setNewSharingCapacity(room.sharingType);
+                                      setNewRoomSpecialTag(room.specialFeatureTag || "");
+                                      setNewRoomCustomRent(room.customRentAmount ? String(room.customRentAmount) : "");
+                                      setNewRoomPhotos(room.roomPhotos || []);
+                                    }}
+                                    className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-[#c2652a] transition-colors"
+                                    title="Edit Room Configuration, Photos & Capacity"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRoom(floor.id, room)}
+                                    className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                                    title="Delete Room"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
 
                               {/* Bed Slot Cards Grid (Dynamic Grid Sizing for 1 to 26 Beds) */}
@@ -859,6 +942,180 @@ export default function PropertySetupPage({
                     className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
                   >
                     Create Room
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ✏️ EDIT ROOM MODAL (With Smart Capacity Threshold Guard for Occupied Beds) */}
+        {activeEditRoom && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                    <Edit className="w-4 h-4 text-[#c2652a]" /> Edit Room {activeEditRoom.room.roomNumber} Configuration
+                  </h3>
+                  <p className="text-[10px] text-gray-400 font-semibold">
+                    UPDATE ROOM ATTRIBUTES & CAPACITY
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveEditRoom(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditRoomSubmit} className="space-y-4">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Room Number (e.g. 501) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newRoomNumber}
+                    onChange={(e) => setNewRoomNumber(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  {(() => {
+                    const occupiedCount = activeEditRoom.room.beds.filter(
+                      (b) => b.status !== "Available" && b.occupant
+                    ).length;
+
+                    return (
+                      <>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Bed Sharing Capacity (Min {occupiedCount} Bed{occupiedCount > 1 ? "s" : ""} — Active Occupants) *
+                        </label>
+                        <input
+                          type="number"
+                          min={occupiedCount}
+                          max={26}
+                          required
+                          value={newSharingCapacity}
+                          onChange={(e) =>
+                            setNewSharingCapacity(
+                              Math.min(26, Math.max(occupiedCount, Number(e.target.value)))
+                            )
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                        {occupiedCount > 0 ? (
+                          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[10px] text-amber-900 font-semibold mt-1.5 space-y-0.5">
+                            <span className="font-extrabold block">🛡️ Smart Capacity Threshold Guard Active:</span>
+                            <span>
+                              Room contains {occupiedCount} active tenant(s). You can increase capacity to add new vacant beds, but capacity cannot drop below {occupiedCount} to protect active tenants.
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            All beds are vacant. You can adjust capacity freely from 1 to 26 beds.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Room Special Feature / Tagline (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Balcony & Park View, Corner Room"
+                    value={newRoomSpecialTag}
+                    onChange={(e) => setNewRoomSpecialTag(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Custom Monthly Rent (₹) (Optional Override)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 16000 (Leave blank for default sharing rate)"
+                    value={newRoomCustomRent}
+                    onChange={(e) => setNewRoomCustomRent(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                {/* 📷 Room Photos Uploader */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Room Photos (Max 8 Images • Auto-Compressed)
+                  </label>
+                  <div className="space-y-2">
+                    {newRoomPhotos.length < 8 && (
+                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-[#c2652a] hover:bg-orange-50/50 cursor-pointer transition-all text-center">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#c2652a]">
+                          <span>📷 Upload / Add Room Photo</span>
+                          <span className="text-[10px] bg-orange-100 px-2 py-0.5 rounded-full">
+                            {newRoomPhotos.length}/8
+                          </span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleRoomImageUpload}
+                          className="hidden"
+                          disabled={isCompressingImage}
+                        />
+                      </label>
+                    )}
+
+                    {isCompressingImage && (
+                      <p className="text-[10px] font-bold text-[#c2652a] animate-pulse text-center">
+                        ⚡ Auto-compressing room photos without quality loss...
+                      </p>
+                    )}
+
+                    {newRoomPhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 pt-1">
+                        {newRoomPhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200 aspect-square">
+                            <img src={photo} alt={`Room photo ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setNewRoomPhotos(newRoomPhotos.filter((_, i) => i !== idx))}
+                              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 text-[9px]"
+                              title="Remove photo"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setActiveEditRoom(null)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                  >
+                    Save Changes
                   </button>
                 </div>
               </form>

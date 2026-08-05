@@ -572,8 +572,22 @@ TenoPilot implements room-level custom pricing, feature badges, photo gallery dr
    - Rent input moved from Step 1 to Step 2 (Room & Bed selection). Selecting a room auto-fills its configured tariff while remaining 100% editable for discounts.
 5. **Max 8 Room Images & Lossless Canvas Compression**:
    - Up to 8 room photos per room card auto-compressed (max 1200px, 0.85 JPEG quality) for fast loading without quality loss.
-6. **Historical Rent Contract Locking Policy (DDS-13 Compliance)**:
-   - Updating a room's custom price in Property Setup locks existing active tenants' rents at their historical contract rate (`occupant.rentAmount`). New tariffs apply only to vacant beds for new joiners, room transfers, and short-term guests.
+- Edit Room Configuration & Smart Capacity Threshold Guard
+
+---
+
+# Update 31 — Edit Room Configuration & Smart Capacity Threshold Guard
+
+TenoPilot implements an **Edit Room** modal on every room card in Property Setup with a smart capacity threshold validation guard:
+
+1. **Edit Room Icon Button (`/property-setup`)**:
+   - Pencil icon button (`Edit`) added on the top-right header of every room card next to the delete trashcan icon.
+2. **Editable Attributes**:
+   - Allows updating Room Number, Special Feature Tagline, Custom Monthly Rent, Room Photos (up to 8 compressed images), and Bed Sharing Capacity.
+3. **Smart Capacity Threshold Guard (Occupant Protection)**:
+   - **Minimum Allowed Capacity**: Calculated dynamically as `Count of Occupied/Booked Beds` in that room.
+   - **Incrementing Capacity**: Always allowed (e.g. 4 $\rightarrow$ 6 appends new vacant `BED E` & `BED F`).
+   - **Decrementing Capacity**: Safe trimming of vacant beds from the end (e.g. 4 $\rightarrow$ 2 in Room 502 removes vacant `BED D` & `BED C` while leaving active tenants in `BED A` & `BED B`). Deleting occupied beds is strictly blocked!
 
 ---
 
