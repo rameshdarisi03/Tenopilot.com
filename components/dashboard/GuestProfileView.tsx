@@ -97,7 +97,7 @@ export function GuestProfileView({
               </span>
             </div>
             <p className="text-xs text-gray-500 font-medium mt-1">
-              Checked-In: <strong>{checkInDateStr}</strong> • Expected Checkout: <strong>{checkOutDateStr}</strong>
+              Joining Date: <strong>{checkInDateStr}</strong> • Expected Checkout: <strong>{checkOutDateStr}</strong>
             </p>
           </div>
         </div>
