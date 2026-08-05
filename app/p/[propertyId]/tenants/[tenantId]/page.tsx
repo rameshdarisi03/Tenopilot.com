@@ -886,25 +886,78 @@ export default function IndividualTenantProfilePage({
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Action Button: Log Notice (Tenants) */}
-              <button
-                onClick={() => setShowLogNoticeModal(true)}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all"
-              >
-                <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
-              </button>
+              {/* 4. Dynamic Notice Actions (Log Notice vs Extend/Cancel Notice) */}
+              {occupantState.lifecycleStatus === "Notice" ? (
+                <>
+                  <button
+                    onClick={() => setShowExtendNoticeModal(true)}
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-purple-50 border border-purple-300 hover:bg-purple-100 rounded-xl text-xs font-bold text-purple-900 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-purple-700" /> Extend Notice 📅
+                  </button>
+
+                  <button
+                    onClick={() => setShowCancelNoticeModal(true)}
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Cancel Notice & Stay 🟢
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowLogNoticeModal(true)}
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all cursor-pointer"
+                >
+                  <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
+                </button>
+              )}
 
               {/* 6. Edit Check-In Date (Only rendered for Booked profiles — Auto-checkin runs on move-in date) */}
               {occupantState.lifecycleStatus === "Booked" && (
                 <button
                   onClick={() => setShowEditCheckInModal(true)}
-                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
                 >
                   <Clock className="w-4 h-4" /> 📅 Edit Check-In Date (Reschedule Move-In)
                 </button>
               )}
             </div>
           </div>
+
+          {/* 🟧 NOTICE PERIOD ACTIVE BANNER CALLOUT */}
+          {occupantState.lifecycleStatus === "Notice" && (
+            <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-100/60 rounded-2xl p-5 border border-orange-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-200 text-orange-900 font-bold flex items-center justify-center text-lg shrink-0">
+                  🟧
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-sm text-orange-950 flex items-center gap-2">
+                    Move-Out Notice Active for {occupantState.name}
+                  </h3>
+                  <p className="text-xs text-orange-800 mt-0.5 font-medium">
+                    Scheduled Vacating Date: <strong>{occupantState.vacatingDate || "15 Aug 2026"}</strong> • Bed {occupantState.roomNumber} ({occupantState.bedCode})
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => setShowExtendNoticeModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-purple-100 border border-purple-300 text-purple-900 font-bold text-xs hover:bg-purple-200 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-purple-700" /> Extend Notice Date 📅
+                </button>
+
+                <button
+                  onClick={() => setShowCancelNoticeModal(true)}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Cancel Notice & Stay 🟢
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* 4 KPI Metrics Cards Section */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
