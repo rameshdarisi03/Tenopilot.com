@@ -168,24 +168,29 @@ export default function TenantsDirectoryPage({
 
   // Dynamic Rent Metrics Calculations
   const rentMetrics = useMemo(() => {
-    const dueToday = occupantsList.filter(
+    // Only Active & Notice occupants have active monthly rent obligations (Excludes Booked & Past)
+    const billableOccupants = occupantsList.filter(
+      (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+    );
+
+    const dueToday = billableOccupants.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff === 0
     );
-    const dueTomorrow = occupantsList.filter(
+    const dueTomorrow = billableOccupants.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff === 1
     );
-    const dueNext2Days = occupantsList.filter(
+    const dueNext2Days = billableOccupants.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff > 1 && o.daysDiff <= 3
     );
-    const overdue = occupantsList.filter((o) => o.paymentStatus === "Overdue");
-    const paid = occupantsList.filter((o) => o.paymentStatus === "Paid");
+    const overdue = billableOccupants.filter((o) => o.paymentStatus === "Overdue");
+    const paid = billableOccupants.filter((o) => o.paymentStatus === "Paid");
 
     const sumDueToday = dueToday.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const sumDueTomorrow = dueTomorrow.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const sumDueNext2Days = dueNext2Days.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const sumOverdue = overdue.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const sumOverdue = overdue.reduce((acc, curr) => acc + (curr.arrearsBalance || curr.rentAmount), 0);
     const sumCollected = paid.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const totalExpected = occupantsList.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const totalExpected = billableOccupants.reduce((acc, curr) => acc + curr.rentAmount, 0);
 
     const collectionPct = totalExpected > 0 ? ((sumCollected / totalExpected) * 100).toFixed(1) : "0.0";
 

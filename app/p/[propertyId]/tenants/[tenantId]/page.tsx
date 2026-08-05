@@ -532,11 +532,14 @@ export default function IndividualTenantProfilePage({
   const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    setOccupantState((prev) => ({
-      ...prev,
+    const updatedGuest: Occupant = {
+      ...occupantState,
       lifecycleStatus: "Past",
       vacatingDate: guestCheckoutDate,
-    }));
+    };
+
+    setOccupantState(updatedGuest);
+    occupantStore.updateOccupant(updatedGuest);
 
     // Vacate bed slot in propertyStore singleton (DDS-13 Compliance: Bed returns to Available 🟢)
     const currentStructure = propertyStore.getStructure();
