@@ -2042,60 +2042,97 @@ export default function IndividualTenantProfilePage({
               </div>
 
               <form onSubmit={handleRoomTransferSubmit} className="space-y-4 text-xs">
-                {/* Dynamic Available Rooms Query (Prevents Double Booking!) */}
-                {(() => {
-                  const availRooms = propertyStore.getAvailableRooms();
-                  const currentAvailRoom = availRooms.find(r => r.roomNumber === transferRoomNumber) || availRooms[0];
-                  const availBeds = currentAvailRoom?.availableBeds || ["BED A", "BED B"];
+                {/* 🌟 EMBEDDED SCROLLABLE VISUAL FLOOR MAP BED PICKER (Replaces plain dropdown selects!) */}
+                <div className="space-y-2">
+                  <label className="block font-bold text-gray-700 text-xs flex items-center justify-between">
+                    <span>Select Target Bed Slot from Visual Floor Map *</span>
+                    <span className="text-[10px] text-gray-400">Showing Available 🟢 & Vacating 🟧 beds</span>
+                  </label>
 
-                  return (
-                    <>
-                      <div>
-                        <label className="block font-bold text-gray-700 mb-1">
-                          Select Target Room *
-                        </label>
-                        <select
-                          value={transferRoomNumber}
-                          onChange={(e) => {
-                            setTransferRoomNumber(e.target.value);
-                            const found = availRooms.find(r => r.roomNumber === e.target.value);
-                            if (found && found.availableBeds.length > 0) {
-                              setTransferBedCode(found.availableBeds[0]);
-                            }
-                          }}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        >
-                          {availRooms.length > 0 ? (
-                            availRooms.map((rm) => (
-                              <option key={rm.roomNumber} value={rm.roomNumber}>
-                                Room {rm.roomNumber} ({rm.sharingType}-Sharing • ₹{rm.sharingType === 1 ? "18,000" : rm.sharingType === 3 ? "11,000" : "14,500"}/mo • {rm.availableBeds.length} Bed{rm.availableBeds.length > 1 ? "s" : ""} Available 🟢)
-                              </option>
-                            ))
-                          ) : (
-                            <option value="304">Room 304 (2-Sharing • ₹14,500/mo)</option>
-                          )}
-                        </select>
-                      </div>
+                  {/* Selected Target Bed Callout Badge */}
+                  {transferRoomNumber && transferBedCode && (
+                    <div className="p-2.5 rounded-xl bg-emerald-100/90 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between shadow-2xs">
+                      <span>✓ Target Destination: Room {transferRoomNumber} ({transferBedCode})</span>
+                      <span className="text-[10px] bg-emerald-200 px-2 py-0.5 rounded-full text-emerald-900 font-extrabold">
+                        Selected
+                      </span>
+                    </div>
+                  )}
 
-                      <div>
-                        <label className="block font-bold text-gray-700 mb-1">
-                          Select Target Bed Slot *
-                        </label>
-                        <select
-                          value={transferBedCode}
-                          onChange={(e) => setTransferBedCode(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        >
-                          {availBeds.map((bed) => (
-                            <option key={bed} value={bed}>
-                              {bed} (Vacant & Available 🟢)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  );
-                })()}
+                  {/* Scrollable Visual Floor Grid Container */}
+                  <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-2xl p-3 space-y-4 bg-gray-50/70 text-xs">
+                    {propertyStore.getStructure().map((floor) => {
+                      const roomsWithVacantBeds = floor.rooms.filter((rm) =>
+                        rm.beds.some((b) => b.status === "Available" || b.status === "Vacating")
+                      );
+
+                      if (roomsWithVacantBeds.length === 0) return null;
+
+                      return (
+                        <div key={floor.id} className="space-y-2">
+                          <div className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider flex items-center justify-between border-b border-gray-200 pb-1">
+                            <span>{floor.floorName} — {floor.floorSubtitle}</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {roomsWithVacantBeds.map((room) => {
+                              const roomTariff =
+                                room.customRentAmount ||
+                                (room.sharingType === 1 ? 18000 : room.sharingType === 3 ? 11000 : 14500);
+
+                              return (
+                                <div key={room.id} className="p-2.5 rounded-xl border border-gray-200 bg-white space-y-2 text-xs shadow-2xs">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className="font-bold text-gray-900">Room {room.roomNumber}</span>
+                                      {room.specialFeatureTag && (
+                                        <span className="text-[8px] block text-emerald-800 font-bold">
+                                          {room.specialFeatureTag}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[9px] font-bold text-[#c2652a] bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
+                                      ₹{roomTariff.toLocaleString("en-IN")}/mo
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    {room.beds.map((bed) => {
+                                      const isVacant = bed.status === "Available" || bed.status === "Vacating";
+                                      if (!isVacant) return null;
+
+                                      const isTargetSelected =
+                                        transferRoomNumber === room.roomNumber && transferBedCode === bed.bedCode;
+
+                                      return (
+                                        <button
+                                          type="button"
+                                          key={bed.id}
+                                          onClick={() => {
+                                            setTransferRoomNumber(room.roomNumber);
+                                            setTransferBedCode(bed.bedCode);
+                                          }}
+                                          className={`p-2 rounded-lg border text-center transition-all cursor-pointer font-bold text-[10px] flex items-center justify-between ${
+                                            isTargetSelected
+                                              ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-xs scale-105"
+                                              : "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100"
+                                          }`}
+                                        >
+                                          <span>{bed.bedCode}</span>
+                                          <span className="text-[9px]">{isTargetSelected ? "✓" : "🟢"}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
@@ -2112,12 +2149,18 @@ export default function IndividualTenantProfilePage({
 
                 {/* 🌟 ONE-SHOT TENANT COMMUNICATION SUMMARY BOX */}
                 {(() => {
+                  const selectedTargetRoomObj = propertyStore
+                    .getStructure()
+                    .flatMap((f) => f.rooms)
+                    .find((r) => r.roomNumber === transferRoomNumber);
+
                   const targetRent =
-                    transferRoomNumber === "108"
+                    selectedTargetRoomObj?.customRentAmount ||
+                    (selectedTargetRoomObj?.sharingType === 1
                       ? 18000
-                      : transferRoomNumber === "205"
+                      : selectedTargetRoomObj?.sharingType === 3
                       ? 11000
-                      : 14500;
+                      : 14500);
                   const calc = calculateRoomTransferProRata(
                     occupantState.rentAmount,
                     targetRent,

@@ -591,6 +591,20 @@ TenoPilot implements an **Edit Room** modal on every room card in Property Setup
 
 ---
 
+# Update 32 — Embedded Visual Floor Map Bed Picker in Transfer Room Modal
+
+TenoPilot replaces plain text dropdown selects in the **Transfer Room & Bed Modal** with a visual, scrollable Floor Map Bed Picker:
+
+1. **Removal of Standard `<select>` Dropdowns**:
+   - Plain text dropdown menus removed from Transfer Room Modal.
+2. **Embedded Scrollable Visual Floor Map**:
+   - Renders a compact, scrollable floor-by-floor visual bed map inside the transfer modal displaying room numbers, custom tariffs (`₹16,000/mo`), feature tags (`Balcony View 🌿`), and vacant bed pills (`Available 🟢`).
+3. **1-Click Target Bed Selection**:
+   - Clicking any vacant bed pill directly selects it as the destination bed slot.
+   - Highlights the selected target bed with an emerald badge (`✓ Target Bed Selected: Floor 01 • Room 108 (BED B)`) and instantly updates the pro-rata rent adjustment calculation.
+
+---
+
 # 📌 Future Implementation Backlog & Reminders (Logged for User Guidance)
 
 1. **Room Amenity & Attribute Tags in Property Setup (`/p/[propertyId]/property-setup`)**:
