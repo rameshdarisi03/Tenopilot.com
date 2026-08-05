@@ -56,34 +56,15 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
 
       for (let b = 0; b < sharing; b++) {
         floorBedCount++;
-        const currentOcc = MOCK_OCCUPANTS_200[occIndex % MOCK_OCCUPANTS_200.length];
-        occIndex++;
 
-        let status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" = "Occupied";
-        let vacatingDate: string | undefined = undefined;
-        let guestCheckoutDate: string | undefined = undefined;
-
-        if (currentOcc.lifecycleStatus === "Notice") {
-          status = "Vacating";
-          vacatingDate = currentOcc.vacatingDate || "15 Aug";
-        } else if (currentOcc.lifecycleStatus === "Booked") {
-          status = "Booked";
-        } else if (currentOcc.stayType === "Guest") {
-          status = "Guest";
-          guestCheckoutDate = "12 Aug";
-        } else if (occIndex % 7 === 0) {
-          status = "Available";
-        } else {
-          status = "Occupied";
-        }
-
+        // Initialize 100% clean Available beds ready for real manual onboarding (0 fake mock occupants)
         beds.push({
           id: `bed-${fIdx}-${r}-${b}`,
           bedCode: bedLetters[b],
-          status,
-          occupant: status === "Available" ? undefined : currentOcc,
-          vacatingDate,
-          guestCheckoutDate,
+          status: "Available",
+          occupant: undefined,
+          vacatingDate: undefined,
+          guestCheckoutDate: undefined,
         });
       }
 
@@ -130,8 +111,8 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
   return floors;
 }
 
-// Persistent Reactive Store for Property Structure (Persists in localStorage across page reloads & code edits)
-const STORAGE_KEY = "tenopilot_property_layout_v1";
+// Persistent Reactive Store for Property Structure (Clean v2 with 0 mock occupants)
+const STORAGE_KEY = "tenopilot_property_layout_clean_v2";
 
 let GLOBAL_PROPERTY_STRUCTURE: FloorConfig[] | null = null;
 const listeners: Array<() => void> = [];
@@ -165,6 +146,20 @@ export const propertyStore = {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newStructure));
       } catch (e) {
         console.warn("Failed to save property layout to localStorage", e);
+      }
+    }
+    listeners.forEach((l) => l());
+  },
+
+  resetPropertyStore() {
+    GLOBAL_PROPERTY_STRUCTURE = generateInitialPropertyStructure();
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem("tenopilot_property_layout_v1");
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(GLOBAL_PROPERTY_STRUCTURE));
+      } catch (e) {
+        console.warn("Failed to clear propertyStore localStorage", e);
       }
     }
     listeners.forEach((l) => l());

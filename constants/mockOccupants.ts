@@ -343,7 +343,7 @@ export function generateMockOccupants(count = 200): Occupant[] {
   return occupants;
 }
 
-const OCCUPANTS_STORAGE_KEY = "tenopilot_occupants_store_v1";
+const OCCUPANTS_STORAGE_KEY = "tenopilot_occupants_store_clean_v2";
 let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
 const occupantListeners: Array<() => void> = [];
 
@@ -360,7 +360,8 @@ function loadOccupants(): Occupant[] {
       console.warn("Failed to load occupants from localStorage", e);
     }
   }
-  GLOBAL_OCCUPANTS_CACHE = generateMockOccupants(200);
+  // Reset default to empty array (0 fake mock occupants) for clean manual onboarding!
+  GLOBAL_OCCUPANTS_CACHE = [];
   return GLOBAL_OCCUPANTS_CACHE;
 }
 
@@ -389,6 +390,19 @@ export const occupantStore = {
     const list = this.getOccupants();
     const updatedList = list.map((o) => (o.id === updatedOcc.id ? updatedOcc : o));
     this.updateOccupants(updatedList, propertyId);
+  },
+
+  resetOccupantsStore() {
+    GLOBAL_OCCUPANTS_CACHE = [];
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(OCCUPANTS_STORAGE_KEY);
+        localStorage.removeItem("tenopilot_occupants_store_v1");
+      } catch (e) {
+        console.warn("Failed to clear localStorage occupants:", e);
+      }
+    }
+    occupantListeners.forEach((l) => l());
   },
 
   subscribe(listener: () => void) {

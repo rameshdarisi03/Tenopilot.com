@@ -4,7 +4,7 @@ import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -28,6 +28,7 @@ import {
   UserPlus,
   ShieldCheck,
   ChevronDown,
+  Trash2,
   User,
   CreditCard,
   ArrowRightLeft,
@@ -45,6 +46,17 @@ export default function TenantsDirectoryPage({
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Dynamic Occupants Store State (Updates in real time)
+  const [occupantsList, setOccupantsList] = useState<Occupant[]>([]);
+
+  useEffect(() => {
+    setOccupantsList(occupantStore.getOccupants());
+    const unsubscribe = occupantStore.subscribe(() => {
+      setOccupantsList(occupantStore.getOccupants());
+    });
+    return unsubscribe;
+  }, []);
 
   // Filter & Search states
   const [rawSearchTerm, setRawSearchTerm] = useState("");
@@ -156,41 +168,41 @@ export default function TenantsDirectoryPage({
 
   // Dynamic Rent Metrics Calculations
   const rentMetrics = useMemo(() => {
-    const dueToday = MOCK_OCCUPANTS_200.filter(
+    const dueToday = occupantsList.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff === 0
     );
-    const dueTomorrow = MOCK_OCCUPANTS_200.filter(
+    const dueTomorrow = occupantsList.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff === 1
     );
-    const dueNext2Days = MOCK_OCCUPANTS_200.filter(
+    const dueNext2Days = occupantsList.filter(
       (o) => o.paymentStatus === "Due" && o.daysDiff > 1 && o.daysDiff <= 3
     );
-    const overdue = MOCK_OCCUPANTS_200.filter((o) => o.paymentStatus === "Overdue");
-    const paid = MOCK_OCCUPANTS_200.filter((o) => o.paymentStatus === "Paid");
+    const overdue = occupantsList.filter((o) => o.paymentStatus === "Overdue");
+    const paid = occupantsList.filter((o) => o.paymentStatus === "Paid");
 
     const sumDueToday = dueToday.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const sumDueTomorrow = dueTomorrow.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const sumDueNext2Days = dueNext2Days.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const sumOverdue = overdue.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const sumCollected = paid.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const totalExpected = MOCK_OCCUPANTS_200.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    const totalExpected = occupantsList.reduce((acc, curr) => acc + curr.rentAmount, 0);
 
-    const collectionPct = ((sumCollected / (totalExpected || 1)) * 100).toFixed(1);
+    const collectionPct = totalExpected > 0 ? ((sumCollected / totalExpected) * 100).toFixed(1) : "0.0";
 
     return {
-      dueTodayCount: dueToday.length || 12,
-      dueTodaySum: sumDueToday || 124000,
-      dueTomorrowCount: dueTomorrow.length || 18,
-      dueTomorrowSum: sumDueTomorrow || 185000,
-      dueNext2DaysCount: dueNext2Days.length || 24,
-      dueNext2DaysSum: sumDueNext2Days || 232000,
-      overdueCount: overdue.length || 7,
-      overdueSum: sumOverdue || 68000,
-      collectionPct: collectionPct || "88.5",
-      sumCollected: sumCollected || 635000,
-      totalExpected: totalExpected || 717000,
+      dueTodayCount: dueToday.length,
+      dueTodaySum: sumDueToday,
+      dueTomorrowCount: dueTomorrow.length,
+      dueTomorrowSum: sumDueTomorrow,
+      dueNext2DaysCount: dueNext2Days.length,
+      dueNext2DaysSum: sumDueNext2Days,
+      overdueCount: overdue.length,
+      overdueSum: sumOverdue,
+      collectionPct,
+      sumCollected,
+      totalExpected,
     };
-  }, []);
+  }, [occupantsList]);
 
   // XSS Sanitized & Tokenized Search Filtering + Sorting
   const filteredOccupants = useMemo(() => {
@@ -199,7 +211,7 @@ export default function TenantsDirectoryPage({
     const searchTokens = cleanSearch.split(/\s+/).filter(Boolean);
     const numericDigitsOnly = normalizePhoneNumber(cleanSearch);
 
-    const matched = MOCK_OCCUPANTS_200.filter((occ) => {
+    const matched = occupantsList.filter((occ) => {
       // 1. Robust multi-attribute search matching (Global Search Override)
       if (searchTokens.length > 0) {
         const occNameLower = occ.name.toLowerCase();
@@ -354,14 +366,29 @@ export default function TenantsDirectoryPage({
               </p>
             </div>
 
-            {/* Top Primary CTA Button */}
-            <div className="relative">
+            {/* Top Action Controls */}
+            <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={() => setShowAddMenu(!showAddMenu)}
-                className="px-6 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 active:scale-95"
+                type="button"
+                onClick={() => {
+                  if (confirm("Are you sure you want to erase all mock occupant data and reset all property beds to Available 🟢? This will clear test entries so you can onboard manually without clashes.")) {
+                    occupantStore.resetOccupantsStore();
+                    propertyStore.resetPropertyStore();
+                    window.location.reload();
+                  }
+                }}
+                className="px-3.5 py-2.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
               >
-                <Plus className="w-5 h-5" /> Add New Tenant
+                <Trash2 className="w-4 h-4 text-red-600" /> Erase Mock Data & Reset Beds
               </button>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowAddMenu(!showAddMenu)}
+                  className="px-6 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-5 h-5" /> Add New Tenant
+                </button>
 
               {showAddMenu && (
                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg border border-gray-200 shadow-xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
@@ -383,6 +410,7 @@ export default function TenantsDirectoryPage({
               )}
             </div>
           </div>
+        </div>
 
           {/* Toast Notification */}
           {toastMessage && (
