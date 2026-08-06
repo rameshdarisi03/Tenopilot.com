@@ -35,6 +35,7 @@ import {
   Filter,
   Loader2,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -116,6 +117,15 @@ export default function OnboardGuestPage({
 
   // Reactive property structure state subscribed to propertyStore
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>([]);
+
+  // Dynamic Stay Duration Calculation (Check-in vs Check-out)
+  const stayDays = useMemo(() => {
+    if (!checkInDate || !checkOutDate) return 0;
+    const start = new Date(checkInDate);
+    const end = new Date(checkOutDate);
+    const diffTime = end.getTime() - start.getTime();
+    return Math.max(0, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+  }, [checkInDate, checkOutDate]);
 
   useEffect(() => {
     setPropertyStructure(propertyStore.getStructure());
@@ -527,61 +537,94 @@ export default function OnboardGuestPage({
               </div>
 
               {/* Guest Stay Dates & Tariff Subsection */}
-              <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3 pt-4">
-                <Calendar className="w-5 h-5 text-purple-700" /> Short Stay Dates & Tariff
+              <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center justify-between border-b border-gray-100 pb-3 pt-4">
+                <span className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-purple-700" /> Short Stay Dates & Tariff
+                </span>
+                {stayDays > 0 && (
+                  <span className="text-xs bg-purple-100 text-purple-900 px-3 py-1 rounded-full font-bold flex items-center gap-1.5 shadow-2xs">
+                    <Clock className="w-3.5 h-3.5 text-purple-700" />
+                    {stayDays} {stayDays === 1 ? "Day (1 Night)" : `Days (${stayDays} Nights)`}
+                  </span>
+                )}
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Check-in Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={checkInDate}
-                    onChange={(e) => setCheckInDate(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Check-in Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={checkInDate}
+                      onChange={(e) => setCheckInDate(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Expected Check-out *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={checkOutDate}
+                      onChange={(e) => setCheckOutDate(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Total Stay Tariff (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      value={totalTariff}
+                      onChange={(e) => setTotalTariff(Number(e.target.value))}
+                      className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Security Deposit (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(Number(e.target.value))}
+                      className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Expected Check-out *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={checkOutDate}
-                    onChange={(e) => setCheckOutDate(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Total Stay Tariff (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={totalTariff}
-                    onChange={(e) => setTotalTariff(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Security Deposit (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(Number(e.target.value))}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
-                  />
-                </div>
+                {/* 📅 DYNAMIC STAY DURATION HELPER BANNER */}
+                {stayDays > 0 ? (
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50/50 border border-purple-200 text-purple-950 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs animate-in fade-in">
+                    <div className="flex items-center gap-2 font-bold">
+                      <span className="p-1 rounded-lg bg-purple-200/80 text-purple-800">
+                        <Clock className="w-4 h-4" />
+                      </span>
+                      <span>
+                        Stay Duration Calculated: <strong className="text-purple-950 font-extrabold text-sm">{stayDays} {stayDays === 1 ? "Day (1 Night)" : `Days (${stayDays} Nights)`}</strong>
+                      </span>
+                    </div>
+                    {totalTariff > 0 && (
+                      <span className="text-[11px] font-mono text-purple-900 bg-white/90 px-3 py-1 rounded-lg border border-purple-200/80 font-bold shadow-2xs">
+                        ⚡ Effective Rate: ₹{Math.round(totalTariff / stayDays).toLocaleString("en-IN")} / day
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-amber-700 font-semibold flex items-center gap-1.5 p-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Expected checkout date must be after check-in date.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end pt-4 border-t border-gray-100">
