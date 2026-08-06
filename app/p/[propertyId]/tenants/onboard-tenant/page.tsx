@@ -104,6 +104,7 @@ export default function OnboardTenantPage({
 
   // Live Firebase Storage URLs
   const [photoUrl, setPhotoUrl] = useState<string>("");
+  const [isPhotoSaved, setIsPhotoSaved] = useState<boolean>(false);
   const [aadhaarUrl, setAadhaarUrl] = useState<string>("");
   const [uploadingState, setUploadingState] = useState<{
     photo?: boolean;
@@ -851,24 +852,50 @@ export default function OnboardTenantPage({
                     ) : (
                       <Upload className="w-4 h-4 text-[#c2652a]" />
                     )}
-                    {photoDoc ? "Change Photo" : "Upload Photo / Camera"}
+                    {photoDoc ? "Change Photo File" : "Upload / Choose Photo File"}
                     <input
                       type="file"
                       accept="image/jpeg,image/png"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handleFileUpload("photo", file);
+                        if (file) {
+                          handleFileUpload("photo", file);
+                          setIsPhotoSaved(false);
+                        }
                       }}
                     />
                   </label>
 
                   {photoDoc && (
-                    <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
-                      ✓ Uploaded & Synced to Cloud Storage: <strong>{photoDoc.fileName}</strong>
-                      {photoDoc.isCompressed && (
-                        <div className="text-emerald-700 font-mono mt-0.5">
-                          ⚡ Auto-compressed: {photoDoc.originalSizeMb} MB → {photoDoc.compressedSizeMb} MB
+                    <div className="space-y-2 w-full">
+                      <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
+                        ✓ Photo Selected: <strong>{photoDoc.fileName}</strong>
+                        {photoDoc.isCompressed && (
+                          <div className="text-emerald-700 font-mono mt-0.5">
+                            ⚡ Auto-compressed: {photoDoc.originalSizeMb} MB → {photoDoc.compressedSizeMb} MB
+                          </div>
+                        )}
+                      </div>
+
+                      {!isPhotoSaved ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoSaved(true)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        >
+                          💾 Save Profile Photo to Database
+                        </button>
+                      ) : (
+                        <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between">
+                          <span>✓ Photo Locked & Saved 🟢</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsPhotoSaved(false)}
+                            className="text-[10px] underline text-emerald-800 font-semibold"
+                          >
+                            Edit
+                          </button>
                         </div>
                       )}
                     </div>

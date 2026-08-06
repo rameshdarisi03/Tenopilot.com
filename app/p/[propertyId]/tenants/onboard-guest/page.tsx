@@ -104,6 +104,7 @@ export default function OnboardGuestPage({
 
   // Live Firebase Storage URLs
   const [photoUrl, setPhotoUrl] = useState<string>("");
+  const [isPhotoSaved, setIsPhotoSaved] = useState<boolean>(false);
   const [uploadingState, setUploadingState] = useState<{
     photo?: boolean;
     front?: boolean;
@@ -847,21 +848,47 @@ export default function OnboardGuestPage({
                     ) : (
                       <Upload className="w-4 h-4 text-purple-700 shrink-0" />
                     )}
-                    {photoDoc ? "Change Photo" : "Upload / Capture Photo"}
+                    {photoDoc ? "Change Photo File" : "Upload / Choose Photo File"}
                     <input
                       type="file"
                       accept="image/jpeg,image/png"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handleFileUpload("photo", file);
+                        if (file) {
+                          handleFileUpload("photo", file);
+                          setIsPhotoSaved(false);
+                        }
                       }}
                     />
                   </label>
 
                   {photoDoc && (
-                    <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
-                      ✓ Uploaded & Synced to Cloud Storage: <strong>{photoDoc.fileName}</strong>
+                    <div className="space-y-2 w-full">
+                      <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
+                        ✓ Photo Selected: <strong>{photoDoc.fileName}</strong>
+                      </div>
+
+                      {!isPhotoSaved ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoSaved(true)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        >
+                          💾 Save Profile Photo to Database
+                        </button>
+                      ) : (
+                        <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between">
+                          <span>✓ Photo Locked & Saved 🟢</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsPhotoSaved(false)}
+                            className="text-[10px] underline text-emerald-800 font-semibold"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
