@@ -195,67 +195,84 @@ export function GuestProfileView({
       </div>
 
       {/* 📊 4 TAILORED GUEST METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric Card 1: Total Stay Tariff Paid */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
-          <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-            TOTAL STAY TARIFF PAID
-          </span>
-          <div className="flex items-baseline justify-between">
-            <span className="font-serif font-bold text-2xl text-gray-900">
-              ₹{occupantState.rentAmount.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full">
-              PAID 🟢
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-400">1 Payment Recorded</p>
-        </div>
+      {(() => {
+        const guestHistory = occupantState.paymentHistory || [];
+        const hasPaid = guestHistory.length > 0 && occupantState.paymentStatus === "Paid";
+        const totalPaid = guestHistory.reduce((sum, item) => sum + item.amount, 0);
+        const totalDue = hasPaid ? 0 : (occupantState.rentAmount + 500);
 
-        {/* Metric Card 2: Outstanding Balance */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
-          <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-            OUTSTANDING BALANCE
-          </span>
-          <div className="flex items-baseline justify-between">
-            <span className="font-serif font-bold text-2xl text-gray-900">₹0</span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full">
-              ALL CLEAR
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-400">Everything Paid for Stay</p>
-        </div>
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Metric Card 1: Total Stay Tariff Paid */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
+              <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
+                TOTAL STAY TARIFF PAID
+              </span>
+              <div className="flex items-baseline justify-between">
+                <span className="font-serif font-bold text-2xl text-gray-900">
+                  ₹{totalPaid.toLocaleString("en-IN")}
+                </span>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                  hasPaid ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+                }`}>
+                  {hasPaid ? "PAID 🟢" : "UNPAID ⚪"}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400">{guestHistory.length} Payment{guestHistory.length === 1 ? "" : "s"} Recorded</p>
+            </div>
 
-        {/* Metric Card 3: Key / Gate Pass Deposit */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
-          <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-            KEY / GATE PASS DEPOSIT
-          </span>
-          <div className="flex items-baseline justify-between">
-            <span className="font-serif font-bold text-2xl text-gray-900">₹500</span>
-            <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full">
-              REFUNDABLE
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-400">Refunded upon room key handover</p>
-        </div>
+            {/* Metric Card 2: Outstanding Balance */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
+              <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
+                OUTSTANDING BALANCE
+              </span>
+              <div className="flex items-baseline justify-between">
+                <span className="font-serif font-bold text-2xl text-gray-900">
+                  ₹{totalDue.toLocaleString("en-IN")}
+                </span>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                  totalDue === 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                }`}>
+                  {totalDue === 0 ? "ALL CLEAR 🟢" : "DUE NOW 🔴"}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                {totalDue === 0 ? "Everything Paid for Stay" : "Tariff + Key Deposit Pending"}
+              </p>
+            </div>
 
-        {/* Metric Card 4: Checkout Date */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
-          <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-            CHECKOUT DATE
-          </span>
-          <div className="flex items-baseline justify-between">
-            <span className="font-serif font-bold text-xl text-[#c2652a]">
-              {checkOutDateStr}
-            </span>
-            <span className="text-[10px] bg-orange-100 text-orange-800 font-extrabold px-2 py-0.5 rounded-full">
-              {timeline.daysRemaining} DAYS
-            </span>
+            {/* Metric Card 3: Key / Gate Pass Deposit */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
+              <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
+                KEY / GATE PASS DEPOSIT
+              </span>
+              <div className="flex items-baseline justify-between">
+                <span className="font-serif font-bold text-2xl text-gray-900">₹500</span>
+                <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full">
+                  REFUNDABLE
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400">Refunded upon room key handover</p>
+            </div>
+
+            {/* Metric Card 4: Checkout Date */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
+              <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
+                CHECKOUT DATE
+              </span>
+              <div className="flex items-baseline justify-between">
+                <span className="font-serif font-bold text-xl text-[#c2652a]">
+                  {checkOutDateStr}
+                </span>
+                <span className="text-[10px] bg-orange-100 text-orange-800 font-extrabold px-2 py-0.5 rounded-full">
+                  {timeline.daysRemaining} DAYS
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-400">End of Short Stay Period</p>
+            </div>
           </div>
-          <p className="text-[10px] text-gray-400">End of Short Stay Period</p>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 📋 GUEST DETAILS & BILLING GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -409,82 +426,110 @@ export function GuestProfileView({
 
         {/* Right Column: Guest Billing & Stay Log */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif font-bold text-base text-gray-900">
-                Guest Billing & Stay Payment Log
-              </h3>
-              <span className="text-[10px] text-gray-400 font-bold">1 Record</span>
-            </div>
+          {(() => {
+            const guestHistory = occupantState.paymentHistory || [];
+            const hasPaid = guestHistory.length > 0 && occupantState.paymentStatus === "Paid";
+            const totalPaid = guestHistory.reduce((sum, item) => sum + item.amount, 0);
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-gray-200 text-gray-400 uppercase font-bold text-[10px]">
-                    <th className="pb-3">Stay Description</th>
-                    <th className="pb-3">Payment Date</th>
-                    <th className="pb-3">Amount</th>
-                    <th className="pb-3">Mode</th>
-                    <th className="pb-3">Receipt</th>
-                    <th className="pb-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-gray-800 font-semibold">
-                  <tr>
-                    <td className="py-3.5">7-Day Guest Stay Package</td>
-                    <td className="py-3.5">{checkInDateStr}</td>
-                    <td className="py-3.5 font-bold font-mono">
-                      ₹{occupantState.rentAmount.toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-3.5">UPI (HDFC)</td>
-                    <td className="py-3.5 font-mono text-[11px] text-gray-500">#REC-GST882</td>
-                    <td className="py-3.5 text-right">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                        PAID 🟢
+            return (
+              <>
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif font-bold text-base text-gray-900">
+                      Guest Billing & Stay Payment Log
+                    </h3>
+                    <span className="text-[10px] text-gray-400 font-bold">{guestHistory.length} Record{guestHistory.length === 1 ? "" : "s"}</span>
+                  </div>
+
+                  {guestHistory.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-gray-400 uppercase font-bold text-[10px]">
+                            <th className="pb-3">Stay Description</th>
+                            <th className="pb-3">Payment Date</th>
+                            <th className="pb-3">Amount</th>
+                            <th className="pb-3">Mode</th>
+                            <th className="pb-3">Receipt</th>
+                            <th className="pb-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-gray-800 font-semibold">
+                          {guestHistory.map((item) => (
+                            <tr key={item.id}>
+                              <td className="py-3.5">{item.month || "Guest Stay Package"}</td>
+                              <td className="py-3.5">{item.date}</td>
+                              <td className="py-3.5 font-bold font-mono">
+                                ₹{item.amount.toLocaleString("en-IN")}
+                              </td>
+                              <td className="py-3.5">{item.mode}</td>
+                              <td className="py-3.5 font-mono text-[11px] text-gray-500">{item.receiptNo}</td>
+                              <td className="py-3.5 text-right">
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                                  PAID 🟢
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-gray-50/70 rounded-xl border border-dashed border-gray-200 space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mx-auto">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <p className="font-serif font-bold text-gray-800 text-sm">No Payment Receipts Recorded Yet</p>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                        This guest stay hasn't logged payment yet. Click <strong className="text-purple-900">"Collect Payment"</strong> above to log tariff & key deposit.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Guest Financial Summary Box */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-gray-900">
+                        Guest Stay Billing Summary
+                      </h3>
+                      <p className="text-[10px] text-gray-400">Short-term stay package account statement</p>
+                    </div>
+
+                    <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
+                      hasPaid
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                        : "bg-red-100 text-red-800 border-red-200"
+                    }`}>
+                      {hasPaid ? "ALL CLEAR 🟢" : "PAYMENT PENDING 🔴"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 text-gray-700 font-medium">
+                    <div className="flex justify-between">
+                      <span>Stay Package Tariff</span>
+                      <span className="font-mono font-bold text-gray-900">
+                        ₹{occupantState.rentAmount.toLocaleString("en-IN")}
                       </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </div>
 
-          {/* Guest Financial Summary Box */}
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="font-serif font-bold text-base text-gray-900">
-                  Guest Stay Billing Summary
-                </h3>
-                <p className="text-[10px] text-gray-400">Short-term stay package account statement</p>
-              </div>
+                    <div className="flex justify-between">
+                      <span>Key / Gate Pass Deposit</span>
+                      <span className="font-mono font-bold text-purple-700">₹500 (Refundable)</span>
+                    </div>
 
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                ALL CLEAR 🟢
-              </span>
-            </div>
-
-            <div className="space-y-2.5 text-gray-700 font-medium">
-              <div className="flex justify-between">
-                <span>7-Day Stay Package Tariff</span>
-                <span className="font-mono font-bold text-gray-900">
-                  ₹{occupantState.rentAmount.toLocaleString("en-IN")}
-                </span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>Key / Gate Pass Deposit</span>
-                <span className="font-mono font-bold text-purple-700">₹500 (Refundable)</span>
-              </div>
-
-              <div className="flex justify-between pt-2 border-t border-gray-100 font-bold text-gray-900 text-sm">
-                <span>Total Amount Paid</span>
-                <span className="font-mono text-emerald-700">
-                  ₹{(occupantState.rentAmount + 500).toLocaleString("en-IN")}
-                </span>
-              </div>
-            </div>
-          </div>
+                    <div className="flex justify-between pt-2 border-t border-gray-100 font-bold text-gray-900 text-sm">
+                      <span>{hasPaid ? "Total Amount Paid" : "Total Stay Receivable"}</span>
+                      <span className={`font-mono ${hasPaid ? "text-emerald-700" : "text-red-600"}`}>
+                        ₹{(occupantState.rentAmount + 500).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
