@@ -284,10 +284,10 @@ export default function OnboardGuestPage({
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedCheckIn,
       avatar: photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
-      kycVerified: photoUploaded,
+      kycVerified: Boolean(aadhaarFrontDoc || aadhaarBackDoc || photoDoc),
       hasPdfAgreement: false,
       address: address.trim(),
-      aadhaarNumber: "XXXX-XXXX-8811",
+      aadhaarNumber: Boolean(aadhaarFrontDoc || aadhaarBackDoc) ? "XXXX-XXXX-8811" : "Skipped",
       emergencyContact: {
         name: "Parent / Guardian",
         phone: fullEmergencyPhone,

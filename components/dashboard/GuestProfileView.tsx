@@ -344,44 +344,70 @@ export function GuestProfileView({
             </div>
           </div>
 
-          {/* 🪪 KYC Verification & Identity Card for Guests */}
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-              <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-600" /> Identity & KYC Verification
-              </h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                VERIFIED 🟢
-              </span>
-            </div>
+          {/* 🪪 Real-Time KYC Verification & Identity Card for Guests */}
+          {(() => {
+            const isKycVerified = occupantState.kycVerified === true;
+            const hasAadhaar = occupantState.aadhaarNumber && occupantState.aadhaarNumber !== "Skipped" && occupantState.aadhaarNumber !== "XXXX-XXXX-8811";
 
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Aadhaar / Govt ID</span>
-                <span className="font-bold font-mono text-gray-900">
-                  {occupantState.aadhaarNumber || "XXXX-XXXX-8821"}
-                </span>
+            return (
+              <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
+                <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                  <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                    <ShieldCheck className={`w-4 h-4 ${isKycVerified ? "text-blue-600" : "text-amber-600"}`} /> Identity & KYC Verification
+                  </h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                    isKycVerified
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                      : "bg-amber-100 text-amber-800 border-amber-300"
+                  }`}>
+                    {isKycVerified ? "VERIFIED 🟢" : "SKIPPED / PENDING 🔴"}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Aadhaar / Govt ID</span>
+                    <span className={`font-bold font-mono ${isKycVerified ? "text-gray-900" : "text-amber-700"}`}>
+                      {hasAadhaar ? occupantState.aadhaarNumber : isKycVerified ? "XXXX-XXXX-8821" : "Skipped at Onboarding"}
+                    </span>
+                  </div>
+
+                  {isKycVerified ? (
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Front Photo", docType: "front" })}
+                        className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front ID
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Back Photo", docType: "back" })}
+                        className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back ID
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2">
+                      <p className="text-[11px] text-amber-900 font-semibold leading-snug">
+                        ⚠️ KYC skipped during guest onboarding. Identity documents are pending upload.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setViewKycModal({ open: true, title: "Upload Aadhaar / Govt ID Photo", docType: "front" })}
+                        className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        + Upload & Complete Guest KYC
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Front Photo", docType: "front" })}
-                  className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front ID
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Back Photo", docType: "back" })}
-                  className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back ID
-                </button>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* 📷 KYC DOCUMENT LIGHTBOX MODAL */}
