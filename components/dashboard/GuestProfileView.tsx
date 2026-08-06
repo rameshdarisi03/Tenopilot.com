@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Occupant } from "@/constants/mockOccupants";
 import { getGuestStayTimeline, getOccupantStatusBadge, calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
@@ -55,6 +55,11 @@ export function GuestProfileView({
     docType: "front" | "back";
   } | null>(null);
 
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Calculate stay duration & days remaining dynamically via SSOT Domain Engine
   const checkInDateStr = occupantState.joiningDate || occupantState.lastPaidDate || "02 Aug 2026";
   const checkOutDateStr = occupantState.vacatingDate || occupantState.dueDate || "09 Aug 2026";
@@ -65,6 +70,8 @@ export function GuestProfileView({
     occupantState.lifecycleStatus === "Booked"
   );
   const statusBadge = getOccupantStatusBadge(occupantState);
+
+  if (!isMounted) return null;
   return (
     <div className="space-y-6">
       {/* 🧭 Top Breadcrumb Navigation */}
