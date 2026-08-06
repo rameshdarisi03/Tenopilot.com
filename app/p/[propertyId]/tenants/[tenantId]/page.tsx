@@ -5,12 +5,13 @@ import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
-import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import {
   calculateRoomTransferProRata,
   calculateGuestRoomTransferAdjustment,
 } from "@/utils/financialEngine";
+import { calculateProRataRent } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   ChevronDown,
@@ -43,16 +44,6 @@ import {
   downloadRentalAgreementPdf,
   downloadRentReceiptPdf,
 } from "@/utils/pdfGenerator";
-
-interface PaymentHistoryItem {
-  id: string;
-  month: string;
-  date: string;
-  amount: number;
-  mode: string;
-  receiptNo: string;
-  status: string;
-}
 
 export default function IndividualTenantProfilePage({
   params,
@@ -263,40 +254,19 @@ export default function IndividualTenantProfilePage({
     if (!isMounted) return;
     setOccupantState(occupant);
 
-    if (occupant.lifecycleStatus === "Booked" || (occupant.stayType === "Guest" && occupant.id.startsWith("occ-new-")) || occupant.id.startsWith("occ-test-")) {
-      if (occupant.lifecycleStatus === "Booked" || occupant.lastPaidDate === "Pending Check-In") {
-        setPaymentHistory([]);
-      } else {
-        setPaymentHistory([
-          {
-            id: "pay-1",
-            month: "August 2026",
-            date: occupant.lastPaidDate || "02 Aug 2026",
-            amount: occupant.rentAmount,
-            mode: "UPI (HDFC)",
-            receiptNo: "#REC-88210",
-            status: "PAID",
-          },
-        ]);
-      }
+    if (occupant.paymentHistory && Array.isArray(occupant.paymentHistory)) {
+      setPaymentHistory(occupant.paymentHistory);
+    } else if (occupant.lifecycleStatus === "Booked" || occupant.lastPaidDate === "Unpaid / Due Now" || occupant.lastPaidDate === "Pending Check-In" || occupant.paymentStatus === "Due") {
+      setPaymentHistory([]);
     } else {
       setPaymentHistory([
         {
           id: "pay-1",
-          month: "July 2026",
-          date: "01 Jul 2026",
+          month: "August 2026",
+          date: occupant.lastPaidDate || "01 Aug 2026",
           amount: occupant.rentAmount,
           mode: "UPI (HDFC)",
           receiptNo: "#REC-73104",
-          status: "PAID",
-        },
-        {
-          id: "pay-2",
-          month: "June 2026",
-          date: "01 Jun 2026",
-          amount: occupant.rentAmount,
-          mode: "UPI (GPay)",
-          receiptNo: "#REC-62155",
           status: "PAID",
         },
       ]);
@@ -514,11 +484,15 @@ export default function IndividualTenantProfilePage({
       status: "PAID",
     };
 
+    const updatedHistory = [newReceipt, ...(occupantState.paymentHistory || paymentHistory)];
+
     const updated: Occupant = {
       ...occupantState,
       paymentStatus: "Paid",
       lastPaidDate: formattedPaidDate,
       daysRemainingText: "—",
+      depositStatus: "PAID",
+      paymentHistory: updatedHistory,
     };
 
     setOccupantState(updated);
@@ -1720,6 +1694,78 @@ export default function IndividualTenantProfilePage({
                     />
                   </div>
                 )}
+
+                {/* 💰 PREMIUM FINANCIAL RECEIVABLE BREAKDOWN BOX */}
+                {(() => {
+                  const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
+                  const isTenant = occupantState.stayType === "Tenant";
+                  const rentDueThisMonth = isTenant ? proRataInfo.proRataAmount : occupantState.rentAmount;
+                  const securityDepositPending = isTenant
+                    ? (occupantState.depositStatus === "PAID" ? 0 : (occupantState.securityDeposit || 25000))
+                    : 500; // Key deposit for guest
+                  const priorArrears = occupantState.arrearsBalance || 0;
+                  const totalSuggestedReceivable = rentDueThisMonth + securityDepositPending + priorArrears;
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-amber-200/80 space-y-2.5 my-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                          💰 YOU HAVE TO COLLECT THIS MONTH
+                        </span>
+                        {isTenant && !proRataInfo.isFullMonth && (
+                          <span className="text-[10px] bg-orange-200/80 text-orange-950 px-2 py-0.5 rounded-full font-bold">
+                            PRO-RATA ({proRataInfo.remainingDays}/{proRataInfo.totalDaysInMonth} DAYS)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 text-xs text-gray-700 font-medium">
+                        {isTenant ? (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Rent Due ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays} Days Pro-Rata`}):</span>
+                              <span className="font-mono font-bold text-gray-900">₹{proRataInfo.proRataAmount.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Security Deposit ({occupantState.depositStatus === "PAID" ? "PAID 🟢" : "PENDING 🔴"}):</span>
+                              <span className="font-mono font-bold text-gray-900">₹{securityDepositPending.toLocaleString("en-IN")}</span>
+                            </div>
+                            {priorArrears > 0 && (
+                              <div className="flex justify-between items-center text-red-700">
+                                <span>▫️ Prior Unpaid Arrears:</span>
+                                <span className="font-mono font-bold">₹{priorArrears.toLocaleString("en-IN")}</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Stay Tariff Package:</span>
+                              <span className="font-mono font-bold text-gray-900">₹{occupantState.rentAmount.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Refundable Key Deposit:</span>
+                              <span className="font-mono font-bold text-gray-900">₹500</span>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between font-bold text-gray-900">
+                          <span>TOTAL SUGGESTED RECEIVABLE:</span>
+                          <span className="font-mono text-sm text-[#c2652a]">₹{totalSuggestedReceivable.toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(totalSuggestedReceivable)}
+                        className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer mt-1"
+                      >
+                        ⚡ Auto-Fill Suggested Amount (₹{totalSuggestedReceivable.toLocaleString("en-IN")})
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                   <button

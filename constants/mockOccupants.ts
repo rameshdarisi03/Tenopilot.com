@@ -1,5 +1,15 @@
 import { saveOccupantToFirestore } from "@/lib/firestoreService";
 
+export interface PaymentHistoryItem {
+  id: string;
+  month: string;
+  date: string;
+  amount: number;
+  mode: string;
+  receiptNo: string;
+  status: "PAID" | "PENDING" | "PARTIAL";
+}
+
 export interface Occupant {
   id: string;
   name: string;
@@ -40,6 +50,7 @@ export interface Occupant {
   depositStatus?: "PAID" | "PENDING" | "PARTIAL";
   partialPaidThisCycle?: number;
   arrearsBalance?: number;
+  paymentHistory?: PaymentHistoryItem[];
 }
 
 // 200 Guaranteed 100% Unique Indian Names (No Duplicates)

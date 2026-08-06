@@ -187,3 +187,45 @@ export function getRoomTariff(room: Partial<RoomConfig>): number {
   if (room.sharingType === 4) return 9500;
   return 14500; // Default 2-sharing tariff
 }
+
+/**
+ * 6. SSOT Pro-Rata Rent Calculation Engine for Mid-Month Joiners
+ * Calculates exact rent due for remaining days in the joining month.
+ * If joined on 1st of month, returns full monthly rent.
+ */
+export function calculateProRataRent(monthlyRent: number, joiningDateStr?: string): {
+  proRataAmount: number;
+  totalDaysInMonth: number;
+  remainingDays: number;
+  isFullMonth: boolean;
+  joiningDay: number;
+} {
+  const joiningDate = parseOccupantDate(joiningDateStr || "") || new Date();
+  const year = joiningDate.getFullYear();
+  const month = joiningDate.getMonth();
+  const joiningDay = joiningDate.getDate();
+
+  // Get total days in joining month (e.g., 31 for Aug, 30 for Sep, 28/29 for Feb)
+  const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+  if (joiningDay <= 1) {
+    return {
+      proRataAmount: monthlyRent,
+      totalDaysInMonth,
+      remainingDays: totalDaysInMonth,
+      isFullMonth: true,
+      joiningDay: 1,
+    };
+  }
+
+  const remainingDays = totalDaysInMonth - joiningDay + 1;
+  const proRataAmount = Math.round((monthlyRent / totalDaysInMonth) * remainingDays);
+
+  return {
+    proRataAmount,
+    totalDaysInMonth,
+    remainingDays,
+    isFullMonth: false,
+    joiningDay,
+  };
+}
