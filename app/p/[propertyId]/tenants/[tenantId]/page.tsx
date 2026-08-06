@@ -1723,66 +1723,78 @@ export default function IndividualTenantProfilePage({
                   const isTenant = occupantState.stayType === "Tenant";
                   const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
                   const targetAutoFill = stmt.netOutstandingBalance;
+                  const isSecondInstallment = stmt.totalPaid > 0;
 
                   return (
                     <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-amber-200/80 space-y-2.5 my-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                          💰 RECEIVABLE BREAKDOWN {isTenant ? "THIS MONTH" : "THIS STAY"}
+                          💰 {isSecondInstallment ? "REMAINING BALANCE BREAKDOWN (PARTIAL INSTALLMENT)" : `RECEIVABLE BREAKDOWN ${isTenant ? "THIS MONTH" : "THIS STAY"}`}
                         </span>
-                        {isTenant && !proRataInfo.isFullMonth && (
+                        {isTenant && !proRataInfo.isFullMonth && !isSecondInstallment && (
                           <span className="text-[10px] bg-orange-200/80 text-orange-950 px-2 py-0.5 rounded-full font-bold">
                             PRO-RATA ({proRataInfo.remainingDays}/{proRataInfo.totalDaysInMonth} DAYS)
                           </span>
                         )}
                       </div>
 
-                      <div className="space-y-1.5 text-xs text-gray-700 font-medium">
-                        {isTenant ? (
+                      <div className="space-y-2 text-xs text-gray-700 font-medium">
+                        {isSecondInstallment ? (
+                          /* Simplified 2nd/Subsequent Installment Parameters */
                           <>
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Rent Due ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays} Days Pro-Rata`}):</span>
-                              <span className="font-mono font-bold text-gray-900">₹{proRataInfo.proRataAmount.toLocaleString("en-IN")}</span>
+                            <div className="flex justify-between items-center text-gray-900 font-semibold">
+                              <span>Total Tariff (including deposit):</span>
+                              <span className="font-mono font-bold">₹{stmt.totalGrossDue.toLocaleString("en-IN")}</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Security Deposit ({occupantState.depositStatus === "PAID" ? "PAID 🟢" : "PENDING 🔴"}):</span>
-                              <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+
+                            <div className="flex justify-between items-center text-emerald-800 font-bold border-b border-amber-200/60 pb-1.5">
+                              <span>▫️ Previously Collected Payments:</span>
+                              <span className="font-mono text-emerald-700">-₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
                             </div>
-                            {stmt.priorArrears > 0 && (
-                              <div className="flex justify-between items-center text-red-700">
-                                <span>▫️ Prior Unpaid Arrears:</span>
-                                <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
-                              </div>
-                            )}
                           </>
                         ) : (
+                          /* 1st Payment Itemized Breakdown */
                           <>
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Stay Tariff Package:</span>
-                              <span className="font-mono font-bold text-gray-900">₹{occupantState.rentAmount.toLocaleString("en-IN")}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Security Deposit ({stmt.isDepositCleared ? "PAID 🟢" : "PENDING 🔴"}):</span>
-                              <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                            {isTenant ? (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Rent Due ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays} Days Pro-Rata`}):</span>
+                                  <span className="font-mono font-bold text-gray-900">₹{proRataInfo.proRataAmount.toLocaleString("en-IN")}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Security Deposit ({occupantState.depositStatus === "PAID" ? "PAID 🟢" : "PENDING 🔴"}):</span>
+                                  <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                                </div>
+                                {stmt.priorArrears > 0 && (
+                                  <div className="flex justify-between items-center text-red-700">
+                                    <span>▫️ Prior Unpaid Arrears:</span>
+                                    <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Stay Tariff Package:</span>
+                                  <span className="font-mono font-bold text-gray-900">₹{occupantState.rentAmount.toLocaleString("en-IN")}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Security Deposit ({stmt.isDepositCleared ? "PAID 🟢" : "PENDING 🔴"}):</span>
+                                  <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                                </div>
+                              </>
+                            )}
+
+                            <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 font-bold text-gray-900">
+                              <span>Total Gross Package Due:</span>
+                              <span className="font-mono">₹{stmt.totalGrossDue.toLocaleString("en-IN")}</span>
                             </div>
                           </>
-                        )}
-
-                        <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 font-bold text-gray-900">
-                          <span>Total Gross Package Due:</span>
-                          <span className="font-mono">₹{stmt.totalGrossDue.toLocaleString("en-IN")}</span>
-                        </div>
-
-                        {stmt.totalPaid > 0 && (
-                          <div className="flex justify-between items-center text-emerald-800 font-bold">
-                            <span>▫️ Previously Collected Payments:</span>
-                            <span className="font-mono">-₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
-                          </div>
                         )}
 
                         <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between font-extrabold text-gray-900 text-sm">
-                          <span>REMAINING BALANCE RECEIVABLE:</span>
-                          <span className="font-mono text-[#c2652a]">₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}</span>
+                          <span className="text-amber-950">🟧 REMAINING BALANCE RECEIVABLE:</span>
+                          <span className="font-mono text-[#c2652a] text-base">₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}</span>
                         </div>
                       </div>
 
@@ -1791,7 +1803,7 @@ export default function IndividualTenantProfilePage({
                         onClick={() => setPaymentAmount(targetAutoFill)}
                         className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer mt-1"
                       >
-                        ⚡ Auto-Fill {stmt.totalPaid > 0 ? "Remaining" : "Suggested"} Amount (₹{targetAutoFill.toLocaleString("en-IN")})
+                        ⚡ Auto-Fill {isSecondInstallment ? "Remaining" : "Suggested"} Amount (₹{targetAutoFill.toLocaleString("en-IN")})
                       </button>
                     </div>
                   );
