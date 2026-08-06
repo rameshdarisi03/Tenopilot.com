@@ -180,54 +180,73 @@ export function calculateRoomTransferProRata(
   }
 }
 
-/**
- * Calculate Short-Term Guest Room Transfer Adjustment
- * Based on remaining days in guest stay (Check-In to Checkout) instead of monthly cycle
- */
-export function calculateGuestRoomTransferAdjustment(
-  currentRent: number,
-  newRent: number,
-  transferDateStr: string,
-  joiningDateStr?: string,
-  checkoutDateStr?: string
-): {
-  tariffDiff: number;
-  remainingDays: number;
+export interface GuestTransferAdjustmentResult {
   totalStayDays: number;
+  elapsedDays: number;
+  remainingDays: number;
+  originalDailyRate: number;
+  newDailyRate: number;
+  elapsedTariff: number;
+  remainingTariff: number;
+  originalTotalTariff: number;
+  revisedTotalTariff: number;
   adjustmentAmount: number;
   isUpgrade: boolean;
   isDowngrade: boolean;
   communicationMessage: string;
-} {
+}
+
+/**
+ * Calculate Short-Term Guest Room Transfer Adjustment
+ * Based on remaining days in guest stay (Check-In to Checkout) using customizable new daily tariff rates
+ */
+export function calculateGuestRoomTransferAdjustment(
+  originalTotalTariff: number,
+  newDailyRateInput: number,
+  transferDateStr: string,
+  joiningDateStr?: string,
+  checkoutDateStr?: string
+): GuestTransferAdjustmentResult {
   try {
-    const tDate = new Date(transferDateStr);
-    const now = isNaN(tDate.getTime()) ? new Date() : tDate;
-    const cDate = checkoutDateStr ? new Date(checkoutDateStr) : new Date(now.getTime() + 5 * 86400000);
-    const jDate = joiningDateStr ? new Date(joiningDateStr) : new Date(now.getTime() - 2 * 86400000);
+    const parseOccupantDate = (d: string) => { const date = new Date(d); return isNaN(date.getTime()) ? null : date; };
+    const tDate = parseOccupantDate(transferDateStr) || new Date();
+    const cDate = parseOccupantDate(checkoutDateStr || "") || new Date(tDate.getTime() + 5 * 86400000);
+    const jDate = parseOccupantDate(joiningDateStr || "") || new Date(tDate.getTime() - 4 * 86400000);
 
     const totalStayDays = Math.max(1, Math.round((cDate.getTime() - jDate.getTime()) / (1000 * 3600 * 24)));
-    const remainingDays = Math.max(1, Math.round((cDate.getTime() - now.getTime()) / (1000 * 3600 * 24)));
+    const elapsedDays = Math.max(0, Math.min(totalStayDays, Math.round((tDate.getTime() - jDate.getTime()) / (1000 * 3600 * 24))));
+    const remainingDays = Math.max(0, totalStayDays - elapsedDays);
 
-    const tariffDiff = newRent - currentRent;
-    const isUpgrade = tariffDiff > 0;
-    const isDowngrade = tariffDiff < 0;
+    const originalDailyRate = Math.round(originalTotalTariff / totalStayDays);
+    const newDailyRate = newDailyRateInput > 0 ? newDailyRateInput : originalDailyRate;
 
-    const dailyDiff = tariffDiff / Math.max(1, totalStayDays);
-    const adjustmentAmount = Math.round(dailyDiff * remainingDays);
+    const elapsedTariff = elapsedDays * originalDailyRate;
+    const remainingTariff = remainingDays * newDailyRate;
+    const revisedTotalTariff = elapsedTariff + remainingTariff;
+    const adjustmentAmount = revisedTotalTariff - originalTotalTariff;
+
+    const isUpgrade = adjustmentAmount > 0;
+    const isDowngrade = adjustmentAmount < 0;
 
     let communicationMessage = "";
-    if (tariffDiff === 0) {
-      communicationMessage = `Guest room transfer: Room rate remains identical (No additional charge).`;
+    if (adjustmentAmount === 0) {
+      communicationMessage = `Guest room transfer: Total stay tariff remains unchanged (No price difference).`;
     } else if (isUpgrade) {
-      communicationMessage = `Guest room upgrade: Additional +₹${adjustmentAmount.toLocaleString("en-IN")} for ${remainingDays} remaining days will be added upon checkout.`;
+      communicationMessage = `Guest room upgrade: Additional +₹${adjustmentAmount.toLocaleString("en-IN")} tariff difference for ${remainingDays} remaining days will be added to total stay bill.`;
     } else {
-      communicationMessage = `Guest room downgrade: Discount credit of -₹${Math.abs(adjustmentAmount).toLocaleString("en-IN")} for ${remainingDays} remaining days will be adjusted upon checkout.`;
+      communicationMessage = `Guest room downgrade: Discount credit of -₹${Math.abs(adjustmentAmount).toLocaleString("en-IN")} for ${remainingDays} remaining days will be credited to guest account.`;
     }
 
     return {
-      tariffDiff,
-      remainingDays,
       totalStayDays,
+      elapsedDays,
+      remainingDays,
+      originalDailyRate,
+      newDailyRate,
+      elapsedTariff,
+      remainingTariff,
+      originalTotalTariff,
+      revisedTotalTariff,
       adjustmentAmount,
       isUpgrade,
       isDowngrade,
@@ -235,13 +254,19 @@ export function calculateGuestRoomTransferAdjustment(
     };
   } catch {
     return {
-      tariffDiff: 0,
-      remainingDays: 3,
-      totalStayDays: 7,
-      adjustmentAmount: 0,
-      isUpgrade: false,
+      totalStayDays: 10,
+      elapsedDays: 4,
+      remainingDays: 6,
+      originalDailyRate: 500,
+      newDailyRate: 750,
+      elapsedTariff: 2000,
+      remainingTariff: 4500,
+      originalTotalTariff: 5000,
+      revisedTotalTariff: 6500,
+      adjustmentAmount: 1500,
+      isUpgrade: true,
       isDowngrade: false,
-      communicationMessage: `Guest room transfer quote!`,
+      communicationMessage: "Guest room upgrade adjustment",
     };
   }
 }

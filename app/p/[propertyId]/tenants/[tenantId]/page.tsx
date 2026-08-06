@@ -341,6 +341,7 @@ export default function IndividualTenantProfilePage({
   const [transferEffectiveDate, setTransferEffectiveDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
+  const [newGuestDailyRate, setNewGuestDailyRate] = useState<number>(0);
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -371,22 +372,9 @@ export default function IndividualTenantProfilePage({
         ? 11000
         : 14500);
 
-    // 2. Perform financial calculation based on stayType (Guest vs Tenant)
-    const calc = isGuest
-      ? calculateGuestRoomTransferAdjustment(
-          occupantState.rentAmount,
-          targetRent,
-          transferEffectiveDate,
-          occupantState.joiningDate,
-          occupantState.vacatingDate
-        )
-      : calculateRoomTransferProRata(
-          occupantState.rentAmount,
-          targetRent,
-          transferEffectiveDate,
-          occupantState.paymentStatus
-        );
-
+    // 2. Perform financial calculation & state mutation based on stayType (Guest vs Tenant)
+    const suggestedDaily = Math.round(targetRent / 30) || 750;
+    
     // Format pending extended notice date if room transfer was triggered to resolve a notice conflict
     let revisedVacatingDate = occupantState.vacatingDate;
     if (conflictModalData?.pendingDate) {
@@ -394,16 +382,44 @@ export default function IndividualTenantProfilePage({
       revisedVacatingDate = `${dateParts[2]} Aug 2026`;
     }
 
-    // 3. Update local occupant state
-    const updatedOccupant: Occupant = {
-      ...occupantState,
-      roomNumber: transferRoomNumber,
-      bedCode: transferBedCode,
-      rentAmount: targetRent,
-      vacatingDate: revisedVacatingDate,
-      arrearsBalance: (occupantState.arrearsBalance || 0) + calc.adjustmentAmount,
-    };
+    let updatedOccupant: Occupant;
+
+    if (isGuest) {
+      const guestCalc = calculateGuestRoomTransferAdjustment(
+        occupantState.rentAmount,
+        newGuestDailyRate || suggestedDaily,
+        transferEffectiveDate,
+        occupantState.joiningDate,
+        occupantState.vacatingDate
+      );
+
+      updatedOccupant = {
+        ...occupantState,
+        roomNumber: transferRoomNumber,
+        bedCode: transferBedCode,
+        rentAmount: guestCalc.revisedTotalTariff,
+        vacatingDate: revisedVacatingDate,
+      };
+    } else {
+      const tenantCalc = calculateRoomTransferProRata(
+        occupantState.rentAmount,
+        targetRent,
+        transferEffectiveDate,
+        occupantState.paymentStatus
+      );
+
+      updatedOccupant = {
+        ...occupantState,
+        roomNumber: transferRoomNumber,
+        bedCode: transferBedCode,
+        rentAmount: targetRent,
+        vacatingDate: revisedVacatingDate,
+        arrearsBalance: (occupantState.arrearsBalance || 0) + tenantCalc.adjustmentAmount,
+      };
+    }
+
     setOccupantState(updatedOccupant);
+    occupantStore.updateOccupant(updatedOccupant);
 
     // 4. DDS-13 Dynamic Cascading Mutation across Property Store!
     // Vacates OLD bed slot (Available 🟢) and occupies TARGET bed slot (Occupied 🟤 / Guest 🟣)
@@ -450,8 +466,9 @@ export default function IndividualTenantProfilePage({
     occupantStore.updateOccupant(updatedOccupant);
     setConflictModalData(null);
 
+    const netDiff = isGuest ? (newGuestDailyRate || suggestedDaily) : (isGuest ? 0 : 0);
     triggerToast(
-      `🎉 Room transfer complete! ${occupantState.name} moved from Room ${oldRoomNumber} (${oldBedCode}) to Room ${transferRoomNumber} (${transferBedCode}). Pro-rata adjustment (${calc.adjustmentAmount >= 0 ? "+" : ""}₹${calc.adjustmentAmount.toLocaleString("en-IN")}) updated in Net Dues.`
+      `🎉 Room transfer complete! ${occupantState.name} moved from Room ${oldRoomNumber} (${oldBedCode}) to Room ${transferRoomNumber} (${transferBedCode}). Tariff adjustment applied successfully.`
     );
     setShowTransferModal(false);
   };
@@ -2650,12 +2667,12 @@ export default function IndividualTenantProfilePage({
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1 text-xs">
                 <span className="text-[10px] font-bold uppercase text-gray-400 block">Current Location</span>
                 <p className="font-bold text-gray-900">
-                  Floor 01 • Room {occupantState.roomNumber} ({occupantState.bedCode}) • Rent: ₹{occupantState.rentAmount.toLocaleString("en-IN")}/mo
+                  Floor 01 • Room {occupantState.roomNumber} ({occupantState.bedCode}) • {occupantState.stayType === "Guest" ? `Total Stay Package Tariff: ₹${occupantState.rentAmount.toLocaleString("en-IN")}` : `Monthly Rent: ₹${occupantState.rentAmount.toLocaleString("en-IN")}/mo`}
                 </p>
               </div>
 
               <form onSubmit={handleRoomTransferSubmit} className="space-y-4 text-xs">
-                {/* 🌟 EMBEDDED SCROLLABLE VISUAL FLOOR MAP BED PICKER (Replaces plain dropdown selects!) */}
+                {/* 🌟 EMBEDDED SCROLLABLE VISUAL FLOOR MAP BED PICKER */}
                 <div className="space-y-2">
                   <label className="block font-bold text-gray-700 text-xs flex items-center justify-between">
                     <span>Select Target Bed Slot from Visual Floor Map *</span>
@@ -2756,6 +2773,8 @@ export default function IndividualTenantProfilePage({
                                           onClick={() => {
                                             setTransferRoomNumber(room.roomNumber);
                                             setTransferBedCode(bed.bedCode);
+                                            const suggestedDaily = Math.round(roomTariff / 30) || 750;
+                                            setNewGuestDailyRate(suggestedDaily);
                                           }}
                                           className={`p-2 rounded-lg border text-center transition-all cursor-pointer font-bold text-[10px] flex items-center justify-between ${
                                             isTargetSelected
@@ -2809,56 +2828,154 @@ export default function IndividualTenantProfilePage({
                       ? 11000
                       : 14500);
 
-                  const calc = isGuest
-                    ? calculateGuestRoomTransferAdjustment(
-                        occupantState.rentAmount,
-                        targetRent,
-                        transferEffectiveDate,
-                        occupantState.joiningDate,
-                        occupantState.vacatingDate
-                      )
-                    : calculateRoomTransferProRata(
-                        occupantState.rentAmount,
-                        targetRent,
-                        transferEffectiveDate,
-                        occupantState.paymentStatus
-                      );
+                  const suggestedDaily = Math.round(targetRent / 30) || 750;
 
+                  const guestCalc = calculateGuestRoomTransferAdjustment(
+                    occupantState.rentAmount,
+                    newGuestDailyRate || suggestedDaily,
+                    transferEffectiveDate,
+                    occupantState.joiningDate,
+                    occupantState.vacatingDate
+                  );
+
+                  const tenantCalc = calculateRoomTransferProRata(
+                    occupantState.rentAmount,
+                    targetRent,
+                    transferEffectiveDate,
+                    occupantState.paymentStatus
+                  );
+
+                  if (isGuest) {
+                    return (
+                      <div className="space-y-3">
+                        {/* Customizable Daily Tariff Rate Input for Guest */}
+                        <div className="p-3.5 bg-purple-50/80 rounded-xl border border-purple-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="block font-bold text-purple-950 text-xs">
+                              🏨 Set Desired Daily Tariff Rate for New Room (₹/day) *
+                            </label>
+                            <span className="text-[10px] bg-purple-200 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
+                              Customizable Rate
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="relative flex-1">
+                              <span className="absolute left-3 top-2.5 font-bold text-gray-500 text-xs">₹</span>
+                              <input
+                                type="number"
+                                min="100"
+                                step="50"
+                                value={newGuestDailyRate || suggestedDaily}
+                                onChange={(e) => setNewGuestDailyRate(Number(e.target.value))}
+                                className="w-full pl-7 pr-3 py-2 rounded-xl bg-white border border-purple-300 font-mono font-bold text-purple-950 text-sm focus:ring-2 focus:ring-purple-500"
+                              />
+                            </div>
+                            <div className="text-[11px] text-purple-900 font-medium">
+                              Original Rate: <span className="font-mono font-bold">₹{guestCalc.originalDailyRate}/day</span>
+                            </div>
+                          </div>
+                          {selectedTargetRoomObj?.specialFeatureTag && (
+                            <p className="text-[10px] text-purple-700 font-semibold flex items-center gap-1">
+                              ✨ Special Features: <strong>{selectedTargetRoomObj.specialFeatureTag}</strong>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Detailed Guest Upgrade / Downgrade Itemized Breakdown */}
+                        <div className={`p-4 rounded-2xl border space-y-3 text-xs ${
+                          guestCalc.isUpgrade
+                            ? "bg-emerald-50/70 border-emerald-200"
+                            : guestCalc.isDowngrade
+                            ? "bg-orange-50/70 border-orange-200"
+                            : "bg-gray-50 border-gray-200"
+                        }`}>
+                          <div className="flex items-center justify-between border-b border-gray-200/80 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900 text-xs">🟣 Guest Short-Stay Room Transfer</span>
+                              <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full">
+                                Stay Upgrade & Adjustment
+                              </span>
+                            </div>
+
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 ${
+                              guestCalc.isUpgrade
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                : guestCalc.isDowngrade
+                                ? "bg-orange-100 text-orange-800 border border-orange-300"
+                                : "bg-gray-100 text-gray-700 border border-gray-300"
+                            }`}>
+                              {guestCalc.isUpgrade ? (
+                                <><TrendingUp className="w-3.5 h-3.5 text-emerald-700" /> UPGRADE 📈</>
+                              ) : guestCalc.isDowngrade ? (
+                                <><TrendingDown className="w-3.5 h-3.5 text-orange-700" /> DOWNGRADE 📉</>
+                              ) : (
+                                "SAME SHIFT 🔁"
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1.5 font-medium text-gray-800 text-xs">
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Total Stay Duration:</span>
+                              <span className="font-bold text-gray-900">{guestCalc.totalStayDays} Days</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Days Spent in Original Room (Room {occupantState.roomNumber}):</span>
+                              <span className="font-mono text-gray-700">{guestCalc.elapsedDays} Days @ ₹{guestCalc.originalDailyRate}/day = <strong>₹{guestCalc.elapsedTariff.toLocaleString("en-IN")}</strong></span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Days Remaining in New Room (Room {transferRoomNumber || "Selected"}):</span>
+                              <span className="font-mono text-purple-900">{guestCalc.remainingDays} Days @ ₹{newGuestDailyRate || suggestedDaily}/day = <strong>₹{guestCalc.remainingTariff.toLocaleString("en-IN")}</strong></span>
+                            </div>
+                            <div className="pt-2 border-t border-gray-200/80 flex justify-between items-center font-bold text-gray-900">
+                              <span>Revised Total Stay Tariff:</span>
+                              <span className="font-mono">₹{guestCalc.revisedTotalTariff.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-500 font-medium">
+                              <span>Original Total Stay Tariff:</span>
+                              <span className="font-mono">-₹{guestCalc.originalTotalTariff.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="pt-2 border-t border-gray-200 flex justify-between items-center font-extrabold text-sm text-gray-900">
+                              <span>NET TARIFF ADJUSTMENT DIFFERENCE:</span>
+                              <span className={`font-mono text-base ${guestCalc.isUpgrade ? "text-emerald-700" : guestCalc.isDowngrade ? "text-orange-700" : "text-gray-900"}`}>
+                                {guestCalc.isUpgrade ? `+₹${guestCalc.adjustmentAmount.toLocaleString("en-IN")} (UPGRADE)` : guestCalc.isDowngrade ? `-₹${Math.abs(guestCalc.adjustmentAmount).toLocaleString("en-IN")} (DOWNGRADE)` : "₹0"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 bg-white/90 rounded-xl border border-gray-200/80 text-[11px] text-gray-600 font-medium leading-relaxed">
+                            {guestCalc.communicationMessage}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // 🟢 UNTOUCHED TENANT TRANSFER SUMMARY
                   return (
                     <div className={`p-4 rounded-2xl border space-y-3 text-xs ${
-                      calc.isUpgrade
+                      tenantCalc.isUpgrade
                         ? "bg-emerald-50/60 border-emerald-200"
-                        : calc.isDowngrade
+                        : tenantCalc.isDowngrade
                         ? "bg-orange-50/60 border-orange-200"
                         : "bg-gray-50 border-gray-200"
                     }`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-gray-900 text-xs">
-                            {isGuest ? "🟣 Guest Transfer Summary" : "🟢 Tenant Transfer Summary"}
-                          </span>
-                          {isGuest && (
-                            <span className="text-[10px] bg-purple-100 text-purple-700 font-extrabold px-2 py-0.5 rounded-full">
-                              Short-Term Stay
-                            </span>
-                          )}
+                          <span className="font-bold text-gray-900 text-xs">🟢 Tenant Transfer Summary</span>
                         </div>
 
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 ${
-                          calc.isUpgrade
+                          tenantCalc.isUpgrade
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                            : calc.isDowngrade
+                            : tenantCalc.isDowngrade
                             ? "bg-orange-100 text-orange-800 border border-orange-300"
                             : "bg-gray-100 text-gray-700 border border-gray-300"
                         }`}>
-                          {calc.isUpgrade ? (
-                            <>
-                              <TrendingUp className="w-3.5 h-3.5 text-emerald-700" /> UPGRADE
-                            </>
-                          ) : calc.isDowngrade ? (
-                            <>
-                              <TrendingDown className="w-3.5 h-3.5 text-orange-700" /> DOWNGRADE
-                            </>
+                          {tenantCalc.isUpgrade ? (
+                            <><TrendingUp className="w-3.5 h-3.5 text-emerald-700" /> UPGRADE</>
+                          ) : tenantCalc.isDowngrade ? (
+                            <><TrendingDown className="w-3.5 h-3.5 text-orange-700" /> DOWNGRADE</>
                           ) : (
                             "SAME SHIFT 🔁"
                           )}
@@ -2866,37 +2983,26 @@ export default function IndividualTenantProfilePage({
                       </div>
 
                       <div className="space-y-1.5 font-medium text-gray-800 text-xs">
-                        <p>
-                          • {isGuest ? "Remaining Days in Guest Stay" : "Remaining Days in Cycle"}: <strong>{calc.remainingDays} Days</strong>
-                        </p>
+                        <p>• Remaining Days in Cycle: <strong>{tenantCalc.remainingDays} Days</strong></p>
                         <p className="flex items-center gap-1.5">
                           • Rent Adjustment:{" "}
-                          <strong className={calc.isUpgrade ? "text-emerald-700 font-mono text-sm font-extrabold" : calc.isDowngrade ? "text-orange-700 font-mono text-sm font-extrabold" : "text-gray-900 font-mono text-sm font-bold"}>
-                            {calc.isUpgrade ? `+₹${calc.adjustmentAmount.toLocaleString("en-IN")}` : calc.isDowngrade ? `-₹${Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}` : "₹0"}
+                          <strong className={tenantCalc.isUpgrade ? "text-emerald-700 font-mono text-sm font-extrabold" : tenantCalc.isDowngrade ? "text-orange-700 font-mono text-sm font-extrabold" : "text-gray-900 font-mono text-sm font-bold"}>
+                            {tenantCalc.isUpgrade ? `+₹${tenantCalc.adjustmentAmount.toLocaleString("en-IN")}` : tenantCalc.isDowngrade ? `-₹${Math.abs(tenantCalc.adjustmentAmount).toLocaleString("en-IN")}` : "₹0"}
                           </strong>
                         </p>
                       </div>
 
-                      {/* Simple English Explanation Note Differentiated by Stay Type */}
                       <div className="p-2.5 bg-white/90 rounded-xl border border-gray-200/80 text-[11px] text-gray-600 font-medium leading-relaxed">
-                        {isGuest ? (
-                          calc.isUpgrade ? (
-                            <span>💡 Active short-term guest stay: <strong>+₹{calc.adjustmentAmount.toLocaleString("en-IN")}</strong> tariff difference for {calc.remainingDays} remaining stay days will be added upon checkout.</span>
-                          ) : calc.isDowngrade ? (
-                            <span>💡 Active short-term guest stay: <strong>-₹{Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}</strong> discount credit for {calc.remainingDays} remaining stay days will be adjusted upon checkout.</span>
-                          ) : (
-                            <span>💡 Guest shifted within same room tariff tier. No rate adjustment.</span>
-                          )
-                        ) : occupantState.paymentStatus === "Paid" ? (
-                          calc.isUpgrade ? (
-                            <span>💡 Since current month rent is already paid, <strong>+₹{calc.adjustmentAmount.toLocaleString("en-IN")}</strong> extra rent for {calc.remainingDays} days will be added to the next 5th month rent bill.</span>
-                          ) : calc.isDowngrade ? (
-                            <span>💡 Since current month rent is already paid, <strong>-₹{Math.abs(calc.adjustmentAmount).toLocaleString("en-IN")}</strong> discount credit for {calc.remainingDays} days will be deducted from the next 5th month rent bill.</span>
+                        {occupantState.paymentStatus === "Paid" ? (
+                          tenantCalc.isUpgrade ? (
+                            <span>💡 Since current month rent is already paid, <strong>+₹{tenantCalc.adjustmentAmount.toLocaleString("en-IN")}</strong> extra rent for {tenantCalc.remainingDays} days will be added to the next 5th month rent bill.</span>
+                          ) : tenantCalc.isDowngrade ? (
+                            <span>💡 Since current month rent is already paid, <strong>-₹{Math.abs(tenantCalc.adjustmentAmount).toLocaleString("en-IN")}</strong> discount credit for {tenantCalc.remainingDays} days will be deducted from the next 5th month rent bill.</span>
                           ) : (
                             <span>💡 Room shifted within same tariff tier. No change in rent bill.</span>
                           )
                         ) : (
-                          <span>💡 Current month's unpaid rent due is revised based on {calc.remainingDays} days in the new room.</span>
+                          <span>💡 Current month's unpaid rent due is revised based on {tenantCalc.remainingDays} days in the new room.</span>
                         )}
                       </div>
                     </div>
