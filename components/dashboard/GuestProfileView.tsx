@@ -198,8 +198,10 @@ export function GuestProfileView({
       {(() => {
         const guestHistory = occupantState.paymentHistory || [];
         const hasPaid = guestHistory.length > 0 && occupantState.paymentStatus === "Paid";
+        const guestDeposit = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 1000;
+        const depositPaid = occupantState.depositStatus === "PAID" || hasPaid;
         const totalPaid = guestHistory.reduce((sum, item) => sum + item.amount, 0);
-        const totalDue = hasPaid ? 0 : (occupantState.rentAmount + 500);
+        const totalDue = hasPaid ? 0 : (occupantState.rentAmount + (depositPaid ? 0 : guestDeposit));
 
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -237,22 +239,28 @@ export function GuestProfileView({
                 </span>
               </div>
               <p className="text-[10px] text-gray-400">
-                {totalDue === 0 ? "Everything Paid for Stay" : "Tariff + Key Deposit Pending"}
+                {totalDue === 0 ? "Everything Paid for Stay" : "Tariff + Security Deposit Pending"}
               </p>
             </div>
 
-            {/* Metric Card 3: Key / Gate Pass Deposit */}
+            {/* Metric Card 3: Security Deposit */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
               <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-                KEY / GATE PASS DEPOSIT
+                SECURITY DEPOSIT
               </span>
               <div className="flex items-baseline justify-between">
-                <span className="font-serif font-bold text-2xl text-gray-900">₹500</span>
-                <span className="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full">
-                  REFUNDABLE
+                <span className="font-serif font-bold text-2xl text-gray-900">
+                  ₹{guestDeposit.toLocaleString("en-IN")}
+                </span>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                  depositPaid ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
+                }`}>
+                  {depositPaid ? "REFUNDABLE 🟢" : "PENDING 🔴"}
                 </span>
               </div>
-              <p className="text-[10px] text-gray-400">Refunded upon room key handover</p>
+              <p className="text-[10px] text-gray-400">
+                {depositPaid ? "Refunded upon guest checkout" : "Deposit pending collection"}
+              </p>
             </div>
 
             {/* Metric Card 4: Checkout Date */}
@@ -429,6 +437,7 @@ export function GuestProfileView({
           {(() => {
             const guestHistory = occupantState.paymentHistory || [];
             const hasPaid = guestHistory.length > 0 && occupantState.paymentStatus === "Paid";
+            const guestDeposit = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 1000;
             const totalPaid = guestHistory.reduce((sum, item) => sum + item.amount, 0);
 
             return (
@@ -515,14 +524,14 @@ export function GuestProfileView({
                     </div>
 
                     <div className="flex justify-between">
-                      <span>Key / Gate Pass Deposit</span>
-                      <span className="font-mono font-bold text-purple-700">₹500 (Refundable)</span>
+                      <span>Security Deposit</span>
+                      <span className="font-mono font-bold text-purple-700">₹{guestDeposit.toLocaleString("en-IN")} (Refundable)</span>
                     </div>
 
                     <div className="flex justify-between pt-2 border-t border-gray-100 font-bold text-gray-900 text-sm">
                       <span>{hasPaid ? "Total Amount Paid" : "Total Stay Receivable"}</span>
                       <span className={`font-mono ${hasPaid ? "text-emerald-700" : "text-red-600"}`}>
-                        ₹{(occupantState.rentAmount + 500).toLocaleString("en-IN")}
+                        ₹{(occupantState.rentAmount + guestDeposit).toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>

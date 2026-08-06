@@ -264,7 +264,7 @@ export default function OnboardGuestPage({
     const isFutureCheckIn = targetCheckIn > today;
 
     const initialLifecycleStatus: "Active" | "Booked" = isFutureCheckIn ? "Booked" : "Active";
-    const initialPaymentStatus: "Paid" | "Due" = isFutureCheckIn ? "Due" : "Paid";
+    const initialPaymentStatus: "Due" = "Due"; // Tariff + Deposit is RECEIVABLE upon onboarding!
 
     const newGuest: Occupant = {
       id: newId,
@@ -279,7 +279,7 @@ export default function OnboardGuestPage({
       rentAmount: totalTariff,
       dueDate: formattedCheckOut,
       dueDay: new Date(checkOutDate).getDate(),
-      lastPaidDate: isFutureCheckIn ? "Pending Check-In" : formattedCheckIn,
+      lastPaidDate: isFutureCheckIn ? "Pending Check-In" : "Unpaid / Due Now",
       roomNumber: selectedBed ? selectedBed.roomNumber : "101",
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedCheckIn,
@@ -299,10 +299,11 @@ export default function OnboardGuestPage({
         aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || undefined,
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
       },
-      securityDeposit: 0,
-      depositStatus: "PAID",
+      securityDeposit: depositAmount || 1000,
+      depositStatus: "PENDING",
       partialPaidThisCycle: 0,
       arrearsBalance: 0,
+      paymentHistory: [],
     };
 
     // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)

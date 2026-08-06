@@ -1697,12 +1697,13 @@ export default function IndividualTenantProfilePage({
 
                 {/* 💰 PREMIUM FINANCIAL RECEIVABLE BREAKDOWN BOX */}
                 {(() => {
-                  const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
                   const isTenant = occupantState.stayType === "Tenant";
+                  const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
                   const rentDueThisMonth = isTenant ? proRataInfo.proRataAmount : occupantState.rentAmount;
-                  const securityDepositPending = isTenant
-                    ? (occupantState.depositStatus === "PAID" ? 0 : (occupantState.securityDeposit || 25000))
-                    : 500; // Key deposit for guest
+                  const guestDepositAmount = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 1000;
+                  const securityDepositPending = occupantState.depositStatus === "PAID"
+                    ? 0
+                    : (isTenant ? (occupantState.securityDeposit || 25000) : guestDepositAmount);
                   const priorArrears = occupantState.arrearsBalance || 0;
                   const totalSuggestedReceivable = rentDueThisMonth + securityDepositPending + priorArrears;
 
@@ -1744,8 +1745,8 @@ export default function IndividualTenantProfilePage({
                               <span className="font-mono font-bold text-gray-900">₹{occupantState.rentAmount.toLocaleString("en-IN")}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span>▫️ Refundable Key Deposit:</span>
-                              <span className="font-mono font-bold text-gray-900">₹500</span>
+                              <span>▫️ Security Deposit ({occupantState.depositStatus === "PAID" ? "PAID 🟢" : "PENDING 🔴"}):</span>
+                              <span className="font-mono font-bold text-gray-900">₹{securityDepositPending.toLocaleString("en-IN")}</span>
                             </div>
                           </>
                         )}
@@ -1917,12 +1918,12 @@ export default function IndividualTenantProfilePage({
                   </p>
                 </div>
 
-                {/* Key / Gate Pass Deposit Handover Box */}
+                {/* Security Deposit Refund Handover Box */}
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-gray-800">🔑 Key & Gate Pass Handover</span>
+                    <span className="font-bold text-gray-800">🛡️ Security Deposit Refund</span>
                     <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
-                      ₹500 Deposit
+                      ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} Deposit
                     </span>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer font-semibold text-gray-700 text-[11px]">
@@ -1930,9 +1931,9 @@ export default function IndividualTenantProfilePage({
                       type="checkbox"
                       checked={guestRefundKeyDeposit}
                       onChange={(e) => setGuestRefundKeyDeposit(e.target.checked)}
-                      className="rounded text-red-600 focus:ring-red-500"
+                      className="rounded text-purple-600 focus:ring-purple-500"
                     />
-                    <span>Room Key & Gate Pass returned (Refund ₹500 key deposit to guest)</span>
+                    <span>Room key returned & room inspected (Refund ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} security deposit to guest)</span>
                   </label>
                 </div>
 
