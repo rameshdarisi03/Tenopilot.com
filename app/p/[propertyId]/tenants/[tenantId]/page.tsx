@@ -1123,42 +1123,43 @@ export default function IndividualTenantProfilePage({
           )}
 
           {/* 4 KPI Metrics Cards Section */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Rent Paid */}
-            <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-              <div className="p-2 bg-green-50 w-fit rounded-lg mb-2 text-green-600">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                Total Rent Paid
-              </p>
-              <p className="text-2xl font-bold font-serif text-gray-900">
-                ₹{paymentHistory.reduce((sum, item) => sum + item.amount, 0).toLocaleString("en-IN")}
-              </p>
-              <p className="text-[10px] text-green-600 font-bold mt-1.5">
-                {paymentHistory.length > 0 ? `${paymentHistory.length} PAYMENTS RECORDED 🟢` : "NO PAYMENTS YET ⚪"}
-              </p>
-            </div>
+          {(() => {
+            const topStmt = calculateOccupantFinancialStatement(occupantState);
+            return (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Rent Paid */}
+                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
+                  <div className="p-2 bg-green-50 w-fit rounded-lg mb-2 text-green-600">
+                    <Wallet className="w-5 h-5" />
+                  </div>
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    Total Rent Paid
+                  </p>
+                  <p className="text-2xl font-bold font-serif text-gray-900">
+                    ₹{topStmt.totalPaid.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[10px] text-green-600 font-bold mt-1.5">
+                    {paymentHistory.length > 0 ? `${paymentHistory.length} PAYMENTS RECORDED 🟢` : "NO PAYMENTS YET ⚪"}
+                  </p>
+                </div>
 
-            {/* Outstanding Balance */}
-            <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-              <div className="p-2 bg-blue-50 w-fit rounded-lg mb-2 text-blue-600">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                Outstanding Balance
-              </p>
-              <p className="text-2xl font-bold font-serif text-gray-900">
-                {occupantState.paymentStatus === "Paid"
-                  ? "₹0"
-                  : `₹${occupantState.rentAmount.toLocaleString("en-IN")}`}
-              </p>
-              <p className="text-[10px] text-green-600 font-bold mt-1.5">
-                {occupantState.paymentStatus === "Paid"
-                  ? "EVERYTHING CURRENT 🟢"
-                  : "PAYMENT DUE 🟡"}
-              </p>
-            </div>
+                {/* Outstanding Balance (Connected to SSOT Statement Engine) */}
+                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
+                  <div className="p-2 bg-blue-50 w-fit rounded-lg mb-2 text-blue-600">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    Outstanding Balance
+                  </p>
+                  <p className="text-2xl font-bold font-serif text-gray-900">
+                    ₹{topStmt.netOutstandingBalance.toLocaleString("en-IN")}
+                  </p>
+                  <p className={`text-[10px] font-bold mt-1.5 ${
+                    topStmt.isFullyPaid ? "text-green-600" : topStmt.isPartialPaid ? "text-amber-600" : "text-red-600"
+                  }`}>
+                    {topStmt.statusBadgeText}
+                  </p>
+                </div>
 
             {/* Security Deposit */}
             <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
@@ -1194,8 +1195,10 @@ export default function IndividualTenantProfilePage({
                   ? `TARGET: ${occupantState.joiningDate}`
                   : "NEXT RENT CYCLE"}
               </p>
+              </div>
             </div>
-          </div>
+          );
+        })()}
 
           {/* Details & History Split Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -1351,9 +1354,18 @@ export default function IndividualTenantProfilePage({
 
               {/* 🪪 Granular Real-Time KYC Verification Card for Tenants */}
               {(() => {
-                const isKycVerified = occupantState.kycVerified === true;
-                const hasPhoto = Boolean(occupantState.avatar);
-                const hasAadhaar = occupantState.aadhaarNumber && occupantState.aadhaarNumber !== "Skipped" && occupantState.aadhaarNumber !== "XXXX-XXXX-8811";
+                const hasPhoto = Boolean(
+                  occupantState.avatar &&
+                  occupantState.avatar.length > 0 &&
+                  !occupantState.avatar.includes("dicebear")
+                );
+                const hasAadhaar = Boolean(
+                  occupantState.aadhaarNumber &&
+                  occupantState.aadhaarNumber !== "Skipped" &&
+                  occupantState.aadhaarNumber !== "XXXX-XXXX-8811" &&
+                  occupantState.aadhaarNumber !== ""
+                );
+                const isKycVerified = occupantState.kycVerified === true || (hasPhoto && hasAadhaar);
 
                 return (
                   <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
@@ -1379,33 +1391,90 @@ export default function IndividualTenantProfilePage({
 
                     <div className="space-y-3">
                       {/* Itemized Checklist */}
-                      <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
+                      <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-700 font-medium flex items-center gap-1.5">
-                            <Camera className="w-3.5 h-3.5 text-[#c2652a]" /> Tenant Profile Photo:
-                          </span>
-                          <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasPhoto ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
-                            {hasPhoto ? "COMPLETED ✅" : "PENDING 🔴"}
-                          </span>
+                          <div>
+                            <span className="text-gray-900 font-bold flex items-center gap-1.5">
+                              <Camera className="w-3.5 h-3.5 text-[#c2652a]" /> Tenant Profile Photo
+                            </span>
+                            <p className="text-[10px] text-gray-500">
+                              {hasPhoto ? "Uploaded & Locked in Database 🟢" : "Pending Upload 🔴"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasPhoto ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                              {hasPhoto ? "COMPLETED ✅" : "PENDING 🔴"}
+                            </span>
+                            {hasPhoto && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setViewKycModal({
+                                    open: true,
+                                    title: "Tenant Profile Headshot",
+                                    docType: "photo",
+                                  })
+                                }
+                                className="px-2.5 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3 text-[#c2652a]" /> View Photo
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-700 font-medium flex items-center gap-1.5">
-                            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Aadhaar / Govt ID Proof:
-                          </span>
-                          <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasAadhaar || isKycVerified ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                            {hasAadhaar || isKycVerified ? "COMPLETED ✅" : "SKIPPED / PENDING 🔴"}
-                          </span>
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200/60">
+                          <div>
+                            <span className="text-gray-900 font-bold flex items-center gap-1.5">
+                              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Aadhaar / Govt ID Proof
+                            </span>
+                            <p className="text-[10px] text-gray-500 font-mono">
+                              {hasAadhaar ? occupantState.aadhaarNumber : "Skipped at Onboarding"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasAadhaar ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                              {hasAadhaar ? "COMPLETED ✅" : "SKIPPED / PENDING 🔴"}
+                            </span>
+                            {hasAadhaar && (
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setViewKycModal({
+                                      open: true,
+                                      title: "Aadhaar Card — Front Photo",
+                                      docType: "front",
+                                    })
+                                  }
+                                  className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3 text-blue-600" /> Front ID
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setViewKycModal({
+                                      open: true,
+                                      title: "Aadhaar Card — Back Photo",
+                                      docType: "back",
+                                    })
+                                  }
+                                  className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3 text-blue-600" /> Back ID
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {isKycVerified && (
+                      {isKycVerified ? (
                         <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-center font-bold text-xs">
                           ✓ All Identity & KYC Documents Verified 🟢
                         </div>
-                      )}
-
-                      {!isKycVerified && (
+                      ) : (
                         <button
                           type="button"
                           onClick={() => setShowUploadKycModal(true)}
