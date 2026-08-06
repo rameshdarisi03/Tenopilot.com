@@ -474,9 +474,11 @@ export default function IndividualTenantProfilePage({
         ? `Bank Transfer (${transactionRef || "NEFT"})`
         : "Cash";
 
+    const currentBillingMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
     const newReceipt: PaymentHistoryItem = {
       id: `pay-${Date.now()}`,
-      month: "August 2026",
+      month: currentBillingMonth,
       date: formattedPaidDate,
       amount: paymentAmount,
       mode: modeLabel,
