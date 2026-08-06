@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Occupant } from "@/constants/mockOccupants";
-import { getGuestStayTimeline, getOccupantStatusBadge } from "@/utils/domainSSOT";
+import { getGuestStayTimeline, getOccupantStatusBadge, calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   Edit,
@@ -196,28 +196,28 @@ export function GuestProfileView({
 
       {/* 📊 4 TAILORED GUEST METRIC CARDS */}
       {(() => {
+        const stmt = calculateOccupantFinancialStatement(occupantState);
         const guestHistory = occupantState.paymentHistory || [];
-        const hasPaid = guestHistory.length > 0 && occupantState.paymentStatus === "Paid";
-        const guestDeposit = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 1000;
-        const depositPaid = occupantState.depositStatus === "PAID" || hasPaid;
-        const totalPaid = guestHistory.reduce((sum, item) => sum + item.amount, 0);
-        const totalDue = hasPaid ? 0 : (occupantState.rentAmount + (depositPaid ? 0 : guestDeposit));
 
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Metric Card 1: Total Stay Tariff Paid */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
               <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-                TOTAL STAY TARIFF PAID
+                TOTAL PAYMENTS COLLECTED
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="font-serif font-bold text-2xl text-gray-900">
-                  ₹{totalPaid.toLocaleString("en-IN")}
+                  ₹{stmt.totalPaid.toLocaleString("en-IN")}
                 </span>
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                  hasPaid ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
+                  stmt.isFullyPaid
+                    ? "bg-emerald-100 text-emerald-800"
+                    : stmt.isPartialPaid
+                    ? "bg-orange-100 text-orange-800 border border-orange-200"
+                    : "bg-gray-100 text-gray-600"
                 }`}>
-                  {hasPaid ? "PAID 🟢" : "UNPAID ⚪"}
+                  {stmt.isFullyPaid ? "PAID 🟢" : stmt.isPartialPaid ? "PARTIAL 🟧" : "UNPAID ⚪"}
                 </span>
               </div>
               <p className="text-[10px] text-gray-400">{guestHistory.length} Payment{guestHistory.length === 1 ? "" : "s"} Recorded</p>
@@ -230,16 +230,20 @@ export function GuestProfileView({
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="font-serif font-bold text-2xl text-gray-900">
-                  ₹{totalDue.toLocaleString("en-IN")}
+                  ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
                 </span>
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                  totalDue === 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                  stmt.isFullyPaid
+                    ? "bg-emerald-100 text-emerald-800"
+                    : stmt.isPartialPaid
+                    ? "bg-orange-100 text-orange-800 border border-orange-200"
+                    : "bg-red-100 text-red-800"
                 }`}>
-                  {totalDue === 0 ? "ALL CLEAR 🟢" : "DUE NOW 🔴"}
+                  {stmt.isFullyPaid ? "ALL CLEAR 🟢" : stmt.isPartialPaid ? "PARTIAL DUE 🟧" : "DUE NOW 🔴"}
                 </span>
               </div>
               <p className="text-[10px] text-gray-400">
-                {totalDue === 0 ? "Everything Paid for Stay" : "Tariff + Security Deposit Pending"}
+                {stmt.isFullyPaid ? "Everything Paid for Stay" : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")} Remaining to Collect`}
               </p>
             </div>
 
@@ -250,16 +254,16 @@ export function GuestProfileView({
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="font-serif font-bold text-2xl text-gray-900">
-                  ₹{guestDeposit.toLocaleString("en-IN")}
+                  ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
                 </span>
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                  depositPaid ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
+                  stmt.isDepositCleared ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
                 }`}>
-                  {depositPaid ? "REFUNDABLE 🟢" : "PENDING 🔴"}
+                  {stmt.isDepositCleared ? "REFUNDABLE 🟢" : "PENDING 🔴"}
                 </span>
               </div>
               <p className="text-[10px] text-gray-400">
-                {depositPaid ? "Refunded upon guest checkout" : "Deposit pending collection"}
+                {stmt.isDepositCleared ? "Refunded upon guest checkout" : "Deposit pending collection"}
               </p>
             </div>
 
@@ -435,10 +439,8 @@ export function GuestProfileView({
         {/* Right Column: Guest Billing & Stay Log */}
         <div className="lg:col-span-2 space-y-6">
           {(() => {
+            const stmt = calculateOccupantFinancialStatement(occupantState);
             const guestHistory = occupantState.paymentHistory || [];
-            const hasPaid = guestHistory.length > 0 && occupantState.paymentStatus === "Paid";
-            const guestDeposit = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : 1000;
-            const totalPaid = guestHistory.reduce((sum, item) => sum + item.amount, 0);
 
             return (
               <>
@@ -507,11 +509,13 @@ export function GuestProfileView({
                     </div>
 
                     <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
-                      hasPaid
+                      stmt.isFullyPaid
                         ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                        : stmt.isPartialPaid
+                        ? "bg-orange-100 text-orange-800 border-orange-200"
                         : "bg-red-100 text-red-800 border-red-200"
                     }`}>
-                      {hasPaid ? "ALL CLEAR 🟢" : "PAYMENT PENDING 🔴"}
+                      {stmt.isFullyPaid ? "ALL CLEAR 🟢" : stmt.isPartialPaid ? "PARTIAL DUE 🟧" : "PAYMENT PENDING 🔴"}
                     </span>
                   </div>
 
@@ -519,19 +523,33 @@ export function GuestProfileView({
                     <div className="flex justify-between">
                       <span>Stay Package Tariff</span>
                       <span className="font-mono font-bold text-gray-900">
-                        ₹{occupantState.rentAmount.toLocaleString("en-IN")}
+                        ₹{stmt.proRataRent.toLocaleString("en-IN")}
                       </span>
                     </div>
 
                     <div className="flex justify-between">
                       <span>Security Deposit</span>
-                      <span className="font-mono font-bold text-purple-700">₹{guestDeposit.toLocaleString("en-IN")} (Refundable)</span>
+                      <span className="font-mono font-bold text-purple-700">₹{stmt.securityDepositRequired.toLocaleString("en-IN")} (Refundable)</span>
+                    </div>
+
+                    <div className="flex justify-between border-t border-gray-100 pt-2 font-bold text-gray-900">
+                      <span>Total Stay Gross Package</span>
+                      <span className="font-mono text-gray-900">
+                        ₹{stmt.totalGrossDue.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-emerald-700 font-bold">
+                      <span>Total Payments Collected</span>
+                      <span className="font-mono">
+                        ₹{stmt.totalPaid.toLocaleString("en-IN")}
+                      </span>
                     </div>
 
                     <div className="flex justify-between pt-2 border-t border-gray-100 font-bold text-gray-900 text-sm">
-                      <span>{hasPaid ? "Total Amount Paid" : "Total Stay Receivable"}</span>
-                      <span className={`font-mono ${hasPaid ? "text-emerald-700" : "text-red-600"}`}>
-                        ₹{(occupantState.rentAmount + guestDeposit).toLocaleString("en-IN")}
+                      <span>Net Outstanding Due</span>
+                      <span className={`font-mono ${stmt.isFullyPaid ? "text-emerald-700" : "text-red-600"}`}>
+                        ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>

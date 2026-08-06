@@ -229,3 +229,90 @@ export function calculateProRataRent(monthlyRent: number, joiningDateStr?: strin
     joiningDay,
   };
 }
+
+export interface FinancialStatementSummary {
+  proRataRent: number;
+  securityDepositRequired: number;
+  priorArrears: number;
+  totalGrossDue: number;
+  totalPaid: number;
+  netOutstandingBalance: number;
+  isFullyPaid: boolean;
+  isPartialPaid: boolean;
+  isDepositCleared: boolean;
+  paymentStatusLabel: "Paid" | "Due" | "Overdue";
+  depositStatusLabel: "PAID" | "PENDING" | "PARTIAL";
+  statusBadgeText: string;
+}
+
+/**
+ * 7. SSOT Unified Partial Payment & Financial Statement Resolver
+ * Calculates exact gross package due, total payments collected, and net outstanding balance.
+ */
+export function calculateOccupantFinancialStatement(
+  occupant: Partial<Occupant>
+): FinancialStatementSummary {
+  const isGuest = occupant.stayType === "Guest";
+
+  // 1. Pro-Rata or Base Rent
+  const proRataRent = isGuest
+    ? (occupant.rentAmount || 0)
+    : calculateProRataRent(occupant.rentAmount || 0, occupant.joiningDate).proRataAmount;
+
+  // 2. Security Deposit
+  const defaultDeposit = isGuest ? 1000 : 25000;
+  const securityDepositRequired =
+    occupant.securityDeposit !== undefined ? occupant.securityDeposit : defaultDeposit;
+
+  // 3. Prior Arrears
+  const priorArrears = occupant.arrearsBalance || 0;
+
+  // 4. Total Gross Amount Required for this stay/cycle
+  const totalGrossDue = proRataRent + securityDepositRequired + priorArrears;
+
+  // 5. Total Payments Collected (Sum of receipts in paymentHistory)
+  const history = occupant.paymentHistory || [];
+  const totalPaid = history.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  // 6. Net Outstanding Balance
+  const netOutstandingBalance = Math.max(0, totalGrossDue - totalPaid);
+
+  const isFullyPaid = totalPaid >= totalGrossDue && totalGrossDue > 0;
+  const isPartialPaid = totalPaid > 0 && totalPaid < totalGrossDue;
+  const isDepositCleared =
+    occupant.depositStatus === "PAID" || totalPaid >= securityDepositRequired;
+
+  const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
+    ? "Paid"
+    : occupant.paymentStatus === "Overdue"
+    ? "Overdue"
+    : "Due";
+
+  const depositStatusLabel: "PAID" | "PENDING" | "PARTIAL" = isDepositCleared
+    ? "PAID"
+    : totalPaid > 0
+    ? "PARTIAL"
+    : "PENDING";
+
+  let statusBadgeText = "DUE NOW 🔴";
+  if (isFullyPaid) {
+    statusBadgeText = "ALL CLEAR 🟢";
+  } else if (isPartialPaid) {
+    statusBadgeText = `PARTIAL DUE (₹${netOutstandingBalance.toLocaleString("en-IN")}) 🟧`;
+  }
+
+  return {
+    proRataRent,
+    securityDepositRequired,
+    priorArrears,
+    totalGrossDue,
+    totalPaid,
+    netOutstandingBalance,
+    isFullyPaid,
+    isPartialPaid,
+    isDepositCleared,
+    paymentStatusLabel,
+    depositStatusLabel,
+    statusBadgeText,
+  };
+}
