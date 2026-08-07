@@ -91,8 +91,11 @@ export default function FinancialHubPage({
     };
   }, [propertyId]);
 
-  // Toast & Modal States
+  // Toast, Inline Category & Modal States
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
+  const [showCategoryDirectoryModal, setShowCategoryDirectoryModal] = useState(false);
   const [recurringModal, setRecurringModal] = useState<{
     category: string;
     amount: number;
@@ -106,6 +109,20 @@ export default function FinancialHubPage({
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  const handleCreateInlineCategory = () => {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) {
+      triggerToast("⚠️ Category name cannot be empty.");
+      return;
+    }
+
+    const created = partnerStore.addCategory(trimmed);
+    setCategory(created.name);
+    setNewCategoryInput("");
+    setIsAddingNewCategory(false);
+    triggerToast(`🟢 New category "${created.name}" added to system!`);
   };
 
   const handleSaveExpense = async (e: React.FormEvent) => {
@@ -570,6 +587,15 @@ export default function FinancialHubPage({
                       <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
                     </button>
 
+                    {/* View All Categories Included Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryDirectoryModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    >
+                      🏷️ Categories ({categories.length})
+                    </button>
+
                     {/* Category Filter Pills */}
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
                       <span className="text-[#554339] font-bold flex items-center gap-1">
@@ -784,20 +810,58 @@ export default function FinancialHubPage({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block font-bold text-gray-900 mb-1">
-                            Category *
-                          </label>
-                          <select
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
-                          >
-                            {categories.map((cat) => (
-                              <option key={cat.id} value={cat.name}>
-                                {cat.name}
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block font-bold text-gray-900">
+                              Category *
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingNewCategory(!isAddingNewCategory)}
+                              className="text-[11px] font-bold text-[#964407] hover:underline cursor-pointer"
+                            >
+                              {isAddingNewCategory ? "← Back to select" : "+ New Category"}
+                            </button>
+                          </div>
+
+                          {isAddingNewCategory ? (
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                value={newCategoryInput}
+                                onChange={(e) => setNewCategoryInput(e.target.value)}
+                                placeholder="Category name (e.g. Generator Fuel)"
+                                className="w-full px-3 py-2 rounded-xl border border-[#964407] bg-[#fff8f6] text-xs font-bold text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleCreateInlineCategory}
+                                className="px-3 py-2 rounded-xl bg-[#964407] text-white font-bold text-xs shrink-0 cursor-pointer hover:bg-[#c2652a] shadow-xs"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <select
+                              value={category}
+                              onChange={(e) => {
+                                if (e.target.value === "ADD_NEW") {
+                                  setIsAddingNewCategory(true);
+                                } else {
+                                  setCategory(e.target.value);
+                                }
+                              }}
+                              className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                            >
+                              {categories.map((cat) => (
+                                <option key={cat.id} value={cat.name}>
+                                  {cat.name}
+                                </option>
+                              ))}
+                              <option value="ADD_NEW" className="font-bold text-[#964407]">
+                                + Add Custom Category...
                               </option>
-                            ))}
-                          </select>
+                            </select>
+                          )}
                         </div>
 
                         <div>
@@ -1204,6 +1268,102 @@ export default function FinancialHubPage({
           )}
         </div>
       </div>
+
+      {/* Category Directory & Inspection Modal */}
+      {showCategoryDirectoryModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setShowCategoryDirectoryModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                  🏷️ Active Expense Categories ({categories.length})
+                </h3>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Overview of all building expense categories included so far
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCategoryDirectoryModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Create Category Input inside Modal */}
+            <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] space-y-2">
+              <label className="block font-bold text-gray-900">
+                + Create New Expense Category
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCategoryInput}
+                  onChange={(e) => setNewCategoryInput(e.target.value)}
+                  placeholder="Enter category (e.g. Pest Control)"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateInlineCategory}
+                  className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs"
+                >
+                  Add Category
+                </button>
+              </div>
+            </div>
+
+            {/* Active Categories List with Counts & Totals */}
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+              {categories.map((cat) => {
+                const catExpenses = expenseList.filter((e) => e.category === cat.name);
+                const catTotal = catExpenses.reduce((a, b) => a + b.amount, 0);
+
+                return (
+                  <div
+                    key={cat.id}
+                    className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-orange-100 text-[#964407] font-bold">
+                        <Receipt className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900">{cat.name}</h4>
+                        <p className="text-[10px] text-gray-500 font-medium">
+                          {catExpenses.length} Logged Transactions
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-mono font-bold text-sm text-[#964407]">
+                        ₹{catTotal.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowCategoryDirectoryModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-xs cursor-pointer"
+              >
+                Close Directory
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Luxury Toast Notification Banner */}
       {toastMessage && (
