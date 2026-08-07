@@ -58,7 +58,7 @@ export default function FinancialHubPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const [activeTab, setActiveTab] = useState("Expenses");
-  const [showRecordDrawer, setShowRecordDrawer] = useState(true);
+  const [showRecordDrawer, setShowRecordDrawer] = useState(false);
   const [showToast, setShowToast] = useState(true);
 
   // Form state
@@ -142,41 +142,38 @@ export default function FinancialHubPage({
 
         {/* Workspace Body */}
         <div className="p-6 md:p-8 space-y-8 flex-1">
-          {/* World-Class Architect Header & Navigation Canvas */}
-          <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 md:p-8 shadow-xs space-y-6 relative overflow-hidden">
-            {/* Subtle luxury ambient accent glow */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#f8ede3] to-transparent rounded-full opacity-60 pointer-events-none -mr-20 -mt-20"></div>
-
-            {/* Top Bar: Title, Description & Action Control Cluster */}
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-0.5 rounded-full bg-[#f8ede3] text-[#964407] font-extrabold text-[10px] uppercase tracking-wider border border-[#d7c2b9]">
-                    FINANCIAL HUB WORKSPACE
+          {/* Executive Header & Clean Tab Navigation Bar */}
+          <div className="space-y-6">
+            {/* Top Header Bar */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407] bg-[#f8ede3] px-2.5 py-0.5 rounded-full border border-[#d7c2b9]">
+                    FINANCIAL HUB
                   </span>
-                  <span className="text-[10px] font-bold text-gray-400">•</span>
-                  <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    REAL-TIME LEDGER ACTIVE 🟢
+                  <span className="text-gray-300">•</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    REAL-TIME LEDGER 🟢
                   </span>
                 </div>
-                <h1 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17] tracking-tight">
+                <h1 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17]">
                   {activeTab === "Operations"
                     ? "Financial Operations Workspace"
                     : activeTab === "Expenses"
                     ? "Expense Management & Cost Ledger"
                     : "Partner Settlement & Profit Sharing"}
                 </h1>
-                <p className="text-xs text-[#554339] font-medium max-w-2xl leading-relaxed">
+                <p className="text-xs text-[#554339] font-medium mt-0.5">
                   {activeTab === "Operations"
-                    ? "Review overall operational financial health, collection performance, and resolve pending financial tasks across your property."
+                    ? "Review operational business health, collection performance, and pending financial tasks"
                     : activeTab === "Expenses"
-                    ? "Track, filter, and audit building operational costs, vendor bills, recurring utility schedules, and receipt attachments."
-                    : "Real-time partner equity distribution, personal account expense contributions, profit shares, and net settlement ledger."}
+                    ? "Log, filter, and audit operational building costs, vendor bills, and receipts"
+                    : "Real-time partner equity ratios, profit shares, and net settlement ledger"}
                 </p>
               </div>
 
-              <div className="relative z-10 flex items-center gap-3 shrink-0">
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] text-xs font-bold text-[#201a17] shadow-2xs">
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] text-xs font-semibold text-[#201a17] shadow-2xs">
                   <Calendar className="w-4 h-4 text-[#964407]" />
                   <span>This Month (Oct 2024)</span>
                 </div>
@@ -185,7 +182,7 @@ export default function FinancialHubPage({
                   <button
                     type="button"
                     onClick={() => setShowRecordDrawer(true)}
-                    className="px-5 py-2.5 rounded-2xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> Record Expense
                   </button>
@@ -193,42 +190,42 @@ export default function FinancialHubPage({
               </div>
             </div>
 
-            {/* Segmented Sub-Page Access Tab Switcher Bar */}
-            <div className="relative z-10 pt-2 border-t border-[#f8ede3] flex items-center gap-2 sm:gap-4 overflow-x-auto">
+            {/* Clean Professional Tab Switcher (Stitch Standard, No Prefixed Numbers) */}
+            <div className="flex border-b border-[#d7c2b9] gap-8 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => setActiveTab("Operations")}
-                className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
                   activeTab === "Operations"
-                    ? "bg-[#964407] text-white shadow-md scale-[1.02]"
-                    : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9] hover:bg-white hover:text-[#201a17]"
+                    ? "border-[#964407] text-[#964407] font-extrabold"
+                    : "border-transparent text-[#554339] hover:text-[#201a17]"
                 }`}
               >
-                <Building2 className="w-4 h-4" /> 1. Operations
+                <Building2 className="w-4 h-4" /> Operations
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab("Expenses")}
-                className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
                   activeTab === "Expenses"
-                    ? "bg-[#964407] text-white shadow-md scale-[1.02]"
-                    : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9] hover:bg-white hover:text-[#201a17]"
+                    ? "border-[#964407] text-[#964407] font-extrabold"
+                    : "border-transparent text-[#554339] hover:text-[#201a17]"
                 }`}
               >
-                <Receipt className="w-4 h-4" /> 2. Expenses
+                <Receipt className="w-4 h-4" /> Expenses
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab("Partner Settlement")}
-                className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
                   activeTab === "Partner Settlement"
-                    ? "bg-[#964407] text-white shadow-md scale-[1.02]"
-                    : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9] hover:bg-white hover:text-[#201a17]"
+                    ? "border-[#964407] text-[#964407] font-extrabold"
+                    : "border-transparent text-[#554339] hover:text-[#201a17]"
                 }`}
               >
-                <Wallet className="w-4 h-4" /> 3. Partner Settlement
+                <Wallet className="w-4 h-4" /> Partner Settlement
               </button>
             </div>
           </div>
