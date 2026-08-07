@@ -207,3 +207,80 @@ export function subscribeExpensesFromFirestore(
     return () => {};
   }
 }
+
+/**
+ * Cloud Firestore Recurring Bills Operations
+ * Collection Path: properties/{propertyId}/recurring_bills/{billId}
+ */
+export async function saveRecurringBillToFirestore(
+  propertyId: string,
+  bill: any
+): Promise<boolean> {
+  try {
+    const billRef = doc(db, "properties", propertyId, "recurring_bills", bill.id);
+    await setDoc(billRef, bill, { merge: true });
+    return true;
+  } catch (error) {
+    console.warn("Firestore save recurring bill fallback:", error);
+    return false;
+  }
+}
+
+export async function fetchRecurringBillsFromFirestore(
+  propertyId: string
+): Promise<any[]> {
+  try {
+    const billsRef = collection(db, "properties", propertyId, "recurring_bills");
+    const snapshot = await getDocs(billsRef);
+    const bills: any[] = [];
+    snapshot.forEach((doc) => {
+      bills.push(doc.data());
+    });
+    return bills;
+  } catch (error) {
+    console.warn("Firestore fetch recurring bills fallback:", error);
+    return [];
+  }
+}
+
+export async function deleteRecurringBillFromFirestore(
+  propertyId: string,
+  billId: string
+): Promise<boolean> {
+  try {
+    const billRef = doc(db, "properties", propertyId, "recurring_bills", billId);
+    await deleteDoc(billRef);
+    return true;
+  } catch (error) {
+    console.warn("Firestore delete recurring bill fallback:", error);
+    return false;
+  }
+}
+
+export function subscribeRecurringBillsFromFirestore(
+  propertyId: string,
+  onUpdate: (bills: any[]) => void
+): () => void {
+  try {
+    const billsRef = collection(db, "properties", propertyId, "recurring_bills");
+    const q = query(billsRef);
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const bills: any[] = [];
+        snapshot.forEach((doc) => {
+          bills.push(doc.data());
+        });
+        onUpdate(bills);
+      },
+      (error) => {
+        console.warn("Firestore recurring bills listener error:", error);
+      }
+    );
+
+    return unsubscribe;
+  } catch {
+    return () => {};
+  }
+}

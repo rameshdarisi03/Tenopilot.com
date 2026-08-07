@@ -28,9 +28,30 @@ import {
   Eye,
   Trash2,
   Filter,
+  Tag,
+  Palette,
+  Shield,
+  Fuel,
+  Pencil,
+  Clock,
+  Edit3,
 } from "lucide-react";
 import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
 import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
+import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBillStore";
+
+const COLOR_SWATCHES = [
+  { name: "Terracotta", hex: "#964407" },
+  { name: "Emerald", hex: "#059669" },
+  { name: "Purple", hex: "#7e22ce" },
+  { name: "Blue", hex: "#1d4ed8" },
+  { name: "Amber", hex: "#d97706" },
+  { name: "Rose", hex: "#be123c" },
+  { name: "Teal", hex: "#0f766e" },
+  { name: "Indigo", hex: "#4338ca" },
+  { name: "Slate", hex: "#475569" },
+  { name: "Gold", hex: "#b45309" },
+];
 
 export default function FinancialHubPage({
   params,
@@ -58,6 +79,22 @@ export default function FinancialHubPage({
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
   const [activeReceiptModal, setActiveReceiptModal] = useState<ExpenseRecord | null>(null);
 
+  // Recurring Bills State
+  const [recurringBillsList, setRecurringBillsList] = useState<RecurringBillRecord[]>([]);
+  const [showAddRecurringModal, setShowAddRecurringModal] = useState(false);
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [recTitle, setRecTitle] = useState("");
+  const [recCategory, setRecCategory] = useState("Electricity");
+  const [recAmount, setRecAmount] = useState("");
+  const [recDueDate, setRecDueDate] = useState("Monthly • 1st");
+  const [recPaidFrom, setRecPaidFrom] = useState("Business Account");
+  const [recNotes, setRecNotes] = useState("");
+
+  // Custom Category Creator State
+  const [catNameInput, setCatNameInput] = useState("");
+  const [selectedColor, setSelectedColor] = useState("#964407");
+  const [selectedIcon, setSelectedIcon] = useState("Wrench");
+
   // Reactive Partner & Category State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
@@ -71,8 +108,9 @@ export default function FinancialHubPage({
       setCategories(partnerStore.getCategories());
     });
 
-    // Init Cloud Firebase Firestore & SSOT Store for Property
+    // Init Cloud Firebase Firestore & SSOT Stores for Property
     expenseStore.initPropertyFirebase(propertyId);
+    recurringBillStore.initPropertyFirebase(propertyId);
 
     const updateExpenseState = () => {
       setExpenseList(expenseStore.getExpenses(propertyId));
@@ -82,12 +120,20 @@ export default function FinancialHubPage({
       setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId));
     };
 
+    const updateRecurringBillsState = () => {
+      setRecurringBillsList(recurringBillStore.getRecurringBills(propertyId));
+    };
+
     updateExpenseState();
+    updateRecurringBillsState();
+
     const unsubExpenses = expenseStore.subscribe(updateExpenseState);
+    const unsubRecurring = recurringBillStore.subscribe(updateRecurringBillsState);
 
     return () => {
       unsubPartners();
       unsubExpenses();
+      unsubRecurring();
     };
   }, [propertyId]);
 
@@ -97,10 +143,12 @@ export default function FinancialHubPage({
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [showCategoryDirectoryModal, setShowCategoryDirectoryModal] = useState(false);
   const [recurringModal, setRecurringModal] = useState<{
+    billId?: string;
     category: string;
     amount: number;
     paidFrom: string;
     notes: string;
+    saveNewDefault?: boolean;
   } | null>(null);
 
   // Trigger Toast Notification
@@ -165,12 +213,18 @@ export default function FinancialHubPage({
   const handleConfirmRecurringBill = async () => {
     if (!recurringModal) return;
 
+    if (isNaN(recurringModal.amount) || recurringModal.amount <= 0) {
+      triggerToast("⚠️ Please enter a valid payment amount.");
+      return;
+    }
+
     const todayStr = new Date().toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
 
+    // Log the expense entry
     await expenseStore.addExpense(propertyId, {
       date: todayStr,
       category: recurringModal.category,
@@ -181,10 +235,95 @@ export default function FinancialHubPage({
       notes: recurringModal.notes || `Recurring ${recurringModal.category} bill payment`,
     });
 
+    // If user checked "save as future default", update master recurring bill
+    if (recurringModal.saveNewDefault && recurringModal.billId) {
+      await recurringBillStore.updateRecurringBill(propertyId, recurringModal.billId, {
+        amount: recurringModal.amount,
+        status: "Paid",
+      });
+    }
+
     const categoryName = recurringModal.category;
     const amountVal = recurringModal.amount;
     setRecurringModal(null);
     triggerToast(`🟢 ${categoryName} payment of ₹${amountVal.toLocaleString("en-IN")} confirmed & recorded!`);
+  };
+
+  const handleOpenAddRecurringModal = (bill?: RecurringBillRecord) => {
+    if (bill) {
+      setEditingBillId(bill.id);
+      setRecTitle(bill.title);
+      setRecCategory(bill.category);
+      setRecAmount(bill.amount.toString());
+      setRecDueDate(bill.dueDate);
+      setRecPaidFrom(bill.paidFrom);
+      setRecNotes(bill.notes || "");
+    } else {
+      setEditingBillId(null);
+      setRecTitle("");
+      setRecCategory(categories[0]?.name || "Electricity");
+      setRecAmount("");
+      setRecDueDate("Monthly • 1st");
+      setRecPaidFrom("Business Account");
+      setRecNotes("");
+    }
+    setShowAddRecurringModal(true);
+  };
+
+  const handleSaveRecurringBillSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const numAmount = parseFloat(recAmount);
+    if (!recTitle.trim() || isNaN(numAmount) || numAmount <= 0) {
+      triggerToast("⚠️ Please enter a valid bill title and amount.");
+      return;
+    }
+
+    if (editingBillId) {
+      await recurringBillStore.updateRecurringBill(propertyId, editingBillId, {
+        title: recTitle.trim(),
+        category: recCategory,
+        amount: numAmount,
+        dueDate: recDueDate,
+        paidFrom: recPaidFrom,
+        notes: recNotes,
+      });
+      triggerToast(`🟢 Recurring bill schedule "${recTitle}" updated!`);
+    } else {
+      await recurringBillStore.addRecurringBill(propertyId, {
+        title: recTitle.trim(),
+        category: recCategory,
+        amount: numAmount,
+        dueDate: recDueDate,
+        frequency: "Monthly",
+        icon: recCategory.includes("Water") ? "Droplet" : recCategory.includes("Staff") ? "Users" : recCategory.includes("Net") ? "Wifi" : "Zap",
+        status: "Pending",
+        paidFrom: recPaidFrom,
+        notes: recNotes,
+      });
+      triggerToast(`🟢 New recurring bill schedule "${recTitle}" added!`);
+    }
+
+    setShowAddRecurringModal(false);
+  };
+
+  const handleCreateCategoryFromTab = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = catNameInput.trim();
+    if (!trimmed) {
+      triggerToast("⚠️ Please enter a category name.");
+      return;
+    }
+
+    partnerStore.addCategory(trimmed, selectedIcon);
+    setCatNameInput("");
+    triggerToast(`🟢 Custom Category "${trimmed}" created & saved to SSOT!`);
+  };
+
+  const handleDeleteCategory = (catId: string, catName: string) => {
+    if (confirm(`Are you sure you want to delete category "${catName}"?`)) {
+      partnerStore.deleteCategory(catId);
+      triggerToast(`🗑️ Category "${catName}" removed.`);
+    }
   };
 
   return (
@@ -236,7 +375,7 @@ export default function FinancialHubPage({
             </div>
 
             {/* Prominent, Highlightable Section Navigation Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
               <button
                 type="button"
                 onClick={() => setActiveTab("Operations")}
@@ -338,6 +477,41 @@ export default function FinancialHubPage({
                   </div>
                 </div>
                 {activeTab === "Partner Settlement" && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("Categories")}
+                className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                  activeTab === "Categories"
+                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/20 shadow-md scale-[1.01]"
+                    : "bg-[#fff8f6] border-[#d7c2b9] hover:bg-white hover:border-gray-400"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`p-2.5 rounded-xl transition-colors ${
+                      activeTab === "Categories"
+                        ? "bg-[#964407] text-white"
+                        : "bg-blue-100 text-blue-700 group-hover:bg-[#964407] group-hover:text-[#964407]"
+                    }`}
+                  >
+                    <Tag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3
+                      className={`font-serif font-bold text-sm md:text-base ${
+                        activeTab === "Categories" ? "text-[#964407]" : "text-[#201a17]"
+                      }`}
+                    >
+                      Categories
+                    </h3>
+                    <p className="text-[11px] text-[#554339]">Custom Icons & Colors</p>
+                  </div>
+                </div>
+                {activeTab === "Categories" && (
                   <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
                 )}
               </button>
@@ -459,107 +633,100 @@ export default function FinancialHubPage({
                 </div>
               </div>
 
-              {/* Recurring Fixed Bills Summary Cards Grid */}
+              {/* Recurring Fixed Bills Horizontal Left-to-Right Scrollable Row */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-serif font-bold text-lg text-[#201a17]">
-                    Recurring Bills & Utilities Summary
-                  </h3>
-                  <span className="text-xs text-[#554339] font-medium">
-                    Auto-scheduled monthly building operational costs
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-serif font-bold text-lg text-[#201a17]">
+                      Recurring Bills & Utilities Summary
+                    </h3>
+                    <span className="text-[10px] font-extrabold text-[#964407] bg-orange-100 px-2.5 py-0.5 rounded-full border border-orange-200">
+                      ↔️ Scrollable Row
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddRecurringModal()}
+                    className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Bill Schedule
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                  {/* Bill 1 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
-                        <Wifi className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-[#201a17]">Internet / Wi-Fi</h4>
-                        <p className="text-[10px] text-[#554339] font-medium">Monthly • 1st</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹2,499</span>
-                      <button
-                        type="button"
-                        onClick={() => setRecurringModal({ category: "Internet / Wi-Fi", amount: 2499, paidFrom: "Business Account", notes: "Airtel Broadband 300Mbps bill" })}
-                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-                      >
-                        + Log Payment
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex overflow-x-auto gap-4 pb-3 scrollbar-thin snap-x">
+                  {recurringBillsList.map((bill) => (
+                    <div
+                      key={bill.id}
+                      className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between shrink-0 w-72 sm:w-80 snap-start relative group"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                            {bill.icon === "Droplet" ? (
+                              <Droplet className="w-5 h-5" />
+                            ) : bill.icon === "Users" ? (
+                              <Users className="w-5 h-5" />
+                            ) : bill.icon === "Wifi" ? (
+                              <Wifi className="w-5 h-5" />
+                            ) : bill.icon === "Fuel" ? (
+                              <Fuel className="w-5 h-5" />
+                            ) : bill.icon === "Shield" ? (
+                              <Shield className="w-5 h-5" />
+                            ) : (
+                              <Zap className="w-5 h-5" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-[#201a17]">{bill.title}</h4>
+                            <p className="text-[10px] text-[#554339] font-medium">{bill.dueDate}</p>
+                          </div>
+                        </div>
 
-                  {/* Bill 2 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
-                        <Zap className="w-5 h-5" />
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddRecurringModal(bill)}
+                          title="Edit Bill Details"
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-[#201a17]">Electricity Bill</h4>
-                        <p className="text-[10px] text-[#554339] font-medium">Variable • 15th</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹12,400</span>
-                      <button
-                        type="button"
-                        onClick={() => setRecurringModal({ category: "Electricity", amount: 12400, paidFrom: "Business Account", notes: "TSSPDCL Monthly Main Meter bill" })}
-                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-                      >
-                        + Log Payment
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* Bill 3 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-blue-100 text-blue-700">
-                        <Droplet className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-[#201a17]">Water Supply</h4>
-                        <p className="text-[10px] text-[#554339] font-medium">Fixed • 5th</p>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-serif font-bold text-lg text-[#201a17]">
+                          ₹{bill.amount.toLocaleString("en-IN")}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRecurringModal({
+                              billId: bill.id,
+                              category: bill.category,
+                              amount: bill.amount,
+                              paidFrom: bill.paidFrom,
+                              notes: bill.notes || "",
+                              saveNewDefault: false,
+                            })
+                          }
+                          className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                        >
+                          + Log Payment
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹3,200</span>
-                      <button
-                        type="button"
-                        onClick={() => setRecurringModal({ category: "Water Supply", amount: 3200, paidFrom: "Business Account", notes: "Metro Water Tanker Delivery" })}
-                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-                      >
-                        + Log Payment
-                      </button>
-                    </div>
-                  </div>
+                  ))}
 
-                  {/* Bill 4 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-[#201a17]">Staff Salary</h4>
-                        <p className="text-[10px] text-[#554339] font-medium">Monthly • 1st</p>
-                      </div>
+                  {/* Add New Recurring Bill Action Dash Card */}
+                  <div
+                    onClick={() => handleOpenAddRecurringModal()}
+                    className="p-5 rounded-2xl border-2 border-dashed border-[#d7c2b9] bg-[#fff8f6] hover:bg-white hover:border-[#964407] transition-all cursor-pointer flex flex-col justify-center items-center text-center space-y-2 shrink-0 w-64 snap-start group min-h-[120px]"
+                  >
+                    <div className="p-3 rounded-full bg-orange-100 text-[#964407] group-hover:scale-110 transition-transform">
+                      <Plus className="w-5 h-5" />
                     </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹18,000</span>
-                      <button
-                        type="button"
-                        onClick={() => setRecurringModal({ category: "Staff Salary", amount: 18000, paidFrom: "Suresh", notes: "Housekeeping & Security Staff Payroll" })}
-                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-                      >
-                        + Log Payment
-                      </button>
+                    <div>
+                      <h4 className="font-bold text-xs text-[#201a17]">Add Recurring Bill</h4>
+                      <p className="text-[10px] text-[#554339]">Setup new monthly schedule</p>
                     </div>
                   </div>
                 </div>
@@ -965,12 +1132,54 @@ export default function FinancialHubPage({
                         <span className="font-bold text-gray-500">Bill Category:</span>
                         <span className="font-bold text-gray-900 text-sm">{recurringModal.category}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-gray-500">Amount:</span>
-                        <span className="font-mono font-bold text-lg text-[#964407]">
-                          ₹{recurringModal.amount.toLocaleString("en-IN")}
-                        </span>
+                      
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="font-bold text-gray-900">
+                            Payment Amount (₹) *
+                          </label>
+                          <span className="text-[10px] font-semibold text-[#964407]">
+                            ✏️ Editable (Price Increase/Discount)
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-2.5 text-gray-500 font-bold">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            required
+                            value={recurringModal.amount || ""}
+                            onChange={(e) =>
+                              setRecurringModal({
+                                ...recurringModal,
+                                amount: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                            placeholder="Enter payment amount"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-[#964407] bg-white font-mono font-bold text-base text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          />
+                        </div>
                       </div>
+
+                      {recurringModal.billId && (
+                        <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!recurringModal.saveNewDefault}
+                            onChange={(e) =>
+                              setRecurringModal({
+                                ...recurringModal,
+                                saveNewDefault: e.target.checked,
+                              })
+                            }
+                            className="w-4 h-4 rounded text-[#964407] focus:ring-[#964407]"
+                          />
+                          <span className="text-[11px] font-semibold text-gray-700">
+                            Save ₹{recurringModal.amount.toLocaleString("en-IN")} as new default amount for future months
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     <div className="space-y-4">
@@ -1266,8 +1475,335 @@ export default function FinancialHubPage({
             </div>
           </div>
           )}
+
+          {/* TAB 4: CATEGORY MANAGEMENT & CUSTOMIZER WORKSPACE */}
+          {activeTab === "Categories" && (
+            <div className="space-y-8 animate-in fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Color & Icon Category Creator Form */}
+                <div className="lg:col-span-5 bg-white rounded-3xl border border-[#d7c2b9] p-6 sm:p-8 shadow-xs space-y-6">
+                  <div>
+                    <h3 className="font-serif font-bold text-xl text-[#201a17] flex items-center gap-2">
+                      <Tag className="w-5 h-5 text-[#964407]" /> Custom Category Creator
+                    </h3>
+                    <p className="text-xs text-[#554339] mt-1">
+                      Add new operational expense categories with custom theme colors and icons
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCreateCategoryFromTab} className="space-y-5 text-xs">
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-1">
+                        Category Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={catNameInput}
+                        onChange={(e) => setCatNameInput(e.target.value)}
+                        placeholder="e.g. Generator Fuel, Pest Control"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                      />
+                    </div>
+
+                    {/* Color Swatch Picker */}
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-2 flex items-center gap-1.5">
+                        <Palette className="w-3.5 h-3.5 text-[#964407]" /> Select Theme Color *
+                      </label>
+                      <div className="flex flex-wrap gap-2.5">
+                        {COLOR_SWATCHES.map((swatch) => (
+                          <button
+                            key={swatch.name}
+                            type="button"
+                            onClick={() => setSelectedColor(swatch.hex)}
+                            className={`w-8 h-8 rounded-full transition-all flex items-center justify-center cursor-pointer ${
+                              selectedColor === swatch.hex
+                                ? "ring-2 ring-offset-2 ring-[#964407] scale-110 shadow-sm"
+                                : "hover:scale-105 opacity-80 hover:opacity-100"
+                            }`}
+                            style={{ backgroundColor: swatch.hex }}
+                            title={swatch.name}
+                          >
+                            {selectedColor === swatch.hex && (
+                              <CheckCircle2 className="w-4 h-4 text-white" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Business Icon Picker */}
+                    <div>
+                      <label className="block font-bold text-gray-900 mb-2">
+                        Select Business Icon *
+                      </label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { name: "Zap", label: "Power" },
+                          { name: "Droplet", label: "Water" },
+                          { name: "Users", label: "Staff" },
+                          { name: "Wifi", label: "Net" },
+                          { name: "Wrench", label: "Repairs" },
+                          { name: "Fuel", label: "Fuel" },
+                          { name: "Shield", label: "Security" },
+                          { name: "Utensils", label: "Food" },
+                        ].map((iconOpt) => (
+                          <button
+                            key={iconOpt.name}
+                            type="button"
+                            onClick={() => setSelectedIcon(iconOpt.name)}
+                            className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                              selectedIcon === iconOpt.name
+                                ? "bg-[#fff8f6] border-[#964407] ring-1 ring-[#964407] text-[#964407] font-bold"
+                                : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                            }`}
+                          >
+                            {iconOpt.name === "Zap" && <Zap className="w-4 h-4" />}
+                            {iconOpt.name === "Droplet" && <Droplet className="w-4 h-4" />}
+                            {iconOpt.name === "Users" && <Users className="w-4 h-4" />}
+                            {iconOpt.name === "Wifi" && <Wifi className="w-4 h-4" />}
+                            {iconOpt.name === "Wrench" && <Wrench className="w-4 h-4" />}
+                            {iconOpt.name === "Fuel" && <Fuel className="w-4 h-4" />}
+                            {iconOpt.name === "Shield" && <Shield className="w-4 h-4" />}
+                            {iconOpt.name === "Utensils" && <Utensils className="w-4 h-4" />}
+                            <span className="text-[10px]">{iconOpt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                    >
+                      + Save Category to System
+                    </button>
+                  </form>
+                </div>
+
+                {/* Right Column: Active Categories Directory Grid */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                        Active Categories Directory ({categories.length})
+                      </h3>
+                      <p className="text-xs text-[#554339]">
+                        All operational building categories currently included in your ledger
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {categories.map((cat) => {
+                      const catExpenses = expenseList.filter((e) => e.category === cat.name);
+                      const catTotal = catExpenses.reduce((a, b) => a + b.amount, 0);
+
+                      return (
+                        <div
+                          key={cat.id}
+                          className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="p-2.5 rounded-xl text-white font-bold shadow-xs"
+                                style={{ backgroundColor: selectedColor || "#964407" }}
+                              >
+                                {cat.icon === "Zap" ? (
+                                  <Zap className="w-4 h-4" />
+                                ) : cat.icon === "Droplet" ? (
+                                  <Droplet className="w-4 h-4" />
+                                ) : cat.icon === "Users" ? (
+                                  <Users className="w-4 h-4" />
+                                ) : cat.icon === "Wifi" ? (
+                                  <Wifi className="w-4 h-4" />
+                                ) : (
+                                  <Wrench className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-sm text-[#201a17]">{cat.name}</h4>
+                                <p className="text-[10px] text-[#554339]">
+                                  {catExpenses.length} Logged Transactions
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                              className="p-1.5 rounded-lg text-red-400 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                              title="Delete Category"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="border-t border-[#f8ede3] pt-2 flex justify-between items-center">
+                            <span className="text-[10px] text-[#554339] font-medium">Total Spend</span>
+                            <span className="font-mono font-bold text-[#964407] text-base">
+                              ₹{catTotal.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Add / Edit Recurring Bill Setup Drawer Modal */}
+      {showAddRecurringModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setShowAddRecurringModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-[#964407]" />
+                  {editingBillId ? "Edit Recurring Bill Schedule" : "Add Recurring Bill Schedule"}
+                </h3>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Setup recurring utility bills or staff retainer payments
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddRecurringModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRecurringBillSetup} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-gray-900 mb-1">
+                  Bill Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={recTitle}
+                  onChange={(e) => setRecTitle(e.target.value)}
+                  placeholder="e.g. Elevator Maintenance AMC"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Category *
+                  </label>
+                  <select
+                    value={recCategory}
+                    onChange={(e) => setRecCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Default Base Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={recAmount}
+                    onChange={(e) => setRecAmount(e.target.value)}
+                    placeholder="e.g. 4500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Due Schedule *
+                  </label>
+                  <select
+                    value={recDueDate}
+                    onChange={(e) => setRecDueDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  >
+                    <option value="Monthly • 1st">Monthly • 1st</option>
+                    <option value="Fixed • 5th">Fixed • 5th</option>
+                    <option value="Variable • 15th">Variable • 15th</option>
+                    <option value="End of Month">End of Month</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Default Paid From *
+                  </label>
+                  <select
+                    value={recPaidFrom}
+                    onChange={(e) => setRecPaidFrom(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  >
+                    <option value="Business Account">Business Account</option>
+                    <option value="Petty Cash">Petty Cash</option>
+                    {partners.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-900 mb-1">
+                  Notes / Provider Details
+                </label>
+                <input
+                  type="text"
+                  value={recNotes}
+                  onChange={(e) => setRecNotes(e.target.value)}
+                  placeholder="e.g. Schindler Elevator Service Contract"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRecurringModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  {editingBillId ? "Save Changes" : "Create Schedule"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Category Directory & Inspection Modal */}
       {showCategoryDirectoryModal && (
