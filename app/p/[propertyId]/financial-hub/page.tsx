@@ -91,11 +91,28 @@ export default function FinancialHubPage({
     };
   }, [propertyId]);
 
+  // Toast & Modal States
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [recurringModal, setRecurringModal] = useState<{
+    category: string;
+    amount: number;
+    paidFrom: string;
+    notes: string;
+  } | null>(null);
+
+  // Trigger Toast Notification
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
-      alert("Please enter a valid expense amount.");
+      triggerToast("⚠️ Please enter a valid expense amount.");
       return;
     }
 
@@ -118,16 +135,19 @@ export default function FinancialHubPage({
     setAmount("");
     setNotes("");
     setShowRecordDrawer(false);
-    setShowToast(true);
+    triggerToast(`🟢 Expense of ₹${numAmount.toLocaleString("en-IN")} (${category}) recorded & synced to cloud!`);
   };
 
   const handleDeleteExpense = async (id: string) => {
     if (confirm("Are you sure you want to delete this expense record?")) {
       await expenseStore.deleteExpense(propertyId, id);
+      triggerToast("🗑️ Expense record deleted & synced to cloud.");
     }
   };
 
-  const handlePayRecurringBill = async (billCategory: string, billAmount: number) => {
+  const handleConfirmRecurringBill = async () => {
+    if (!recurringModal) return;
+
     const todayStr = new Date().toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -136,15 +156,18 @@ export default function FinancialHubPage({
 
     await expenseStore.addExpense(propertyId, {
       date: todayStr,
-      category: billCategory,
-      paidFrom: "Business Account",
+      category: recurringModal.category,
+      paidFrom: recurringModal.paidFrom,
       property: "Sunshine Luxury PG",
-      amount: billAmount,
+      amount: recurringModal.amount,
       hasReceipt: true,
-      notes: `Auto-logged recurring bill payment for ${billCategory}`,
+      notes: recurringModal.notes || `Recurring ${recurringModal.category} bill payment`,
     });
 
-    alert(`Successfully logged ${billCategory} payment of ₹${billAmount.toLocaleString("en-IN")} to Firebase Cloud!`);
+    const categoryName = recurringModal.category;
+    const amountVal = recurringModal.amount;
+    setRecurringModal(null);
+    triggerToast(`🟢 ${categoryName} payment of ₹${amountVal.toLocaleString("en-IN")} confirmed & recorded!`);
   };
 
   return (
@@ -446,7 +469,7 @@ export default function FinancialHubPage({
                       <span className="font-serif font-bold text-lg text-[#201a17]">₹2,499</span>
                       <button
                         type="button"
-                        onClick={() => handlePayRecurringBill("Internet / Wi-Fi", 2499)}
+                        onClick={() => setRecurringModal({ category: "Internet / Wi-Fi", amount: 2499, paidFrom: "Business Account", notes: "Airtel Broadband 300Mbps bill" })}
                         className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                       >
                         + Log Payment
@@ -469,7 +492,7 @@ export default function FinancialHubPage({
                       <span className="font-serif font-bold text-lg text-[#201a17]">₹12,400</span>
                       <button
                         type="button"
-                        onClick={() => handlePayRecurringBill("Electricity", 12400)}
+                        onClick={() => setRecurringModal({ category: "Electricity", amount: 12400, paidFrom: "Business Account", notes: "TSSPDCL Monthly Main Meter bill" })}
                         className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                       >
                         + Log Payment
@@ -492,7 +515,7 @@ export default function FinancialHubPage({
                       <span className="font-serif font-bold text-lg text-[#201a17]">₹3,200</span>
                       <button
                         type="button"
-                        onClick={() => handlePayRecurringBill("Water Supply", 3200)}
+                        onClick={() => setRecurringModal({ category: "Water Supply", amount: 3200, paidFrom: "Business Account", notes: "Metro Water Tanker Delivery" })}
                         className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                       >
                         + Log Payment
@@ -515,7 +538,7 @@ export default function FinancialHubPage({
                       <span className="font-serif font-bold text-lg text-[#201a17]">₹18,000</span>
                       <button
                         type="button"
-                        onClick={() => handlePayRecurringBill("Staff Salary", 18000)}
+                        onClick={() => setRecurringModal({ category: "Staff Salary", amount: 18000, paidFrom: "Suresh", notes: "Housekeeping & Security Staff Payroll" })}
                         className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                       >
                         + Log Payment
@@ -844,6 +867,105 @@ export default function FinancialHubPage({
                   </div>
                 </div>
               )}
+
+              {/* Recurring Bill Confirmation Modal */}
+              {recurringModal && (
+                <div
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+                  onClick={() => setRecurringModal(null)}
+                >
+                  <div
+                    className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div>
+                        <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                          <CheckCircle2 className="w-5 h-5 text-[#964407]" /> Confirm Recurring Bill Payment
+                        </h3>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Review and confirm logging this monthly operational bill
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRecurringModal(null)}
+                        className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-gray-500">Bill Category:</span>
+                        <span className="font-bold text-gray-900 text-sm">{recurringModal.category}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-gray-500">Amount:</span>
+                        <span className="font-mono font-bold text-lg text-[#964407]">
+                          ₹{recurringModal.amount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">
+                          Paid From Account *
+                        </label>
+                        <select
+                          value={recurringModal.paidFrom}
+                          onChange={(e) =>
+                            setRecurringModal({ ...recurringModal, paidFrom: e.target.value })
+                          }
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                        >
+                          <option value="Business Account">Business Account</option>
+                          <option value="Petty Cash">Petty Cash</option>
+                          {partners.map((p) => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} ({p.ownershipPercentage}%)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">
+                          Payment Notes (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={recurringModal.notes}
+                          onChange={(e) =>
+                            setRecurringModal({ ...recurringModal, notes: e.target.value })
+                          }
+                          placeholder="Reference / invoice note..."
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setRecurringModal(null)}
+                        className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmRecurringBill}
+                        className="flex-1 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                      >
+                        Confirm & Log Payment
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1082,6 +1204,22 @@ export default function FinancialHubPage({
           )}
         </div>
       </div>
+
+      {/* Floating Luxury Toast Notification Banner */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-[#201a17] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-[#964407]/40 flex items-center gap-3 max-w-md text-xs font-bold">
+            <span className="shrink-0">{toastMessage}</span>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              className="p-1 rounded-full hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer ml-auto"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
