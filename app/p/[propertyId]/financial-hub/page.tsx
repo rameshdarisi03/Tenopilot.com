@@ -730,109 +730,29 @@ export default function FinancialHubPage({
                 </div>
               </div>
 
-              {/* Recent Expenses Table Section */}
-              <div className="bg-white rounded-2xl border border-[#d7c2b9] p-6 shadow-xs">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-serif font-bold text-lg text-[#201a17]">
-                    Recent Expenses
-                  </h3>
-                  <a
-                    href="#all-expenses"
-                    className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1"
-                  >
-                    View All Expenses →
-                  </a>
+              {/* Quick Expense Hub Reference Banner */}
+              <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-orange-100 text-[#964407]">
+                    <Receipt className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-serif font-bold text-base text-[#201a17]">
+                      Operational Expenses Ledger & Receipts
+                    </h4>
+                    <p className="text-xs text-[#554339]">
+                      View, log, filter, and audit detailed building operational costs in the Central Expenses Hub.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-[#f8ede3] text-[10px] uppercase tracking-wider text-[#554339] font-bold">
-                        <th className="pb-3 font-bold">Date</th>
-                        <th className="pb-3 font-bold">Category</th>
-                        <th className="pb-3 font-bold">Paid From</th>
-                        <th className="pb-3 font-bold">Property</th>
-                        <th className="pb-3 font-bold">Amount</th>
-                        <th className="pb-3 font-bold text-right">Receipt</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#f8ede3]">
-                      <tr>
-                        <td className="py-3.5 text-[#554339]">12 Oct 2024</td>
-                        <td className="py-3.5 font-semibold text-[#201a17]">⚡ Electricity</td>
-                        <td className="py-3.5 text-[#554339] flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-full bg-[#964407] text-white flex items-center justify-center text-[9px] font-bold">
-                            R
-                          </span>
-                          Ramesh
-                        </td>
-                        <td className="py-3.5 text-[#554339]">Marigold District</td>
-                        <td className="py-3.5 font-mono font-bold text-[#201a17]">₹12,400</td>
-                        <td className="py-3.5 text-right">
-                          <FileText className="w-4 h-4 text-[#964407] inline cursor-pointer" />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-3.5 text-[#554339]">11 Oct 2024</td>
-                        <td className="py-3.5 font-semibold text-[#201a17]">💧 Water</td>
-                        <td className="py-3.5 text-[#554339] flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-full bg-amber-800 text-white flex items-center justify-center text-[9px] font-bold">
-                            💼
-                          </span>
-                          Business Account
-                        </td>
-                        <td className="py-3.5 text-[#554339]">Sunshine Heights</td>
-                        <td className="py-3.5 font-mono font-bold text-[#201a17]">₹3,200</td>
-                        <td className="py-3.5 text-right">
-                          <FileText className="w-4 h-4 text-[#964407] inline cursor-pointer" />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-3.5 text-[#554339]">10 Oct 2024</td>
-                        <td className="py-3.5 font-semibold text-[#201a17]">👤 Staff Salary</td>
-                        <td className="py-3.5 text-[#554339] flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[9px] font-bold">
-                            S
-                          </span>
-                          Suresh
-                        </td>
-                        <td className="py-3.5 text-[#554339]">Sunshine Heights</td>
-                        <td className="py-3.5 font-mono font-bold text-[#201a17]">₹18,000</td>
-                        <td className="py-3.5 text-right">
-                          <FileText className="w-4 h-4 text-[#964407] inline cursor-pointer" />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-3.5 text-[#554339]">09 Oct 2024</td>
-                        <td className="py-3.5 font-semibold text-[#201a17]">📶 Internet</td>
-                        <td className="py-3.5 text-[#554339] flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-full bg-purple-700 text-white flex items-center justify-center text-[9px] font-bold">
-                            M
-                          </span>
-                          Mahesh
-                        </td>
-                        <td className="py-3.5 text-[#554339]">Sunshine Heights</td>
-                        <td className="py-3.5 font-mono font-bold text-[#201a17]">₹1,200</td>
-                        <td className="py-3.5 text-right text-[#554339]">—</td>
-                      </tr>
-                      <tr>
-                        <td className="py-3.5 text-[#554339]">08 Oct 2024</td>
-                        <td className="py-3.5 font-semibold text-[#201a17]">🔧 Maintenance</td>
-                        <td className="py-3.5 text-[#554339] flex items-center gap-1.5">
-                          <span className="w-5 h-5 rounded-full bg-amber-800 text-white flex items-center justify-center text-[9px] font-bold">
-                            💼
-                          </span>
-                          Business Account
-                        </td>
-                        <td className="py-3.5 text-[#554339]">Marigold District</td>
-                        <td className="py-3.5 font-mono font-bold text-[#201a17]">₹6,500</td>
-                        <td className="py-3.5 text-right">
-                          <FileText className="w-4 h-4 text-[#964407] inline cursor-pointer" />
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("Expenses")}
+                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                >
+                  Open Expenses Hub →
+                </button>
               </div>
             </div>
 
