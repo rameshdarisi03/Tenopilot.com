@@ -167,12 +167,14 @@ export default function FinancialHubPage({
                 <span>This Month (Oct 2024)</span>
               </div>
 
-              <button
-                onClick={() => setShowRecordDrawer(true)}
-                className="px-4 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Record Expense
-              </button>
+              {activeTab === "Expenses" && (
+                <button
+                  onClick={() => setShowRecordDrawer(true)}
+                  className="px-4 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Record Expense
+                </button>
+              )}
             </div>
           </div>
 
@@ -590,6 +592,140 @@ export default function FinancialHubPage({
                   </div>
                 </div>
               )}
+
+              {/* Record Expense Modal Drawer inside Expenses Tab */}
+              {showRecordDrawer && (
+                <div
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+                  onClick={() => setShowRecordDrawer(false)}
+                >
+                  <div
+                    className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                      <div>
+                        <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                          <Receipt className="w-5 h-5 text-[#964407]" /> Record Operational Expense
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Log building costs, utility bills, or staff salaries in seconds
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowRecordDrawer(false)}
+                        className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveExpense} className="space-y-4 text-xs">
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">
+                          Amount *
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-2.5 text-gray-500 font-bold">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            required
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            placeholder="Enter expense amount"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">
+                            Category *
+                          </label>
+                          <select
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          >
+                            {categories.map((cat) => (
+                              <option key={cat.id} value={cat.name}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">
+                            Paid From *
+                          </label>
+                          <select
+                            value={paidFrom}
+                            onChange={(e) => setPaidFrom(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          >
+                            <option value="Business Account">Business Account</option>
+                            <option value="Petty Cash">Petty Cash</option>
+                            {partners.map((p) => (
+                              <option key={p.id} value={p.name}>
+                                {p.name} ({p.ownershipPercentage}%)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">
+                          Receipt Attachment (Optional)
+                        </label>
+                        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 cursor-pointer hover:border-[#964407] transition-colors">
+                          <Upload className="w-5 h-5 text-[#964407] mx-auto mb-1" />
+                          <span className="font-bold text-gray-900 block text-xs">
+                            Click to upload receipt
+                          </span>
+                          <span className="text-[10px] text-gray-500">
+                            JPG, PNG, PDF (Max 5MB)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-gray-900 mb-1">
+                          Notes / Description (Optional)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Add details (vendor name, invoice number, etc)..."
+                          className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                        ></textarea>
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowRecordDrawer(false)}
+                          className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+                        >
+                          Save Expense
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -758,135 +894,6 @@ export default function FinancialHubPage({
 
             {/* Right Slide-Over Record Expense Drawer & Partner Settings Card */}
             <div className="lg:col-span-4 space-y-6">
-              {/* Record Expense Side Form Card */}
-              {showRecordDrawer && (
-                <div className="bg-white rounded-2xl border border-[#d7c2b9] p-6 shadow-md relative animate-in fade-in">
-                  <div className="flex items-center justify-between pb-4 border-b border-[#f8ede3] mb-4">
-                    <div>
-                      <h3 className="font-serif font-bold text-lg text-[#201a17]">
-                        Record Expense
-                      </h3>
-                      <p className="text-xs text-[#554339]">
-                        Log a new expense in a few seconds.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowRecordDrawer(false)}
-                      className="p-1 rounded-full hover:bg-[#f8ede3] text-[#554339]"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleSaveExpense} className="space-y-4 text-xs">
-                    <div>
-                      <label className="block font-bold text-[#201a17] mb-1">
-                        Amount *
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-[#554339] font-bold">
-                          ₹
-                        </span>
-                        <input
-                          type="number"
-                          required
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="Enter amount"
-                          className="w-full pl-8 pr-3 py-2 rounded-lg border border-[#d7c2b9] bg-[#fff8f6] text-xs text-[#201a17] focus:outline-none focus:border-[#964407]"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-[#201a17] mb-1">
-                        Category *
-                      </label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-[#d7c2b9] bg-[#fff8f6] text-xs text-[#201a17] focus:outline-none focus:border-[#964407]"
-                      >
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.name}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                      <Link
-                        href={`/p/${propertyId}/settings`}
-                        className="text-[#964407] font-bold text-[10px] mt-1 block hover:underline"
-                      >
-                        + Manage / Add Categories in Settings ⚙️
-                      </Link>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-[#201a17] mb-1">
-                        Paid From *
-                      </label>
-                      <select
-                        value={paidFrom}
-                        onChange={(e) => setPaidFrom(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-[#d7c2b9] bg-[#fff8f6] text-xs text-[#201a17] focus:outline-none focus:border-[#964407]"
-                      >
-                        <option value="Business Account">Business Account</option>
-                        <option value="Petty Cash">Petty Cash</option>
-                        {partners.map((p) => (
-                          <option key={p.id} value={p.name}>
-                            {p.name} ({p.ownershipPercentage}%)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-[#201a17] mb-1">
-                        Receipt (Optional)
-                      </label>
-                      <div className="border-2 border-dashed border-[#d7c2b9] rounded-xl p-4 text-center bg-[#fff8f6] cursor-pointer hover:border-[#964407] transition-colors">
-                        <Upload className="w-5 h-5 text-[#964407] mx-auto mb-1" />
-                        <span className="font-bold text-[#201a17] block">
-                          Upload Receipt
-                        </span>
-                        <span className="text-[10px] text-[#554339]">
-                          JPG, PNG, PDF (Max 5MB)
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-[#201a17] mb-1">
-                        Notes (Optional)
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Add a short note (if any)..."
-                        className="w-full p-2.5 rounded-lg border border-[#d7c2b9] bg-[#fff8f6] text-xs text-[#201a17] focus:outline-none focus:border-[#964407]"
-                      ></textarea>
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowRecordDrawer(false)}
-                        className="flex-1 py-2.5 rounded-lg border border-[#d7c2b9] text-[#554339] font-bold text-xs hover:bg-[#f8ede3]"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 py-2.5 rounded-lg bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs transition-all shadow-sm"
-                      >
-                        Save Expense
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
               {/* Toast Callout Message (Saved Success Feedback) */}
               {showToast && (
                 <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-xs">
@@ -894,12 +901,12 @@ export default function FinancialHubPage({
                     <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                     <div>
                       <p className="font-bold">Expense saved successfully!</p>
-                      <p className="text-[10px] text-emerald-700">₹12,400 - Electricity</p>
+                      <p className="text-[10px] text-emerald-700">Reflected across Expenses Hub and Partner Settlement</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowToast(false)}
-                    className="text-emerald-700 hover:text-emerald-900 p-1"
+                    className="text-emerald-700 hover:text-emerald-900 p-1 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
