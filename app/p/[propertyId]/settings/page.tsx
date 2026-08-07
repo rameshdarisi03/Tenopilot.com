@@ -25,7 +25,12 @@ import {
   PropertySettingsData,
   DEFAULT_PROPERTY_SETTINGS,
 } from "@/constants/propertySettings";
-import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
+import {
+  partnerStore,
+  PartnerConfig,
+  ExpenseCategoryConfig,
+  PaymentAccountConfig,
+} from "@/constants/partnerStore";
 
 export default function PropertySettingsPage({
   params,
@@ -44,10 +49,13 @@ export default function PropertySettingsPage({
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Partners & Expense Categories State
+  // Partners, Expense Categories & Payment Accounts State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
   const [newCatName, setNewCatName] = useState("");
+  const [newAccName, setNewAccName] = useState("");
+  const [newAccType, setNewAccType] = useState<PaymentAccountConfig["type"]>("Bank Account");
 
   useEffect(() => {
     // Load local & Cloud Firestore settings
@@ -59,10 +67,12 @@ export default function PropertySettingsPage({
 
     setPartners(partnerStore.getPartners());
     setCategories(partnerStore.getCategories());
+    setPaymentAccounts(partnerStore.getPaymentAccounts());
 
     const unsub = partnerStore.subscribe(() => {
       setPartners(partnerStore.getPartners());
       setCategories(partnerStore.getCategories());
+      setPaymentAccounts(partnerStore.getPaymentAccounts());
     });
     return unsub;
   }, [propertyId]);
@@ -128,6 +138,21 @@ export default function PropertySettingsPage({
     if (confirm(`Remove expense category "${name}"?`)) {
       partnerStore.deleteCategory(id);
       triggerToast(`✓ Expense category "${name}" removed.`);
+    }
+  };
+
+  const handleAddPaymentAccountSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccName.trim()) return;
+    partnerStore.addPaymentAccount(newAccName, newAccType);
+    setNewAccName("");
+    triggerToast(`✓ Added payment account "${newAccName.trim()}" (${newAccType})! Reflected across Financial Hub.`);
+  };
+
+  const handleDeletePaymentAccountClick = (id: string, name: string) => {
+    if (confirm(`Delete payment account "${name}"?`)) {
+      partnerStore.deletePaymentAccount(id);
+      triggerToast(`✓ Payment account "${name}" removed.`);
     }
   };
 
@@ -395,6 +420,76 @@ export default function PropertySettingsPage({
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Payment Accounts Configuration Card */}
+                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-gray-900">Payment Accounts & Funding Sources</h3>
+                        <p className="text-[11px] text-gray-500">Configure business bank accounts, petty cash, or partner personal payment sources</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add New Payment Account Form */}
+                  <form onSubmit={handleAddPaymentAccountSubmit} className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Account Name (e.g. HDFC Main Operating, Axis Petty Cash)"
+                      value={newAccName}
+                      onChange={(e) => setNewAccName(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-xl border border-gray-300 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                    <select
+                      value={newAccType}
+                      onChange={(e) => setNewAccType(e.target.value as any)}
+                      className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-900 bg-white"
+                    >
+                      <option value="Business Account">Business Account</option>
+                      <option value="Petty Cash">Petty Cash</option>
+                      <option value="Bank Account">Bank Account</option>
+                      <option value="Partner Account">Partner Account</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" /> Add Account
+                    </button>
+                  </form>
+
+                  {/* Accounts Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {paymentAccounts.map((acc) => (
+                      <div
+                        key={acc.id}
+                        className="p-3.5 rounded-xl border border-gray-200 bg-[#fcfcfc] flex items-center justify-between"
+                      >
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">{acc.name}</h4>
+                          <span className="text-[9px] font-extrabold text-[#964407] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                            {acc.type}
+                          </span>
+                        </div>
+                        {!acc.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePaymentAccountClick(acc.id, acc.name)}
+                            className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors cursor-pointer"
+                            title="Delete Account"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

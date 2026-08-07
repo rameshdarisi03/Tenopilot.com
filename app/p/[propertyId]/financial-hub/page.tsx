@@ -36,7 +36,12 @@ import {
   Clock,
   Edit3,
 } from "lucide-react";
-import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
+import {
+  partnerStore,
+  PartnerConfig,
+  ExpenseCategoryConfig,
+  PaymentAccountConfig,
+} from "@/constants/partnerStore";
 import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
 import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBillStore";
 import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon } from "@/constants/businessIconLibrary";
@@ -96,18 +101,22 @@ export default function FinancialHubPage({
   const [selectedColor, setSelectedColor] = useState("#964407");
   const [selectedIcon, setSelectedIcon] = useState("Wrench");
   const [selectedIconGroupTab, setSelectedIconGroupTab] = useState("Property & Building");
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
-  // Reactive Partner & Category State
+  // Reactive Partner, Category & Payment Account State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
 
   useEffect(() => {
     setPartners(partnerStore.getPartners());
     setCategories(partnerStore.getCategories());
+    setPaymentAccounts(partnerStore.getPaymentAccounts());
 
     const unsubPartners = partnerStore.subscribe(() => {
       setPartners(partnerStore.getPartners());
       setCategories(partnerStore.getCategories());
+      setPaymentAccounts(partnerStore.getPaymentAccounts());
     });
 
     // Init Cloud Firebase Firestore & SSOT Stores for Property
@@ -1010,43 +1019,80 @@ export default function FinancialHubPage({
                               </button>
                             </div>
                           ) : (
-                            <select
-                              value={category}
-                              onChange={(e) => {
-                                if (e.target.value === "ADD_NEW") {
-                                  setIsAddingNewCategory(true);
-                                } else {
-                                  setCategory(e.target.value);
-                                }
-                              }}
-                              className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
-                            >
-                              {categories.map((cat) => (
-                                <option key={cat.id} value={cat.name}>
-                                  {cat.name}
-                                </option>
-                              ))}
-                              <option value="ADD_NEW" className="font-bold text-[#964407]">
-                                + Add Custom Category...
-                              </option>
-                            </select>
+                            <div className="relative">
+                              <div
+                                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 cursor-pointer flex items-center justify-between hover:border-[#964407] transition-all"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="p-1 rounded-lg text-white font-bold flex items-center justify-center shrink-0"
+                                    style={{
+                                      backgroundColor:
+                                        categories.find((c) => c.name === category)?.color || "#964407",
+                                    }}
+                                  >
+                                    <RenderDynamicCategoryIcon
+                                      iconName={
+                                        categories.find((c) => c.name === category)?.icon || "Wrench"
+                                      }
+                                      className="w-3.5 h-3.5 text-white"
+                                    />
+                                  </div>
+                                  <span className="font-bold text-gray-900">{category}</span>
+                                </div>
+                                <span className="text-gray-400 text-[10px]">▼</span>
+                              </div>
+
+                              {isCategoryDropdownOpen && (
+                                <div className="absolute left-0 right-0 mt-1 z-30 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-56 overflow-y-auto p-1.5 space-y-1 animate-in fade-in">
+                                  {categories.map((cat) => (
+                                    <div
+                                      key={cat.id}
+                                      onClick={() => {
+                                        setCategory(cat.name);
+                                        setIsCategoryDropdownOpen(false);
+                                      }}
+                                      className={`p-2 rounded-xl flex items-center gap-2.5 cursor-pointer hover:bg-[#fff8f6] transition-colors ${
+                                        category === cat.name ? "bg-[#fff8f6] font-bold border border-[#964407]/30" : ""
+                                      }`}
+                                    >
+                                      <div
+                                        className="p-1.5 rounded-lg text-white font-bold flex items-center justify-center shrink-0"
+                                        style={{ backgroundColor: cat.color || "#964407" }}
+                                      >
+                                        <RenderDynamicCategoryIcon iconName={cat.icon} className="w-3.5 h-3.5 text-white" />
+                                      </div>
+                                      <span className="text-xs text-gray-900 font-bold">{cat.name}</span>
+                                    </div>
+                                  ))}
+                                  <div
+                                    onClick={() => {
+                                      setIsAddingNewCategory(true);
+                                      setIsCategoryDropdownOpen(false);
+                                    }}
+                                    className="p-2 rounded-xl flex items-center gap-2 cursor-pointer hover:bg-orange-100 text-[#964407] font-bold border-t border-gray-100 text-xs"
+                                  >
+                                    <span>+ Add Custom Category...</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
 
                         <div>
                           <label className="block font-bold text-gray-900 mb-1">
-                            Paid From *
+                            Paid From Account *
                           </label>
                           <select
                             value={paidFrom}
                             onChange={(e) => setPaidFrom(e.target.value)}
                             className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
                           >
-                            <option value="Business Account">Business Account</option>
-                            <option value="Petty Cash">Petty Cash</option>
-                            {partners.map((p) => (
-                              <option key={p.id} value={p.name}>
-                                {p.name} ({p.ownershipPercentage}%)
+                            {paymentAccounts.map((acc) => (
+                              <option key={acc.id} value={acc.name}>
+                                {acc.name} ({acc.type})
                               </option>
                             ))}
                           </select>
@@ -1196,11 +1242,9 @@ export default function FinancialHubPage({
                           }
                           className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
                         >
-                          <option value="Business Account">Business Account</option>
-                          <option value="Petty Cash">Petty Cash</option>
-                          {partners.map((p) => (
-                            <option key={p.id} value={p.name}>
-                              {p.name} ({p.ownershipPercentage}%)
+                          {paymentAccounts.map((acc) => (
+                            <option key={acc.id} value={acc.name}>
+                              {acc.name} ({acc.type})
                             </option>
                           ))}
                         </select>
@@ -1772,11 +1816,9 @@ export default function FinancialHubPage({
                     onChange={(e) => setRecPaidFrom(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
                   >
-                    <option value="Business Account">Business Account</option>
-                    <option value="Petty Cash">Petty Cash</option>
-                    {partners.map((p) => (
-                      <option key={p.id} value={p.name}>
-                        {p.name}
+                    {paymentAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.name}>
+                        {acc.name} ({acc.type})
                       </option>
                     ))}
                   </select>

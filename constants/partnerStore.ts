@@ -53,9 +53,25 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-7", name: "Property Tax & License", icon: "FileText", color: "#475569" },
 ];
 
+export interface PaymentAccountConfig {
+  id: string;
+  name: string;
+  type: "Business Account" | "Petty Cash" | "Partner Account" | "Bank Account";
+  isDefault?: boolean;
+}
+
+export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [
+  { id: "acc-1", name: "Business Account", type: "Business Account", isDefault: true },
+  { id: "acc-2", name: "Petty Cash", type: "Petty Cash", isDefault: true },
+  { id: "acc-3", name: "Ramesh", type: "Partner Account" },
+  { id: "acc-4", name: "Suresh", type: "Partner Account" },
+  { id: "acc-5", name: "Mahesh", type: "Partner Account" },
+];
+
 let listeners: (() => void)[] = [];
 let partnerState: PartnerConfig[] = DEFAULT_PARTNERS;
 let categoryState: ExpenseCategoryConfig[] = DEFAULT_EXPENSE_CATEGORIES;
+let paymentAccountState: PaymentAccountConfig[] = DEFAULT_PAYMENT_ACCOUNTS;
 
 // Load persisted state from localStorage on init if in browser
 if (typeof window !== "undefined") {
@@ -74,6 +90,13 @@ if (typeof window !== "undefined") {
         categoryState = parsedCats;
       }
     }
+    const savedAccounts = localStorage.getItem("tenopilot_payment_accounts");
+    if (savedAccounts) {
+      const parsedAccs = JSON.parse(savedAccounts);
+      if (Array.isArray(parsedAccs) && parsedAccs.length > 0) {
+        paymentAccountState = parsedAccs;
+      }
+    }
   } catch (e) {
     console.error("Failed to load partnerStore from localStorage", e);
   }
@@ -90,11 +113,58 @@ export const partnerStore = {
 
   updatePartners(newPartners: PartnerConfig[]) {
     partnerState = newPartners;
+    // Auto sync partner accounts into payment accounts
+    const partnerAccs: PaymentAccountConfig[] = newPartners.map((p) => ({
+      id: `acc-partner-${p.id}`,
+      name: p.name,
+      type: "Partner Account",
+    }));
+
+    const nonPartnerAccs = paymentAccountState.filter(
+      (a) => a.type !== "Partner Account"
+    );
+    paymentAccountState = [...nonPartnerAccs, ...partnerAccs];
+
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("tenopilot_partner_ownership", JSON.stringify(newPartners));
+        localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
       } catch (e) {
         console.error("Failed to save partners to localStorage", e);
+      }
+    }
+    notify();
+  },
+
+  getPaymentAccounts(): PaymentAccountConfig[] {
+    return paymentAccountState;
+  },
+
+  addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account") {
+    const newAcc: PaymentAccountConfig = {
+      id: `acc-${Date.now()}`,
+      name: name.trim(),
+      type,
+    };
+    paymentAccountState = [...paymentAccountState, newAcc];
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
+      } catch (e) {
+        console.error("Failed to save payment account", e);
+      }
+    }
+    notify();
+    return newAcc;
+  },
+
+  deletePaymentAccount(id: string) {
+    paymentAccountState = paymentAccountState.filter((a) => a.id !== id);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
+      } catch (e) {
+        console.error("Failed to delete payment account", e);
       }
     }
     notify();
