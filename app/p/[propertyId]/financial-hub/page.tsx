@@ -82,10 +82,18 @@ export default function FinancialHubPage({
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h2 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17]">
-                Partner Settlement
+                {activeTab === "Operations"
+                  ? "Financial Operations"
+                  : activeTab === "Expenses"
+                  ? "Expense Management"
+                  : "Partner Settlement"}
               </h2>
               <p className="text-xs text-[#554339] mt-1">
-                Real-time profit sharing and partner settlement overview
+                {activeTab === "Operations"
+                  ? "Review operational business health and act on pending financial tasks"
+                  : activeTab === "Expenses"
+                  ? "Log, filter, and track building operational costs and vendor bills"
+                  : "Real-time profit sharing and partner settlement overview"}
               </p>
             </div>
 
@@ -97,16 +105,95 @@ export default function FinancialHubPage({
 
               <button
                 onClick={() => setShowRecordDrawer(true)}
-                className="px-4 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95"
+                className="px-4 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Record Expense
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Main Content Left (Stat Cards, Settlement Overview, Recent Expenses) */}
-            <div className="lg:col-span-8 space-y-8">
+          {/* 3 Dedicated Sub-Page Tab Access Buttons (Consistent Theme Styling) */}
+          <div className="flex border-b border-[#d7c2b9] gap-4 sm:gap-8 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveTab("Operations")}
+              className={`pb-3.5 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "Operations"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-[#554339] hover:text-[#201a17]"
+              }`}
+            >
+              <Building2 className="w-4 h-4" /> 1. Operations
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("Expenses")}
+              className={`pb-3.5 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "Expenses"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-[#554339] hover:text-[#201a17]"
+              }`}
+            >
+              <Receipt className="w-4 h-4" /> 2. Expenses
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("Partner Settlement")}
+              className={`pb-3.5 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "Partner Settlement"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-[#554339] hover:text-[#201a17]"
+              }`}
+            >
+              <Wallet className="w-4 h-4" /> 3. Partner Settlement
+            </button>
+          </div>
+
+          {/* TAB 1: OPERATIONS PLACEHOLDER */}
+          {activeTab === "Operations" && (
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 text-center space-y-4 animate-in fade-in shadow-xs">
+              <div className="w-14 h-14 bg-orange-100 text-[#964407] rounded-2xl flex items-center justify-center mx-auto">
+                <Building2 className="w-7 h-7" />
+              </div>
+              <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                Financial Operations Workspace
+              </h3>
+              <p className="text-xs text-[#554339] max-w-md mx-auto leading-relaxed font-medium">
+                Operations sub-page workspace ready. In the next step, tell me how you'd like to structure operational KPI cards and pending tasks.
+              </p>
+              <div className="pt-2">
+                <span className="inline-block px-3 py-1 rounded-full bg-orange-50 text-[#964407] text-[10px] font-extrabold border border-orange-200 uppercase">
+                  OPERATIONS SUB-PAGE READY 🟢
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: EXPENSES PLACEHOLDER */}
+          {activeTab === "Expenses" && (
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 text-center space-y-4 animate-in fade-in shadow-xs">
+              <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto">
+                <Receipt className="w-7 h-7" />
+              </div>
+              <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                Expense Management & Cost Ledger
+              </h3>
+              <p className="text-xs text-[#554339] max-w-md mx-auto leading-relaxed font-medium">
+                Expenses sub-page workspace ready. In the next step, tell me how you'd like to structure expense category breakdown and ledger filtering.
+              </p>
+              <div className="pt-2">
+                <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-900 text-[10px] font-extrabold border border-emerald-200 uppercase">
+                  EXPENSES SUB-PAGE READY 🟢
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: PARTNER SETTLEMENT (OUR ACTIVE FULL VIEW) */}
+          {activeTab === "Partner Settlement" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Main Content Left (Stat Cards, Settlement Overview, Recent Expenses) */}
+              <div className="lg:col-span-8 space-y-8">
               {/* Stat Cards Grid (4 Cards matching screenshot) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Stat Card 1 */}
@@ -537,6 +624,7 @@ export default function FinancialHubPage({
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
