@@ -370,62 +370,7 @@ export default function PropertySettingsPage({
                   </div>
                 </div>
 
-                {/* 2. Expense Categories Management */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
-                        <Sliders className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-gray-900">Operational Expense Categories</h3>
-                        <p className="text-[11px] text-gray-500">Manage drop-down expense categories available when logging expenses on Financial Hub</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Add New Category Form */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter new category name (e.g., Security Guard Salary, Pest Control)"
-                      value={newCatName}
-                      onChange={(e) => setNewCatName(e.target.value)}
-                      className="flex-1 px-4 py-2 rounded-xl border border-gray-300 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCategorySubmit}
-                      className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" /> + Add Category
-                    </button>
-                  </div>
-
-                  {/* Categories Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {categories.map((cat) => (
-                      <div
-                        key={cat.id}
-                        className="p-3 rounded-xl border border-gray-200 bg-[#fcfcfc] flex items-center justify-between"
-                      >
-                        <span className="font-bold text-xs text-gray-800 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-[#c2652a]"></span>
-                          {cat.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategoryClick(cat.id, cat.name)}
-                          className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 3. Payment Accounts Configuration Card */}
+                {/* 2. Payment Accounts Configuration Card */}
                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-2.5">

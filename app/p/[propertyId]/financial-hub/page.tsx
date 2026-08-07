@@ -96,12 +96,13 @@ export default function FinancialHubPage({
   const [recPaidFrom, setRecPaidFrom] = useState("Business Account");
   const [recNotes, setRecNotes] = useState("");
 
-  // Custom Category Creator State
+  // Custom Category Creator & Sub-Tab State
   const [catNameInput, setCatNameInput] = useState("");
   const [selectedColor, setSelectedColor] = useState("#964407");
   const [selectedIcon, setSelectedIcon] = useState("Wrench");
   const [selectedIconGroupTab, setSelectedIconGroupTab] = useState("Property & Building");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
 
   // Reactive Partner, Category & Payment Account State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
@@ -385,8 +386,8 @@ export default function FinancialHubPage({
               </div>
             </div>
 
-            {/* Prominent, Highlightable Section Navigation Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            {/* Prominent 3-Section Core Pillar Navigation Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
               <button
                 type="button"
                 onClick={() => setActiveTab("Operations")}
@@ -447,9 +448,9 @@ export default function FinancialHubPage({
                         activeTab === "Expenses" ? "text-[#964407]" : "text-[#201a17]"
                       }`}
                     >
-                      Expenses
+                      Expenses Hub
                     </h3>
-                    <p className="text-[11px] text-[#554339]">Building Cost Ledger</p>
+                    <p className="text-[11px] text-[#554339]">Ledger, Recurring & Categories</p>
                   </div>
                 </div>
                 {activeTab === "Expenses" && (
@@ -488,41 +489,6 @@ export default function FinancialHubPage({
                   </div>
                 </div>
                 {activeTab === "Partner Settlement" && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("Categories")}
-                className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
-                  activeTab === "Categories"
-                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/20 shadow-md scale-[1.01]"
-                    : "bg-[#fff8f6] border-[#d7c2b9] hover:bg-white hover:border-gray-400"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`p-2.5 rounded-xl transition-colors ${
-                      activeTab === "Categories"
-                        ? "bg-[#964407] text-white"
-                        : "bg-blue-100 text-blue-700 group-hover:bg-[#964407] group-hover:text-[#964407]"
-                    }`}
-                  >
-                    <Tag className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3
-                      className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Categories" ? "text-[#964407]" : "text-[#201a17]"
-                      }`}
-                    >
-                      Categories
-                    </h3>
-                    <p className="text-[11px] text-[#554339]">Custom Icons & Colors</p>
-                  </div>
-                </div>
-                {activeTab === "Categories" && (
                   <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
                 )}
               </button>
@@ -644,7 +610,36 @@ export default function FinancialHubPage({
                 </div>
               </div>
 
-              {/* Recurring Fixed Bills Horizontal Left-to-Right Scrollable Row */}
+              {/* Expenses Sub-Tab Segment Switcher */}
+              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs max-w-md">
+                <button
+                  type="button"
+                  onClick={() => setExpensesSubTab("LEDGER")}
+                  className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    expensesSubTab === "LEDGER"
+                      ? "bg-[#964407] text-white shadow-xs"
+                      : "text-[#554339] hover:bg-[#fff8f6]"
+                  }`}
+                >
+                  <Receipt className="w-4 h-4" /> Ledger & Recurring Bills
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpensesSubTab("CATEGORIES")}
+                  className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    expensesSubTab === "CATEGORIES"
+                      ? "bg-[#964407] text-white shadow-xs"
+                      : "text-[#554339] hover:bg-[#fff8f6]"
+                  }`}
+                >
+                  <Tag className="w-4 h-4" /> Category Customizer ({categories.length})
+                </button>
+              </div>
+
+              {/* VIEW 1: EXPENSES LEDGER & RECURRING BILLS */}
+              {expensesSubTab === "LEDGER" && (
+                <div className="space-y-8 animate-in fade-in">
+                  {/* Recurring Fixed Bills Horizontal Left-to-Right Scrollable Row */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -873,6 +868,197 @@ export default function FinancialHubPage({
                   </table>
                 </div>
               </div>
+              </div>
+              )}
+
+              {/* VIEW 2: CATEGORY CUSTOMIZER & 100+ ICONS */}
+              {expensesSubTab === "CATEGORIES" && (
+                <div className="space-y-8 animate-in fade-in">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Left Column: Color & Icon Category Creator Form */}
+                    <div className="lg:col-span-5 bg-white rounded-3xl border border-[#d7c2b9] p-6 sm:p-8 shadow-xs space-y-6">
+                      <div>
+                        <h3 className="font-serif font-bold text-xl text-[#201a17] flex items-center gap-2">
+                          <Tag className="w-5 h-5 text-[#964407]" /> Custom Category Creator
+                        </h3>
+                        <p className="text-xs text-[#554339] mt-1">
+                          Add new operational expense categories with custom theme colors and icons
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleCreateCategoryFromTab} className="space-y-5 text-xs">
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">
+                            Category Name *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={catNameInput}
+                            onChange={(e) => setCatNameInput(e.target.value)}
+                            placeholder="e.g. Generator Fuel, Pest Control"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          />
+                        </div>
+
+                        {/* Color Swatch Picker */}
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-2 flex items-center gap-1.5">
+                            <Palette className="w-3.5 h-3.5 text-[#964407]" /> Select Theme Color *
+                          </label>
+                          <div className="flex flex-wrap gap-2.5">
+                            {COLOR_SWATCHES.map((swatch) => (
+                              <button
+                                key={swatch.name}
+                                type="button"
+                                onClick={() => setSelectedColor(swatch.hex)}
+                                className={`w-8 h-8 rounded-full transition-all flex items-center justify-center cursor-pointer ${
+                                  selectedColor === swatch.hex
+                                    ? "ring-2 ring-offset-2 ring-[#964407] scale-110 shadow-sm"
+                                    : "hover:scale-105 opacity-80 hover:opacity-100"
+                                }`}
+                                style={{ backgroundColor: swatch.hex }}
+                                title={swatch.name}
+                              >
+                                {selectedColor === swatch.hex && (
+                                  <CheckCircle2 className="w-4 h-4 text-white" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 100+ Categorized Business Icon Library Picker */}
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <label className="block font-bold text-gray-900">
+                              Select Business Icon (100+ Library) *
+                            </label>
+                            <span className="text-[10px] font-bold text-[#964407] bg-orange-100 px-2 py-0.5 rounded-full">
+                              Selected: {selectedIcon}
+                            </span>
+                          </div>
+
+                          {/* Icon Category Tabs Bar */}
+                          <div className="flex overflow-x-auto gap-1.5 pb-2 mb-2.5 scrollbar-thin">
+                            {CATEGORIZED_ICON_LIBRARY.map((group) => (
+                              <button
+                                key={group.category}
+                                type="button"
+                                onClick={() => setSelectedIconGroupTab(group.category)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all cursor-pointer ${
+                                  selectedIconGroupTab === group.category
+                                    ? "bg-[#964407] text-white shadow-xs"
+                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                              >
+                                {group.category}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Icons Grid for Active Tab */}
+                          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-200">
+                            {CATEGORIZED_ICON_LIBRARY.find(
+                              (g) => g.category === selectedIconGroupTab
+                            )?.icons.map((iconOpt) => (
+                              <button
+                                key={iconOpt.name}
+                                type="button"
+                                onClick={() => setSelectedIcon(iconOpt.name)}
+                                className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                                  selectedIcon === iconOpt.name
+                                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/30 text-[#964407] font-bold shadow-xs scale-105"
+                                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                                }`}
+                              >
+                                <RenderDynamicCategoryIcon
+                                  iconName={iconOpt.name}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-[9px] truncate w-full text-center">
+                                  {iconOpt.label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
+                        >
+                          + Save Category to System
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Right Column: Active Categories Directory Grid */}
+                    <div className="lg:col-span-7 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                            Active Categories Directory ({categories.length})
+                          </h3>
+                          <p className="text-xs text-[#554339]">
+                            All operational building categories currently included in your ledger
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {categories.map((cat) => {
+                          const catExpenses = expenseList.filter((e) => e.category === cat.name);
+                          const catTotal = catExpenses.reduce((a, b) => a + b.amount, 0);
+
+                          return (
+                            <div
+                              key={cat.id}
+                              className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="p-2.5 rounded-xl text-white font-bold shadow-xs flex items-center justify-center shrink-0"
+                                    style={{ backgroundColor: cat.color || "#964407" }}
+                                  >
+                                    <RenderDynamicCategoryIcon
+                                      iconName={cat.icon}
+                                      className="w-5 h-5 text-white"
+                                    />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-sm text-[#201a17]">{cat.name}</h4>
+                                    <p className="text-[10px] text-[#554339]">
+                                      {catExpenses.length} Logged Transactions
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                                  className="p-1.5 rounded-lg text-red-400 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                  title="Delete Category"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              <div className="border-t border-[#f8ede3] pt-2 flex justify-between items-center">
+                                <span className="text-[10px] text-[#554339] font-medium">Total Spend</span>
+                                <span className="font-mono font-bold text-[#964407] text-base">
+                                  ₹{catTotal.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Receipt View Lightbox Modal */}
               {activeReceiptModal && (
@@ -1522,194 +1708,6 @@ export default function FinancialHubPage({
           </div>
           )}
 
-          {/* TAB 4: CATEGORY MANAGEMENT & CUSTOMIZER WORKSPACE */}
-          {activeTab === "Categories" && (
-            <div className="space-y-8 animate-in fade-in">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Color & Icon Category Creator Form */}
-                <div className="lg:col-span-5 bg-white rounded-3xl border border-[#d7c2b9] p-6 sm:p-8 shadow-xs space-y-6">
-                  <div>
-                    <h3 className="font-serif font-bold text-xl text-[#201a17] flex items-center gap-2">
-                      <Tag className="w-5 h-5 text-[#964407]" /> Custom Category Creator
-                    </h3>
-                    <p className="text-xs text-[#554339] mt-1">
-                      Add new operational expense categories with custom theme colors and icons
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleCreateCategoryFromTab} className="space-y-5 text-xs">
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-1">
-                        Category Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={catNameInput}
-                        onChange={(e) => setCatNameInput(e.target.value)}
-                        placeholder="e.g. Generator Fuel, Pest Control"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
-                      />
-                    </div>
-
-                    {/* Color Swatch Picker */}
-                    <div>
-                      <label className="block font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-                        <Palette className="w-3.5 h-3.5 text-[#964407]" /> Select Theme Color *
-                      </label>
-                      <div className="flex flex-wrap gap-2.5">
-                        {COLOR_SWATCHES.map((swatch) => (
-                          <button
-                            key={swatch.name}
-                            type="button"
-                            onClick={() => setSelectedColor(swatch.hex)}
-                            className={`w-8 h-8 rounded-full transition-all flex items-center justify-center cursor-pointer ${
-                              selectedColor === swatch.hex
-                                ? "ring-2 ring-offset-2 ring-[#964407] scale-110 shadow-sm"
-                                : "hover:scale-105 opacity-80 hover:opacity-100"
-                            }`}
-                            style={{ backgroundColor: swatch.hex }}
-                            title={swatch.name}
-                          >
-                            {selectedColor === swatch.hex && (
-                              <CheckCircle2 className="w-4 h-4 text-white" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 100+ Categorized Business Icon Library Picker */}
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="block font-bold text-gray-900">
-                          Select Business Icon (100+ Library) *
-                        </label>
-                        <span className="text-[10px] font-bold text-[#964407] bg-orange-100 px-2 py-0.5 rounded-full">
-                          Selected: {selectedIcon}
-                        </span>
-                      </div>
-
-                      {/* Icon Category Tabs Bar */}
-                      <div className="flex overflow-x-auto gap-1.5 pb-2 mb-2.5 scrollbar-thin">
-                        {CATEGORIZED_ICON_LIBRARY.map((group) => (
-                          <button
-                            key={group.category}
-                            type="button"
-                            onClick={() => setSelectedIconGroupTab(group.category)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all cursor-pointer ${
-                              selectedIconGroupTab === group.category
-                                ? "bg-[#964407] text-white shadow-xs"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
-                          >
-                            {group.category}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Icons Grid for Active Tab */}
-                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-200">
-                        {CATEGORIZED_ICON_LIBRARY.find(
-                          (g) => g.category === selectedIconGroupTab
-                        )?.icons.map((iconOpt) => (
-                          <button
-                            key={iconOpt.name}
-                            type="button"
-                            onClick={() => setSelectedIcon(iconOpt.name)}
-                            className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                              selectedIcon === iconOpt.name
-                                ? "bg-white border-[#964407] ring-2 ring-[#964407]/30 text-[#964407] font-bold shadow-xs scale-105"
-                                : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
-                            }`}
-                          >
-                            <RenderDynamicCategoryIcon
-                              iconName={iconOpt.name}
-                              className="w-4 h-4"
-                            />
-                            <span className="text-[9px] truncate w-full text-center">
-                              {iconOpt.label}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
-                    >
-                      + Save Category to System
-                    </button>
-                  </form>
-                </div>
-
-                {/* Right Column: Active Categories Directory Grid */}
-                <div className="lg:col-span-7 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-serif font-bold text-xl text-[#201a17]">
-                        Active Categories Directory ({categories.length})
-                      </h3>
-                      <p className="text-xs text-[#554339]">
-                        All operational building categories currently included in your ledger
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {categories.map((cat) => {
-                      const catExpenses = expenseList.filter((e) => e.category === cat.name);
-                      const catTotal = catExpenses.reduce((a, b) => a + b.amount, 0);
-
-                      return (
-                        <div
-                          key={cat.id}
-                          className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="p-2.5 rounded-xl text-white font-bold shadow-xs flex items-center justify-center shrink-0"
-                                style={{ backgroundColor: cat.color || "#964407" }}
-                              >
-                                <RenderDynamicCategoryIcon
-                                  iconName={cat.icon}
-                                  className="w-5 h-5 text-white"
-                                />
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-sm text-[#201a17]">{cat.name}</h4>
-                                <p className="text-[10px] text-[#554339]">
-                                  {catExpenses.length} Logged Transactions
-                                </p>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                              className="p-1.5 rounded-lg text-red-400 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                              title="Delete Category"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div className="border-t border-[#f8ede3] pt-2 flex justify-between items-center">
-                            <span className="text-[10px] text-[#554339] font-medium">Total Spend</span>
-                            <span className="font-mono font-bold text-[#964407] text-base">
-                              ₹{catTotal.toLocaleString("en-IN")}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
