@@ -22,6 +22,21 @@ export function getBedVacatingDate(bed?: BedSlotConfig | null): string | undefin
 }
 
 /**
+ * SSOT ISO Date Formatter ("YYYY-MM-DD" -> "06 Sep 2026")
+ */
+export function formatIsoToDisplayDate(isoDate?: string): string {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) return isoDate;
+  const year = parseInt(parts[0], 10);
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(monthIdx) || isNaN(day)) return isoDate;
+  const dateObj = new Date(year, monthIdx, day);
+  return dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/**
  * 3. SSOT Occupant Lifecycle Badge & Status Info
  */
 export interface OccupantStatusBadge {

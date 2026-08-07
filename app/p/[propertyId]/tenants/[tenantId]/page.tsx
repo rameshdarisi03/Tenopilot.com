@@ -11,7 +11,7 @@ import {
   calculateRoomTransferProRata,
   calculateGuestRoomTransferAdjustment,
 } from "@/utils/financialEngine";
-import { calculateProRataRent, calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { calculateProRataRent, calculateOccupantFinancialStatement, formatIsoToDisplayDate } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   ChevronDown,
@@ -387,8 +387,7 @@ export default function IndividualTenantProfilePage({
     // Format pending extended notice date if room transfer was triggered to resolve a notice conflict
     let revisedVacatingDate = occupantState.vacatingDate;
     if (conflictModalData?.pendingDate) {
-      const dateParts = conflictModalData.pendingDate.split("-");
-      revisedVacatingDate = `${dateParts[2]} Aug 2026`;
+      revisedVacatingDate = formatIsoToDisplayDate(conflictModalData.pendingDate);
     }
 
     let updatedOccupant: Occupant;
@@ -590,8 +589,7 @@ export default function IndividualTenantProfilePage({
     e.preventDefault();
 
     // Format date string for display (e.g., "15 Aug 2026")
-    const dateParts = vacatingDate.split("-");
-    const formattedVacatingDate = `${dateParts[2]} Aug 2026`;
+    const formattedVacatingDate = formatIsoToDisplayDate(vacatingDate);
 
     const updated: Occupant = {
       ...occupantState,
@@ -650,8 +648,7 @@ export default function IndividualTenantProfilePage({
       return;
     }
 
-    const dateParts = extendedNoticeDate.split("-");
-    const formattedVacatingDate = `${dateParts[2]} Aug 2026`;
+    const formattedVacatingDate = formatIsoToDisplayDate(extendedNoticeDate);
 
     const updated: Occupant = {
       ...occupantState,
@@ -760,8 +757,7 @@ export default function IndividualTenantProfilePage({
       return;
     }
 
-    const dateParts = extendedGuestCheckoutDate.split("-");
-    const formattedCheckoutDate = `${dateParts[2]} Aug 2026`;
+    const formattedCheckoutDate = formatIsoToDisplayDate(extendedGuestCheckoutDate);
 
     const updated: Occupant = {
       ...occupantState,
