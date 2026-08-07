@@ -23,6 +23,8 @@ import {
   X,
 } from "lucide-react";
 import { propertyStore } from "@/constants/propertyLayoutStore";
+import { occupantStore } from "@/constants/mockOccupants";
+import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 
 export interface PortfolioProperty {
   id: string;
@@ -36,21 +38,9 @@ export interface PortfolioProperty {
   gradient?: string;
 }
 
-const DEFAULT_PROPERTIES: PortfolioProperty[] = [
-  {
-    id: "sunshine-pg",
-    name: "Sunshine Luxury PG",
-    location: "Hitech City, Hyderabad",
-    bedsCount: 52,
-    occupancyRate: "96.1%",
-    collectionRate: "100%",
-    status: "HEALTHY",
-  },
-];
-
 export default function HomeWorkspacePage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [properties, setProperties] = useState<PortfolioProperty[]>(DEFAULT_PROPERTIES);
+  const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
 
   // New property form state
@@ -66,19 +56,83 @@ export default function HomeWorkspacePage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Load persisted properties from localStorage if available
+  // Helper to compute 100% LIVE real-time metrics for Sunshine Luxury PG
+  const computeLiveSunshineMetrics = (): PortfolioProperty => {
+    const structure = propertyStore.getStructure();
+    let totalBeds = 0;
+    let occupiedBeds = 0;
+
+    structure.forEach((floor) => {
+      floor.rooms.forEach((room) => {
+        room.beds.forEach((bed) => {
+          totalBeds++;
+          if (bed.status === "Occupied" || bed.status === "Vacating" || bed.status === "Guest" || bed.occupant) {
+            occupiedBeds++;
+          }
+        });
+      });
+    });
+
+    const occPct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) + "%" : "0%";
+
+    const occupants = occupantStore.getOccupants();
+    let totalPaid = 0;
+    let totalDue = 0;
+
+    occupants.forEach((occ) => {
+      if (occ.lifecycleStatus !== "Past") {
+        const stmt = calculateOccupantFinancialStatement(occ);
+        totalPaid += stmt.totalPaid;
+        totalDue += stmt.totalGrossDue;
+      }
+    });
+
+    const colPct = totalDue > 0 ? Math.min(100, Math.round((totalPaid / totalDue) * 100)) + "%" : "100%";
+
+    return {
+      id: "sunshine-pg",
+      name: "Sunshine Luxury PG",
+      location: "Hitech City, Hyderabad",
+      bedsCount: totalBeds || 52,
+      occupancyRate: occPct,
+      collectionRate: colPct,
+      status: "HEALTHY",
+    };
+  };
+
+  // Load live properties & subscribe to real-time store changes
   useEffect(() => {
+    const liveSunshine = computeLiveSunshineMetrics();
+    let customProps: PortfolioProperty[] = [];
     try {
       const saved = localStorage.getItem("tenopilot_portfolio_properties");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProperties(parsed);
+        if (Array.isArray(parsed)) {
+          customProps = parsed.filter((p: PortfolioProperty) => p.id !== "sunshine-pg");
         }
       }
     } catch (e) {
       console.error("Failed to load portfolio properties", e);
     }
+
+    setProperties([liveSunshine, ...customProps]);
+
+    // Reactive subscription to real-time propertyStore & occupantStore!
+    const unsubProperty = propertyStore.subscribe(() => {
+      const updatedLive = computeLiveSunshineMetrics();
+      setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+    });
+
+    const unsubOccupant = occupantStore.subscribe(() => {
+      const updatedLive = computeLiveSunshineMetrics();
+      setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+    });
+
+    return () => {
+      unsubProperty();
+      unsubOccupant();
+    };
   }, []);
 
   const handleCreateProperty = (e: React.FormEvent) => {
