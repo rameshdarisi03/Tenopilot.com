@@ -30,25 +30,7 @@ import {
   Filter,
 } from "lucide-react";
 import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
-
-export interface ExpenseItem {
-  id: string;
-  date: string;
-  category: string;
-  paidFrom: string;
-  property: string;
-  amount: number;
-  hasReceipt: boolean;
-  notes?: string;
-}
-
-const INITIAL_EXPENSES: ExpenseItem[] = [
-  { id: "exp-1", date: "12 Oct 2024", category: "Electricity", paidFrom: "Ramesh", property: "Sunshine Luxury PG", amount: 12400, hasReceipt: true },
-  { id: "exp-2", date: "11 Oct 2024", category: "Water Supply", paidFrom: "Business Account", property: "Sunshine Luxury PG", amount: 3200, hasReceipt: true },
-  { id: "exp-3", date: "10 Oct 2024", category: "Staff Salary", paidFrom: "Suresh", property: "Sunshine Luxury PG", amount: 18000, hasReceipt: false },
-  { id: "exp-4", date: "09 Oct 2024", category: "Internet / Wi-Fi", paidFrom: "Mahesh", property: "Sunshine Luxury PG", amount: 1200, hasReceipt: false },
-  { id: "exp-5", date: "08 Oct 2024", category: "Property Maintenance", paidFrom: "Business Account", property: "Sunshine Luxury PG", amount: 6500, hasReceipt: true },
-];
+import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
 
 export default function FinancialHubPage({
   params,
@@ -67,10 +49,14 @@ export default function FinancialHubPage({
   const [paidFrom, setPaidFrom] = useState("Business Account");
   const [notes, setNotes] = useState("");
 
-  // Expenses State
-  const [expenseList, setExpenseList] = useState<ExpenseItem[]>(INITIAL_EXPENSES);
+  // Expenses SSOT State
+  const [expenseList, setExpenseList] = useState<ExpenseRecord[]>([]);
+  const [categoryWeightages, setCategoryWeightages] = useState<CategoryWeightage[]>([]);
+  const [highestCat, setHighestCat] = useState<{ category: string; amount: number }>({ category: "None", amount: 0 });
+  const [totalSpent, setTotalSpent] = useState<number>(0);
+  const [partnerContributions, setPartnerContributions] = useState<Record<string, number>>({});
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
-  const [activeReceiptModal, setActiveReceiptModal] = useState<ExpenseItem | null>(null);
+  const [activeReceiptModal, setActiveReceiptModal] = useState<ExpenseRecord | null>(null);
 
   // Reactive Partner & Category State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
@@ -80,14 +66,32 @@ export default function FinancialHubPage({
     setPartners(partnerStore.getPartners());
     setCategories(partnerStore.getCategories());
 
-    const unsub = partnerStore.subscribe(() => {
+    const unsubPartners = partnerStore.subscribe(() => {
       setPartners(partnerStore.getPartners());
       setCategories(partnerStore.getCategories());
     });
-    return unsub;
-  }, []);
 
-  const handleSaveExpense = (e: React.FormEvent) => {
+    // Init Cloud Firebase Firestore & SSOT Store for Property
+    expenseStore.initPropertyFirebase(propertyId);
+
+    const updateExpenseState = () => {
+      setExpenseList(expenseStore.getExpenses(propertyId));
+      setCategoryWeightages(expenseStore.getCategoryWeightages(propertyId));
+      setHighestCat(expenseStore.getHighestCategory(propertyId));
+      setTotalSpent(expenseStore.getTotalSpentThisMonth(propertyId));
+      setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId));
+    };
+
+    updateExpenseState();
+    const unsubExpenses = expenseStore.subscribe(updateExpenseState);
+
+    return () => {
+      unsubPartners();
+      unsubExpenses();
+    };
+  }, [propertyId]);
+
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -101,8 +105,7 @@ export default function FinancialHubPage({
       year: "numeric",
     });
 
-    const newExpense: ExpenseItem = {
-      id: `exp-${Date.now()}`,
+    await expenseStore.addExpense(propertyId, {
       date: todayStr,
       category,
       paidFrom,
@@ -110,19 +113,38 @@ export default function FinancialHubPage({
       amount: numAmount,
       hasReceipt: true,
       notes,
-    };
+    });
 
-    setExpenseList((prev) => [newExpense, ...prev]);
     setAmount("");
     setNotes("");
     setShowRecordDrawer(false);
     setShowToast(true);
   };
 
-  const handleDeleteExpense = (id: string) => {
+  const handleDeleteExpense = async (id: string) => {
     if (confirm("Are you sure you want to delete this expense record?")) {
-      setExpenseList((prev) => prev.filter((e) => e.id !== id));
+      await expenseStore.deleteExpense(propertyId, id);
     }
+  };
+
+  const handlePayRecurringBill = async (billCategory: string, billAmount: number) => {
+    const todayStr = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    await expenseStore.addExpense(propertyId, {
+      date: todayStr,
+      category: billCategory,
+      paidFrom: "Business Account",
+      property: "Sunshine Luxury PG",
+      amount: billAmount,
+      hasReceipt: true,
+      notes: `Auto-logged recurring bill payment for ${billCategory}`,
+    });
+
+    alert(`Successfully logged ${billCategory} payment of ₹${billAmount.toLocaleString("en-IN")} to Firebase Cloud!`);
   };
 
   return (
@@ -305,7 +327,7 @@ export default function FinancialHubPage({
           {/* TAB 2: EXPENSES WORKSPACE (STITCH V2 SPECIFICATION) */}
           {activeTab === "Expenses" && (
             <div className="space-y-8 animate-in fade-in">
-              {/* Top Bento Grid: Total Spent & Budget Health */}
+              {/* Top Bento Grid: Total Spent & Budget Weightages */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Main Summary Card */}
                 <div className="lg:col-span-8 bg-white border border-[#d7c2b9] p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
@@ -315,10 +337,10 @@ export default function FinancialHubPage({
                     </span>
                     <div className="flex items-baseline gap-4 mt-2">
                       <h2 className="font-serif text-3xl md:text-4xl font-bold text-[#201a17]">
-                        ₹{expenseList.reduce((acc, e) => acc + e.amount, 0).toLocaleString("en-IN")}
+                        ₹{totalSpent.toLocaleString("en-IN")}
                       </h2>
                       <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-emerald-700" /> -4.2% VS LAST MONTH
+                        <TrendingUp className="w-3 h-3 text-emerald-700" /> REAL-TIME FIREBASE SYNCED 🟢
                       </span>
                     </div>
                   </div>
@@ -331,66 +353,68 @@ export default function FinancialHubPage({
                       <div className="flex items-center gap-2 mt-1">
                         <Zap className="w-4 h-4 text-[#964407]" />
                         <span className="font-serif font-bold text-base text-[#201a17]">
-                          Electricity (₹{expenseList.filter((e) => e.category === "Electricity").reduce((a, b) => a + b.amount, 0).toLocaleString("en-IN") || "12,400"})
+                          {highestCat.category} (₹{highestCat.amount.toLocaleString("en-IN")})
                         </span>
                       </div>
                     </div>
 
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                        UNPROCESSED RECEIPTS
+                        RECORDED TRANSACTIONS
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Receipt className="w-4 h-4 text-purple-700" />
                         <span className="font-serif font-bold text-base text-[#201a17]">
-                          02 Pending Upload
+                          {expenseList.length} Entries Logged
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Category Budget Health Progress Card */}
+                {/* Category Weightage & Cost Breakdown Progress Card */}
                 <div className="lg:col-span-4 bg-white border border-[#d7c2b9] p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
                   <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
-                    <h3 className="font-serif font-bold text-base text-[#201a17]">
-                      Budget Health
-                    </h3>
-                    <span className="text-[10px] font-bold text-[#554339] uppercase">
-                      THIS MONTH
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-[#201a17]">
+                        Category Cost Weightage
+                      </h3>
+                      <p className="text-[10px] text-[#554339] font-medium">% Share of total monthly spend</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#964407] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 uppercase">
+                      DYNAMIC
                     </span>
                   </div>
 
-                  <div className="space-y-4 text-xs font-bold">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-[#554339]">Maintenance</span>
-                        <span className="text-[#964407]">82% Used</span>
-                      </div>
-                      <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
-                        <div className="h-full bg-[#964407] w-[82%] rounded-full"></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-[#554339]">Staff Salaries</span>
-                        <span className="text-emerald-700">45% Used</span>
-                      </div>
-                      <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-600 w-[45%] rounded-full"></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-[#554339]">Utilities</span>
-                        <span className="text-red-700">94% Used</span>
-                      </div>
-                      <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
-                        <div className="h-full bg-red-600 w-[94%] rounded-full"></div>
-                      </div>
-                    </div>
+                  <div className="space-y-3.5 text-xs font-bold max-h-56 overflow-y-auto pr-1">
+                    {categoryWeightages.length === 0 ? (
+                      <p className="text-xs text-gray-400 font-medium">No expenses logged yet</p>
+                    ) : (
+                      categoryWeightages.map((cw, idx) => (
+                        <div key={cw.category} className="space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-[#554339]">{cw.category}</span>
+                            <span className="text-[#964407] font-mono">
+                              ₹{cw.amount.toLocaleString("en-IN")} ({cw.percentage}%)
+                            </span>
+                          </div>
+                          <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                idx === 0
+                                  ? "bg-[#964407]"
+                                  : idx === 1
+                                  ? "bg-emerald-600"
+                                  : idx === 2
+                                  ? "bg-purple-600"
+                                  : "bg-blue-600"
+                              }`}
+                              style={{ width: `${Math.min(cw.percentage, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -408,7 +432,7 @@ export default function FinancialHubPage({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Bill 1 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
                         <Wifi className="w-5 h-5" />
@@ -420,14 +444,18 @@ export default function FinancialHubPage({
                     </div>
                     <div className="flex items-center justify-between pt-1">
                       <span className="font-serif font-bold text-lg text-[#201a17]">₹2,499</span>
-                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Paid
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handlePayRecurringBill("Internet / Wi-Fi", 2499)}
+                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        + Log Payment
+                      </button>
                     </div>
                   </div>
 
                   {/* Bill 2 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
                         <Zap className="w-5 h-5" />
@@ -438,15 +466,19 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹84,200</span>
-                      <span className="text-[10px] font-extrabold text-orange-950 bg-orange-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        Due in 3 days 🟠
-                      </span>
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹12,400</span>
+                      <button
+                        type="button"
+                        onClick={() => handlePayRecurringBill("Electricity", 12400)}
+                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        + Log Payment
+                      </button>
                     </div>
                   </div>
 
                   {/* Bill 3 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-xl bg-blue-100 text-blue-700">
                         <Droplet className="w-5 h-5" />
@@ -457,15 +489,19 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹12,500</span>
-                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Paid
-                      </span>
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹3,200</span>
+                      <button
+                        type="button"
+                        onClick={() => handlePayRecurringBill("Water Supply", 3200)}
+                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        + Log Payment
+                      </button>
                     </div>
                   </div>
 
                   {/* Bill 4 */}
-                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
                         <Users className="w-5 h-5" />
@@ -476,10 +512,14 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-1">
-                      <span className="font-serif font-bold text-lg text-[#201a17]">₹66,000</span>
-                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Paid
-                      </span>
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹18,000</span>
+                      <button
+                        type="button"
+                        onClick={() => handlePayRecurringBill("Staff Salary", 18000)}
+                        className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        + Log Payment
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -493,38 +533,49 @@ export default function FinancialHubPage({
                       Operational Expenses Ledger
                     </h3>
                     <p className="text-xs text-[#554339]">
-                      Showing {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded expense transactions
+                      Showing {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded expense transactions (Firebase Synced)
                     </p>
                   </div>
 
-                  {/* Category Filter Pills */}
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="text-[#554339] font-bold flex items-center gap-1">
-                      <Filter className="w-3.5 h-3.5" /> Filter:
-                    </span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Export CSV Button */}
                     <button
-                      onClick={() => setSelectedCategoryFilter("ALL")}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                        selectedCategoryFilter === "ALL"
-                          ? "bg-[#964407] text-white shadow-xs"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
+                      type="button"
+                      onClick={() => expenseStore.exportLedgerToCSV(propertyId)}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                     >
-                      ALL
+                      <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
                     </button>
-                    {categories.map((c) => (
+
+                    {/* Category Filter Pills */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="text-[#554339] font-bold flex items-center gap-1">
+                        <Filter className="w-3.5 h-3.5" /> Filter:
+                      </span>
                       <button
-                        key={c.id}
-                        onClick={() => setSelectedCategoryFilter(c.name)}
+                        onClick={() => setSelectedCategoryFilter("ALL")}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                          selectedCategoryFilter === c.name
+                          selectedCategoryFilter === "ALL"
                             ? "bg-[#964407] text-white shadow-xs"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
-                        {c.name}
+                        ALL
                       </button>
-                    ))}
+                      {categories.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedCategoryFilter(c.name)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                            selectedCategoryFilter === c.name
+                              ? "bg-[#964407] text-white shadow-xs"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -829,9 +880,11 @@ export default function FinancialHubPage({
                       <Receipt className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">₹3,60,000</p>
+                  <p className="font-serif font-bold text-2xl text-[#201a17]">
+                    ₹{totalSpent.toLocaleString("en-IN")}
+                  </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
-                    <ArrowUpRight className="w-3.5 h-3.5" /> 4.1% vs Sep 2024
+                    <TrendingUp className="w-3.5 h-3.5" /> Firebase Live
                   </p>
                 </div>
 
@@ -845,7 +898,9 @@ export default function FinancialHubPage({
                       <TrendingUp className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">₹4,40,000</p>
+                  <p className="font-serif font-bold text-2xl text-[#201a17]">
+                    ₹{(800000 - totalSpent).toLocaleString("en-IN")}
+                  </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
                     <ArrowUpRight className="w-3.5 h-3.5" /> 7.8% vs Sep 2024
                   </p>
@@ -861,9 +916,11 @@ export default function FinancialHubPage({
                       <Building2 className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">55.0%</p>
+                  <p className="font-serif font-bold text-2xl text-[#201a17]">
+                    {(((800000 - totalSpent) / 800000) * 100).toFixed(1)}%
+                  </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
-                    <ArrowUpRight className="w-3.5 h-3.5" /> 2.3% vs Sep 2024
+                    <ArrowUpRight className="w-3.5 h-3.5" /> Live Ratio
                   </p>
                 </div>
               </div>
@@ -888,7 +945,7 @@ export default function FinancialHubPage({
                       <tr className="border-b border-[#f8ede3] text-[10px] uppercase tracking-wider text-[#554339] font-bold">
                         <th className="pb-3 font-bold">Partner</th>
                         <th className="pb-3 font-bold">Ownership %</th>
-                        <th className="pb-3 font-bold">Paid From (This Month)</th>
+                        <th className="pb-3 font-bold">Paid Out-Of-Pocket (This Month)</th>
                         <th className="pb-3 font-bold">Profit Share</th>
                         <th className="pb-3 font-bold">Receivable / Payable</th>
                         <th className="pb-3 font-bold text-right">Status</th>
@@ -896,10 +953,10 @@ export default function FinancialHubPage({
                     </thead>
                     <tbody className="divide-y divide-[#f8ede3]">
                       {partners.map((p) => {
-                        const totalNetProfit = 440000;
+                        const totalNetProfit = 800000 - totalSpent;
                         const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
-                        const mockPaid = p.name === "Ramesh" ? 80000 : p.name === "Suresh" ? 30000 : 40000;
-                        const receivable = profitShare - mockPaid;
+                        const actualPaid = partnerContributions[p.name] || 0;
+                        const receivable = profitShare - actualPaid;
 
                         return (
                           <tr key={p.id}>
@@ -913,7 +970,7 @@ export default function FinancialHubPage({
                               {p.name}
                             </td>
                             <td className="py-4 text-[#554339] font-bold">{p.ownershipPercentage}%</td>
-                            <td className="py-4 text-[#554339]">₹{mockPaid.toLocaleString("en-IN")}</td>
+                            <td className="py-4 text-[#554339] font-mono font-semibold">₹{actualPaid.toLocaleString("en-IN")}</td>
                             <td className="py-4 font-mono font-bold text-[#201a17]">₹{profitShare.toLocaleString("en-IN")}</td>
                             <td className={`py-4 font-mono font-bold ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
                               {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}

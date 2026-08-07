@@ -6,6 +6,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
 } from "firebase/firestore";
@@ -127,5 +128,82 @@ export async function savePropertyLayoutToFirestore(
   } catch (error) {
     console.warn("Firestore save layout fallback:", error);
     return false;
+  }
+}
+
+/**
+ * Cloud Firestore Expenses Operations
+ * Collection Path: properties/{propertyId}/expenses/{expenseId}
+ */
+export async function saveExpenseToFirestore(
+  propertyId: string,
+  expense: any
+): Promise<boolean> {
+  try {
+    const expenseRef = doc(db, "properties", propertyId, "expenses", expense.id);
+    await setDoc(expenseRef, expense, { merge: true });
+    return true;
+  } catch (error) {
+    console.warn("Firestore save expense fallback:", error);
+    return false;
+  }
+}
+
+export async function fetchExpensesFromFirestore(
+  propertyId: string
+): Promise<any[]> {
+  try {
+    const expensesRef = collection(db, "properties", propertyId, "expenses");
+    const snapshot = await getDocs(expensesRef);
+    const expenses: any[] = [];
+    snapshot.forEach((doc) => {
+      expenses.push(doc.data());
+    });
+    return expenses;
+  } catch (error) {
+    console.warn("Firestore fetch expenses fallback:", error);
+    return [];
+  }
+}
+
+export async function deleteExpenseFromFirestore(
+  propertyId: string,
+  expenseId: string
+): Promise<boolean> {
+  try {
+    const expenseRef = doc(db, "properties", propertyId, "expenses", expenseId);
+    await deleteDoc(expenseRef);
+    return true;
+  } catch (error) {
+    console.warn("Firestore delete expense fallback:", error);
+    return false;
+  }
+}
+
+export function subscribeExpensesFromFirestore(
+  propertyId: string,
+  onUpdate: (expenses: any[]) => void
+): () => void {
+  try {
+    const expensesRef = collection(db, "properties", propertyId, "expenses");
+    const q = query(expensesRef);
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const expenses: any[] = [];
+        snapshot.forEach((doc) => {
+          expenses.push(doc.data());
+        });
+        onUpdate(expenses);
+      },
+      (error) => {
+        console.warn("Firestore expenses listener error:", error);
+      }
+    );
+
+    return unsubscribe;
+  } catch {
+    return () => {};
   }
 }
