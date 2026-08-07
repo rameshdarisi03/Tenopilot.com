@@ -11,6 +11,7 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
+import { getBedOccupantsTimeline, BedOccupantsTimeline } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   Settings,
@@ -83,6 +84,14 @@ export default function PropertyMapPage({
     roomNumber: string;
     photos: string[];
     specialTag?: string;
+  } | null>(null);
+
+  // Bed Monthly Schedule Modal state
+  const [showScheduleModalBed, setShowScheduleModalBed] = useState<{
+    bed: BedSlotConfig;
+    roomNumber: string;
+    floorName: string;
+    timeline: BedOccupantsTimeline;
   } | null>(null);
 
   // Toast notification state
@@ -506,31 +515,41 @@ export default function PropertyMapPage({
                           return (
                             <div className={`grid ${gridCols} gap-2.5`}>
                               {room.beds.map((bed) => {
+                                  const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed);
+                                  const primaryOcc = timeline.activeOccupant || bed.occupant;
+                                  const nextOcc = timeline.nextBooking;
+
                                   let badgeStyle = "";
                                   let icon = <User className="w-3.5 h-3.5" />;
                                   let statusLabel: string = bed.status;
 
-                                  const isGuestBed = bed.status === "Guest" || bed.occupant?.stayType === "Guest";
+                                  const effectiveStatus = primaryOcc
+                                    ? primaryOcc.lifecycleStatus === "Notice"
+                                      ? "Vacating"
+                                      : primaryOcc.stayType === "Guest"
+                                      ? "Guest"
+                                      : "Occupied"
+                                    : bed.status;
 
-                                  if (bed.status === "Available") {
+                                  const isGuestBed = effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest";
+
+                                  if (effectiveStatus === "Available" && !nextOcc) {
                                     badgeStyle =
                                       "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
                                     statusLabel = "Available";
                                   } else if (isGuestBed) {
                                     badgeStyle =
                                       "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
-                                    statusLabel = `Guest (Until ${
-                                      bed.guestCheckoutDate || bed.occupant?.dueDate || bed.occupant?.vacatingDate || "10 Aug"
-                                    })`;
-                                  } else if (bed.status === "Vacating") {
+                                    statusLabel = `Guest (${primaryOcc?.name || "Stay"})`;
+                                  } else if (effectiveStatus === "Vacating") {
                                     badgeStyle =
                                       "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
-                                    statusLabel = `Vacating ${bed.vacatingDate || "15 Aug"}`;
-                                  } else if (bed.status === "Booked") {
+                                    statusLabel = `Vacating (${primaryOcc?.name || "Notice"})`;
+                                  } else if (effectiveStatus === "Booked" && !primaryOcc) {
                                     badgeStyle =
                                       "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
                                     statusLabel = "Booked";
-                                  } else if (bed.status === "Occupied") {
+                                  } else {
                                     badgeStyle =
                                       "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
                                     statusLabel = "Occupied";
@@ -562,26 +581,54 @@ export default function PropertyMapPage({
                                         {bed.bedCode}
                                       </span>
                                       <span className="text-[9px] font-semibold opacity-90 leading-tight truncate w-full">
-                                        {bed.occupant ? bed.occupant.name : statusLabel}
+                                        {primaryOcc ? primaryOcc.name : statusLabel}
                                       </span>
 
-                                      {/* Explicit Vacating / Move-In / Guest Out Date Badge */}
-                                      {bed.status === "Vacating" && (
+                                      {/* Active Occupant Status Badge */}
+                                      {effectiveStatus === "Vacating" && (
                                         <span className="text-[8px] font-extrabold bg-orange-200/80 text-orange-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                          Vacating: {bed.occupant?.vacatingDate || bed.vacatingDate || "15 Aug"}
+                                          Vacating: {primaryOcc?.vacatingDate || bed.vacatingDate || "15 Aug"}
                                         </span>
                                       )}
-                                      {bed.status === "Booked" && !isGuestBed && (
-                                        <span className="text-[8px] font-extrabold bg-blue-200/80 text-blue-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                          Move-In: {bed.occupant?.joiningDate || "15 Aug"}
-                                        </span>
-                                      )}
-                                      {isGuestBed && (
+                                      {isGuestBed && primaryOcc && (
                                         <span className="text-[8px] font-extrabold bg-purple-200/80 text-purple-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                          {bed.occupant?.joiningDate && bed.occupant.joiningDate !== "02 Aug 2026" && !bed.occupant.joiningDate.includes("10 Oct") && bed.occupant.lifecycleStatus === "Booked"
-                                            ? `Joining: ${bed.occupant.joiningDate}`
-                                            : `Out: ${bed.guestCheckoutDate || bed.occupant?.dueDate || bed.occupant?.vacatingDate || "12 Aug"}`}
+                                          Out: {primaryOcc.vacatingDate || primaryOcc.dueDate || "12 Aug"}
                                         </span>
+                                      )}
+
+                                      {/* 🔮 DYNAMIC PRE-BOOKED REPLACEMENT SUB-BADGE (Color Coded: Guest 🟣 vs Tenant 🟠) */}
+                                      {nextOcc && (
+                                        <div
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowScheduleModalBed({
+                                              bed,
+                                              roomNumber: room.roomNumber,
+                                              floorName: floor.floorName,
+                                              timeline,
+                                            });
+                                          }}
+                                          className={`mt-1.5 w-full p-1.5 rounded-lg border text-[8px] font-extrabold text-left leading-tight shadow-2xs transition-transform hover:scale-102 ${
+                                            nextOcc.stayType === "Guest"
+                                              ? "bg-purple-100 text-purple-950 border-purple-300"
+                                              : "bg-amber-100 text-amber-950 border-amber-300"
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-0.5">
+                                            <span className="truncate">
+                                              {nextOcc.stayType === "Guest" ? "🟣 NEXT GUEST:" : "🟠 NEXT TENANT:"} {nextOcc.name}
+                                            </span>
+                                          </div>
+                                          <div className="text-[7.5px] opacity-80 font-mono">
+                                            Check-In: {nextOcc.joiningDate}
+                                          </div>
+
+                                          {timeline.totalUpcomingCount > 1 && (
+                                            <div className="mt-0.5 text-[7px] text-purple-700 underline font-bold">
+                                              + {timeline.totalUpcomingCount - 1} More Scheduled 📅
+                                            </div>
+                                          )}
+                                        </div>
                                       )}
                                     </button>
                                   );
@@ -867,6 +914,145 @@ export default function PropertyMapPage({
                   className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
                 >
                   Close Gallery
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🗓️ BED MONTHLY OCCUPANCY & RESERVATION SCHEDULE MODAL */}
+        {showScheduleModalBed && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setShowScheduleModalBed(null)}
+          >
+            <div
+              className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 text-xs"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Bed Occupancy & Reservation Schedule
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-semibold">
+                      {showScheduleModalBed.floorName} • Room {showScheduleModalBed.roomNumber} ({showScheduleModalBed.bed.bedCode})
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModalBed(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                {/* 1. Primary Active Resident */}
+                {showScheduleModalBed.timeline.activeOccupant && (
+                  <div className="p-4 rounded-2xl bg-orange-50/80 border border-orange-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-orange-950 bg-orange-200 px-2 py-0.5 rounded">
+                        🟢 CURRENT RESIDENT (PHYSICALLY RESIDING NOW)
+                      </span>
+                      <span className="font-bold text-orange-950">
+                        {showScheduleModalBed.timeline.activeOccupant.stayType === "Guest" ? "Guest 🟣" : "Tenant 🟠"}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1">
+                      <div>
+                        <p className="font-bold text-sm text-gray-900">
+                          {showScheduleModalBed.timeline.activeOccupant.name}
+                        </p>
+                        <p className="text-[11px] text-gray-600 font-mono">
+                          {showScheduleModalBed.timeline.activeOccupant.phone}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-xs text-orange-950 block">
+                          Vacating: {showScheduleModalBed.timeline.activeOccupant.vacatingDate || showScheduleModalBed.timeline.activeOccupant.dueDate || "Notice Active"}
+                        </span>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          Joined: {showScheduleModalBed.timeline.activeOccupant.joiningDate}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Upcoming Pre-Booked Reservations */}
+                <div className="space-y-3">
+                  <h4 className="font-serif font-bold text-sm text-gray-900 flex items-center justify-between">
+                    <span>📅 Upcoming Confirmed Pre-Bookings</span>
+                    <span className="text-xs bg-purple-100 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
+                      {showScheduleModalBed.timeline.totalUpcomingCount} Scheduled
+                    </span>
+                  </h4>
+
+                  {showScheduleModalBed.timeline.futureBookings.length > 0 ? (
+                    showScheduleModalBed.timeline.futureBookings.map((occ, idx) => (
+                      <div
+                        key={occ.id}
+                        className={`p-3.5 rounded-2xl border space-y-2 ${
+                          occ.stayType === "Guest"
+                            ? "bg-purple-50/70 border-purple-200 text-purple-950"
+                            : "bg-amber-50/70 border-amber-200 text-amber-950"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${
+                            occ.stayType === "Guest" ? "bg-purple-200 text-purple-950" : "bg-amber-200 text-amber-950"
+                          }`}>
+                            #{idx + 1} UPCOMING {occ.stayType.toUpperCase()}
+                          </span>
+                          <span className="font-bold text-[11px] font-mono">
+                            Check-In Target: {occ.joiningDate}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-1">
+                          <div>
+                            <p className="font-bold text-xs text-gray-900">{occ.name}</p>
+                            <p className="text-[10px] text-gray-500 font-mono">{occ.phone}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-mono font-bold text-xs text-gray-900 block">
+                              ₹{occ.rentAmount.toLocaleString("en-IN")} {occ.stayType === "Guest" ? "Tariff" : "/mo"}
+                            </span>
+                            <span className="text-[9px] text-emerald-700 font-bold">
+                              PRE-BOOKED 🟢
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-center text-gray-500 font-medium">
+                      No additional future bookings scheduled for this bed slot yet.
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[10px] text-blue-900 font-semibold leading-relaxed">
+                  💡 <strong>Handover Protocol:</strong> The bed card remains assigned to current physical resident until checkout. On check-in date, pre-booked guest automatically becomes primary active occupant.
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModalBed(null)}
+                  className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs"
+                >
+                  Close Schedule
                 </button>
               </div>
             </div>

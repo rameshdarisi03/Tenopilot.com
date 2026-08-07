@@ -1,7 +1,7 @@
 // TenoPilot Centralized Single Source of Truth (SSOT) Domain Engine
 // Provides authoritative calculation functions for all Occupant, Property, and Financial domains.
 
-import { Occupant } from "@/constants/mockOccupants";
+import { Occupant, occupantStore, MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
 import { BedSlotConfig, RoomConfig } from "@/constants/propertyLayoutStore";
 import { parseOccupantDate } from "./autoCheckInEngine";
 
@@ -329,5 +329,57 @@ export function calculateOccupantFinancialStatement(
     paymentStatusLabel,
     depositStatusLabel,
     statusBadgeText,
+  };
+}
+
+export interface BedOccupantsTimeline {
+  activeOccupant?: Occupant;
+  nextBooking?: Occupant;
+  futureBookings: Occupant[];
+  totalUpcomingCount: number;
+}
+
+/**
+ * 8. SSOT Bed Occupants Timeline & Multi-Booking Resolver
+ * Resolves current physical resident vs upcoming reservations for a bed slot.
+ */
+export function getBedOccupantsTimeline(
+  roomNumber: string,
+  bedCode: string,
+  bed: BedSlotConfig
+): BedOccupantsTimeline {
+  const allOccupants = occupantStore.getOccupants();
+  const matching = allOccupants.filter(
+    (occ) =>
+      occ.roomNumber.toLowerCase() === roomNumber.toLowerCase() &&
+      occ.bedCode.toLowerCase() === bedCode.toLowerCase() &&
+      occ.lifecycleStatus !== "Past"
+  );
+
+  // 1. Primary Active or Notice Resident physically living in bed right now
+  const activeOccupant =
+    matching.find((occ) => occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") ||
+    (bed.occupant?.lifecycleStatus !== "Booked" ? bed.occupant : undefined);
+
+  // 2. Chronological list of upcoming pre-booked reservations
+  const bookedList = matching
+    .filter((occ) => occ.lifecycleStatus === "Booked" && occ.id !== activeOccupant?.id)
+    .sort((a, b) => {
+      const dateA = new Date(a.joiningDate).getTime() || 0;
+      const dateB = new Date(b.joiningDate).getTime() || 0;
+      return dateA - dateB;
+    });
+
+  if (bookedList.length === 0 && bed.status === "Booked" && bed.occupant && bed.occupant.id !== activeOccupant?.id) {
+    bookedList.push(bed.occupant);
+  }
+
+  const nextBooking = bookedList[0];
+
+  return {
+    activeOccupant,
+    nextBooking,
+    futureBookings: bookedList,
+    totalUpcomingCount: bookedList.length,
   };
 }
