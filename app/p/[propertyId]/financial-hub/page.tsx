@@ -39,6 +39,7 @@ import {
 import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
 import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
 import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBillStore";
+import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon } from "@/constants/businessIconLibrary";
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -94,6 +95,7 @@ export default function FinancialHubPage({
   const [catNameInput, setCatNameInput] = useState("");
   const [selectedColor, setSelectedColor] = useState("#964407");
   const [selectedIcon, setSelectedIcon] = useState("Wrench");
+  const [selectedIconGroupTab, setSelectedIconGroupTab] = useState("Property & Building");
 
   // Reactive Partner & Category State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
@@ -166,7 +168,7 @@ export default function FinancialHubPage({
       return;
     }
 
-    const created = partnerStore.addCategory(trimmed);
+    const created = partnerStore.addCategory(trimmed, "Wrench", selectedColor);
     setCategory(created.name);
     setNewCategoryInput("");
     setIsAddingNewCategory(false);
@@ -314,7 +316,7 @@ export default function FinancialHubPage({
       return;
     }
 
-    partnerStore.addCategory(trimmed, selectedIcon);
+    partnerStore.addCategory(trimmed, selectedIcon, selectedColor);
     setCatNameInput("");
     triggerToast(`🟢 Custom Category "${trimmed}" created & saved to SSOT!`);
   };
@@ -1533,41 +1535,57 @@ export default function FinancialHubPage({
                       </div>
                     </div>
 
-                    {/* Business Icon Picker */}
+                    {/* 100+ Categorized Business Icon Library Picker */}
                     <div>
-                      <label className="block font-bold text-gray-900 mb-2">
-                        Select Business Icon *
-                      </label>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          { name: "Zap", label: "Power" },
-                          { name: "Droplet", label: "Water" },
-                          { name: "Users", label: "Staff" },
-                          { name: "Wifi", label: "Net" },
-                          { name: "Wrench", label: "Repairs" },
-                          { name: "Fuel", label: "Fuel" },
-                          { name: "Shield", label: "Security" },
-                          { name: "Utensils", label: "Food" },
-                        ].map((iconOpt) => (
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="block font-bold text-gray-900">
+                          Select Business Icon (100+ Library) *
+                        </label>
+                        <span className="text-[10px] font-bold text-[#964407] bg-orange-100 px-2 py-0.5 rounded-full">
+                          Selected: {selectedIcon}
+                        </span>
+                      </div>
+
+                      {/* Icon Category Tabs Bar */}
+                      <div className="flex overflow-x-auto gap-1.5 pb-2 mb-2.5 scrollbar-thin">
+                        {CATEGORIZED_ICON_LIBRARY.map((group) => (
+                          <button
+                            key={group.category}
+                            type="button"
+                            onClick={() => setSelectedIconGroupTab(group.category)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all cursor-pointer ${
+                              selectedIconGroupTab === group.category
+                                ? "bg-[#964407] text-white shadow-xs"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                          >
+                            {group.category}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Icons Grid for Active Tab */}
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-200">
+                        {CATEGORIZED_ICON_LIBRARY.find(
+                          (g) => g.category === selectedIconGroupTab
+                        )?.icons.map((iconOpt) => (
                           <button
                             key={iconOpt.name}
                             type="button"
                             onClick={() => setSelectedIcon(iconOpt.name)}
-                            className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                            className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
                               selectedIcon === iconOpt.name
-                                ? "bg-[#fff8f6] border-[#964407] ring-1 ring-[#964407] text-[#964407] font-bold"
-                                : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                                ? "bg-white border-[#964407] ring-2 ring-[#964407]/30 text-[#964407] font-bold shadow-xs scale-105"
+                                : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
                             }`}
                           >
-                            {iconOpt.name === "Zap" && <Zap className="w-4 h-4" />}
-                            {iconOpt.name === "Droplet" && <Droplet className="w-4 h-4" />}
-                            {iconOpt.name === "Users" && <Users className="w-4 h-4" />}
-                            {iconOpt.name === "Wifi" && <Wifi className="w-4 h-4" />}
-                            {iconOpt.name === "Wrench" && <Wrench className="w-4 h-4" />}
-                            {iconOpt.name === "Fuel" && <Fuel className="w-4 h-4" />}
-                            {iconOpt.name === "Shield" && <Shield className="w-4 h-4" />}
-                            {iconOpt.name === "Utensils" && <Utensils className="w-4 h-4" />}
-                            <span className="text-[10px]">{iconOpt.label}</span>
+                            <RenderDynamicCategoryIcon
+                              iconName={iconOpt.name}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-[9px] truncate w-full text-center">
+                              {iconOpt.label}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -1575,7 +1593,7 @@ export default function FinancialHubPage({
 
                     <button
                       type="submit"
-                      className="w-full py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                      className="w-full py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
                     >
                       + Save Category to System
                     </button>
@@ -1608,20 +1626,13 @@ export default function FinancialHubPage({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div
-                                className="p-2.5 rounded-xl text-white font-bold shadow-xs"
-                                style={{ backgroundColor: selectedColor || "#964407" }}
+                                className="p-2.5 rounded-xl text-white font-bold shadow-xs flex items-center justify-center shrink-0"
+                                style={{ backgroundColor: cat.color || "#964407" }}
                               >
-                                {cat.icon === "Zap" ? (
-                                  <Zap className="w-4 h-4" />
-                                ) : cat.icon === "Droplet" ? (
-                                  <Droplet className="w-4 h-4" />
-                                ) : cat.icon === "Users" ? (
-                                  <Users className="w-4 h-4" />
-                                ) : cat.icon === "Wifi" ? (
-                                  <Wifi className="w-4 h-4" />
-                                ) : (
-                                  <Wrench className="w-4 h-4" />
-                                )}
+                                <RenderDynamicCategoryIcon
+                                  iconName={cat.icon}
+                                  className="w-5 h-5 text-white"
+                                />
                               </div>
                               <div>
                                 <h4 className="font-bold text-sm text-[#201a17]">{cat.name}</h4>

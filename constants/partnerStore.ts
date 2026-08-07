@@ -13,6 +13,7 @@ export interface ExpenseCategoryConfig {
   id: string;
   name: string;
   icon: string;
+  color?: string;
 }
 
 export const DEFAULT_PARTNERS: PartnerConfig[] = [
@@ -43,13 +44,13 @@ export const DEFAULT_PARTNERS: PartnerConfig[] = [
 ];
 
 export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
-  { id: "cat-1", name: "Electricity", icon: "Zap" },
-  { id: "cat-2", name: "Water Supply", icon: "Droplet" },
-  { id: "cat-3", name: "Staff Salary", icon: "Users" },
-  { id: "cat-4", name: "Internet / Wi-Fi", icon: "Wifi" },
-  { id: "cat-5", name: "Property Maintenance", icon: "Wrench" },
-  { id: "cat-6", name: "Food & Grocery", icon: "Utensils" },
-  { id: "cat-7", name: "Property Tax & License", icon: "FileText" },
+  { id: "cat-1", name: "Electricity", icon: "Zap", color: "#d97706" },
+  { id: "cat-2", name: "Water Supply", icon: "Droplet", color: "#1d4ed8" },
+  { id: "cat-3", name: "Staff Salary", icon: "Users", color: "#059669" },
+  { id: "cat-4", name: "Internet / Wi-Fi", icon: "Wifi", color: "#7e22ce" },
+  { id: "cat-5", name: "Property Maintenance", icon: "Wrench", color: "#964407" },
+  { id: "cat-6", name: "Food & Grocery", icon: "Utensils", color: "#be123c" },
+  { id: "cat-7", name: "Property Tax & License", icon: "FileText", color: "#475569" },
 ];
 
 let listeners: (() => void)[] = [];
@@ -103,11 +104,12 @@ export const partnerStore = {
     return categoryState;
   },
 
-  addCategory(name: string, icon = "Wrench") {
+  addCategory(name: string, icon = "Wrench", color = "#964407") {
     const newCat: ExpenseCategoryConfig = {
       id: `cat-${Date.now()}`,
       name: name.trim(),
       icon,
+      color,
     };
     categoryState = [...categoryState, newCat];
     if (typeof window !== "undefined") {
