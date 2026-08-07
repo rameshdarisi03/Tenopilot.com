@@ -142,77 +142,95 @@ export default function FinancialHubPage({
 
         {/* Workspace Body */}
         <div className="p-6 md:p-8 space-y-8 flex-1">
-          {/* Module Title & Actions Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h2 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17]">
-                {activeTab === "Operations"
-                  ? "Financial Operations"
-                  : activeTab === "Expenses"
-                  ? "Expense Management"
-                  : "Partner Settlement"}
-              </h2>
-              <p className="text-xs text-[#554339] mt-1">
-                {activeTab === "Operations"
-                  ? "Review operational business health and act on pending financial tasks"
-                  : activeTab === "Expenses"
-                  ? "Log, filter, and track building operational costs and vendor bills"
-                  : "Real-time profit sharing and partner settlement overview"}
-              </p>
-            </div>
+          {/* World-Class Architect Header & Navigation Canvas */}
+          <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 md:p-8 shadow-xs space-y-6 relative overflow-hidden">
+            {/* Subtle luxury ambient accent glow */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#f8ede3] to-transparent rounded-full opacity-60 pointer-events-none -mr-20 -mt-20"></div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] text-xs font-semibold text-[#201a17] shadow-xs">
-                <Calendar className="w-4 h-4 text-[#964407]" />
-                <span>This Month (Oct 2024)</span>
+            {/* Top Bar: Title, Description & Action Control Cluster */}
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-0.5 rounded-full bg-[#f8ede3] text-[#964407] font-extrabold text-[10px] uppercase tracking-wider border border-[#d7c2b9]">
+                    FINANCIAL HUB WORKSPACE
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-400">•</span>
+                  <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    REAL-TIME LEDGER ACTIVE 🟢
+                  </span>
+                </div>
+                <h1 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17] tracking-tight">
+                  {activeTab === "Operations"
+                    ? "Financial Operations Workspace"
+                    : activeTab === "Expenses"
+                    ? "Expense Management & Cost Ledger"
+                    : "Partner Settlement & Profit Sharing"}
+                </h1>
+                <p className="text-xs text-[#554339] font-medium max-w-2xl leading-relaxed">
+                  {activeTab === "Operations"
+                    ? "Review overall operational financial health, collection performance, and resolve pending financial tasks across your property."
+                    : activeTab === "Expenses"
+                    ? "Track, filter, and audit building operational costs, vendor bills, recurring utility schedules, and receipt attachments."
+                    : "Real-time partner equity distribution, personal account expense contributions, profit shares, and net settlement ledger."}
+                </p>
               </div>
 
-              {activeTab === "Expenses" && (
-                <button
-                  onClick={() => setShowRecordDrawer(true)}
-                  className="px-4 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Record Expense
-                </button>
-              )}
-            </div>
-          </div>
+              <div className="relative z-10 flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] text-xs font-bold text-[#201a17] shadow-2xs">
+                  <Calendar className="w-4 h-4 text-[#964407]" />
+                  <span>This Month (Oct 2024)</span>
+                </div>
 
-          {/* 3 Dedicated Sub-Page Tab Access Buttons (Consistent Theme Styling) */}
-          <div className="flex border-b border-[#d7c2b9] gap-4 sm:gap-8 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setActiveTab("Operations")}
-              className={`pb-3.5 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "Operations"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-[#554339] hover:text-[#201a17]"
-              }`}
-            >
-              <Building2 className="w-4 h-4" /> 1. Operations
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("Expenses")}
-              className={`pb-3.5 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "Expenses"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-[#554339] hover:text-[#201a17]"
-              }`}
-            >
-              <Receipt className="w-4 h-4" /> 2. Expenses
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("Partner Settlement")}
-              className={`pb-3.5 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "Partner Settlement"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-[#554339] hover:text-[#201a17]"
-              }`}
-            >
-              <Wallet className="w-4 h-4" /> 3. Partner Settlement
-            </button>
+                {activeTab === "Expenses" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRecordDrawer(true)}
+                    className="px-5 py-2.5 rounded-2xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Record Expense
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Segmented Sub-Page Access Tab Switcher Bar */}
+            <div className="relative z-10 pt-2 border-t border-[#f8ede3] flex items-center gap-2 sm:gap-4 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setActiveTab("Operations")}
+                className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "Operations"
+                    ? "bg-[#964407] text-white shadow-md scale-[1.02]"
+                    : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9] hover:bg-white hover:text-[#201a17]"
+                }`}
+              >
+                <Building2 className="w-4 h-4" /> 1. Operations
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("Expenses")}
+                className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "Expenses"
+                    ? "bg-[#964407] text-white shadow-md scale-[1.02]"
+                    : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9] hover:bg-white hover:text-[#201a17]"
+                }`}
+              >
+                <Receipt className="w-4 h-4" /> 2. Expenses
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("Partner Settlement")}
+                className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "Partner Settlement"
+                    ? "bg-[#964407] text-white shadow-md scale-[1.02]"
+                    : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9] hover:bg-white hover:text-[#201a17]"
+                }`}
+              >
+                <Wallet className="w-4 h-4" /> 3. Partner Settlement
+              </button>
+            </div>
           </div>
 
           {/* TAB 1: OPERATIONS PLACEHOLDER */}
