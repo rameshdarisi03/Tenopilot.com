@@ -1,0 +1,142 @@
+// TenoPilot Single Source of Truth (SSOT) Partner Ownership & Expense Categories Store
+
+export interface PartnerConfig {
+  id: string;
+  name: string;
+  ownershipPercentage: number;
+  color: string;
+  accountType: string;
+  phone?: string;
+}
+
+export interface ExpenseCategoryConfig {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+export const DEFAULT_PARTNERS: PartnerConfig[] = [
+  {
+    id: "p1",
+    name: "Ramesh",
+    ownershipPercentage: 40,
+    color: "#964407",
+    accountType: "Personal Account",
+    phone: "+91 98765 43210",
+  },
+  {
+    id: "p2",
+    name: "Suresh",
+    ownershipPercentage: 40,
+    color: "#059669",
+    accountType: "Personal Account",
+    phone: "+91 98765 43211",
+  },
+  {
+    id: "p3",
+    name: "Mahesh",
+    ownershipPercentage: 20,
+    color: "#7e22ce",
+    accountType: "Personal Account",
+    phone: "+91 98765 43212",
+  },
+];
+
+export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
+  { id: "cat-1", name: "Electricity", icon: "Zap" },
+  { id: "cat-2", name: "Water Supply", icon: "Droplet" },
+  { id: "cat-3", name: "Staff Salary", icon: "Users" },
+  { id: "cat-4", name: "Internet / Wi-Fi", icon: "Wifi" },
+  { id: "cat-5", name: "Property Maintenance", icon: "Wrench" },
+  { id: "cat-6", name: "Food & Grocery", icon: "Utensils" },
+  { id: "cat-7", name: "Property Tax & License", icon: "FileText" },
+];
+
+let listeners: (() => void)[] = [];
+let partnerState: PartnerConfig[] = DEFAULT_PARTNERS;
+let categoryState: ExpenseCategoryConfig[] = DEFAULT_EXPENSE_CATEGORIES;
+
+// Load persisted state from localStorage on init if in browser
+if (typeof window !== "undefined") {
+  try {
+    const savedPartners = localStorage.getItem("tenopilot_partner_ownership");
+    if (savedPartners) {
+      const parsed = JSON.parse(savedPartners);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        partnerState = parsed;
+      }
+    }
+    const savedCats = localStorage.getItem("tenopilot_expense_categories");
+    if (savedCats) {
+      const parsedCats = JSON.parse(savedCats);
+      if (Array.isArray(parsedCats) && parsedCats.length > 0) {
+        categoryState = parsedCats;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load partnerStore from localStorage", e);
+  }
+}
+
+function notify() {
+  listeners.forEach((listener) => listener());
+}
+
+export const partnerStore = {
+  getPartners(): PartnerConfig[] {
+    return partnerState;
+  },
+
+  updatePartners(newPartners: PartnerConfig[]) {
+    partnerState = newPartners;
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_partner_ownership", JSON.stringify(newPartners));
+      } catch (e) {
+        console.error("Failed to save partners to localStorage", e);
+      }
+    }
+    notify();
+  },
+
+  getCategories(): ExpenseCategoryConfig[] {
+    return categoryState;
+  },
+
+  addCategory(name: string, icon = "Wrench") {
+    const newCat: ExpenseCategoryConfig = {
+      id: `cat-${Date.now()}`,
+      name: name.trim(),
+      icon,
+    };
+    categoryState = [...categoryState, newCat];
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_expense_categories", JSON.stringify(categoryState));
+      } catch (e) {
+        console.error("Failed to save expense categories", e);
+      }
+    }
+    notify();
+    return newCat;
+  },
+
+  deleteCategory(id: string) {
+    categoryState = categoryState.filter((c) => c.id !== id);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_expense_categories", JSON.stringify(categoryState));
+      } catch (e) {
+        console.error("Failed to delete category", e);
+      }
+    }
+    notify();
+  },
+
+  subscribe(listener: () => void) {
+    listeners.push(listener);
+    return () => {
+      listeners = listeners.filter((l) => l !== listener);
+    };
+  },
+};

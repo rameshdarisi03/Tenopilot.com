@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useState } from "react";
+import Link from "next/link";
+import { use, useState, useEffect } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import {
@@ -16,7 +17,9 @@ import {
   Building2,
   TrendingUp,
   Receipt,
+  Settings,
 } from "lucide-react";
+import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
 
 export default function FinancialHubPage({
   params,
@@ -34,6 +37,21 @@ export default function FinancialHubPage({
   const [category, setCategory] = useState("Electricity");
   const [paidFrom, setPaidFrom] = useState("Business Account");
   const [notes, setNotes] = useState("");
+
+  // Reactive Partner & Category State
+  const [partners, setPartners] = useState<PartnerConfig[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
+
+  useEffect(() => {
+    setPartners(partnerStore.getPartners());
+    setCategories(partnerStore.getCategories());
+
+    const unsub = partnerStore.subscribe(() => {
+      setPartners(partnerStore.getPartners());
+      setCategories(partnerStore.getCategories());
+    });
+    return unsub;
+  }, []);
 
   const handleSaveExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,57 +201,39 @@ export default function FinancialHubPage({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#f8ede3]">
-                      <tr>
-                        <td className="py-4 font-bold flex items-center gap-2 text-[#201a17]">
-                          <span className="w-6 h-6 rounded-full bg-[#964407] text-white flex items-center justify-center text-[10px] font-bold">
-                            R
-                          </span>
-                          Ramesh
-                        </td>
-                        <td className="py-4 text-[#554339]">40%</td>
-                        <td className="py-4 text-[#554339]">₹80,000</td>
-                        <td className="py-4 font-mono font-bold text-[#201a17]">₹1,76,000</td>
-                        <td className="py-4 font-mono font-bold text-[#059669]">+₹96,000</td>
-                        <td className="py-4 text-right">
-                          <span className="badge-available px-2.5 py-1 rounded-full text-[10px] font-bold">
-                            Receivable
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-4 font-bold flex items-center gap-2 text-[#201a17]">
-                          <span className="w-6 h-6 rounded-full bg-[#059669] text-white flex items-center justify-center text-[10px] font-bold">
-                            S
-                          </span>
-                          Suresh
-                        </td>
-                        <td className="py-4 text-[#554339]">40%</td>
-                        <td className="py-4 text-[#554339]">₹30,000</td>
-                        <td className="py-4 font-mono font-bold text-[#201a17]">₹1,76,000</td>
-                        <td className="py-4 font-mono font-bold text-[#059669]">+₹1,46,000</td>
-                        <td className="py-4 text-right">
-                          <span className="badge-available px-2.5 py-1 rounded-full text-[10px] font-bold">
-                            Receivable
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="py-4 font-bold flex items-center gap-2 text-[#201a17]">
-                          <span className="w-6 h-6 rounded-full bg-purple-700 text-white flex items-center justify-center text-[10px] font-bold">
-                            M
-                          </span>
-                          Mahesh
-                        </td>
-                        <td className="py-4 text-[#554339]">20%</td>
-                        <td className="py-4 text-[#554339]">₹40,000</td>
-                        <td className="py-4 font-mono font-bold text-[#201a17]">₹88,000</td>
-                        <td className="py-4 font-mono font-bold text-[#059669]">+₹48,000</td>
-                        <td className="py-4 text-right">
-                          <span className="badge-available px-2.5 py-1 rounded-full text-[10px] font-bold">
-                            Receivable
-                          </span>
-                        </td>
-                      </tr>
+                      {partners.map((p) => {
+                        const totalNetProfit = 440000;
+                        const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
+                        const mockPaid = p.name === "Ramesh" ? 80000 : p.name === "Suresh" ? 30000 : 40000;
+                        const receivable = profitShare - mockPaid;
+
+                        return (
+                          <tr key={p.id}>
+                            <td className="py-4 font-bold flex items-center gap-2 text-[#201a17]">
+                              <span
+                                className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-bold"
+                                style={{ backgroundColor: p.color || "#964407" }}
+                              >
+                                {p.name.charAt(0)}
+                              </span>
+                              {p.name}
+                            </td>
+                            <td className="py-4 text-[#554339] font-bold">{p.ownershipPercentage}%</td>
+                            <td className="py-4 text-[#554339]">₹{mockPaid.toLocaleString("en-IN")}</td>
+                            <td className="py-4 font-mono font-bold text-[#201a17]">₹{profitShare.toLocaleString("en-IN")}</td>
+                            <td className={`py-4 font-mono font-bold ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
+                              {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
+                            </td>
+                            <td className="py-4 text-right">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                receivable >= 0 ? "bg-emerald-100 text-emerald-900" : "bg-red-100 text-red-900"
+                              }`}>
+                                {receivable >= 0 ? "Receivable" : "Payable"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -396,19 +396,18 @@ export default function FinancialHubPage({
                         onChange={(e) => setCategory(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg border border-[#d7c2b9] bg-[#fff8f6] text-xs text-[#201a17] focus:outline-none focus:border-[#964407]"
                       >
-                        <option value="Electricity">Electricity</option>
-                        <option value="Water">Water</option>
-                        <option value="Staff Salary">Staff Salary</option>
-                        <option value="Internet">Internet</option>
-                        <option value="Maintenance">Maintenance</option>
-                        <option value="Generator Diesel">Generator Diesel</option>
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.name}>
+                            {cat.name}
+                          </option>
+                        ))}
                       </select>
-                      <button
-                        type="button"
+                      <Link
+                        href={`/p/${propertyId}/settings`}
                         className="text-[#964407] font-bold text-[10px] mt-1 block hover:underline"
                       >
-                        + Add New Category
-                      </button>
+                        + Manage / Add Categories in Settings ⚙️
+                      </Link>
                     </div>
 
                     <div>
@@ -422,9 +421,11 @@ export default function FinancialHubPage({
                       >
                         <option value="Business Account">Business Account</option>
                         <option value="Petty Cash">Petty Cash</option>
-                        <option value="Ramesh (Partner)">Ramesh (Partner)</option>
-                        <option value="Suresh (Partner)">Suresh (Partner)</option>
-                        <option value="Mahesh (Partner)">Mahesh (Partner)</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.name} ({p.ownershipPercentage}%)
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -494,55 +495,44 @@ export default function FinancialHubPage({
                 </div>
               )}
 
-              {/* Partner Ownership Settings Card */}
+              {/* Partner Ownership Settings Reference Card */}
               <div className="bg-white rounded-2xl border border-[#d7c2b9] p-6 shadow-xs space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-[#f8ede3]">
                   <h4 className="font-serif font-bold text-sm text-[#201a17] flex items-center gap-2">
-                    Partner Ownership (Settings)
+                    Partner Ownership & Ratios
                   </h4>
-                  <div className="flex items-center gap-2 text-xs">
-                    <Lock className="w-3.5 h-3.5 text-[#554339]" />
-                    <button className="text-[#964407] font-bold hover:underline">Edit</button>
-                  </div>
+                  <Link
+                    href={`/p/${propertyId}/settings`}
+                    className="text-[#964407] font-bold text-xs hover:underline flex items-center gap-1"
+                  >
+                    <Settings className="w-3.5 h-3.5" /> Manage in Settings ⚙️
+                  </Link>
                 </div>
 
                 <div className="space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-2 font-bold text-[#201a17]">
-                      <span className="w-5 h-5 rounded-full bg-[#964407] text-white flex items-center justify-center text-[9px] font-bold">
-                        R
+                  {partners.map((p) => (
+                    <div key={p.id} className="flex justify-between items-center">
+                      <span className="flex items-center gap-2 font-bold text-[#201a17]">
+                        <span
+                          className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[9px] font-bold"
+                          style={{ backgroundColor: p.color || "#964407" }}
+                        >
+                          {p.name.charAt(0)}
+                        </span>
+                        {p.name}
                       </span>
-                      Ramesh
-                    </span>
-                    <span className="font-mono font-bold text-[#554339]">40%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-2 font-bold text-[#201a17]">
-                      <span className="w-5 h-5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[9px] font-bold">
-                        S
-                      </span>
-                      Suresh
-                    </span>
-                    <span className="font-mono font-bold text-[#554339]">40%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-2 font-bold text-[#201a17]">
-                      <span className="w-5 h-5 rounded-full bg-purple-700 text-white flex items-center justify-center text-[9px] font-bold">
-                        M
-                      </span>
-                      Mahesh
-                    </span>
-                    <span className="font-mono font-bold text-[#554339]">20%</span>
-                  </div>
+                      <span className="font-mono font-bold text-[#554339]">{p.ownershipPercentage}%</span>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="border-t border-[#f8ede3] pt-3 flex justify-between items-center text-xs font-bold text-[#201a17]">
                   <span>Total Ownership</span>
-                  <span className="font-mono">100%</span>
+                  <span className="font-mono">{partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%</span>
                 </div>
 
                 <p className="text-[10px] text-[#554339] italic pt-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-[#554339]" /> Changes are protected. Admin password required.
+                  <Lock className="w-3 h-3 text-[#554339]" /> Fully editable from Settings page. Settlement updates in real-time.
                 </p>
               </div>
             </div>

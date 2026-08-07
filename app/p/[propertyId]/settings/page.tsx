@@ -16,12 +16,16 @@ import {
   DollarSign,
   Phone,
   QrCode,
+  Users,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   propertySettingsStore,
   PropertySettingsData,
   DEFAULT_PROPERTY_SETTINGS,
 } from "@/constants/propertySettings";
+import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
 
 export default function PropertySettingsPage({
   params,
@@ -33,12 +37,17 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "ADVANCED">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "ADVANCED">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form State
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Partners & Expense Categories State
+  const [partners, setPartners] = useState<PartnerConfig[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
+  const [newCatName, setNewCatName] = useState("");
 
   useEffect(() => {
     // Load local & Cloud Firestore settings
@@ -47,11 +56,79 @@ export default function PropertySettingsPage({
     propertySettingsStore.fetchSettingsFromFirestore(propertyId).then((fs) => {
       setSettings(fs);
     });
+
+    setPartners(partnerStore.getPartners());
+    setCategories(partnerStore.getCategories());
+
+    const unsub = partnerStore.subscribe(() => {
+      setPartners(partnerStore.getPartners());
+      setCategories(partnerStore.getCategories());
+    });
+    return unsub;
   }, [propertyId]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleUpdatePartnerShare = (id: string, share: number) => {
+    const updated = partners.map((p) => (p.id === id ? { ...p, ownershipPercentage: share } : p));
+    setPartners(updated);
+  };
+
+  const handleUpdatePartnerName = (id: string, name: string) => {
+    const updated = partners.map((p) => (p.id === id ? { ...p, name } : p));
+    setPartners(updated);
+  };
+
+  const handleSavePartnerSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const totalShare = partners.reduce((acc, p) => acc + (p.ownershipPercentage || 0), 0);
+    if (totalShare !== 100) {
+      alert(`⚠️ Total Partner Ownership percentage must equal exactly 100%! Current sum is ${totalShare}%. Please adjust.`);
+      return;
+    }
+    partnerStore.updatePartners(partners);
+    triggerToast("🎉 Partner ownership ratios saved! Financial Hub settlements updated in real-time.");
+  };
+
+  const handleAddPartner = () => {
+    const colors = ["#964407", "#059669", "#7e22ce", "#2563eb", "#d97706"];
+    const nextColor = colors[partners.length % colors.length];
+    const newPartner: PartnerConfig = {
+      id: `p-${Date.now()}`,
+      name: `Partner ${partners.length + 1}`,
+      ownershipPercentage: 0,
+      color: nextColor,
+      accountType: "Personal Account",
+    };
+    const updated = [...partners, newPartner];
+    setPartners(updated);
+  };
+
+  const handleDeletePartner = (id: string) => {
+    if (partners.length <= 1) {
+      alert("At least 1 partner must be maintained.");
+      return;
+    }
+    const updated = partners.filter((p) => p.id !== id);
+    setPartners(updated);
+  };
+
+  const handleAddCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    partnerStore.addCategory(newCatName);
+    setNewCatName("");
+    triggerToast(`✓ Added "${newCatName.trim()}" to active expense categories!`);
+  };
+
+  const handleDeleteCategoryClick = (id: string, name: string) => {
+    if (confirm(`Remove expense category "${name}"?`)) {
+      partnerStore.deleteCategory(id);
+      triggerToast(`✓ Expense category "${name}" removed.`);
+    }
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -149,7 +226,7 @@ export default function PropertySettingsPage({
             <button
               type="button"
               onClick={() => setActiveTab("PROPERTY")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
+              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
                 activeTab === "PROPERTY"
                   ? "border-[#c2652a] text-[#c2652a]"
                   : "border-transparent text-gray-500 hover:text-gray-900"
@@ -157,10 +234,173 @@ export default function PropertySettingsPage({
             >
               <Building className="w-4 h-4" /> Property Profile & UPI ID
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("PARTNERS")}
+              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "PARTNERS"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <Users className="w-4 h-4" /> Partner Ownership & Expenses
+            </button>
           </div>
 
           {/* Settings Form */}
           <form onSubmit={handleSaveSettings} className="space-y-6">
+            {activeTab === "PARTNERS" && (
+              <div className="space-y-6 animate-in fade-in">
+                {/* 1. Partner Ownership & Settlement Ratios */}
+                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-gray-900">Partner Ownership & Profit Sharing Ratios</h3>
+                        <p className="text-[11px] text-gray-500">Configure partner equity percentages to calculate profit distribution on Financial Hub</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-extrabold px-3 py-1 rounded-full font-mono ${
+                        partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100
+                          ? "bg-emerald-100 text-emerald-900"
+                          : "bg-red-100 text-red-900"
+                      }`}>
+                        Total Ownership: {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%
+                        {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100 ? " 🟢" : " 🔴"}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleAddPartner}
+                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs flex items-center gap-1 border border-purple-200 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Partner
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Partner Ownership Table */}
+                  <div className="space-y-3">
+                    {partners.map((partner) => (
+                      <div
+                        key={partner.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-200 bg-[#fcfcfc]"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <span
+                            className="w-7 h-7 rounded-full text-white font-bold flex items-center justify-center text-xs shrink-0"
+                            style={{ backgroundColor: partner.color || "#964407" }}
+                          >
+                            {partner.name.charAt(0)}
+                          </span>
+                          <input
+                            type="text"
+                            value={partner.name}
+                            onChange={(e) => handleUpdatePartnerName(partner.id, e.target.value)}
+                            className="font-bold text-xs text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 focus:ring-1 focus:ring-[#c2652a] max-w-[200px]"
+                            placeholder="Partner Name"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[11px] font-bold text-gray-500">Ownership Share:</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={partner.ownershipPercentage}
+                              onChange={(e) => handleUpdatePartnerShare(partner.id, Number(e.target.value))}
+                              className="w-20 px-3 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs text-right text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                            />
+                            <span className="font-mono font-bold text-gray-700">%</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePartner(partner.id)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
+                            title="Remove Partner"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSavePartnerSettings}
+                      className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" /> Save Partner Ownership Ratios
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Expense Categories Management */}
+                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
+                        <Sliders className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-gray-900">Operational Expense Categories</h3>
+                        <p className="text-[11px] text-gray-500">Manage drop-down expense categories available when logging expenses on Financial Hub</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add New Category Form */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter new category name (e.g., Security Guard Salary, Pest Control)"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-xl border border-gray-300 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCategorySubmit}
+                      className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> + Add Category
+                    </button>
+                  </div>
+
+                  {/* Categories Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {categories.map((cat) => (
+                      <div
+                        key={cat.id}
+                        className="p-3 rounded-xl border border-gray-200 bg-[#fcfcfc] flex items-center justify-between"
+                      >
+                        <span className="font-bold text-xs text-gray-800 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-[#c2652a]"></span>
+                          {cat.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategoryClick(cat.id, cat.name)}
+                          className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             {activeTab === "FINANCIAL" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
                 {/* Billing Cycle Range */}
