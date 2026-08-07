@@ -1,5 +1,6 @@
-import { MOCK_OCCUPANTS_200, Occupant, generateMockOccupants } from "./mockOccupants";
+import { MOCK_OCCUPANTS_200, Occupant, generateMockOccupants, occupantStore } from "./mockOccupants";
 import { savePropertyLayoutToFirestore } from "@/lib/firestoreService";
+import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 
 export interface BedSlotConfig {
   id: string;
@@ -221,8 +222,14 @@ export const propertyStore = {
     });
     return result;
   },
-  checkBedBookingConflict(roomNumber: string, bedCode: string, currentOccupantId?: string): { hasConflict: boolean; bookedOccupant?: Occupant } {
-    const occupants = MOCK_OCCUPANTS_200;
+  checkBedBookingConflict(
+    roomNumber: string,
+    bedCode: string,
+    currentOccupantId?: string,
+    newTargetDate?: string,
+    currentVacatingDate?: string
+  ): { hasConflict: boolean; bookedOccupant?: Occupant } {
+    const occupants = occupantStore.getOccupants() || MOCK_OCCUPANTS_200;
     const bookedOcc = occupants.find(
       (o) =>
         o.id !== currentOccupantId &&
@@ -231,10 +238,37 @@ export const propertyStore = {
         o.lifecycleStatus === "Booked"
     );
 
-    if (bookedOcc) {
-      return { hasConflict: true, bookedOccupant: bookedOcc };
+    if (!bookedOcc) {
+      return { hasConflict: false };
     }
-    return { hasConflict: false };
+
+    // Mathematical Date Comparison SSOT Rule:
+    if (newTargetDate && currentVacatingDate) {
+      const newDateObj = parseOccupantDate(newTargetDate);
+      const currentDateObj = parseOccupantDate(currentVacatingDate);
+      const bookedDateObj = parseOccupantDate(bookedOcc.joiningDate);
+
+      const newTime = newDateObj ? newDateObj.getTime() : new Date(newTargetDate).getTime();
+      const currentTime = currentDateObj ? currentDateObj.getTime() : new Date(currentVacatingDate).getTime();
+      const bookedJoiningTime = bookedDateObj ? bookedDateObj.getTime() : new Date(bookedOcc.joiningDate).getTime();
+
+      // RULE 1: Preponement (newTime <= currentTime) -> Vacating EARLIER than current notice date.
+      // Moving departure earlier INCREASES buffer time before bookedOcc arrives. Zero conflict!
+      if (!isNaN(newTime) && !isNaN(currentTime) && newTime <= currentTime) {
+        return { hasConflict: false };
+      }
+
+      // RULE 2: Extension (newTime > currentTime) -> Vacating LATER.
+      // Conflict occurs ONLY IF the new extended departure date reaches or passes the booked occupant's check-in date (newTime >= bookedJoiningTime).
+      if (!isNaN(newTime) && !isNaN(bookedJoiningTime) && newTime >= bookedJoiningTime) {
+        return { hasConflict: true, bookedOccupant: bookedOcc };
+      }
+
+      // If extended departure is still before the booked occupant's check-in date, no conflict!
+      return { hasConflict: false };
+    }
+
+    return { hasConflict: true, bookedOccupant: bookedOcc };
   },
 };
 

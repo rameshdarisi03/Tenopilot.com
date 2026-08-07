@@ -633,7 +633,9 @@ export default function IndividualTenantProfilePage({
     const conflict = propertyStore.checkBedBookingConflict(
       occupantState.roomNumber,
       occupantState.bedCode,
-      occupantState.id
+      occupantState.id,
+      extendedNoticeDate,
+      occupantState.vacatingDate
     );
 
     if (conflict.hasConflict) {
@@ -743,7 +745,9 @@ export default function IndividualTenantProfilePage({
     const conflict = propertyStore.checkBedBookingConflict(
       occupantState.roomNumber,
       occupantState.bedCode,
-      occupantState.id
+      occupantState.id,
+      extendedGuestCheckoutDate,
+      occupantState.vacatingDate || occupantState.dueDate
     );
 
     if (conflict.hasConflict) {
