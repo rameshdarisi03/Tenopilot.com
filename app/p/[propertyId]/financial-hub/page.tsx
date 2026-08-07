@@ -18,8 +18,37 @@ import {
   TrendingUp,
   Receipt,
   Settings,
+  Zap,
+  Droplet,
+  Users,
+  Wifi,
+  Wrench,
+  Utensils,
+  Download,
+  Eye,
+  Trash2,
+  Filter,
 } from "lucide-react";
 import { partnerStore, PartnerConfig, ExpenseCategoryConfig } from "@/constants/partnerStore";
+
+export interface ExpenseItem {
+  id: string;
+  date: string;
+  category: string;
+  paidFrom: string;
+  property: string;
+  amount: number;
+  hasReceipt: boolean;
+  notes?: string;
+}
+
+const INITIAL_EXPENSES: ExpenseItem[] = [
+  { id: "exp-1", date: "12 Oct 2024", category: "Electricity", paidFrom: "Ramesh", property: "Sunshine Luxury PG", amount: 12400, hasReceipt: true },
+  { id: "exp-2", date: "11 Oct 2024", category: "Water Supply", paidFrom: "Business Account", property: "Sunshine Luxury PG", amount: 3200, hasReceipt: true },
+  { id: "exp-3", date: "10 Oct 2024", category: "Staff Salary", paidFrom: "Suresh", property: "Sunshine Luxury PG", amount: 18000, hasReceipt: false },
+  { id: "exp-4", date: "09 Oct 2024", category: "Internet / Wi-Fi", paidFrom: "Mahesh", property: "Sunshine Luxury PG", amount: 1200, hasReceipt: false },
+  { id: "exp-5", date: "08 Oct 2024", category: "Property Maintenance", paidFrom: "Business Account", property: "Sunshine Luxury PG", amount: 6500, hasReceipt: true },
+];
 
 export default function FinancialHubPage({
   params,
@@ -38,6 +67,11 @@ export default function FinancialHubPage({
   const [paidFrom, setPaidFrom] = useState("Business Account");
   const [notes, setNotes] = useState("");
 
+  // Expenses State
+  const [expenseList, setExpenseList] = useState<ExpenseItem[]>(INITIAL_EXPENSES);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
+  const [activeReceiptModal, setActiveReceiptModal] = useState<ExpenseItem | null>(null);
+
   // Reactive Partner & Category State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
@@ -55,10 +89,40 @@ export default function FinancialHubPage({
 
   const handleSaveExpense = (e: React.FormEvent) => {
     e.preventDefault();
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      alert("Please enter a valid expense amount.");
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    const newExpense: ExpenseItem = {
+      id: `exp-${Date.now()}`,
+      date: todayStr,
+      category,
+      paidFrom,
+      property: "Sunshine Luxury PG",
+      amount: numAmount,
+      hasReceipt: true,
+      notes,
+    };
+
+    setExpenseList((prev) => [newExpense, ...prev]);
+    setAmount("");
+    setNotes("");
+    setShowRecordDrawer(false);
     setShowToast(true);
-    setTimeout(() => {
-      setShowToast(true);
-    }, 100);
+  };
+
+  const handleDeleteExpense = (id: string) => {
+    if (confirm("Are you sure you want to delete this expense record?")) {
+      setExpenseList((prev) => prev.filter((e) => e.id !== id));
+    }
   };
 
   return (
@@ -169,23 +233,363 @@ export default function FinancialHubPage({
             </div>
           )}
 
-          {/* TAB 2: EXPENSES PLACEHOLDER */}
+          {/* TAB 2: EXPENSES WORKSPACE (STITCH V2 SPECIFICATION) */}
           {activeTab === "Expenses" && (
-            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 text-center space-y-4 animate-in fade-in shadow-xs">
-              <div className="w-14 h-14 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto">
-                <Receipt className="w-7 h-7" />
+            <div className="space-y-8 animate-in fade-in">
+              {/* Top Bento Grid: Total Spent & Budget Health */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Main Summary Card */}
+                <div className="lg:col-span-8 bg-white border border-[#d7c2b9] p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#554339] block">
+                      TOTAL SPENT THIS MONTH
+                    </span>
+                    <div className="flex items-baseline gap-4 mt-2">
+                      <h2 className="font-serif text-3xl md:text-4xl font-bold text-[#201a17]">
+                        ₹{expenseList.reduce((acc, e) => acc + e.amount, 0).toLocaleString("en-IN")}
+                      </h2>
+                      <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-emerald-700" /> -4.2% VS LAST MONTH
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-[#f8ede3]">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                        HIGHEST CATEGORY
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Zap className="w-4 h-4 text-[#964407]" />
+                        <span className="font-serif font-bold text-base text-[#201a17]">
+                          Electricity (₹{expenseList.filter((e) => e.category === "Electricity").reduce((a, b) => a + b.amount, 0).toLocaleString("en-IN") || "12,400"})
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                        UNPROCESSED RECEIPTS
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Receipt className="w-4 h-4 text-purple-700" />
+                        <span className="font-serif font-bold text-base text-[#201a17]">
+                          02 Pending Upload
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Category Budget Health Progress Card */}
+                <div className="lg:col-span-4 bg-white border border-[#d7c2b9] p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
+                  <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+                    <h3 className="font-serif font-bold text-base text-[#201a17]">
+                      Budget Health
+                    </h3>
+                    <span className="text-[10px] font-bold text-[#554339] uppercase">
+                      THIS MONTH
+                    </span>
+                  </div>
+
+                  <div className="space-y-4 text-xs font-bold">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-[#554339]">Maintenance</span>
+                        <span className="text-[#964407]">82% Used</span>
+                      </div>
+                      <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
+                        <div className="h-full bg-[#964407] w-[82%] rounded-full"></div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-[#554339]">Staff Salaries</span>
+                        <span className="text-emerald-700">45% Used</span>
+                      </div>
+                      <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-600 w-[45%] rounded-full"></div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-[#554339]">Utilities</span>
+                        <span className="text-red-700">94% Used</span>
+                      </div>
+                      <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
+                        <div className="h-full bg-red-600 w-[94%] rounded-full"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 className="font-serif font-bold text-xl text-[#201a17]">
-                Expense Management & Cost Ledger
-              </h3>
-              <p className="text-xs text-[#554339] max-w-md mx-auto leading-relaxed font-medium">
-                Expenses sub-page workspace ready. In the next step, tell me how you'd like to structure expense category breakdown and ledger filtering.
-              </p>
-              <div className="pt-2">
-                <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-900 text-[10px] font-extrabold border border-emerald-200 uppercase">
-                  EXPENSES SUB-PAGE READY 🟢
-                </span>
+
+              {/* Recurring Fixed Bills Summary Cards Grid */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-serif font-bold text-lg text-[#201a17]">
+                    Recurring Bills & Utilities Summary
+                  </h3>
+                  <span className="text-xs text-[#554339] font-medium">
+                    Auto-scheduled monthly building operational costs
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Bill 1 */}
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
+                        <Wifi className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-[#201a17]">Internet / Wi-Fi</h4>
+                        <p className="text-[10px] text-[#554339] font-medium">Monthly • 1st</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹2,499</span>
+                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Paid
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bill 2 */}
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                        <Zap className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-[#201a17]">Electricity Bill</h4>
+                        <p className="text-[10px] text-[#554339] font-medium">Variable • 15th</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹84,200</span>
+                      <span className="text-[10px] font-extrabold text-orange-950 bg-orange-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        Due in 3 days 🟠
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bill 3 */}
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-blue-100 text-blue-700">
+                        <Droplet className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-[#201a17]">Water Supply</h4>
+                        <p className="text-[10px] text-[#554339] font-medium">Fixed • 5th</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹12,500</span>
+                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Paid
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bill 4 */}
+                  <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-[#201a17]">Staff Salary</h4>
+                        <p className="text-[10px] text-[#554339] font-medium">Monthly • 1st</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="font-serif font-bold text-lg text-[#201a17]">₹66,000</span>
+                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Paid
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Recent Expenses Detailed Table Section */}
+              <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#f8ede3] pb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                      Operational Expenses Ledger
+                    </h3>
+                    <p className="text-xs text-[#554339]">
+                      Showing {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded expense transactions
+                    </p>
+                  </div>
+
+                  {/* Category Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-[#554339] font-bold flex items-center gap-1">
+                      <Filter className="w-3.5 h-3.5" /> Filter:
+                    </span>
+                    <button
+                      onClick={() => setSelectedCategoryFilter("ALL")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                        selectedCategoryFilter === "ALL"
+                          ? "bg-[#964407] text-white shadow-xs"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      ALL
+                    </button>
+                    {categories.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedCategoryFilter(c.name)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                          selectedCategoryFilter === c.name
+                            ? "bg-[#964407] text-white shadow-xs"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Expenses Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-[#f8ede3] text-[10px] uppercase tracking-wider text-[#554339] font-bold bg-[#fff8f6]">
+                        <th className="py-3 px-4 font-bold">DATE</th>
+                        <th className="py-3 px-4 font-bold">CATEGORY</th>
+                        <th className="py-3 px-4 font-bold">PAID BY</th>
+                        <th className="py-3 px-4 font-bold">PROPERTY</th>
+                        <th className="py-3 px-4 font-bold">AMOUNT</th>
+                        <th className="py-3 px-4 font-bold">RECEIPT</th>
+                        <th className="py-3 px-4 font-bold text-right">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f8ede3]">
+                      {expenseList
+                        .filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter)
+                        .map((exp) => (
+                          <tr key={exp.id} className="hover:bg-[#fff8f6]/60 transition-colors">
+                            <td className="py-4 px-4 text-[#554339] font-medium">{exp.date}</td>
+                            <td className="py-4 px-4 font-bold text-[#201a17] flex items-center gap-2">
+                              <span className="p-1.5 rounded-lg bg-orange-100 text-[#964407]">
+                                <Receipt className="w-3.5 h-3.5" />
+                              </span>
+                              {exp.category}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="font-semibold text-[#201a17] flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-[#964407] text-white text-[9px] font-bold flex items-center justify-center">
+                                  {exp.paidFrom.charAt(0)}
+                                </span>
+                                {exp.paidFrom}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-[#554339]">{exp.property}</td>
+                            <td className="py-4 px-4 font-mono font-bold text-base text-[#201a17]">
+                              ₹{exp.amount.toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-4 px-4">
+                              {exp.hasReceipt ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveReceiptModal(exp)}
+                                  className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-900 border border-purple-200 font-bold text-[10px] flex items-center gap-1 hover:bg-purple-100 transition-colors cursor-pointer"
+                                >
+                                  <FileText className="w-3 h-3 text-purple-700" /> View Receipt
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium">—</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteExpense(exp.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
+                                title="Delete Expense"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Receipt View Lightbox Modal */}
+              {activeReceiptModal && (
+                <div
+                  className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+                  onClick={() => setActiveReceiptModal(null)}
+                >
+                  <div
+                    className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-purple-700" />
+                        <h3 className="font-serif font-bold text-lg text-gray-900">
+                          Expense Receipt Details
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => setActiveReceiptModal(null)}
+                        className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-200 text-left">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Category:</span>
+                        <span className="font-bold text-gray-900">{activeReceiptModal.category}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Date:</span>
+                        <span className="font-bold text-gray-900">{activeReceiptModal.date}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Amount:</span>
+                        <span className="font-mono font-bold text-base text-[#964407]">
+                          ₹{activeReceiptModal.amount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Paid By:</span>
+                        <span className="font-bold text-gray-900">{activeReceiptModal.paidFrom}</span>
+                      </div>
+                      {activeReceiptModal.notes && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <span className="text-gray-500 font-bold block mb-1">Notes:</span>
+                          <p className="text-gray-700 italic">{activeReceiptModal.notes}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => setActiveReceiptModal(null)}
+                        className="px-5 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-xs cursor-pointer"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
