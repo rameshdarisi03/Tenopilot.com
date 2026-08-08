@@ -124,3 +124,12 @@
   opacity: 0;
 }
 
+@keyframes fillBar {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
