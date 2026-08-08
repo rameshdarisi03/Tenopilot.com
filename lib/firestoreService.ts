@@ -80,6 +80,7 @@ export async function deleteOccupantFromFirestore(
 
 /**
  * Purge all mock/demo occupants permanently from Firebase Cloud Firestore
+ * Keeps ONLY real onboarded tenants (which have timestamp IDs like occ-1786256400000)
  */
 export async function purgeAllMockOccupantsFromFirestore(
   propertyId: string = "sunshine-pg"
@@ -90,34 +91,12 @@ export async function purgeAllMockOccupantsFromFirestore(
     let deletedCount = 0;
 
     for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
       const id = docSnap.id;
-      const name = data.name || "";
 
-      // Regex matching short mock IDs like occ-001 to occ-200, occ-1 to occ-999
-      const isShortMockId = /^occ-\d{1,3}$/.test(id);
-      const isMockPattern =
-        id.startsWith("occ-test") ||
-        id.startsWith("tera") ||
-        id.startsWith("mock-") ||
-        id === "occ-987";
-      const isMockName =
-        name === "Jasprit Bumrah" ||
-        name === "Karan Johar" ||
-        name === "Shubman Gill" ||
-        name === "Rohan Gupta" ||
-        name === "KL Rahul" ||
-        name === "Meera Iyer" ||
-        name === "Ranbir Kapoor" ||
-        name === "Ravindra Jadeja" ||
-        name === "Ananya Reddy" ||
-        name.includes("Ananya") ||
-        name.includes("Future Guest") ||
-        name === "sora" ||
-        name === "sora2" ||
-        name === "soraguest";
+      // Real onboarded tenants created via Onboarding Portal have 13-digit timestamp IDs (e.g. occ-1786256400000)
+      const isRealOnboardedTenant = /^occ-\d{12,16}$/.test(id);
 
-      if (isShortMockId || isMockPattern || isMockName) {
+      if (!isRealOnboardedTenant) {
         await deleteDoc(doc(db, "properties", propertyId, "occupants", id));
         deletedCount++;
       }

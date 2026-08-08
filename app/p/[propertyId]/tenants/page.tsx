@@ -71,32 +71,8 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants) {
-        // Filter out legacy mock data if any remains
-        const cleanList = fsOccupants.filter((o) => {
-          const isShortMockId = /^occ-\d{1,3}$/.test(o.id);
-          const isMockPattern =
-            o.id.startsWith("occ-test") ||
-            o.id.startsWith("tera") ||
-            o.id.startsWith("mock-") ||
-            o.id === "occ-987";
-          const isMockName =
-            o.name === "Jasprit Bumrah" ||
-            o.name === "Karan Johar" ||
-            o.name === "Shubman Gill" ||
-            o.name === "Rohan Gupta" ||
-            o.name === "KL Rahul" ||
-            o.name === "Meera Iyer" ||
-            o.name === "Ranbir Kapoor" ||
-            o.name === "Ravindra Jadeja" ||
-            o.name === "Ananya Reddy" ||
-            o.name.includes("Ananya") ||
-            o.name.includes("Future Guest") ||
-            o.name === "sora" ||
-            o.name === "sora2" ||
-            o.name === "soraguest";
-
-          return !isShortMockId && !isMockPattern && !isMockName;
-        });
+        // Keep ONLY real onboarded tenants (timestamp IDs like occ-1786256400000)
+        const cleanList = fsOccupants.filter((o) => /^occ-\d{12,16}$/.test(o.id));
         occupantStore.setOccupantsFromFirestore(cleanList);
         setOccupantsList(cleanList);
       }
