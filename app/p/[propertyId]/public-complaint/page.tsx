@@ -81,8 +81,25 @@ export default function PublicTenantComplaintPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants) {
-        occupantStore.setOccupantsFromFirestore(fsOccupants);
-        setOccupants(fsOccupants);
+        const cleanList = fsOccupants.filter(
+          (o) =>
+            !o.id.startsWith("occ-test") &&
+            !o.id.startsWith("tera") &&
+            !o.id.startsWith("occ-987") &&
+            o.name !== "Jasprit Bumrah" &&
+            o.name !== "Karan Johar" &&
+            o.name !== "Shubman Gill" &&
+            o.name !== "Rohan Gupta" &&
+            o.name !== "KL Rahul" &&
+            o.name !== "Meera Iyer" &&
+            o.name !== "Ranbir Kapoor" &&
+            o.name !== "Ravindra Jadeja" &&
+            o.name !== "sora" &&
+            o.name !== "sora2" &&
+            o.name !== "soraguest"
+        );
+        occupantStore.setOccupantsFromFirestore(cleanList);
+        setOccupants(cleanList);
       }
     });
 

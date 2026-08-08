@@ -10,7 +10,7 @@ import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOcc
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
-import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -60,6 +60,9 @@ export default function TenantsDirectoryPage({
   const [occupantsList, setOccupantsList] = useState<Occupant[]>(() => occupantStore.getOccupants());
 
   useEffect(() => {
+    // 1. Trigger automated auto-purge of legacy mock occupants from Cloud Firestore
+    purgeAllMockOccupantsFromFirestore(propertyId);
+
     setOccupantsList(occupantStore.getOccupants());
 
     const unsubscribeLocal = occupantStore.subscribe(() => {
@@ -68,8 +71,26 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants) {
-        occupantStore.setOccupantsFromFirestore(fsOccupants);
-        setOccupantsList(fsOccupants);
+        // Filter out legacy mock data if any remains
+        const cleanList = fsOccupants.filter(
+          (o) =>
+            !o.id.startsWith("occ-test") &&
+            !o.id.startsWith("tera") &&
+            !o.id.startsWith("occ-987") &&
+            o.name !== "Jasprit Bumrah" &&
+            o.name !== "Karan Johar" &&
+            o.name !== "Shubman Gill" &&
+            o.name !== "Rohan Gupta" &&
+            o.name !== "KL Rahul" &&
+            o.name !== "Meera Iyer" &&
+            o.name !== "Ranbir Kapoor" &&
+            o.name !== "Ravindra Jadeja" &&
+            o.name !== "sora" &&
+            o.name !== "sora2" &&
+            o.name !== "soraguest"
+        );
+        occupantStore.setOccupantsFromFirestore(cleanList);
+        setOccupantsList(cleanList);
       }
     });
 

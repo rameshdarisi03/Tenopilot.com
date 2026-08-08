@@ -79,6 +79,48 @@ export async function deleteOccupantFromFirestore(
 }
 
 /**
+ * Purge all mock/demo occupants permanently from Firebase Cloud Firestore
+ */
+export async function purgeAllMockOccupantsFromFirestore(
+  propertyId: string = "sunshine-pg"
+): Promise<number> {
+  try {
+    const occupantsRef = collection(db, "properties", propertyId, "occupants");
+    const snapshot = await getDocs(occupantsRef);
+    let deletedCount = 0;
+
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      const id = docSnap.id;
+      const isMock =
+        id.startsWith("occ-test") ||
+        id.startsWith("tera") ||
+        id.startsWith("occ-987") ||
+        data.name === "Jasprit Bumrah" ||
+        data.name === "Karan Johar" ||
+        data.name === "Shubman Gill" ||
+        data.name === "Rohan Gupta" ||
+        data.name === "KL Rahul" ||
+        data.name === "Meera Iyer" ||
+        data.name === "Ranbir Kapoor" ||
+        data.name === "Ravindra Jadeja" ||
+        data.name === "sora" ||
+        data.name === "sora2" ||
+        data.name === "soraguest";
+
+      if (isMock) {
+        await deleteDoc(doc(db, "properties", propertyId, "occupants", id));
+        deletedCount++;
+      }
+    }
+    return deletedCount;
+  } catch (error) {
+    console.warn("Error purging mock occupants from Firestore:", error);
+    return 0;
+  }
+}
+
+/**
  * Fetch all occupants for a property from Firebase Cloud Firestore
  */
 export async function fetchOccupantsFromFirestore(
