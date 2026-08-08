@@ -1,5 +1,5 @@
 // TenoPilot Property Financial & Operations Settings Store
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export interface PaymentQRProfile {
@@ -51,6 +51,8 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
 };
 
 let currentSettings: PropertySettingsData = { ...DEFAULT_PROPERTY_SETTINGS };
+let activeUnsubscribe: (() => void) | null = null;
+let activePropertyId: string | null = null;
 
 export const propertySettingsStore = {
   listeners: new Set<() => void>(),
@@ -72,7 +74,42 @@ export const propertySettingsStore = {
     });
   },
 
+  initFirebaseListener(propertyId = "sunshine-pg") {
+    if (typeof window === "undefined" || !db) return;
+    if (activePropertyId === propertyId && activeUnsubscribe) return;
+
+    if (activeUnsubscribe) {
+      activeUnsubscribe();
+      activeUnsubscribe = null;
+    }
+
+    activePropertyId = propertyId;
+
+    try {
+      const docRef = doc(db, `properties/${propertyId}/settings/config`);
+      activeUnsubscribe = onSnapshot(
+        docRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data() as PropertySettingsData;
+            currentSettings = { ...DEFAULT_PROPERTY_SETTINGS, ...data };
+            if (typeof window !== "undefined") {
+              localStorage.setItem("tenopilot_property_settings", JSON.stringify(currentSettings));
+            }
+            this.notify();
+          }
+        },
+        (err) => {
+          console.warn("Realtime settings snapshot notice:", err);
+        }
+      );
+    } catch (e) {
+      console.warn("Failed to attach onSnapshot listener", e);
+    }
+  },
+
   getSettings(propertyId = "sunshine-pg"): PropertySettingsData {
+    this.initFirebaseListener(propertyId);
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tenopilot_property_settings");
       if (saved) {
@@ -92,7 +129,7 @@ export const propertySettingsStore = {
       localStorage.setItem("tenopilot_property_settings", JSON.stringify(currentSettings));
     }
 
-    // Trigger reactive dynamic cascade across all subscribed UI components
+    // Trigger reactive dynamic cascade across all subscribed UI components locally
     this.notify();
 
     try {
@@ -108,6 +145,7 @@ export const propertySettingsStore = {
   },
 
   async fetchSettingsFromFirestore(propertyId = "sunshine-pg"): Promise<PropertySettingsData> {
+    this.initFirebaseListener(propertyId);
     try {
       if (db) {
         const docRef = doc(db, `properties/${propertyId}/settings/config`);

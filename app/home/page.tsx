@@ -140,6 +140,7 @@ export default function HomeWorkspacePage() {
 
   // Load live properties & subscribe to real-time store changes
   useEffect(() => {
+    propertySettingsStore.initFirebaseListener("sunshine-pg");
     const liveSunshine = computeLiveSunshineMetrics();
     let customProps: PortfolioProperty[] = [];
     try {

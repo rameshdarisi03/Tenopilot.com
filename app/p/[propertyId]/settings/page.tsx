@@ -111,23 +111,32 @@ export default function PropertySettingsPage({
   };
 
   useEffect(() => {
-    // Load local & Cloud Firestore settings
-    const loaded = propertySettingsStore.getSettings();
+    // Load local & Cloud Firestore settings with active onSnapshot WebSocket listener
+    propertySettingsStore.initFirebaseListener(propertyId);
+    const loaded = propertySettingsStore.getSettings(propertyId);
     setSettings(loaded);
     propertySettingsStore.fetchSettingsFromFirestore(propertyId).then((fs) => {
       setSettings(fs);
+    });
+
+    const unsubSettings = propertySettingsStore.subscribe(() => {
+      setSettings(propertySettingsStore.getSettings(propertyId));
     });
 
     setPartners(partnerStore.getPartners());
     setCategories(partnerStore.getCategories());
     setPaymentAccounts(partnerStore.getPaymentAccounts());
 
-    const unsub = partnerStore.subscribe(() => {
+    const unsubPartners = partnerStore.subscribe(() => {
       setPartners(partnerStore.getPartners());
       setCategories(partnerStore.getCategories());
       setPaymentAccounts(partnerStore.getPaymentAccounts());
     });
-    return unsub;
+
+    return () => {
+      unsubSettings();
+      unsubPartners();
+    };
   }, [propertyId]);
 
   const triggerToast = (msg: string) => {
