@@ -4,6 +4,7 @@ import { use } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Building2,
   Users,
@@ -155,23 +156,13 @@ export default function PropertyOverviewPage({
               {/* QR Canvas Container */}
               <div className="p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60 flex items-center gap-4">
                 <div className="w-24 h-24 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
-                  <svg className="w-full h-full text-gray-900" viewBox="0 0 100 100" fill="currentColor">
-                    <rect x="10" y="10" width="25" height="25" fill="#c2652a" />
-                    <rect x="15" y="15" width="15" height="15" fill="#ffffff" />
-                    <rect x="18" y="18" width="9" height="9" fill="#c2652a" />
-                    <rect x="65" y="10" width="25" height="25" fill="#c2652a" />
-                    <rect x="70" y="15" width="15" height="15" fill="#ffffff" />
-                    <rect x="73" y="18" width="9" height="9" fill="#c2652a" />
-                    <rect x="10" y="65" width="25" height="25" fill="#c2652a" />
-                    <rect x="15" y="70" width="15" height="15" fill="#ffffff" />
-                    <rect x="18" y="73" width="9" height="9" fill="#c2652a" />
-                    <rect x="40" y="10" width="8" height="8" fill="#111827" />
-                    <rect x="50" y="18" width="8" height="8" fill="#111827" />
-                    <rect x="40" y="30" width="12" height="12" fill="#111827" />
-                    <rect x="40" y="65" width="15" height="8" fill="#111827" />
-                    <rect x="60" y="60" width="10" height="20" fill="#111827" />
-                    <rect x="75" y="65" width="15" height="15" fill="#111827" />
-                  </svg>
+                  <QRCodeSVG
+                    value={`http://localhost:3000/p/${propertyId}/public-complaint`}
+                    size={80}
+                    fgColor="#201a17"
+                    bgColor="#ffffff"
+                    level="H"
+                  />
                 </div>
 
                 <div className="space-y-1.5 min-w-0">

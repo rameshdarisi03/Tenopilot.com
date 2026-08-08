@@ -4,6 +4,7 @@ import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
+import { getActiveResidentForToday } from "@/utils/domainSSOT";
 import { createComplaintInFirestore, Complaint } from "@/lib/complaintStore";
 import {
   Wrench,
@@ -35,8 +36,7 @@ export default function PublicTenantComplaintPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
-  // Real-time Property Map Structure for Room Sync
-  const [floors, setFloors] = useState<FloorConfig[]>([]);
+  // Real-time Property Map Structure & Occupants
   const [occupants, setOccupants] = useState<Occupant[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -70,48 +70,31 @@ export default function PublicTenantComplaintPage({
 
   useEffect(() => {
     setIsMounted(true);
-    setFloors(propertyStore.getStructure());
     setOccupants(occupantStore.getOccupants());
 
-    // Subscribe to real-time property map layout updates
     const unsubscribe = propertyStore.subscribe(() => {
-      setFloors(propertyStore.getStructure());
       setOccupants(occupantStore.getOccupants());
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Extract all rooms across floors into flat list
-  const allRoomsList = floors.flatMap((f) =>
-    f.rooms.map((r) => ({
-      floorName: f.floorName,
-      roomNumber: `Room ${r.roomNumber}`,
-    }))
-  );
-
-  // Real-time Database Mobile Verification Handler
+  // Strict As-of-Today Active Resident Verification Handler
   const handlePhoneChange = (inputPhone: string) => {
     setTenantPhone(inputPhone);
     const cleanDigits = inputPhone.replace(/\D/g, "");
 
     if (cleanDigits.length >= 10) {
-      // Search active database for matching phone number
-      const matched = occupants.find((o) => {
-        const occPhoneClean = o.phone.replace(/\D/g, "");
-        return (
-          occPhoneClean.includes(cleanDigits) ||
-          cleanDigits.includes(occPhoneClean)
-        );
-      });
+      // Use SSOT active resident verifier (filters out future 'Booked' and past occupants)
+      const matched = getActiveResidentForToday(inputPhone, occupants);
 
       if (matched) {
         setVerifiedOccupant(matched);
         setTenantName(matched.name);
-        setRoomNumber(matched.roomNumber);
+        setRoomNumber(`${matched.roomNumber} (Bed ${matched.bedCode})`);
         setMobileError(false);
       } else {
-        // Fallback search mock demo check for default sample mobile (e.g. 9876543210)
+        // Fallback sample check for demo number 9876543210
         if (cleanDigits === "9876543210") {
           const sampleMatch: Occupant = {
             id: "occ-987",
@@ -136,7 +119,7 @@ export default function PublicTenantComplaintPage({
           };
           setVerifiedOccupant(sampleMatch);
           setTenantName(sampleMatch.name);
-          setRoomNumber(sampleMatch.roomNumber);
+          setRoomNumber(`${sampleMatch.roomNumber} (Bed ${sampleMatch.bedCode})`);
           setMobileError(false);
         } else {
           setVerifiedOccupant(null);
@@ -202,7 +185,7 @@ export default function PublicTenantComplaintPage({
             </div>
           </div>
           <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10px] flex items-center gap-1">
-            <Lock className="w-3 h-3 text-emerald-700" /> Database Verified
+            <Lock className="w-3 h-3 text-emerald-700" /> Active Occupancy Verified
           </span>
         </div>
       </header>
@@ -235,7 +218,7 @@ export default function PublicTenantComplaintPage({
                 <span className="font-bold text-gray-900">{submittedTicket.tenantName} ({submittedTicket.tenantPhone})</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 font-bold">Room Location:</span>
+                <span className="text-gray-500 font-bold">Assigned Location:</span>
                 <span className="font-bold text-[#c2652a]">{submittedTicket.roomNumber}</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-2">
@@ -280,7 +263,7 @@ export default function PublicTenantComplaintPage({
                 Log a Maintenance Request
               </h2>
               <p className="text-xs text-gray-500 mt-1">
-                Enter your registered mobile number to verify your residency and log issues.
+                Enter your registered mobile number to verify your current active residency and log issues.
               </p>
             </div>
 
@@ -318,68 +301,37 @@ export default function PublicTenantComplaintPage({
 
                 {/* VERIFICATION FEEDBACK BADGES */}
                 {verifiedOccupant && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                       <div>
-                        <p className="font-bold">Verified Resident: {verifiedOccupant.name}</p>
-                        <p className="text-[10px] text-emerald-700 font-medium">
+                        <p className="font-bold text-sm text-emerald-950">
+                          {verifiedOccupant.name}
+                        </p>
+                        <p className="text-xs text-emerald-800 font-semibold mt-0.5">
                           Assigned Location: {verifiedOccupant.roomNumber} (Bed {verifiedOccupant.bedCode})
                         </p>
                       </div>
                     </div>
-                    <span className="bg-emerald-200 text-emerald-900 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
+                    <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase shrink-0">
                       MATCHED 🟢
                     </span>
                   </div>
                 )}
 
                 {mobileError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs font-bold flex items-start gap-2 animate-in fade-in">
-                    <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-xs font-bold flex items-start gap-2.5 animate-in fade-in">
+                    <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold">Mobile number not found in Sahara PG database.</p>
-                      <p className="text-[10px] text-red-700 font-normal mt-0.5">
-                        Only registered residents can log complaints to prevent unauthorized spam. Please verify your mobile number with management.
+                      <p className="font-bold text-sm text-red-950">
+                        Mobile number not found in Sahara PG active resident database.
+                      </p>
+                      <p className="text-xs text-red-800 font-normal mt-0.5">
+                        Only residents physically occupying a bed today can log complaints to prevent unauthorized spam. Please contact management if you recently checked in.
                       </p>
                     </div>
                   </div>
                 )}
-
-                {/* Room Location Display (Auto-synced or Selectable) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1">
-                      Resident Name
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={tenantName}
-                      placeholder="Auto-filled upon mobile match"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-100 font-bold text-xs text-gray-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1">
-                      Room Location (Real-Time Synced)
-                    </label>
-                    <select
-                      required
-                      value={roomNumber}
-                      onChange={(e) => setRoomNumber(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    >
-                      <option value="">-- Select Room --</option>
-                      {allRoomsList.map((r, idx) => (
-                        <option key={idx} value={r.roomNumber}>
-                          {r.floorName} • {r.roomNumber}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
               </div>
 
               {/* Category Selector Grid */}
@@ -479,7 +431,7 @@ export default function PublicTenantComplaintPage({
                   {submitting ? (
                     <span>Submitting Complaint...</span>
                   ) : !verifiedOccupant ? (
-                    <span>Enter Verified Resident Mobile to Unlock</span>
+                    <span>Enter Verified Active Resident Mobile to Unlock</span>
                   ) : (
                     <>
                       <span>Submit Maintenance Request</span>

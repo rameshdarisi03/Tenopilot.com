@@ -383,3 +383,42 @@ export function getBedOccupantsTimeline(
     totalUpcomingCount: bookedList.length,
   };
 }
+
+/**
+ * Strict As-of-Today Active Resident Verifier
+ * Filters out future 'Booked' guests or past 'Vacated' occupants.
+ */
+export function getActiveResidentForToday(phoneInput: string, occupantsList: Occupant[]): Occupant | null {
+  const cleanDigits = phoneInput.replace(/\D/g, "");
+  if (cleanDigits.length < 10) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const matched = occupantsList.find((o) => {
+    const occPhoneClean = o.phone.replace(/\D/g, "");
+    const isPhoneMatch = occPhoneClean.includes(cleanDigits) || cleanDigits.includes(occPhoneClean);
+    if (!isPhoneMatch) return false;
+
+    // Rule 1: Exclude future 'Booked' occupants who have not checked in yet
+    if (o.lifecycleStatus === "Booked") return false;
+
+    // Rule 2: Exclude past occupants who have vacated
+    if (o.lifecycleStatus === "Past") return false;
+
+    // Rule 3: Verify joining date <= today
+    const joiningDate = parseOccupantDate(o.joiningDate);
+    if (joiningDate && joiningDate > today) return false;
+
+    // Rule 4: If guest, verify checkout date >= today
+    if (o.stayType === "Guest" && o.vacatingDate) {
+      const checkoutDate = parseOccupantDate(o.vacatingDate);
+      if (checkoutDate && checkoutDate < today) return false;
+    }
+
+    return true;
+  });
+
+  return matched || null;
+}
+

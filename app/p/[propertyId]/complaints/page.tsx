@@ -14,6 +14,7 @@ import {
   exportComplaintsCSV,
 } from "@/lib/complaintStore";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Wrench,
   Zap,
@@ -987,27 +988,13 @@ export default function AdminComplaintsPage({
             {/* Simulated QR Code Canvas Frame */}
             <div className="p-6 bg-orange-50/40 rounded-3xl border-2 border-dashed border-[#c2652a]/40 flex flex-col items-center justify-center space-y-3">
               <div className="w-48 h-48 bg-white p-3 rounded-2xl shadow-md border border-gray-200 flex flex-col items-center justify-center relative">
-                {/* SVG Mock QR Code */}
-                <svg className="w-full h-full text-gray-900" viewBox="0 0 100 100" fill="currentColor">
-                  <rect x="10" y="10" width="25" height="25" fill="#c2652a" />
-                  <rect x="15" y="15" width="15" height="15" fill="#ffffff" />
-                  <rect x="18" y="18" width="9" height="9" fill="#c2652a" />
-                  <rect x="65" y="10" width="25" height="25" fill="#c2652a" />
-                  <rect x="70" y="15" width="15" height="15" fill="#ffffff" />
-                  <rect x="73" y="18" width="9" height="9" fill="#c2652a" />
-                  <rect x="10" y="65" width="25" height="25" fill="#c2652a" />
-                  <rect x="15" y="70" width="15" height="15" fill="#ffffff" />
-                  <rect x="18" y="73" width="9" height="9" fill="#c2652a" />
-                  <rect x="40" y="10" width="8" height="8" fill="#111827" />
-                  <rect x="50" y="18" width="8" height="8" fill="#111827" />
-                  <rect x="40" y="30" width="12" height="12" fill="#111827" />
-                  <rect x="40" y="65" width="15" height="8" fill="#111827" />
-                  <rect x="60" y="60" width="10" height="20" fill="#111827" />
-                  <rect x="75" y="65" width="15" height="15" fill="#111827" />
-                </svg>
-                <span className="text-[9px] font-bold text-[#c2652a] uppercase tracking-widest mt-1">
-                  Sahara PG Scan Code
-                </span>
+                <QRCodeSVG
+                  value={publicPortalUrl}
+                  size={160}
+                  fgColor="#201a17"
+                  bgColor="#ffffff"
+                  level="H"
+                />
               </div>
 
               <div>
