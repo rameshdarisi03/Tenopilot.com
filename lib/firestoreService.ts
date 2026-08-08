@@ -104,6 +104,8 @@ export async function purgeAllMockOccupantsFromFirestore(
         data.name === "Meera Iyer" ||
         data.name === "Ranbir Kapoor" ||
         data.name === "Ravindra Jadeja" ||
+        data.name === "Ananya Reddy" ||
+        data.name.includes("Ananya") ||
         data.name === "sora" ||
         data.name === "sora2" ||
         data.name === "soraguest";

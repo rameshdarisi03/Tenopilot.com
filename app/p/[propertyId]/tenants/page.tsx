@@ -85,6 +85,8 @@ export default function TenantsDirectoryPage({
             o.name !== "Meera Iyer" &&
             o.name !== "Ranbir Kapoor" &&
             o.name !== "Ravindra Jadeja" &&
+            o.name !== "Ananya Reddy" &&
+            !o.name.includes("Ananya") &&
             o.name !== "sora" &&
             o.name !== "sora2" &&
             o.name !== "soraguest"
