@@ -5,6 +5,8 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
+import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
+import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
 import {
   Building2,
   Users,
@@ -76,69 +78,74 @@ export default function PropertyOverviewPage({
 
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+            <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
                 Active Tenants
               </span>
-              <p className="font-serif font-bold text-2xl text-[#964407] mt-1">38</p>
+              <p className="font-serif font-bold text-2xl text-[#964407] mt-1">
+                <AnimatedNumberCounter value={38} />
+              </p>
               <p className="text-[11px] text-[#059669] font-bold mt-1">Monthly Billing</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+            </MagneticGlowCard>
+            <MagneticGlowCard glowColor="rgba(126, 34, 206, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
                 Active Guests
               </span>
-              <p className="font-serif font-bold text-2xl text-purple-700 mt-1">6</p>
+              <p className="font-serif font-bold text-2xl text-purple-700 mt-1">
+                <AnimatedNumberCounter value={6} />
+              </p>
               <p className="text-[11px] text-purple-700 font-bold mt-1">Purple Badge</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+            </MagneticGlowCard>
+            <MagneticGlowCard glowColor="rgba(5, 150, 105, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
                 Available Beds
               </span>
-              <p className="font-serif font-bold text-2xl text-[#059669] mt-1">4</p>
+              <p className="font-serif font-bold text-2xl text-[#059669] mt-1">
+                <AnimatedNumberCounter value={4} />
+              </p>
               <p className="text-[11px] text-[#059669] font-bold mt-1">Ready for Allocation</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+            </MagneticGlowCard>
+            <MagneticGlowCard glowColor="rgba(180, 83, 9, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
                 Open Complaints
               </span>
-              <p className="font-serif font-bold text-2xl text-amber-700 mt-1">2</p>
+              <p className="font-serif font-bold text-2xl text-amber-700 mt-1">
+                <AnimatedNumberCounter value={2} />
+              </p>
               <p className="text-[11px] text-amber-700 font-bold mt-1">In Progress</p>
-            </div>
+            </MagneticGlowCard>
           </div>
 
           {/* Quick Actions Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link
-              href={`/p/${propertyId}/financial-hub`}
-              className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group"
-            >
-              <Wallet className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
-              <h3 className="font-serif font-bold text-lg text-[#201a17]">Financial Hub</h3>
-              <p className="text-xs text-[#554339] mt-1">
-                View Partner Settlements, log expenses, and inspect monthly net profits.
-              </p>
+            <Link href={`/p/${propertyId}/financial-hub`}>
+              <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group h-full">
+                <Wallet className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
+                <h3 className="font-serif font-bold text-lg text-[#201a17]">Financial Hub</h3>
+                <p className="text-xs text-[#554339] mt-1">
+                  View Partner Settlements, log expenses, and inspect monthly net profits.
+                </p>
+              </MagneticGlowCard>
             </Link>
 
-            <Link
-              href={`/p/${propertyId}/tenants`}
-              className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group"
-            >
-              <Users className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
-              <h3 className="font-serif font-bold text-lg text-[#201a17]">Tenants & Guests Directory</h3>
-              <p className="text-xs text-[#554339] mt-1">
-                Onboard new occupants with date-aware bed allocation and legal agreements.
-              </p>
+            <Link href={`/p/${propertyId}/tenants`}>
+              <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group h-full">
+                <Users className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
+                <h3 className="font-serif font-bold text-lg text-[#201a17]">Tenants & Guests Directory</h3>
+                <p className="text-xs text-[#554339] mt-1">
+                  Onboard new occupants with date-aware bed allocation and legal agreements.
+                </p>
+              </MagneticGlowCard>
             </Link>
 
-            <Link
-              href={`/p/${propertyId}/property-map`}
-              className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group"
-            >
-              <Building2 className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
-              <h3 className="font-serif font-bold text-lg text-[#201a17]">Property Map</h3>
-              <p className="text-xs text-[#554339] mt-1">
-                Visual floor, room, and bed map with real-time occupancy status indicators.
-              </p>
+            <Link href={`/p/${propertyId}/property-map`}>
+              <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group h-full">
+                <Building2 className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
+                <h3 className="font-serif font-bold text-lg text-[#201a17]">Property Map</h3>
+                <p className="text-xs text-[#554339] mt-1">
+                  Visual floor, room, and bed map with real-time occupancy status indicators.
+                </p>
+              </MagneticGlowCard>
             </Link>
           </div>
 

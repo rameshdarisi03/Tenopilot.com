@@ -118,13 +118,13 @@ export function PropertySidebar({
                 key={item.name}
                 href={item.href}
                 onClick={() => onMobileClose && onMobileClose()}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs transition-all ${
+                className={`relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer select-none active:scale-95 ${
                   isActive
-                    ? "bg-orange-50 text-[#c2652a] font-semibold border-r-4 border-[#c2652a]"
-                    : "text-gray-600 hover:bg-orange-50/60 hover:text-[#c2652a]"
+                    ? "bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-[#c2652a] font-bold border-l-4 border-[#c2652a] shadow-xs"
+                    : "text-gray-600 hover:bg-orange-50/60 hover:text-[#c2652a] hover:translate-x-1"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-[#c2652a]" : "text-gray-500"}`} />
+                <Icon className={`w-4 h-4 transition-transform duration-200 ${isActive ? "text-[#c2652a] scale-110" : "text-gray-500 group-hover:scale-110"}`} />
                 <span>{item.name}</span>
               </Link>
             );

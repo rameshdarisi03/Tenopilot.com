@@ -13,6 +13,11 @@ import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/property
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { QRCodeSVG } from "qrcode.react";
+import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
+import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";
+import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
+import { StaggerItem } from "@/components/motion/StaggerContainer";
+import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import {
   Search,
   Plus,
@@ -193,8 +198,9 @@ export default function TenantsDirectoryPage({
     collectRentOccupant.lastPaidDate = formattedPaidDate;
     collectRentOccupant.daysRemainingText = "—";
 
+    fireCelebrationConfetti();
     triggerToast(
-      `✓ Rent collected successfully! ₹${paymentAmount.toLocaleString("en-IN")} recorded for ${collectRentOccupant.name}`
+      `🎉 Rent collected successfully! ₹${paymentAmount.toLocaleString("en-IN")} recorded for ${collectRentOccupant.name}`
     );
     setCollectRentOccupant(null);
   };
@@ -225,7 +231,7 @@ export default function TenantsDirectoryPage({
     const sumCollected = paid.reduce((acc, curr) => acc + curr.rentAmount, 0);
     const totalExpected = billableOccupants.reduce((acc, curr) => acc + curr.rentAmount, 0);
 
-    const collectionPct = totalExpected > 0 ? ((sumCollected / totalExpected) * 100).toFixed(1) : "0.0";
+    const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
 
     return {
       dueTodayCount: dueToday.length,
@@ -486,101 +492,31 @@ export default function TenantsDirectoryPage({
             </div>
           )}
 
-          {/* Color-Coded Status Filter Pills */}
-          <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-xs overflow-x-auto text-xs font-medium max-w-4xl">
-            <button
-              onClick={() => {
-                setActiveFilterTab("All");
-                setTenantStatusFilter("All");
+          {/* Spring-Physics Gliding Status Filter Tabs */}
+          <div className="overflow-x-auto pb-1 max-w-4xl">
+            <GlidingTabs
+              tabs={[
+                { id: "All", label: "All", count: counts.All },
+                { id: "Booked", label: "Booked", count: counts.Booked, badgeColor: "bg-blue-100 text-blue-700" },
+                { id: "Active", label: "Active", count: counts.Active, badgeColor: "bg-emerald-100 text-emerald-800" },
+                { id: "Notice", label: "Notice", count: counts.Notice, badgeColor: "bg-orange-100 text-orange-700" },
+                { id: "Past", label: "Past", count: counts.Past, badgeColor: "bg-slate-200 text-slate-700" },
+                { id: "Guests", label: "Guests", count: counts.Guests, badgeColor: "bg-purple-100 text-purple-700" },
+              ]}
+              activeTab={activeFilterTab}
+              onChange={(newTab) => {
+                setActiveFilterTab(newTab);
+                if (newTab !== "Guests") {
+                  setTenantStatusFilter(newTab);
+                }
                 setCurrentPage(1);
               }}
-              className={`flex-1 min-w-[90px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                activeFilterTab === "All"
-                  ? "bg-gray-100 text-gray-800 font-bold border border-gray-300 shadow-xs"
-                  : "text-gray-500 hover:text-[#c2652a]"
-              }`}
-            >
-              All <span suppressHydrationWarning className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.All}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveFilterTab("Booked");
-                setTenantStatusFilter("Booked");
-                setCurrentPage(1);
-              }}
-              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                activeFilterTab === "Booked"
-                  ? "bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs"
-                  : "text-gray-500 hover:text-blue-600"
-              }`}
-            >
-              Booked <span suppressHydrationWarning className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Booked}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveFilterTab("Active");
-                setTenantStatusFilter("Active");
-                setCurrentPage(1);
-              }}
-              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                activeFilterTab === "Active"
-                  ? "bg-green-50 text-green-700 font-semibold border border-green-200 shadow-xs"
-                  : "text-gray-500 hover:text-green-600"
-              }`}
-            >
-              Active <span suppressHydrationWarning className="bg-green-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Active}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveFilterTab("Notice");
-                setTenantStatusFilter("Notice");
-                setCurrentPage(1);
-              }}
-              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                activeFilterTab === "Notice"
-                  ? "bg-orange-50 text-orange-700 font-bold border border-orange-200 shadow-xs"
-                  : "text-gray-500 hover:text-orange-600"
-              }`}
-            >
-              Notice <span suppressHydrationWarning className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Notice}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveFilterTab("Past");
-                setTenantStatusFilter("Past");
-                setCurrentPage(1);
-              }}
-              className={`flex-1 min-w-[90px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                activeFilterTab === "Past"
-                  ? "bg-gray-100 text-gray-800 font-bold border border-gray-300 shadow-xs"
-                  : "text-gray-500 hover:text-gray-800"
-              }`}
-            >
-              Past <span suppressHydrationWarning className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Past}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveFilterTab("Guests");
-                setCurrentPage(1);
-              }}
-              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all ${
-                activeFilterTab === "Guests"
-                  ? "bg-purple-50 text-purple-700 font-bold border border-purple-200 shadow-xs"
-                  : "text-gray-500 hover:text-purple-600"
-              }`}
-            >
-              Guests <span suppressHydrationWarning className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{counts.Guests}</span>
-            </button>
+            />
           </div>
 
           {/* Operational Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+            <MagneticGlowCard glowColor="rgba(239, 68, 68, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-red-50 text-red-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Calendar className="w-5 h-5" />
               </div>
@@ -588,12 +524,16 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-red-500 tracking-wider">
                   Due Today
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.dueTodayCount}</p>
-                <p className="text-xs text-gray-500">₹{rentMetrics.dueTodaySum.toLocaleString("en-IN")}</p>
+                <p className="text-xl font-bold font-sans text-gray-900">
+                  <AnimatedNumberCounter value={rentMetrics.dueTodayCount} />
+                </p>
+                <p className="text-xs text-gray-500">
+                  <AnimatedNumberCounter value={rentMetrics.dueTodaySum} prefix="₹" />
+                </p>
               </div>
-            </div>
+            </MagneticGlowCard>
 
-            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+            <MagneticGlowCard glowColor="rgba(249, 115, 22, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Clock className="w-5 h-5" />
               </div>
@@ -601,12 +541,16 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
                   Due Tomorrow
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.dueTomorrowCount}</p>
-                <p className="text-xs text-gray-500">₹{rentMetrics.dueTomorrowSum.toLocaleString("en-IN")}</p>
+                <p className="text-xl font-bold font-sans text-gray-900">
+                  <AnimatedNumberCounter value={rentMetrics.dueTomorrowCount} />
+                </p>
+                <p className="text-xs text-gray-500">
+                  <AnimatedNumberCounter value={rentMetrics.dueTomorrowSum} prefix="₹" />
+                </p>
               </div>
-            </div>
+            </MagneticGlowCard>
 
-            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+            <MagneticGlowCard glowColor="rgba(245, 158, 11, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <Calendar className="w-5 h-5" />
               </div>
@@ -614,12 +558,16 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
                   Due Next 2 Days
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.dueNext2DaysCount}</p>
-                <p className="text-xs text-gray-500">₹{rentMetrics.dueNext2DaysSum.toLocaleString("en-IN")}</p>
+                <p className="text-xl font-bold font-sans text-gray-900">
+                  <AnimatedNumberCounter value={rentMetrics.dueNext2DaysCount} />
+                </p>
+                <p className="text-xs text-gray-500">
+                  <AnimatedNumberCounter value={rentMetrics.dueNext2DaysSum} prefix="₹" />
+                </p>
               </div>
-            </div>
+            </MagneticGlowCard>
 
-            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+            <MagneticGlowCard glowColor="rgba(220, 38, 38, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-red-100 text-red-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
@@ -627,12 +575,16 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-red-600 tracking-wider">
                   Overdue
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.overdueCount}</p>
-                <p className="text-xs text-gray-500">₹{rentMetrics.overdueSum.toLocaleString("en-IN")}</p>
+                <p className="text-xl font-bold font-sans text-gray-900">
+                  <AnimatedNumberCounter value={rentMetrics.overdueCount} />
+                </p>
+                <p className="text-xs text-gray-500">
+                  <AnimatedNumberCounter value={rentMetrics.overdueSum} prefix="₹" />
+                </p>
               </div>
-            </div>
+            </MagneticGlowCard>
 
-            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-xs flex items-center gap-4">
+            <MagneticGlowCard glowColor="rgba(16, 185, 129, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
               <div className="bg-green-50 text-green-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
@@ -640,12 +592,14 @@ export default function TenantsDirectoryPage({
                 <p className="text-[10px] uppercase font-bold text-green-600 tracking-wider">
                   Collected Month
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">{rentMetrics.collectionPct}%</p>
+                <p className="text-xl font-bold font-sans text-gray-900">
+                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} />
+                </p>
                 <p className="text-xs text-gray-500">
                   ₹{(rentMetrics.sumCollected / 100000).toFixed(2)}L / ₹{(rentMetrics.totalExpected / 100000).toFixed(2)}L
                 </p>
               </div>
-            </div>
+            </MagneticGlowCard>
           </div>
 
           {/* Filters & Sorting Control Bar */}
@@ -874,7 +828,7 @@ export default function TenantsDirectoryPage({
                     return (
                       <tr
                         key={occ.id}
-                        className={`hover:bg-orange-50/40 transition-colors ${
+                        className={`hover:bg-orange-50/40 transition-colors animate-stagger-up ${
                           isSelected ? "bg-orange-50/60" : ""
                         }`}
                       >
