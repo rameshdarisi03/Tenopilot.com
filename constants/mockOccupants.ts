@@ -894,7 +894,7 @@ export function generateMockOccupants(count = 25): Occupant[] {
   return curatedCases;
 }
 
-const OCCUPANTS_STORAGE_KEY = "tenopilot_occupants_store_clean_v3";
+const OCCUPANTS_STORAGE_KEY = "tenopilot_real_occupants_v1";
 let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
 const occupantListeners: Array<() => void> = [];
 
@@ -911,8 +911,8 @@ function loadOccupants(): Occupant[] {
       console.warn("Failed to load occupants from localStorage", e);
     }
   }
-  // Initialize with 25 curated test cases covering full scenario range!
-  GLOBAL_OCCUPANTS_CACHE = generateMockOccupants(25);
+  // Zero mock occupants policy: Only onboarded tenants saved to Firestore/User input!
+  GLOBAL_OCCUPANTS_CACHE = [];
   return GLOBAL_OCCUPANTS_CACHE;
 }
 

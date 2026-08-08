@@ -292,8 +292,29 @@ export default function TenantsDirectoryPage({
       return true;
     });
 
-    // 2. Interactive Column & Dropdown Sorting mechanism
+    // 2. Priority Relevance Ranking + Interactive Column Sorting
     return matched.sort((a, b) => {
+      // Relevance Ranking: If user is typing a query, prioritize names whose FIRST NAME starts with search token
+      if (searchTokens.length > 0) {
+        const token = searchTokens[0];
+        const getScore = (occName: string) => {
+          const nameLower = occName.toLowerCase().trim();
+          const cleanName = nameLower.replace(/[^a-z0-9\s]/g, "");
+          const words = cleanName.split(/\s+/).filter(Boolean);
+          // Score 1: First name / full name starts directly with token (e.g. Ramesh, Ranbir, Ravindra)
+          if (nameLower.startsWith(token) || (words[0] && words[0].startsWith(token))) return 1;
+          // Score 2: Last name starts with token (e.g. KL Rahul)
+          if (words.some((w) => w.startsWith(token))) return 2;
+          return 3;
+        };
+
+        const scoreA = getScore(a.name);
+        const scoreB = getScore(b.name);
+        if (scoreA !== scoreB) {
+          return scoreA - scoreB; // Priority 1 (First Name startsWith) ranks first!
+        }
+      }
+
       let comparison = 0;
 
       if (sortColumn === "name") {
