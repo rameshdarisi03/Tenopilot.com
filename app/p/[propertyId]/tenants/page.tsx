@@ -496,12 +496,12 @@ export default function TenantsDirectoryPage({
           <div className="overflow-x-auto pb-1 max-w-4xl">
             <GlidingTabs
               tabs={[
-                { id: "All", label: "All", count: counts.All },
-                { id: "Booked", label: "Booked", count: counts.Booked, badgeColor: "bg-blue-100 text-blue-700" },
-                { id: "Active", label: "Active", count: counts.Active, badgeColor: "bg-emerald-100 text-emerald-800" },
-                { id: "Notice", label: "Notice", count: counts.Notice, badgeColor: "bg-orange-100 text-orange-700" },
-                { id: "Past", label: "Past", count: counts.Past, badgeColor: "bg-slate-200 text-slate-700" },
-                { id: "Guests", label: "Guests", count: counts.Guests, badgeColor: "bg-purple-100 text-purple-700" },
+                { id: "All", label: "All", count: counts.All, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-900 font-bold" },
+                { id: "Booked", label: "Booked", count: counts.Booked, badgeColor: "bg-blue-100 text-blue-700", activeTextColor: "text-blue-700 font-bold" },
+                { id: "Active", label: "Active", count: counts.Active, badgeColor: "bg-green-600 text-white font-bold", activeTextColor: "text-green-700 font-bold" },
+                { id: "Notice", label: "Notice", count: counts.Notice, badgeColor: "bg-orange-100 text-orange-700", activeTextColor: "text-orange-700 font-bold" },
+                { id: "Past", label: "Past", count: counts.Past, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-800 font-bold" },
+                { id: "Guests", label: "Guests", count: counts.Guests, badgeColor: "bg-purple-100 text-purple-700", activeTextColor: "text-purple-700 font-bold" },
               ]}
               activeTab={activeFilterTab}
               onChange={(newTab) => {

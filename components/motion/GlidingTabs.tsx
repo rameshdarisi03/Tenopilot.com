@@ -7,6 +7,7 @@ export interface TabOption<T extends string> {
   label: string;
   count?: number;
   badgeColor?: string;
+  activeTextColor?: string;
 }
 
 interface GlidingTabsProps<T extends string> {
@@ -53,12 +54,12 @@ export function GlidingTabs<T extends string>({
   return (
     <div
       ref={containerRef}
-      className={`relative inline-flex items-center p-1.5 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-inner ${className}`}
+      className={`relative inline-flex items-center p-1.5 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs ${className}`}
     >
       {/* Spring-Physics Gliding Backdrop Pill */}
       {isReady && (
         <div
-          className="absolute top-1.5 bottom-1.5 rounded-lg bg-white dark:bg-slate-900 shadow-md shadow-slate-200/50 dark:shadow-black/40 border border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+          className="absolute top-1.5 bottom-1.5 rounded-xl bg-white dark:bg-slate-900 shadow-md shadow-slate-200/60 dark:shadow-black/50 border border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
           style={{
             transform: `translateX(${pillStyle.left}px)`,
             width: `${pillStyle.width}px`,
@@ -74,19 +75,17 @@ export function GlidingTabs<T extends string>({
             key={tab.id}
             data-tab-item
             onClick={() => onChange(tab.id)}
-            className={`relative z-10 flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+            className={`relative z-10 flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer select-none active:scale-95 ${
               isActive
-                ? "text-slate-900 dark:text-white font-bold"
-                : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                ? tab.activeTextColor || "text-slate-900 font-bold"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <span>{tab.label}</span>
             {tab.count !== undefined && (
               <span
                 className={`px-2 py-0.5 text-[10px] font-bold rounded-full transition-colors ${
-                  isActive
-                    ? tab.badgeColor || "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300"
-                    : "bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                  tab.badgeColor || "bg-slate-200/80 text-slate-600"
                 }`}
               >
                 {tab.count}
