@@ -1,3 +1,6 @@
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 // TenoPilot Single Source of Truth (SSOT) Partner Ownership & Expense Categories Store
 
 export interface PartnerConfig {
@@ -14,6 +17,13 @@ export interface ExpenseCategoryConfig {
   name: string;
   icon: string;
   color?: string;
+}
+
+export interface PaymentAccountConfig {
+  id: string;
+  name: string;
+  type: "Business Account" | "Petty Cash" | "Bank Account" | "Partner Account";
+  isDefault?: boolean;
 }
 
 export const DEFAULT_PARTNERS: PartnerConfig[] = [
@@ -49,29 +59,26 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-3", name: "Staff Salary", icon: "Users", color: "#059669" },
   { id: "cat-4", name: "Internet / Wi-Fi", icon: "Wifi", color: "#7e22ce" },
   { id: "cat-5", name: "Property Maintenance", icon: "Wrench", color: "#964407" },
-  { id: "cat-6", name: "Food & Grocery", icon: "Utensils", color: "#be123c" },
-  { id: "cat-7", name: "Property Tax & License", icon: "FileText", color: "#475569" },
+  { id: "cat-[#be123c]", name: "Food & Kitchen Supplies", icon: "Utensils", color: "#be123c" },
+  { id: "cat-[#0f766e]", name: "Gas Cylinders & Fuel", icon: "Fuel", color: "#0f766e" },
+  { id: "cat-[#4338ca]", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
 ];
-
-export interface PaymentAccountConfig {
-  id: string;
-  name: string;
-  type: "Business Account" | "Petty Cash" | "Partner Account" | "Bank Account";
-  isDefault?: boolean;
-}
 
 export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [
-  { id: "acc-1", name: "Business Account", type: "Business Account", isDefault: true },
-  { id: "acc-2", name: "Petty Cash", type: "Petty Cash", isDefault: true },
-  { id: "acc-3", name: "Ramesh", type: "Partner Account" },
-  { id: "acc-4", name: "Suresh", type: "Partner Account" },
-  { id: "acc-5", name: "Mahesh", type: "Partner Account" },
+  { id: "acc-1", name: "Main Business Account", type: "Business Account", isDefault: true },
+  { id: "acc-2", name: "Reception Petty Cash", type: "Petty Cash" },
+  { id: "acc-3", name: "HDFC Operating Bank", type: "Bank Account" },
+  { id: "acc-partner-p1", name: "Ramesh", type: "Partner Account" },
+  { id: "acc-partner-p2", name: "Suresh", type: "Partner Account" },
+  { id: "acc-partner-p3", name: "Mahesh", type: "Partner Account" },
 ];
 
-let listeners: (() => void)[] = [];
-let partnerState: PartnerConfig[] = DEFAULT_PARTNERS;
-let categoryState: ExpenseCategoryConfig[] = DEFAULT_EXPENSE_CATEGORIES;
-let paymentAccountState: PaymentAccountConfig[] = DEFAULT_PAYMENT_ACCOUNTS;
+let partnerState: PartnerConfig[] = [...DEFAULT_PARTNERS];
+let categoryState: ExpenseCategoryConfig[] = [...DEFAULT_EXPENSE_CATEGORIES];
+let paymentAccountState: PaymentAccountConfig[] = [...DEFAULT_PAYMENT_ACCOUNTS];
+let listeners: Array<() => void> = [];
+let activePartnerUnsub: (() => void) | null = null;
+let activePropId: string | null = null;
 
 // Load persisted state from localStorage on init if in browser
 if (typeof window !== "undefined") {
@@ -107,11 +114,71 @@ function notify() {
 }
 
 export const partnerStore = {
-  getPartners(): PartnerConfig[] {
+  initFirebaseListener(propertyId = "sunshine-pg") {
+    if (typeof window === "undefined" || !db) return;
+    if (activePropId === propertyId && activePartnerUnsub) return;
+
+    if (activePartnerUnsub) {
+      activePartnerUnsub();
+      activePartnerUnsub = null;
+    }
+
+    activePropId = propertyId;
+
+    try {
+      const docRef = doc(db, `properties/${propertyId}/partners/config`);
+      activePartnerUnsub = onSnapshot(
+        docRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            if (data.partners && Array.isArray(data.partners)) partnerState = data.partners;
+            if (data.categories && Array.isArray(data.categories)) categoryState = data.categories;
+            if (data.paymentAccounts && Array.isArray(data.paymentAccounts)) paymentAccountState = data.paymentAccounts;
+            
+            if (typeof window !== "undefined") {
+              localStorage.setItem("tenopilot_partner_ownership", JSON.stringify(partnerState));
+              localStorage.setItem("tenopilot_expense_categories", JSON.stringify(categoryState));
+              localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
+            }
+            notify();
+          }
+        },
+        (err) => {
+          console.warn("Realtime partner store snapshot notice:", err);
+        }
+      );
+    } catch (e) {
+      console.warn("Failed to attach partnerStore onSnapshot", e);
+    }
+  },
+
+  getPartners(propertyId = "sunshine-pg"): PartnerConfig[] {
+    this.initFirebaseListener(propertyId);
     return partnerState;
   },
 
-  updatePartners(newPartners: PartnerConfig[]) {
+  async syncToFirestore(propertyId = "sunshine-pg") {
+    try {
+      if (db) {
+        const docRef = doc(db, `properties/${propertyId}/partners/config`);
+        await setDoc(
+          docRef,
+          {
+            partners: partnerState,
+            categories: categoryState,
+            paymentAccounts: paymentAccountState,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+    } catch (e) {
+      console.warn("Firestore partnerStore sync notice:", e);
+    }
+  },
+
+  updatePartners(newPartners: PartnerConfig[], propertyId = "sunshine-pg") {
     partnerState = newPartners;
     // Auto sync partner accounts into payment accounts
     const partnerAccs: PaymentAccountConfig[] = newPartners.map((p) => ({
@@ -134,6 +201,7 @@ export const partnerStore = {
       }
     }
     notify();
+    this.syncToFirestore(propertyId);
   },
 
   getPaymentAccounts(): PaymentAccountConfig[] {
