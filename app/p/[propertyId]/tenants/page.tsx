@@ -8,6 +8,7 @@ import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOcc
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -58,11 +59,27 @@ export default function TenantsDirectoryPage({
 
   useEffect(() => {
     setOccupantsList(occupantStore.getOccupants());
-    const unsubscribe = occupantStore.subscribe(() => {
+
+    const unsubscribeLocal = occupantStore.subscribe(() => {
       setOccupantsList(occupantStore.getOccupants());
     });
-    return unsubscribe;
-  }, []);
+
+    const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        const localList = occupantStore.getOccupants();
+        const mergedMap = new Map<string, Occupant>();
+        localList.forEach((o) => mergedMap.set(o.id, o));
+        fsOccupants.forEach((o) => mergedMap.set(o.id, o));
+        const merged = Array.from(mergedMap.values());
+        occupantStore.updateOccupants(merged, propertyId);
+      }
+    });
+
+    return () => {
+      unsubscribeLocal();
+      unsubscribeFirestore();
+    };
+  }, [propertyId]);
 
   // Filter & Search states
   const [rawSearchTerm, setRawSearchTerm] = useState("");
@@ -1640,28 +1657,34 @@ export default function TenantsDirectoryPage({
                     const activeQr = profiles[activeQrIndex] || profiles[0];
                     const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
 
-                    selectedOccupants.forEach((occ, idx) => {
-                      setTimeout(() => {
-                        const cleanPhone = occ.phone.replace(/\D/g, "");
-                        const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                        const isCashReq = activeQr.upiId === "CASH_PAYMENT" || activeQr.accountType === "CASH_DESK";
-                        const paymentNote = isCashReq
-                          ? `💵 *Payment Mode*: Cash Request at ${activeQr.bankLabel}\nPlease visit reception desk to clear rent.`
-                          : `💳 *Pay via UPI ID*: ${activeQr.upiId} (${activeQr.bankLabel})\nPlease scan QR code or pay via UPI.`;
+                    if (selectedOccupants.length > 0) {
+                      const firstOcc = selectedOccupants[0];
+                      const cleanPhone = firstOcc.phone.replace(/\D/g, "");
+                      const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                      const isCashReq = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.accountType === "CASH_DESK";
+                      const paymentNote = isCashReq
+                        ? `💵 *Payment Mode*: Cash Request at ${activeQr?.bankLabel}\nPlease visit reception desk to clear rent.`
+                        : `💳 *Pay via UPI ID*: ${activeQr?.upiId} (${activeQr?.bankLabel})\nPlease scan QR code or pay via UPI.`;
 
-                        const msg = encodeURIComponent(
-                          `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
-                        );
-                        window.open(`https://wa.me/${formattedPhone}?text=${msg}`, "_blank");
-                      }, idx * 600);
-                    });
-                    triggerToast(`🚀 Opened WhatsApp Batch Reminders for ${selectedOccupants.length} tenants with ${activeQr.name}!`);
-                    setShowRentReminderQRModal(false);
+                      const msg = encodeURIComponent(
+                        `Hello ${firstOcc.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${firstOcc.roomNumber} (${firstOcc.bedCode})\n💰 *Rent Amount Due*: ₹${firstOcc.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${firstOcc.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
+                      );
+                      // Synchronous window.open on user click event (never blocked by browser)
+                      window.open(`https://wa.me/${formattedPhone}?text=${msg}`, "_blank");
+
+                      if (selectedOccupants.length > 1) {
+                        triggerToast(`🚀 Launched WhatsApp for ${firstOcc.name}! Click 'WhatsApp 💬' next to remaining ${selectedOccupants.length - 1} tenants to send.`);
+                      } else {
+                        triggerToast(`🚀 Launched WhatsApp Rent Reminder for ${firstOcc.name}!`);
+                      }
+                    } else {
+                      triggerToast("Please select at least one tenant to send reminders.");
+                    }
                   }}
                   className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Send All WhatsApp Reminders 🚀</span>
+                  <span>Send Selected WhatsApp Reminders 🚀</span>
                 </button>
               </div>
             </div>
