@@ -61,6 +61,24 @@ export async function updateOccupantInFirestore(
 }
 
 /**
+ * Delete occupant record permanently from Firebase Cloud Firestore
+ * Collection Path: properties/{propertyId}/occupants/{occupantId}
+ */
+export async function deleteOccupantFromFirestore(
+  propertyId: string,
+  occupantId: string
+): Promise<boolean> {
+  try {
+    const occupantRef = doc(db, "properties", propertyId, "occupants", occupantId);
+    await deleteDoc(occupantRef);
+    return true;
+  } catch (error) {
+    console.warn("Firestore delete occupant error:", error);
+    return false;
+  }
+}
+
+/**
  * Fetch all occupants for a property from Firebase Cloud Firestore
  */
 export async function fetchOccupantsFromFirestore(

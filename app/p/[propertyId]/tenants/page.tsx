@@ -10,7 +10,7 @@ import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOcc
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
-import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -128,6 +128,7 @@ export default function TenantsDirectoryPage({
   const [selectedQrType, setSelectedQrType] = useState<"phonepe" | "gpay" | "hdfc" | "custom">("phonepe");
   const [customUpiId, setCustomUpiId] = useState<string>("saharapg@ybl");
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
+  const [deletePastTenantTarget, setDeletePastTenantTarget] = useState<Occupant | null>(null);
 
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
@@ -1011,6 +1012,18 @@ export default function TenantsDirectoryPage({
                                   >
                                     <ArrowRightLeft className="w-3.5 h-3.5 text-gray-500" /> Transfer Room
                                   </button>
+
+                                  {occ.lifecycleStatus === "Past" && (
+                                    <button
+                                      onClick={() => {
+                                        setActiveActionDropdownId(null);
+                                        setDeletePastTenantTarget(occ);
+                                      }}
+                                      className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-rose-50 text-rose-600 border-t border-gray-100"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Delete Past Tenant
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1712,6 +1725,78 @@ export default function TenantsDirectoryPage({
                 >
                   <MessageSquare className="w-4 h-4" />
                   <span>Send Selected WhatsApp Reminders 🚀</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE PAST TENANT CONFIRMATION MODAL */}
+        {deletePastTenantTarget && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setDeletePastTenantTarget(null)}
+          >
+            <div
+              className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Delete Past Tenant Record?
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Permanent Record Erasure Warning
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-gray-700 text-xs leading-relaxed">
+                  Are you sure you want to permanently delete past tenant <strong>{deletePastTenantTarget.name}</strong> (Room {deletePastTenantTarget.roomNumber})?
+                </p>
+
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1.5 text-[11px]">
+                  <span className="font-bold flex items-center gap-1 text-rose-700">
+                    ⚠️ Irreversible Deletion Warning:
+                  </span>
+                  <p className="text-rose-800 leading-snug">
+                    Confirming deletion will permanently wipe out the entire history of this past tenant from Cloud Firestore and local storage — including KYC verification documents, uploaded photo IDs, payment receipts, emergency contact details, and stay history.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletePastTenantTarget(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const target = deletePastTenantTarget;
+                    setDeletePastTenantTarget(null);
+
+                    // 1. Remove from local occupants list & update store
+                    const updated = occupantsList.filter((o) => o.id !== target.id);
+                    occupantStore.updateOccupants(updated, propertyId);
+
+                    // 2. Delete permanently from Cloud Firestore
+                    await deleteOccupantFromFirestore(propertyId, target.id);
+
+                    triggerToast(`🗑️ Permanently erased record, KYC, and documents for ${target.name}`);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Permanently Delete</span>
                 </button>
               </div>
             </div>
