@@ -92,25 +92,32 @@ export async function purgeAllMockOccupantsFromFirestore(
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data();
       const id = docSnap.id;
-      const isMock =
+      const name = data.name || "";
+
+      // Regex matching short mock IDs like occ-001 to occ-200, occ-1 to occ-999
+      const isShortMockId = /^occ-\d{1,3}$/.test(id);
+      const isMockPattern =
         id.startsWith("occ-test") ||
         id.startsWith("tera") ||
-        id.startsWith("occ-987") ||
-        data.name === "Jasprit Bumrah" ||
-        data.name === "Karan Johar" ||
-        data.name === "Shubman Gill" ||
-        data.name === "Rohan Gupta" ||
-        data.name === "KL Rahul" ||
-        data.name === "Meera Iyer" ||
-        data.name === "Ranbir Kapoor" ||
-        data.name === "Ravindra Jadeja" ||
-        data.name === "Ananya Reddy" ||
-        data.name.includes("Ananya") ||
-        data.name === "sora" ||
-        data.name === "sora2" ||
-        data.name === "soraguest";
+        id.startsWith("mock-") ||
+        id === "occ-987";
+      const isMockName =
+        name === "Jasprit Bumrah" ||
+        name === "Karan Johar" ||
+        name === "Shubman Gill" ||
+        name === "Rohan Gupta" ||
+        name === "KL Rahul" ||
+        name === "Meera Iyer" ||
+        name === "Ranbir Kapoor" ||
+        name === "Ravindra Jadeja" ||
+        name === "Ananya Reddy" ||
+        name.includes("Ananya") ||
+        name.includes("Future Guest") ||
+        name === "sora" ||
+        name === "sora2" ||
+        name === "soraguest";
 
-      if (isMock) {
+      if (isShortMockId || isMockPattern || isMockName) {
         await deleteDoc(doc(db, "properties", propertyId, "occupants", id));
         deletedCount++;
       }
