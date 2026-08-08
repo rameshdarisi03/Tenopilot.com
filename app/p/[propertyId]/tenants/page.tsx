@@ -54,7 +54,7 @@ export default function TenantsDirectoryPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Dynamic Occupants Store State (Updates in real time)
-  const [occupantsList, setOccupantsList] = useState<Occupant[]>([]);
+  const [occupantsList, setOccupantsList] = useState<Occupant[]>(() => occupantStore.getOccupants());
 
   useEffect(() => {
     setOccupantsList(occupantStore.getOccupants());
@@ -262,8 +262,8 @@ export default function TenantsDirectoryPage({
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
       if (paymentStatusFilter !== "All" && occ.paymentStatus !== paymentStatusFilter) return false;
       if (paymentDueFilter !== "All") {
-        if (paymentDueFilter === "Today" && occ.dueDate !== "Today") return false;
-        if (paymentDueFilter === "Tomorrow" && occ.dueDate !== "Tomorrow") return false;
+        if (paymentDueFilter === "Today" && (occ.daysDiff !== 0 || occ.paymentStatus !== "Due")) return false;
+        if (paymentDueFilter === "Tomorrow" && (occ.daysDiff !== 1 || occ.paymentStatus !== "Due")) return false;
         if (paymentDueFilter === "Overdue" && occ.paymentStatus !== "Overdue") return false;
       }
       if (roomFilter !== "All Rooms" && occ.roomNumber !== roomFilter) return false;
@@ -292,6 +292,7 @@ export default function TenantsDirectoryPage({
       return sortDirection === "asc" ? comparison : -comparison;
     });
   }, [
+    occupantsList,
     rawSearchTerm,
     activeFilterTab,
     tenantStatusFilter,
@@ -341,14 +342,14 @@ export default function TenantsDirectoryPage({
 
   const counts = useMemo(() => {
     return {
-      All: MOCK_OCCUPANTS_200.length,
-      Booked: MOCK_OCCUPANTS_200.filter((o) => o.lifecycleStatus === "Booked").length,
-      Active: MOCK_OCCUPANTS_200.filter((o) => o.lifecycleStatus === "Active").length,
-      Notice: MOCK_OCCUPANTS_200.filter((o) => o.lifecycleStatus === "Notice").length,
-      Past: MOCK_OCCUPANTS_200.filter((o) => o.lifecycleStatus === "Past").length,
-      Guests: MOCK_OCCUPANTS_200.filter((o) => o.stayType === "Guest").length,
+      All: occupantsList.length,
+      Booked: occupantsList.filter((o) => o.lifecycleStatus === "Booked").length,
+      Active: occupantsList.filter((o) => o.lifecycleStatus === "Active").length,
+      Notice: occupantsList.filter((o) => o.lifecycleStatus === "Notice").length,
+      Past: occupantsList.filter((o) => o.lifecycleStatus === "Past").length,
+      Guests: occupantsList.filter((o) => o.stayType === "Guest").length,
     };
-  }, []);
+  }, [occupantsList]);
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
