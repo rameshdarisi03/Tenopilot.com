@@ -265,24 +265,24 @@ export default function HomeWorkspacePage() {
 
       {/* Main Mobile-Optimized Body */}
       <main className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 space-y-6 sm:space-y-10 w-full">
-        {/* Welcome Greeting */}
+        {/* Welcome Greeting with riseIn Typography Animations */}
         <section className="max-w-3xl">
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#964407] block mb-1.5">
-            Welcome Home
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#964407] block mb-1.5 animate-rise-eyebrow">
+            WELCOME HOME
           </span>
           <h1 className="font-serif text-2xl sm:text-4xl md:text-5xl font-bold text-[#201a17] leading-tight">
-            Good morning, Alex.<br />
-            <span className="text-[#725949] font-normal">Your portfolio is calling.</span>
+            <span className="animate-rise-line1 block">Good morning, Alex.</span>
+            <span className="text-[#725949] font-normal animate-rise-line2 block">Your portfolio is calling.</span>
           </h1>
-          <p className="text-sm sm:text-lg text-[#554339] mt-2 font-normal leading-relaxed">
+          <p className="text-sm sm:text-lg text-[#554339] mt-2 font-normal leading-relaxed animate-rise-sub">
             {properties.length} {properties.length === 1 ? "property" : "properties"} active in your portfolio. Tap a building card below to launch its operational dashboard.
           </p>
         </section>
 
-        {/* Tactile Mobile Bento Grid */}
+        {/* Tactile Mobile Bento Grid with Staggered cardIn Animations & Hover Lift */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {/* Card 1: Consolidated Portfolio Dashboard Card */}
-          <div className="bg-gradient-to-br from-[#964407] to-[#c2652a] text-white rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[260px] sm:min-h-[340px]">
+          <div className="animate-card-in-1 bg-gradient-to-br from-[#964407] to-[#c2652a] text-white rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[260px] sm:min-h-[340px] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl group cursor-pointer">
             <div className="relative z-10 space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/80 block">
                 Global Overview
@@ -299,18 +299,20 @@ export default function HomeWorkspacePage() {
               <Link
                 href="/p/sunshine-pg/overview"
                 id="portfolio-dashboard-btn"
-                className="w-full py-3.5 px-5 rounded-full bg-white text-[#964407] font-bold text-xs sm:text-sm hover:bg-[#fff8f6] transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
+                className="w-full py-3.5 px-5 rounded-full bg-white text-[#964407] font-bold text-xs sm:text-sm hover:bg-[#fff8f6] transition-all flex items-center justify-between gap-2 shadow-md active:scale-95 group-hover:translate-x-1"
               >
-                View Portfolio Dashboard <ArrowRight className="w-4 h-4" />
+                <span>View Portfolio Dashboard</span> <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
           </div>
 
           {/* Dynamic Active Property Cards */}
-          {properties.map((prop) => (
+          {properties.map((prop, idx) => (
             <div
               key={prop.id}
-              className="group relative rounded-2xl border border-[#d7c2b9] overflow-hidden min-h-[360px] flex flex-col justify-end shadow-md hover:shadow-xl transition-all duration-300 bg-[#201a17]"
+              className={`group relative rounded-2xl border border-[#d7c2b9] overflow-hidden min-h-[360px] flex flex-col justify-end shadow-md hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 bg-[#201a17] cursor-pointer ${
+                idx === 0 ? "animate-card-in-2" : idx === 1 ? "animate-card-in-3" : "animate-card-in-4"
+              }`}
             >
               <div className="absolute inset-0 z-0 bg-[#201a17]">
                 <div className="w-full h-full bg-gradient-to-br from-[#725949] to-[#201a17] opacity-90"></div>

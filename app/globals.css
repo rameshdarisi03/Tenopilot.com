@@ -59,3 +59,68 @@
   animation: staggerFadeUp 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dashPulse {
+  0%, 100% {
+    border-color: rgba(36, 27, 22, 0.25);
+  }
+  50% {
+    border-color: rgba(198, 87, 42, 0.5);
+  }
+}
+
+.animate-rise-eyebrow {
+  animation: riseIn 0.5s cubic-bezier(.22,1,.36,1) 0.1s forwards;
+  opacity: 0;
+}
+.animate-rise-line1 {
+  animation: riseIn 0.7s cubic-bezier(.22,1,.36,1) 0.28s forwards;
+  opacity: 0;
+}
+.animate-rise-line2 {
+  animation: riseIn 0.7s cubic-bezier(.22,1,.36,1) 0.5s forwards;
+  opacity: 0;
+}
+.animate-rise-sub {
+  animation: riseIn 0.6s cubic-bezier(.22,1,.36,1) 0.78s forwards;
+  opacity: 0;
+}
+
+.animate-card-in-1 {
+  animation: cardIn 0.65s cubic-bezier(.22,1,.36,1) 1.0s forwards;
+  opacity: 0;
+}
+.animate-card-in-2 {
+  animation: cardIn 0.65s cubic-bezier(.22,1,.36,1) 1.12s forwards;
+  opacity: 0;
+}
+.animate-card-in-3 {
+  animation: cardIn 0.65s cubic-bezier(.22,1,.36,1) 1.24s forwards;
+  opacity: 0;
+}
+.animate-card-in-4 {
+  animation: cardIn 0.65s cubic-bezier(.22,1,.36,1) 1.36s forwards, dashPulse 3s ease-in-out 2s infinite;
+  opacity: 0;
+}
+
