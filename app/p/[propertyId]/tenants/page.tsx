@@ -9,6 +9,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Search,
   Plus,
@@ -34,6 +35,10 @@ import {
   ArrowRightLeft,
   FileText,
   ArrowUpDown,
+  Upload,
+  QrCode,
+  ExternalLink,
+  ImageIcon,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -97,6 +102,11 @@ export default function TenantsDirectoryPage({
   const [paymentAmount, setPaymentAmount] = useState<number>(14500);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Rent Reminder QR Code & WhatsApp Broadcast Modal State
+  const [showRentReminderQRModal, setShowRentReminderQRModal] = useState(false);
+  const [selectedQrType, setSelectedQrType] = useState<"phonepe" | "gpay" | "hdfc" | "custom">("phonepe");
+  const [customUpiId, setCustomUpiId] = useState<string>("saharapg@ybl");
+  const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
 
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
@@ -1196,22 +1206,10 @@ export default function TenantsDirectoryPage({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    const selectedOccupants = MOCK_OCCUPANTS_200.filter((o) =>
-                      selectedIds.includes(o.id)
-                    );
-                    const firstOccupant = selectedOccupants[0];
-                    if (firstOccupant) {
-                      const msg = encodeURIComponent(
-                        `Hi ${firstOccupant.name}, your rent payment for Room ${firstOccupant.roomNumber} is due on ${firstOccupant.dueDate}. Please pay via UPI.`
-                      );
-                      window.open(`https://wa.me/91${firstOccupant.phone.replace(/\D/g, "")}?text=${msg}`, "_blank");
-                    }
-                    triggerToast(`✓ Opening WhatsApp Reminder for ${selectedOccupants.length} tenant(s)!`);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md"
+                  onClick={() => setShowRentReminderQRModal(true)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
-                  <MessageSquare className="w-4 h-4" /> Send Reminders
+                  <MessageSquare className="w-4 h-4" /> Send Rent Reminders (QR Attached)
                 </button>
               </div>
             </div>
@@ -1228,17 +1226,18 @@ export default function TenantsDirectoryPage({
               <div className="hidden sm:block">
                 <span className="font-bold text-gray-900 block">Tenants Selected</span>
                 <span className="text-[10px] text-gray-500">
-                  TOTAL DUE: ₹{(selectedIds.length * 14500).toLocaleString("en-IN")}
+                  Batch Rent Reminders & Payment QR
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => triggerToast(`Rent reminders sent to ${selectedIds.length} tenants`)}
-                className="px-4 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-semibold shadow-md flex items-center gap-2 active:scale-95"
+                onClick={() => setShowRentReminderQRModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
               >
-                <MessageSquare className="w-4 h-4" /> Send Rent Reminder
+                <MessageSquare className="w-4 h-4" />
+                <span>Send Rent Reminder & Attach QR ({selectedIds.length})</span>
               </button>
               <button
                 onClick={() => triggerToast(`Calling ${selectedIds.length} selected tenants`)}
@@ -1478,6 +1477,219 @@ export default function TenantsDirectoryPage({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* RENT REMINDER PAYMENT QR CODE & WHATSAPP BROADCAST MODAL */}
+        {showRentReminderQRModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setShowRentReminderQRModal(false)}
+          >
+            <div
+              className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-xl w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                    <QrCode className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Send Rent Reminders & Payment QR
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected for Batch WhatsApp Notification
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRentReminderQRModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Step 1: Choose or Upload Payment QR Code */}
+              <div className="space-y-3 p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60">
+                <h4 className="font-bold text-gray-900 text-xs flex items-center justify-between">
+                  <span>1. Choose Payment UPI QR Code / VPA</span>
+                  <span className="text-[10px] text-[#c2652a] uppercase font-bold">Live QR Generator 📱</span>
+                </h4>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedQrType("phonepe");
+                      setCustomUpiId("saharapg@ybl");
+                    }}
+                    className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                      selectedQrType === "phonepe"
+                        ? "border-[#c2652a] bg-white text-[#c2652a] shadow-xs"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="block text-xs">PhonePe PG</span>
+                    <span className="text-[9px] text-gray-400 font-mono block mt-0.5">saharapg@ybl</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedQrType("gpay");
+                      setCustomUpiId("sahara.pg@okaxis");
+                    }}
+                    className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                      selectedQrType === "gpay"
+                        ? "border-[#c2652a] bg-white text-[#c2652a] shadow-xs"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="block text-xs">GooglePay PG</span>
+                    <span className="text-[9px] text-gray-400 font-mono block mt-0.5">sahara.pg@okaxis</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQrType("custom")}
+                    className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                      selectedQrType === "custom"
+                        ? "border-[#c2652a] bg-white text-[#c2652a] shadow-xs"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="block text-xs">+ Upload / Custom</span>
+                    <span className="text-[9px] text-gray-400 block mt-0.5">Custom Image/ID</span>
+                  </button>
+                </div>
+
+                {/* QR Canvas Display & Upload Handler */}
+                <div className="flex items-center gap-4 pt-2 border-t border-orange-200/50">
+                  <div className="w-24 h-24 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
+                    <QRCodeSVG
+                      value={`upi://pay?pa=${customUpiId}&pn=Sahara%20PG%20Management&cu=INR`}
+                      size={80}
+                      fgColor="#201a17"
+                      bgColor="#ffffff"
+                      level="H"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <label className="block text-[11px] font-bold text-gray-700">
+                      UPI ID / VPA Address:
+                    </label>
+                    <input
+                      type="text"
+                      value={customUpiId}
+                      onChange={(e) => setCustomUpiId(e.target.value)}
+                      placeholder="e.g. saharapg@ybl"
+                      className="w-full px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-mono text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+
+                    <div className="pt-1">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 font-bold text-[11px] cursor-pointer">
+                        <Upload className="w-3.5 h-3.5 text-[#c2652a]" />
+                        <span>{uploadedQrName || "Upload Custom QR Image"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setUploadedQrName(file.name);
+                              setSelectedQrType("custom");
+                              triggerToast(`✓ Custom QR image uploaded: ${file.name}`);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Selected Tenants Summary & Send Action */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-gray-900 text-xs">
+                  2. Selected Tenants ({selectedIds.length}) & Rent Reminders:
+                </h4>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {occupantsList
+                    .filter((o) => selectedIds.includes(o.id))
+                    .map((occ) => {
+                      const cleanPhone = occ.phone.replace(/\D/g, "");
+                      const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                      const msg = encodeURIComponent(
+                        `Hello ${occ.name},\n\nFriendly rent payment reminder for Sahara PG:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n💳 *Pay via UPI ID*: ${customUpiId}\nPlease scan the attached QR code or pay via UPI.\n\nThank you,\nSahara PG Management`
+                      );
+                      const waUrl = `https://wa.me/${formattedPhone}?text=${msg}`;
+
+                      return (
+                        <div
+                          key={occ.id}
+                          className="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-gray-900 block">{occ.name}</span>
+                            <span className="text-[10px] text-gray-500 block">
+                              Room {occ.roomNumber} ({occ.bedCode}) • Rent: ₹{occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
+                            </span>
+                          </div>
+
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>WhatsApp 💬</span>
+                          </a>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRentReminderQRModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+                    selectedOccupants.forEach((occ, idx) => {
+                      setTimeout(() => {
+                        const cleanPhone = occ.phone.replace(/\D/g, "");
+                        const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                        const msg = encodeURIComponent(
+                          `Hello ${occ.name},\n\nFriendly rent payment reminder for Sahara PG:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n💳 *Pay via UPI ID*: ${customUpiId}\nPlease scan the attached QR code or pay via UPI.\n\nThank you,\nSahara PG Management`
+                        );
+                        window.open(`https://wa.me/${formattedPhone}?text=${msg}`, "_blank");
+                      }, idx * 600);
+                    });
+                    triggerToast(`🚀 Opened WhatsApp Batch Reminders for ${selectedOccupants.length} tenants!`);
+                    setShowRentReminderQRModal(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Send All WhatsApp Reminders 🚀</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
