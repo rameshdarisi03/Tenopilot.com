@@ -31,7 +31,7 @@ export interface FloorConfig {
 
 // Initial 6-floor 200-bed property structure mapped to mock occupants
 export function generateInitialPropertyStructure(): FloorConfig[] {
-  const initialOccupants = generateMockOccupants(25);
+  const initialOccupants = occupantStore.getOccupants();
 
   const floorConfigs = [
     { id: "fl-05", name: "FLOOR 05", sub: "PENTHOUSE & TERRACE", roomStart: 501, count: 4 },

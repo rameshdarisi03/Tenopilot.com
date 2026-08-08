@@ -891,7 +891,7 @@ export function generateMockOccupants(count = 25): Occupant[] {
     },
   ];
 
-  return curatedCases;
+  return [];
 }
 
 const OCCUPANTS_STORAGE_KEY = "tenopilot_real_occupants_v1";
