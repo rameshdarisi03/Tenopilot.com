@@ -27,6 +27,7 @@ import { occupantStore } from "@/constants/mockOccupants";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverlay";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+import { DigitRollingOdometer } from "@/components/motion/DigitRollingOdometer";
 
 export interface PortfolioProperty {
   id: string;
@@ -53,6 +54,29 @@ export default function HomeWorkspacePage() {
 
   // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 3D Parallax Mouse Tracking & Radial Glass Spotlight Handler
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    const r = card.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+
+    card.style.setProperty("--mx", `${(x / r.width) * 100}%`);
+    card.style.setProperty("--my", `${(y / r.height) * 100}%`);
+
+    const rotateY = ((x / r.width) - 0.5) * 10;
+    const rotateX = ((y / r.height) - 0.5) * -10;
+
+    card.style.transform = `translateY(-6px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.015)`;
+    card.style.boxShadow = "0 24px 44px -14px rgba(36,27,22,0.4)";
+  };
+
+  const handleCardMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    card.style.transform = "";
+    card.style.boxShadow = "";
+  };
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -265,27 +289,38 @@ export default function HomeWorkspacePage() {
 
       {/* Main Mobile-Optimized Body */}
       <main className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 space-y-6 sm:space-y-10 w-full">
-        {/* Welcome Greeting with riseIn Typography Animations */}
+        {/* Welcome Greeting with Liquid Typography Animations */}
         <section className="max-w-3xl">
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#964407] block mb-1.5 animate-rise-eyebrow">
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3.5 py-1 rounded-full border border-[#d7c2b9] inline-block mb-3 animate-eyebrow-pill shadow-2xs">
             WELCOME HOME
           </span>
-          <h1 className="font-serif text-2xl sm:text-4xl md:text-5xl font-bold text-[#201a17] leading-tight">
+          <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl font-bold text-[#201a17] leading-[1.1] tracking-tight">
             <span className="animate-rise-line1 block">Good morning, Alex.</span>
-            <span className="text-[#725949] font-normal animate-rise-line2 block">Your portfolio is calling.</span>
+            <span className="text-[#a69a8e] font-normal italic animate-rise-line2 block mt-1">Your portfolio is calling.</span>
           </h1>
-          <p className="text-sm sm:text-lg text-[#554339] mt-2 font-normal leading-relaxed animate-rise-sub">
+          <p className="text-sm sm:text-base text-[#5b5049] mt-4 font-sans font-normal leading-relaxed max-w-xl animate-rise-sub">
             {properties.length} {properties.length === 1 ? "property" : "properties"} active in your portfolio. Tap a building card below to launch its operational dashboard.
           </p>
         </section>
 
-
-        {/* Tactile Mobile Bento Grid with Staggered cardIn Animations & Hover Lift */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+        {/* Tactile Mobile Bento Grid with 3D Perspective Tilt Cascade & Parallax Spotlight */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 perspective-[1200px] transform-style-3d">
           {/* Card 1: Consolidated Portfolio Dashboard Card */}
-          <div className="animate-card-in-1 bg-gradient-to-br from-[#964407] to-[#c2652a] text-white rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[260px] sm:min-h-[340px] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl group cursor-pointer">
+          <div
+            onMouseMove={handleCardMouseMove}
+            onMouseLeave={handleCardMouseLeave}
+            className="animate-3d-card-1 bg-gradient-to-br from-[#964407] to-[#a8451f] text-white rounded-3xl p-7 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[300px] sm:min-h-[340px] transition-all duration-300 transform-style-3d cursor-pointer group"
+          >
+            {/* Cursor-Tracked Radial Spotlight Backdrop */}
+            <div
+              className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"
+              style={{
+                background: "radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.22), transparent 60%)",
+              }}
+            />
+
             <div className="relative z-10 space-y-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/80 block">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/80 block">
                 Global Overview
               </span>
               <h3 className="font-serif text-2xl sm:text-3xl font-bold text-white">
@@ -300,7 +335,7 @@ export default function HomeWorkspacePage() {
               <Link
                 href="/p/sunshine-pg/overview"
                 id="portfolio-dashboard-btn"
-                className="w-full py-3.5 px-5 rounded-full bg-white text-[#964407] font-bold text-xs sm:text-sm hover:bg-[#fff8f6] transition-all flex items-center justify-between gap-2 shadow-md active:scale-95 group-hover:translate-x-1"
+                className="w-full py-3.5 px-5 rounded-full bg-white text-[#a8451f] font-bold text-xs sm:text-sm hover:bg-[#fff8f6] transition-all flex items-center justify-between gap-2 shadow-md active:scale-95 group-hover:translate-x-1"
               >
                 <span>View Portfolio Dashboard</span> <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
@@ -311,21 +346,26 @@ export default function HomeWorkspacePage() {
           {properties.map((prop, idx) => (
             <div
               key={prop.id}
-              className={`group relative rounded-2xl border border-[#d7c2b9] overflow-hidden min-h-[360px] flex flex-col justify-end shadow-md hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 bg-[#201a17] cursor-pointer ${
-                idx === 0 ? "animate-card-in-2" : idx === 1 ? "animate-card-in-3" : "animate-card-in-4"
+              onMouseMove={handleCardMouseMove}
+              onMouseLeave={handleCardMouseLeave}
+              className={`group relative rounded-3xl border border-[#d7c2b9] overflow-hidden min-h-[340px] flex flex-col justify-end shadow-md transition-all duration-300 bg-gradient-to-b from-[#2e241d] to-[#241c17] cursor-pointer transform-style-3d ${
+                idx === 0 ? "animate-3d-card-2" : idx === 1 ? "animate-3d-card-3" : "animate-3d-card-4"
               }`}
             >
-              <div className="absolute inset-0 z-0 bg-[#201a17]">
-                <div className="w-full h-full bg-gradient-to-br from-[#725949] to-[#201a17] opacity-90"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#201a17] via-[#201a17]/50 to-transparent"></div>
-              </div>
+              {/* Cursor-Tracked Radial Spotlight Backdrop */}
+              <div
+                className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-[1]"
+                style={{
+                  background: "radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(232,161,92,0.2), transparent 60%)",
+                }}
+              />
 
               <div className="relative z-10 p-6 text-white space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="bg-[#059669]/90 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-widest uppercase">
-                    <Verified className="w-3 h-3" /> {prop.status}
+                  <span className="bg-[#2e9e63]/20 border border-[#5fe3a0]/40 text-[#5fe3a0] text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-wider uppercase">
+                    ✓ {prop.status}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#c9beb3]">
                     {prop.bedsCount} BEDS
                   </span>
                 </div>
@@ -334,35 +374,35 @@ export default function HomeWorkspacePage() {
                   <h3 className="font-serif text-2xl font-bold text-white">
                     {prop.name}
                   </h3>
-                  <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#ffb68e]" /> {prop.location}
+                  <p className="text-xs text-[#b7ab9f] flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#e8a15c]" /> {prop.location}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 border-t border-white/20 pt-4 text-left">
+                <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-left">
                   <div>
-                    <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    <p className="text-[#9a8e82] text-[10px] font-bold uppercase tracking-widest">
                       Occupancy
                     </p>
-                    <p className="font-serif text-xl font-bold text-[#ffb68e]">
-                      {prop.occupancyRate}
+                    <p className="font-serif text-xl font-bold text-[#e8a15c]">
+                      <DigitRollingOdometer value={parseFloat(prop.occupancyRate)} suffix="%" decimals={1} />
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">
+                    <p className="text-[#9a8e82] text-[10px] font-bold uppercase tracking-widest">
                       Rent Collection
                     </p>
-                    <p className="font-serif text-xl font-bold text-emerald-400">
-                      {prop.collectionRate}
+                    <p className="font-serif text-xl font-bold text-[#5fe3a0]">
+                      <DigitRollingOdometer value={parseFloat(prop.collectionRate)} suffix="%" decimals={0} />
                     </p>
                   </div>
                 </div>
 
                 <Link
                   href={`/p/${prop.id}/overview`}
-                  className="w-full py-3.5 px-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-xs hover:bg-white hover:text-[#964407] transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+                  className="w-full py-3.5 px-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/15 text-white font-bold text-xs transition-all flex items-center justify-between gap-1.5 active:scale-95 shadow-sm group-hover:translate-x-1"
                 >
-                  View Dashboard <ChevronRight className="w-4 h-4" />
+                  <span>View Dashboard</span> <ChevronRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
             </div>
@@ -371,15 +411,15 @@ export default function HomeWorkspacePage() {
           {/* Card 3: Add New Property Card Trigger */}
           <button
             onClick={() => setShowAddPropertyModal(true)}
-            className="group border-2 border-dashed border-[#d7c2b9] rounded-2xl p-6 flex flex-col items-center justify-center min-h-[260px] sm:min-h-[360px] hover:border-[#964407] hover:bg-[#f8ede3]/40 transition-all text-center active:scale-98 cursor-pointer"
+            className="animate-3d-card-4 group border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl"
           >
-            <div className="w-14 h-14 bg-[#f8ede3] rounded-full flex items-center justify-center mb-4 text-[#554339] group-hover:bg-[#964407]/10 group-hover:text-[#964407] transition-colors">
-              <Plus className="w-7 h-7 transition-transform group-hover:rotate-90 duration-300" />
+            <div className="w-14 h-14 bg-[#f1e7dd] rounded-full flex items-center justify-center mb-4 text-[#241b16] group-hover:bg-[#c6572a]/15 group-hover:text-[#c6572a] transition-all transform group-hover:rotate-90 duration-300 shadow-xs">
+              <Plus className="w-7 h-7" />
             </div>
-            <span className="font-serif font-bold text-xl text-[#201a17] group-hover:text-[#964407] transition-colors">
+            <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-[#c6572a] transition-colors">
               Add New Property
             </span>
-            <p className="text-xs text-[#554339] mt-1">Expand your PG or Hostel portfolio</p>
+            <p className="text-xs text-[#8a7f74] mt-1">Expand your PG or Hostel portfolio</p>
           </button>
         </div>
       </main>
