@@ -20,10 +20,13 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   propertySettingsStore,
   PropertySettingsData,
   DEFAULT_PROPERTY_SETTINGS,
+  PaymentQRProfile,
+  DEFAULT_QR_PROFILES,
 } from "@/constants/propertySettings";
 import {
   partnerStore,
@@ -42,8 +45,14 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "ADVANCED">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // QR Profiles State
+  const [newQrName, setNewQrName] = useState("");
+  const [newQrBank, setNewQrBank] = useState("");
+  const [newQrUpi, setNewQrUpi] = useState("");
+  const [newQrType, setNewQrType] = useState<"UPI_QR" | "BANK_TRANSFER" | "CASH_DESK">("UPI_QR");
 
   // Form State
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
@@ -56,6 +65,40 @@ export default function PropertySettingsPage({
   const [newCatName, setNewCatName] = useState("");
   const [newAccName, setNewAccName] = useState("");
   const [newAccType, setNewAccType] = useState<PaymentAccountConfig["type"]>("Bank Account");
+
+  const handleAddQrProfile = () => {
+    if (!newQrName || !newQrUpi) {
+      alert("Please enter a Profile Name and UPI VPA ID.");
+      return;
+    }
+    const newProf: PaymentQRProfile = {
+      id: `qr-${Date.now()}`,
+      name: newQrName,
+      bankLabel: newQrBank || "UPI Bank Account",
+      upiId: newQrUpi,
+      accountType: newQrType,
+    };
+    const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
+    const updated = [...currentProfiles, newProf];
+    const newSettings = { ...settings, qrProfiles: updated };
+    setSettings(newSettings);
+    propertySettingsStore.updateSettings(newSettings, propertyId);
+    setNewQrName("");
+    setNewQrBank("");
+    setNewQrUpi("");
+    triggerToast(`Added Payment QR Profile: ${newProf.name}`);
+  };
+
+  const handleDeleteQrProfile = (id: string) => {
+    if (confirm("Are you sure you want to remove this QR profile?")) {
+      const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
+      const updated = currentProfiles.filter((q) => q.id !== id);
+      const newSettings = { ...settings, qrProfiles: updated };
+      setSettings(newSettings);
+      propertySettingsStore.updateSettings(newSettings, propertyId);
+      triggerToast("Payment QR profile removed.");
+    }
+  };
 
   useEffect(() => {
     // Load local & Cloud Firestore settings
@@ -270,6 +313,18 @@ export default function PropertySettingsPage({
             >
               <Users className="w-4 h-4" /> Partner Ownership & Expenses
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("QR_PROFILES")}
+              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "QR_PROFILES"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <QrCode className="w-4 h-4" /> Payment QR Profiles & Accounts
+            </button>
           </div>
 
           {/* Settings Form */}
@@ -435,6 +490,104 @@ export default function PropertySettingsPage({
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "QR_PROFILES" && (
+              <div className="space-y-6 animate-in fade-in">
+                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-gray-900">Pre-Configured Payment QR Profiles & Bank Accounts</h3>
+                        <p className="text-[11px] text-gray-500">Manage business bank accounts, UPI QR IDs, and cash payment requests for rent reminders</p>
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-50 text-[#c2652a] border border-orange-200">
+                      {(settings.qrProfiles || DEFAULT_QR_PROFILES).length} Profiles Configured
+                    </span>
+                  </div>
+
+                  {/* Add New QR Profile Input Row */}
+                  <div className="p-4 rounded-xl border border-gray-200 bg-orange-50/30 space-y-3">
+                    <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                      <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment QR Profile
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Profile Name (e.g. ICICI Tax Acc)"
+                        value={newQrName}
+                        onChange={(e) => setNewQrName(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Bank Label (e.g. ICICI Bank Ltd)"
+                        value={newQrBank}
+                        onChange={(e) => setNewQrBank(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="UPI VPA ID (e.g. saharapg@icici)"
+                        value={newQrUpi}
+                        onChange={(e) => setNewQrUpi(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddQrProfile}
+                        className="py-2 px-4 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> Save Profile
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Configured Profiles Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    {(settings.qrProfiles || DEFAULT_QR_PROFILES).map((qr) => (
+                      <div
+                        key={qr.id}
+                        className="p-4 rounded-2xl border border-gray-200 bg-white shadow-2xs flex items-center justify-between gap-4"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs">
+                            <QRCodeSVG
+                              value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=Sahara%20PG&cu=INR`}
+                              size={56}
+                              fgColor="#201a17"
+                              bgColor="#ffffff"
+                            />
+                          </div>
+
+                          <div className="min-w-0 space-y-0.5">
+                            <span className="font-bold text-xs text-gray-900 block truncate">{qr.name}</span>
+                            <span className="text-[11px] text-gray-500 block truncate">🏦 {qr.bankLabel}</span>
+                            <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
+                              💳 {qr.upiId}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteQrProfile(qr.id)}
+                          className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors cursor-pointer shrink-0"
+                          title="Remove QR Profile"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>

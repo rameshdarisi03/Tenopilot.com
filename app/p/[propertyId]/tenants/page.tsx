@@ -7,7 +7,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
-import { propertySettingsStore } from "@/constants/propertySettings";
+import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -39,6 +39,7 @@ import {
   QrCode,
   ExternalLink,
   ImageIcon,
+  Users,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -104,6 +105,7 @@ export default function TenantsDirectoryPage({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   // Rent Reminder QR Code & WhatsApp Broadcast Modal State
   const [showRentReminderQRModal, setShowRentReminderQRModal] = useState(false);
+  const [activeQrIndex, setActiveQrIndex] = useState<number>(0);
   const [selectedQrType, setSelectedQrType] = useState<"phonepe" | "gpay" | "hdfc" | "custom">("phonepe");
   const [customUpiId, setCustomUpiId] = useState<string>("saharapg@ybl");
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
@@ -745,17 +747,17 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Desktop Data Table */}
-          <div className="hidden md:block bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xs">
+                     {/* Desktop Data Table (Continuous Scroll View - No Page Splitting) */}
+          <div className="hidden md:block bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs max-h-[75vh] overflow-y-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-2xs">
                 <tr>
                   <th className="p-4 w-10">
                     <input
                       type="checkbox"
                       checked={
-                        paginatedOccupants.length > 0 &&
-                        paginatedOccupants.every((o) => selectedIds.includes(o.id))
+                        filteredOccupants.length > 0 &&
+                        filteredOccupants.every((o) => selectedIds.includes(o.id))
                       }
                       onChange={handleSelectAll}
                       className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
@@ -768,7 +770,7 @@ export default function TenantsDirectoryPage({
                     <div className="flex items-center gap-1">
                       <span>Tenant</span>
                       {sortColumn === "name" && (
-                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                        <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
                       )}
                     </div>
                   </th>
@@ -779,12 +781,12 @@ export default function TenantsDirectoryPage({
                     <div className="flex items-center gap-1">
                       <span>Room & Bed</span>
                       {sortColumn === "room" && (
-                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                        <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
                       )}
                     </div>
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    Last Paid
+                  <th className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                    Last Paid Date
                   </th>
                   <th
                     onClick={() => handleHeaderSort("dueDate")}
@@ -793,7 +795,7 @@ export default function TenantsDirectoryPage({
                     <div className="flex items-center gap-1">
                       <span>Payment Due</span>
                       {sortColumn === "dueDate" && (
-                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                        <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
                       )}
                     </div>
                   </th>
@@ -804,30 +806,29 @@ export default function TenantsDirectoryPage({
                     <div className="flex items-center gap-1">
                       <span>Days Remaining</span>
                       {sortColumn === "daysRemaining" && (
-                        <span className="text-[#c2652a] font-bold">{sortDirection === "asc" ? "▲" : "▼"}</span>
+                        <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
                       )}
                     </div>
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
+                  <th className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                     Rent Status
                   </th>
-                  <th className="p-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">
+                  <th className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-right">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedOccupants.length > 0 ? (
-                  paginatedOccupants.map((occ) => {
+              <tbody className="divide-y divide-gray-100 font-medium">
+                {filteredOccupants.length > 0 ? (
+                  filteredOccupants.map((occ) => {
                     const isSelected = selectedIds.includes(occ.id);
-                    const isDropdownOpen = activeActionDropdownId === occ.id;
-                    const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
+                    const isPastTenant = occ.lifecycleStatus === "Past";
 
                     return (
                       <tr
                         key={occ.id}
-                        className={`transition-colors relative ${
-                          isSelected ? "bg-[#fef6f2]" : "hover:bg-gray-50"
+                        className={`hover:bg-orange-50/40 transition-colors ${
+                          isSelected ? "bg-orange-50/60" : ""
                         }`}
                       >
                         <td className="p-4">
@@ -838,145 +839,113 @@ export default function TenantsDirectoryPage({
                             className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
                           />
                         </td>
-
                         <td className="p-4">
-                          <Link
-                            href={`/p/${propertyId}/tenants/${occ.id}`}
-                            className="flex items-center gap-3 group"
-                          >
-                            <img
-                              src={occ.avatar}
-                              alt={occ.name}
-                              className="w-10 h-10 rounded-full border border-gray-200 object-cover group-hover:scale-105 transition-transform"
-                            />
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
+                              {occ.avatar ? (
+                                <img
+                                  src={occ.avatar}
+                                  alt={occ.name}
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                              ) : (
+                                occ.name.charAt(0)
+                              )}
+                            </div>
                             <div>
-                              <div className="text-sm font-bold text-gray-900 group-hover:text-[#c2652a] transition-colors flex items-center gap-2">
+                              <Link
+                                href={`/p/${propertyId}/tenants/${occ.id}`}
+                                className="font-bold text-gray-900 hover:text-[#c2652a] block text-xs flex items-center gap-1.5"
+                              >
                                 {occ.name}
                                 {occ.stayType === "Guest" && (
-                                  <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                                    🟣 GUEST
+                                  <span className="bg-purple-100 text-purple-700 px-1.5 py-0.2 text-[9px] font-extrabold rounded-full uppercase">
+                                    Guest
                                   </span>
                                 )}
-                              </div>
-                              <div className="text-[10px] text-gray-500 font-medium">
-                                {occ.phone}
-                              </div>
+                              </Link>
+                              <span className="text-[10px] text-gray-500 font-mono block">
+                                📞 {occ.phone}
+                              </span>
                             </div>
-                          </Link>
+                          </div>
                         </td>
-
-                        <td className="p-4">
+                        <td className="p-4 font-semibold text-gray-800">
                           {isPastTenant ? (
-                            <span className="text-xs text-gray-400 font-semibold italic">
-                              — (Vacated)
-                            </span>
+                            <span className="text-gray-400 italic font-normal">— (Vacated)</span>
                           ) : (
                             <>
-                              <div className="text-sm font-bold text-gray-800">
-                                Room {occ.roomNumber} ({occ.bedCode})
-                              </div>
-                              <div className="text-[10px] text-gray-500">Sunshine Heights PG</div>
+                              <span className="block font-bold text-gray-900">Room {occ.roomNumber} ({occ.bedCode})</span>
+                              <span className="text-[10px] text-gray-400 block font-normal">Sunshine Heights PG</span>
                             </>
                           )}
                         </td>
-
-                        <td className="p-4 text-xs text-gray-600 font-medium">
+                        <td className="p-4 font-mono text-gray-600 text-[11px]">
                           {occ.lastPaidDate}
                         </td>
-
-                        <td className="p-4">
-                          <div className="text-xs font-semibold text-gray-900">
-                            {occ.dueDate}
-                          </div>
-                          {occ.paymentStatus === "Paid" ? (
-                            <span className="text-[10px] text-green-600 font-bold">Paid</span>
-                          ) : occ.paymentStatus === "Overdue" ? (
-                            <span className="text-[10px] text-red-500 font-bold">Overdue</span>
-                          ) : (
-                            <span className="text-[10px] text-orange-600 font-bold">Due Soon</span>
-                          )}
+                        <td className="p-4 font-mono font-bold text-[#c2652a] text-[11px]">
+                          {occ.dueDate}
                         </td>
-
                         <td className="p-4">
                           {occ.paymentStatus === "Paid" ? (
-                            <span className="text-gray-400 font-bold text-sm">—</span>
-                          ) : occ.paymentStatus === "Overdue" ? (
-                            <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
-                              {occ.daysRemainingText}
-                            </span>
+                            <span className="text-gray-400 font-bold text-xs">—</span>
                           ) : (
-                            <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${occ.paymentStatus === "Overdue" ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"}`}>
                               {occ.daysRemainingText}
                             </span>
                           )}
                         </td>
-
-                        <td className="p-4 text-center">
-                          {occ.paymentStatus === "Paid" && (
-                            <span className="inline-block px-2.5 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">
-                              PAID
-                            </span>
-                          )}
-                          {occ.paymentStatus === "Due" && (
-                            <span className="inline-block px-2.5 py-1 bg-orange-100 text-orange-600 rounded text-[10px] font-bold uppercase">
-                              PENDING
-                            </span>
-                          )}
-                          {occ.paymentStatus === "Overdue" && (
-                            <span className="inline-block px-2.5 py-1 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">
-                              OVERDUE
-                            </span>
-                          )}
+                        <td className="p-4">
+                          <span
+                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
+                              occ.paymentStatus === "Paid"
+                                ? "bg-green-100 text-green-700"
+                                : occ.paymentStatus === "Overdue"
+                                ? "bg-red-100 text-red-600"
+                                : "bg-orange-100 text-orange-600"
+                            }`}
+                          >
+                            {occ.paymentStatus}
+                          </span>
                         </td>
-
-                        <td className="p-4 text-right relative">
-                          <div className="flex items-center justify-end gap-2 text-gray-400">
-                            <button
-                              onClick={() => triggerToast(`Calling ${occ.phone}`)}
-                              className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
-                              title="Call"
-                            >
-                              <Phone className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => triggerToast(`WhatsApp reminder sent to ${occ.phone}`)}
-                              className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
-                              title="WhatsApp"
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <a
+                              href={`https://wa.me/91${occ.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${occ.name}, rent reminder for Room ${occ.roomNumber}.`)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
+                              title="Send WhatsApp Message"
                             >
                               <MessageSquare className="w-4 h-4" />
-                            </button>
+                            </a>
+                            <a
+                              href={`tel:${occ.phone}`}
+                              className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+                              title="Call Tenant"
+                            >
+                              <Phone className="w-4 h-4" />
+                            </a>
 
                             <div className="relative">
                               <button
                                 onClick={() =>
                                   setActiveActionDropdownId(
-                                    isDropdownOpen ? null : occ.id
+                                    activeActionDropdownId === occ.id ? null : occ.id
                                   )
                                 }
-                                className="p-1 rounded hover:bg-orange-50 hover:text-[#c2652a]"
+                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
                               >
                                 <MoreVertical className="w-4 h-4" />
                               </button>
 
-                              {isDropdownOpen && (
-                                <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-2 z-50 text-left text-xs font-semibold text-gray-800">
-                                  {occ.lifecycleStatus === "Booked" && (
-                                    <button
-                                      onClick={() => {
-                                        setActiveActionDropdownId(null);
-                                        setCheckInModalOccupant(occ);
-                                        setShowPostponeModal(true);
-                                      }}
-                                      className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-blue-50 text-blue-700 font-bold border-b border-gray-100"
-                                    >
-                                      <Clock className="w-3.5 h-3.5 text-blue-600" /> Edit Check-In Date
-                                    </button>
-                                  )}
+                              {activeActionDropdownId === occ.id && (
+                                <div className="absolute right-0 top-8 z-30 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-1 text-xs font-semibold animate-in fade-in">
                                   <Link
                                     href={`/p/${propertyId}/tenants/${occ.id}`}
                                     className="flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
                                   >
-                                    <User className="w-3.5 h-3.5 text-gray-500" /> View Profile
+                                    <User className="w-3.5 h-3.5 text-gray-500" /> Profile & Documents
                                   </Link>
                                   <button
                                     onClick={() => {
@@ -984,9 +953,9 @@ export default function TenantsDirectoryPage({
                                       setCollectRentOccupant(occ);
                                       setPaymentAmount(occ.rentAmount);
                                     }}
-                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-[#c2652a]"
+                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
                                   >
-                                    <CreditCard className="w-3.5 h-3.5 text-[#c2652a]" /> Collect Rent
+                                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" /> Collect Rent
                                   </button>
                                   <button
                                     onClick={() => {
@@ -996,15 +965,6 @@ export default function TenantsDirectoryPage({
                                     className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
                                   >
                                     <ArrowRightLeft className="w-3.5 h-3.5 text-gray-500" /> Transfer Room
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setActiveActionDropdownId(null);
-                                      triggerToast(`Initiated Notice logging for ${occ.name}`);
-                                    }}
-                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-orange-600"
-                                  >
-                                    <FileText className="w-3.5 h-3.5 text-orange-500" /> Log Notice
                                   </button>
                                 </div>
                               )}
@@ -1017,35 +977,21 @@ export default function TenantsDirectoryPage({
                 ) : (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-xs text-gray-500">
-                      No matching occupants found for "{rawSearchTerm}".
+                      No matching occupants found.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
 
-            {/* Pagination Controls */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between text-xs font-semibold text-gray-600">
-              <span>
-                Showing Page {currentPage} of {totalPages || 1} ({filteredOccupants.length} total)
+            {/* Continuous Scroll Total Footer */}
+            <div className="px-6 py-3.5 border-t border-gray-200 bg-gray-50/50 flex items-center justify-between text-xs font-semibold text-gray-600">
+              <span className="flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-[#c2652a]" /> Showing All {filteredOccupants.length} Occupants (Continuous Scroll View)
               </span>
-
-              <div className="flex items-center gap-2">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+              <span className="text-[11px] text-gray-400 font-normal">
+                Scroll vertically to browse all residents without pagination limits
+              </span>
             </div>
           </div>
 
@@ -1514,105 +1460,82 @@ export default function TenantsDirectoryPage({
                 </button>
               </div>
 
-              {/* Step 1: Choose or Upload Payment QR Code */}
+              {/* Step 1: Horizontal Carousel Slider for Pre-Configured QR Profiles */}
               <div className="space-y-3 p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60">
-                <h4 className="font-bold text-gray-900 text-xs flex items-center justify-between">
-                  <span>1. Choose Payment UPI QR Code / VPA</span>
-                  <span className="text-[10px] text-[#c2652a] uppercase font-bold">Live QR Generator 📱</span>
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4 text-[#c2652a]" />
+                    <span>1. Select Pre-Configured Payment QR Profile</span>
+                  </h4>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedQrType("phonepe");
-                      setCustomUpiId("saharapg@ybl");
-                    }}
-                    className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
-                      selectedQrType === "phonepe"
-                        ? "border-[#c2652a] bg-white text-[#c2652a] shadow-xs"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    <span className="block text-xs">PhonePe PG</span>
-                    <span className="text-[9px] text-gray-400 font-mono block mt-0.5">saharapg@ybl</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedQrType("gpay");
-                      setCustomUpiId("sahara.pg@okaxis");
-                    }}
-                    className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
-                      selectedQrType === "gpay"
-                        ? "border-[#c2652a] bg-white text-[#c2652a] shadow-xs"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    <span className="block text-xs">GooglePay PG</span>
-                    <span className="text-[9px] text-gray-400 font-mono block mt-0.5">sahara.pg@okaxis</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQrType("custom")}
-                    className={`p-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
-                      selectedQrType === "custom"
-                        ? "border-[#c2652a] bg-white text-[#c2652a] shadow-xs"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    <span className="block text-xs">+ Upload / Custom</span>
-                    <span className="text-[9px] text-gray-400 block mt-0.5">Custom Image/ID</span>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveQrIndex((prev) =>
+                          prev > 0 ? prev - 1 : (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1
+                        )
+                      }
+                      className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
+                      title="Previous QR Profile"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-[10px] font-bold text-gray-600 px-1 font-mono">
+                      {activeQrIndex + 1} / {(currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveQrIndex((prev) =>
+                          prev < (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1 ? prev + 1 : 0
+                        )
+                      }
+                      className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
+                      title="Next QR Profile"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* QR Canvas Display & Upload Handler */}
-                <div className="flex items-center gap-4 pt-2 border-t border-orange-200/50">
-                  <div className="w-24 h-24 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
-                    <QRCodeSVG
-                      value={`upi://pay?pa=${customUpiId}&pn=Sahara%20PG%20Management&cu=INR`}
-                      size={80}
-                      fgColor="#201a17"
-                      bgColor="#ffffff"
-                      level="H"
-                    />
-                  </div>
+                {/* Active QR Profile Display Card */}
+                {(() => {
+                  const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
+                  const activeQr = profiles[activeQrIndex] || profiles[0];
 
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <label className="block text-[11px] font-bold text-gray-700">
-                      UPI ID / VPA Address:
-                    </label>
-                    <input
-                      type="text"
-                      value={customUpiId}
-                      onChange={(e) => setCustomUpiId(e.target.value)}
-                      placeholder="e.g. saharapg@ybl"
-                      className="w-full px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-mono text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
-
-                    <div className="pt-1">
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 font-bold text-[11px] cursor-pointer">
-                        <Upload className="w-3.5 h-3.5 text-[#c2652a]" />
-                        <span>{uploadedQrName || "Upload Custom QR Image"}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setUploadedQrName(file.name);
-                              setSelectedQrType("custom");
-                              triggerToast(`✓ Custom QR image uploaded: ${file.name}`);
-                            }
-                          }}
+                  return (
+                    <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-4">
+                      <div className="w-28 h-28 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
+                        <QRCodeSVG
+                          value={activeQr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${activeQr.upiId}&pn=Sahara%20PG&cu=INR`}
+                          size={96}
+                          fgColor="#201a17"
+                          bgColor="#ffffff"
                         />
-                      </label>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 min-w-0 text-center sm:text-left">
+                        <div className="flex items-center justify-center sm:justify-start gap-2">
+                          <span className="font-bold text-sm text-gray-900">{activeQr.name}</span>
+                          {activeQr.isDefault && (
+                            <span className="bg-orange-100 text-[#c2652a] text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-500 block">🏦 Bank: <strong>{activeQr.bankLabel}</strong></span>
+                        <span className="text-xs font-mono text-[#c2652a] font-bold block bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/50 inline-block">
+                          💳 UPI VPA: {activeQr.upiId}
+                        </span>
+
+                        <p className="text-[10px] text-gray-400">
+                          Pre-configured via Settings → Payment QR Profiles & Accounts
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Step 2: Selected Tenants Summary & Send Action */}
@@ -1622,40 +1545,50 @@ export default function TenantsDirectoryPage({
                 </h4>
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {occupantsList
-                    .filter((o) => selectedIds.includes(o.id))
-                    .map((occ) => {
-                      const cleanPhone = occ.phone.replace(/\D/g, "");
-                      const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                      const msg = encodeURIComponent(
-                        `Hello ${occ.name},\n\nFriendly rent payment reminder for Sahara PG:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n💳 *Pay via UPI ID*: ${customUpiId}\nPlease scan the attached QR code or pay via UPI.\n\nThank you,\nSahara PG Management`
-                      );
-                      const waUrl = `https://wa.me/${formattedPhone}?text=${msg}`;
+                  {(() => {
+                    const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
+                    const activeQr = profiles[activeQrIndex] || profiles[0];
 
-                      return (
-                        <div
-                          key={occ.id}
-                          className="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs"
-                        >
-                          <div>
-                            <span className="font-bold text-gray-900 block">{occ.name}</span>
-                            <span className="text-[10px] text-gray-500 block">
-                              Room {occ.roomNumber} ({occ.bedCode}) • Rent: ₹{occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
-                            </span>
-                          </div>
+                    return occupantsList
+                      .filter((o) => selectedIds.includes(o.id))
+                      .map((occ) => {
+                        const cleanPhone = occ.phone.replace(/\D/g, "");
+                        const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                        const isCashReq = activeQr.upiId === "CASH_PAYMENT" || activeQr.accountType === "CASH_DESK";
+                        const paymentNote = isCashReq
+                          ? `💵 *Payment Mode*: Cash Request at ${activeQr.bankLabel}\nPlease visit reception desk to clear rent.`
+                          : `💳 *Pay via UPI ID*: ${activeQr.upiId} (${activeQr.bankLabel})\nPlease scan QR code or pay via UPI.`;
 
-                          <a
-                            href={waUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs"
+                        const msg = encodeURIComponent(
+                          `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
+                        );
+                        const waUrl = `https://wa.me/${formattedPhone}?text=${msg}`;
+
+                        return (
+                          <div
+                            key={occ.id}
+                            className="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs"
                           >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>WhatsApp 💬</span>
-                          </a>
-                        </div>
-                      );
-                    })}
+                            <div>
+                              <span className="font-bold text-gray-900 block">{occ.name}</span>
+                              <span className="text-[10px] text-gray-500 block">
+                                Room {occ.roomNumber} ({occ.bedCode}) • Rent: ₹{occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
+                              </span>
+                            </div>
+
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>WhatsApp 💬</span>
+                            </a>
+                          </div>
+                        );
+                      });
+                  })()}
                 </div>
               </div>
 
@@ -1670,18 +1603,26 @@ export default function TenantsDirectoryPage({
                 <button
                   type="button"
                   onClick={() => {
+                    const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
+                    const activeQr = profiles[activeQrIndex] || profiles[0];
                     const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+
                     selectedOccupants.forEach((occ, idx) => {
                       setTimeout(() => {
                         const cleanPhone = occ.phone.replace(/\D/g, "");
                         const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                        const isCashReq = activeQr.upiId === "CASH_PAYMENT" || activeQr.accountType === "CASH_DESK";
+                        const paymentNote = isCashReq
+                          ? `💵 *Payment Mode*: Cash Request at ${activeQr.bankLabel}\nPlease visit reception desk to clear rent.`
+                          : `💳 *Pay via UPI ID*: ${activeQr.upiId} (${activeQr.bankLabel})\nPlease scan QR code or pay via UPI.`;
+
                         const msg = encodeURIComponent(
-                          `Hello ${occ.name},\n\nFriendly rent payment reminder for Sahara PG:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n💳 *Pay via UPI ID*: ${customUpiId}\nPlease scan the attached QR code or pay via UPI.\n\nThank you,\nSahara PG Management`
+                          `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
                         );
                         window.open(`https://wa.me/${formattedPhone}?text=${msg}`, "_blank");
                       }, idx * 600);
                     });
-                    triggerToast(`🚀 Opened WhatsApp Batch Reminders for ${selectedOccupants.length} tenants!`);
+                    triggerToast(`🚀 Opened WhatsApp Batch Reminders for ${selectedOccupants.length} tenants with ${activeQr.name}!`);
                     setShowRentReminderQRModal(false);
                   }}
                   className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
