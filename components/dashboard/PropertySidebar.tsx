@@ -88,7 +88,7 @@ export function PropertySidebar({
                 TenoPilot.com
               </span>
               <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block -mt-1">
-                Sahara Management Hub
+                Property Management OS
               </span>
             </div>
           </Link>

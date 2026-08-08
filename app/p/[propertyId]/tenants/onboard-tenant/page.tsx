@@ -1096,7 +1096,7 @@ export default function OnboardTenantPage({
                     RESIDENTIAL LEASE AGREEMENT
                   </h3>
                   <p className="text-[10px] text-gray-500 font-sans">
-                    PROPERTY: SUNSHINE HEIGHTS PG • WEST SAHARA
+                    PROPERTY: SUNSHINE HEIGHTS PG • HYDERABAD
                   </p>
                 </div>
 

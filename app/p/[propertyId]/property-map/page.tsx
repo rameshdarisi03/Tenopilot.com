@@ -223,7 +223,7 @@ export default function PropertyMapPage({
                 Sunshine Heights PG
               </h1>
               <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5 font-medium">
-                📍 122 Luxury Estates, Marigold District, West Sahara
+                📍 122 Luxury Estates, Marigold District, Hitech City, Hyderabad
               </p>
             </div>
 

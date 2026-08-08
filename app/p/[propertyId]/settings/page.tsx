@@ -552,7 +552,7 @@ export default function PropertySettingsPage({
                       />
                       <input
                         type="text"
-                        placeholder="UPI VPA ID (e.g. saharapg@icici)"
+                        placeholder="UPI VPA ID (e.g. tenopilot@icici)"
                         value={newQrUpi}
                         onChange={(e) => setNewQrUpi(e.target.value)}
                         className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
@@ -635,7 +635,7 @@ export default function PropertySettingsPage({
                                 <img src={qr.qrImageUrl} alt={qr.name} className="w-full h-full object-cover rounded-lg" />
                               ) : (
                                 <QRCodeSVG
-                                  value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=Sahara%20PG&cu=INR`}
+                                  value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=TenoPilot%20PG&cu=INR`}
                                   size={56}
                                   fgColor="#201a17"
                                   bgColor="#ffffff"

@@ -315,7 +315,7 @@ export default function AdminComplaintsPage({
                 Complaints & Maintenance Operations
               </h1>
               <p className="text-xs text-gray-500 mt-1">
-                Action before analytics. Resolve resident infrastructure complaints across Sahara PG properties.
+                Action before analytics. Resolve resident infrastructure complaints across TenoPilot.com properties.
               </p>
             </div>
 

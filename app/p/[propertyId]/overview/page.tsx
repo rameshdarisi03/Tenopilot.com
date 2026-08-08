@@ -216,7 +216,7 @@ export default function PropertyOverviewPage({
                   Complaints & Maintenance Operations Desk
                 </h3>
                 <p className="text-xs text-gray-500 mt-1 max-w-lg">
-                  View, filter, update ticket statuses, log walk-in issues, and export monthly maintenance reports for Sahara PG.
+                  View, filter, update ticket statuses, log walk-in issues, and export monthly maintenance reports for TenoPilot.com properties.
                 </p>
               </div>
 

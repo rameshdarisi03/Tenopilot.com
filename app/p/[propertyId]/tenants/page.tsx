@@ -132,7 +132,7 @@ export default function TenantsDirectoryPage({
   const [showRentReminderQRModal, setShowRentReminderQRModal] = useState(false);
   const [activeQrIndex, setActiveQrIndex] = useState<number>(0);
   const [selectedQrType, setSelectedQrType] = useState<"phonepe" | "gpay" | "hdfc" | "custom">("phonepe");
-  const [customUpiId, setCustomUpiId] = useState<string>("saharapg@ybl");
+  const [customUpiId, setCustomUpiId] = useState<string>("tenopilot@ybl");
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
   const [deletePastTenantTarget, setDeletePastTenantTarget] = useState<Occupant | null>(null);
 
@@ -1550,7 +1550,7 @@ export default function TenantsDirectoryPage({
                           <img src={activeQr.qrImageUrl} alt={activeQr.name} className="w-full h-full object-cover rounded-lg" />
                         ) : (
                           <QRCodeSVG
-                            value={activeQr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${activeQr.upiId}&pn=Sahara%20PG&cu=INR`}
+                            value={activeQr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${activeQr.upiId}&pn=TenoPilot%20PG&cu=INR`}
                             size={96}
                             fgColor="#201a17"
                             bgColor="#ffffff"
@@ -1605,7 +1605,7 @@ export default function TenantsDirectoryPage({
                           : `💳 *Payment Details*: Please contact management for rent payment instructions.`;
 
                         const msg = encodeURIComponent(
-                          `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
+                          `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "TenoPilot.com"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "TenoPilot.com"} Management`
                         );
                         const waUrl = `https://wa.me/${formattedPhone}?text=${msg}`;
 
@@ -1662,7 +1662,7 @@ export default function TenantsDirectoryPage({
                         : `💳 *Pay via UPI ID*: ${activeQr?.upiId} (${activeQr?.bankLabel})\nPlease scan QR code or pay via UPI.`;
 
                       const msg = encodeURIComponent(
-                        `Hello ${firstOcc.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${firstOcc.roomNumber} (${firstOcc.bedCode})\n💰 *Rent Amount Due*: ₹${firstOcc.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${firstOcc.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
+                        `Hello ${firstOcc.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "TenoPilot.com"}:\n🏠 *Room Location*: ${firstOcc.roomNumber} (${firstOcc.bedCode})\n💰 *Rent Amount Due*: ₹${firstOcc.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${firstOcc.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "TenoPilot.com"} Management`
                       );
                       // Synchronous window.open on user click event (never blocked by browser)
                       window.open(`https://wa.me/${formattedPhone}?text=${msg}`, "_blank");

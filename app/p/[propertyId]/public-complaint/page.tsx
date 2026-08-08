@@ -191,7 +191,7 @@ export default function PublicTenantComplaintPage({
             </div>
             <div>
               <h1 className="font-serif font-bold text-lg text-gray-900 tracking-tight flex items-center gap-1.5">
-                Sahara PG Resident Portal
+                TenoPilot.com Resident Portal
               </h1>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                 Protected Resident Maintenance Portal
@@ -221,7 +221,7 @@ export default function PublicTenantComplaintPage({
                 Complaint Logged Successfully!
               </h2>
               <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
-                Your maintenance request has been submitted directly to Sahara PG Caretaker & Management desk.
+                Your maintenance request has been submitted directly to TenoPilot.com Caretaker & Management desk.
               </p>
             </div>
 
@@ -339,7 +339,7 @@ export default function PublicTenantComplaintPage({
                     <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold text-sm text-red-950">
-                        Mobile number not found in Sahara PG active resident database.
+                        Mobile number not found in TenoPilot.com active resident database.
                       </p>
                       <p className="text-xs text-red-800 font-normal mt-0.5">
                         Only residents physically occupying a bed today can log complaints to prevent unauthorized spam. Please contact management if you recently checked in.

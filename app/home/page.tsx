@@ -226,7 +226,7 @@ export default function HomeWorkspacePage() {
             </div>
             <div>
               <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-[#201a17]">
-                TenoPilot
+                TenoPilot<span className="text-[#964407]">.com</span>
               </span>
               <span className="text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
                 Home Dashboard
@@ -289,16 +289,16 @@ export default function HomeWorkspacePage() {
 
       {/* Main Mobile-Optimized Body */}
       <main className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 space-y-6 sm:space-y-10 w-full">
-        {/* Welcome Greeting with Liquid Typography Animations */}
+        {/* Welcome Greeting */}
         <section className="max-w-3xl">
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3.5 py-1 rounded-full border border-[#d7c2b9] inline-block mb-3 animate-eyebrow-pill shadow-2xs">
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3.5 py-1 rounded-full border border-[#d7c2b9] inline-block mb-3 shadow-2xs">
             WELCOME HOME
           </span>
           <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl font-bold text-[#201a17] leading-[1.1] tracking-tight">
-            <span className="animate-rise-line1 block">Good morning, Alex.</span>
-            <span className="text-[#a69a8e] font-normal italic animate-rise-line2 block mt-1">Your portfolio is calling.</span>
+            <span className="block">Good morning, Alex.</span>
+            <span className="text-[#a69a8e] font-normal italic block mt-1">Your portfolio is calling.</span>
           </h1>
-          <p className="text-sm sm:text-base text-[#5b5049] mt-4 font-sans font-normal leading-relaxed max-w-xl animate-rise-sub">
+          <p className="text-sm sm:text-base text-[#5b5049] mt-4 font-sans font-normal leading-relaxed max-w-xl">
             {properties.length} {properties.length === 1 ? "property" : "properties"} active in your portfolio. Tap a building card below to launch its operational dashboard.
           </p>
         </section>

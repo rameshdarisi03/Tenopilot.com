@@ -360,7 +360,7 @@ export function buildComplaintWhatsAppUrl(complaint: Complaint, customStatus?: s
 
   const message = `Hello ${complaint.tenantName},
 
-Your maintenance request for Sahara PG has been updated:
+Your maintenance request for TenoPilot.com has been updated:
 
 🎫 *Ticket ID*: ${complaint.complaintNumber}
 🏠 *Room Location*: ${complaint.roomNumber}
@@ -370,7 +370,7 @@ Your maintenance request for Sahara PG has been updated:
 📌 *Current Status*: ${statusEmoji} *${statusText.replace("_", " ")}*${notesText ? `\n💬 *Management Note*: ${notesText}` : ""}
 
 Thank you,
-Sahara PG Management`;
+TenoPilot.com Management`;
 
   return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
 }

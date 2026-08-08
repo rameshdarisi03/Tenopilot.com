@@ -6,7 +6,7 @@ export interface PaymentQRProfile {
   id: string;
   name: string; // e.g. "Main PhonePe PG Account"
   bankLabel: string; // e.g. "PhonePe / Yes Bank"
-  upiId: string; // e.g. "saharapg@ybl"
+  upiId: string; // e.g. "tenopilot@ybl"
   accountType: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK";
   isDefault?: boolean;
   qrImageUrl?: string; // Optional custom uploaded image URL/base64

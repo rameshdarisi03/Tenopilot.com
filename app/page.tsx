@@ -161,7 +161,7 @@ export default function Home() {
                       Property Workspace
                     </span>
                     <h3 className="font-serif text-2xl font-bold text-[#201a17]">
-                      Sahara Heights Luxury PG
+                      Sunshine Heights Luxury PG
                     </h3>
                   </div>
                   <div className="flex items-center gap-3">

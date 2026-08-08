@@ -1,7 +1,7 @@
 {
   "name": "TenoPilot.com",
   "short_name": "TenoPilot",
-  "description": "Sahara Property & PG Management Flight Deck",
+  "description": "TenoPilot.com Property & PG Management Flight Deck",
   "start_url": "/home",
   "display": "standalone",
   "orientation": "portrait",
