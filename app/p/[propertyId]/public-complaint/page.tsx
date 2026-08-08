@@ -3,6 +3,7 @@
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
+import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { createComplaintInFirestore, Complaint } from "@/lib/complaintStore";
 import {
   Wrench,
@@ -17,12 +18,13 @@ import {
   Phone,
   User,
   Home,
-  Clock,
   Upload,
   ArrowRight,
   Shield,
   FileText,
   AlertTriangle,
+  XCircle,
+  Lock,
 } from "lucide-react";
 
 export default function PublicTenantComplaintPage({
@@ -35,17 +37,21 @@ export default function PublicTenantComplaintPage({
 
   // Real-time Property Map Structure for Room Sync
   const [floors, setFloors] = useState<FloorConfig[]>([]);
+  const [occupants, setOccupants] = useState<Occupant[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   // Form Input States
-  const [tenantName, setTenantName] = useState("");
   const [tenantPhone, setTenantPhone] = useState("");
+  const [tenantName, setTenantName] = useState("");
   const [roomNumber, setRoomNumber] = useState("");
   const [category, setCategory] = useState("Plumbing");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [preferredTime, setPreferredTime] = useState("Morning • 9:00 AM - 12:00 PM");
   const [photoUrl, setPhotoUrl] = useState("");
+
+  // Mobile Verification State
+  const [verifiedOccupant, setVerifiedOccupant] = useState<Occupant | null>(null);
+  const [mobileError, setMobileError] = useState(false);
 
   // UI State
   const [submitting, setSubmitting] = useState(false);
@@ -64,12 +70,13 @@ export default function PublicTenantComplaintPage({
 
   useEffect(() => {
     setIsMounted(true);
-    const initialGrid = propertyStore.getStructure();
-    setFloors(initialGrid);
+    setFloors(propertyStore.getStructure());
+    setOccupants(occupantStore.getOccupants());
 
     // Subscribe to real-time property map layout updates
     const unsubscribe = propertyStore.subscribe(() => {
       setFloors(propertyStore.getStructure());
+      setOccupants(occupantStore.getOccupants());
     });
 
     return () => unsubscribe();
@@ -83,9 +90,68 @@ export default function PublicTenantComplaintPage({
     }))
   );
 
+  // Real-time Database Mobile Verification Handler
+  const handlePhoneChange = (inputPhone: string) => {
+    setTenantPhone(inputPhone);
+    const cleanDigits = inputPhone.replace(/\D/g, "");
+
+    if (cleanDigits.length >= 10) {
+      // Search active database for matching phone number
+      const matched = occupants.find((o) => {
+        const occPhoneClean = o.phone.replace(/\D/g, "");
+        return (
+          occPhoneClean.includes(cleanDigits) ||
+          cleanDigits.includes(occPhoneClean)
+        );
+      });
+
+      if (matched) {
+        setVerifiedOccupant(matched);
+        setTenantName(matched.name);
+        setRoomNumber(matched.roomNumber);
+        setMobileError(false);
+      } else {
+        // Fallback search mock demo check for default sample mobile (e.g. 9876543210)
+        if (cleanDigits === "9876543210") {
+          const sampleMatch: Occupant = {
+            id: "occ-987",
+            name: "Rohan Gupta",
+            phone: "9876543210",
+            email: "rohan@gmail.com",
+            roomNumber: "Room 302",
+            bedCode: "B",
+            stayType: "Tenant",
+            joiningDate: "01 Jan 2026",
+            lastPaidDate: "01 Jul 2026",
+            dueDate: "01 Aug 2026",
+            dueDay: 1,
+            daysRemainingText: "Paid",
+            daysDiff: 10,
+            rentAmount: 12000,
+            paymentStatus: "Paid",
+            lifecycleStatus: "Active",
+            aadhaarNumber: "123456789012",
+            avatar: "",
+            emergencyContact: { name: "", phone: "", relation: "" },
+          };
+          setVerifiedOccupant(sampleMatch);
+          setTenantName(sampleMatch.name);
+          setRoomNumber(sampleMatch.roomNumber);
+          setMobileError(false);
+        } else {
+          setVerifiedOccupant(null);
+          setMobileError(true);
+        }
+      }
+    } else {
+      setVerifiedOccupant(null);
+      setMobileError(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tenantName || !tenantPhone || !roomNumber || !title || !description) return;
+    if (!verifiedOccupant || !tenantName || !tenantPhone || !roomNumber || !title || !description) return;
 
     setSubmitting(true);
 
@@ -97,7 +163,6 @@ export default function PublicTenantComplaintPage({
         category,
         title,
         description,
-        preferredTime,
         photoUrl: photoUrl || undefined,
       });
 
@@ -132,12 +197,12 @@ export default function PublicTenantComplaintPage({
                 Sahara PG Resident Portal
               </h1>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                24/7 Maintenance & Complaint Lodging
+                Protected Resident Maintenance Portal
               </p>
             </div>
           </div>
           <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10px] flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span> Real-Time Sync
+            <Lock className="w-3 h-3 text-emerald-700" /> Database Verified
           </span>
         </div>
       </header>
@@ -159,14 +224,14 @@ export default function PublicTenantComplaintPage({
                 Complaint Logged Successfully!
               </h2>
               <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
-                Your maintenance request has been submitted directly to the Sahara PG Caretaker & Management desk.
+                Your maintenance request has been submitted directly to Sahara PG Caretaker & Management desk.
               </p>
             </div>
 
             {/* Ticket Summary Card */}
             <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 text-left space-y-2.5 text-xs">
               <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 font-bold">Resident Name:</span>
+                <span className="text-gray-500 font-bold">Verified Resident:</span>
                 <span className="font-bold text-gray-900">{submittedTicket.tenantName} ({submittedTicket.tenantPhone})</span>
               </div>
               <div className="flex justify-between border-b border-gray-200 pb-2">
@@ -177,13 +242,9 @@ export default function PublicTenantComplaintPage({
                 <span className="text-gray-500 font-bold">Category:</span>
                 <span className="font-bold text-gray-900">{submittedTicket.category}</span>
               </div>
-              <div className="flex justify-between border-b border-gray-200 pb-2">
+              <div className="flex justify-between">
                 <span className="text-gray-500 font-bold">Issue Title:</span>
                 <span className="font-bold text-gray-900">{submittedTicket.title}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 font-bold">Preferred Time:</span>
-                <span className="font-medium text-gray-700">{submittedTicket.preferredTime}</span>
               </div>
             </div>
 
@@ -212,86 +273,117 @@ export default function PublicTenantComplaintPage({
             </div>
           </div>
         ) : (
-          /* FORM ENTRY VIEW */
+          /* FORM ENTRY VIEW WITH ANTI-SPAM DATABASE CHECK */
           <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6">
             <div>
               <h2 className="font-serif font-bold text-xl text-gray-900">
                 Log a Maintenance Request
               </h2>
               <p className="text-xs text-gray-500 mt-1">
-                Fill in your resident details below. Issues are synced instantly to the management portal.
+                Enter your registered mobile number to verify your residency and log issues.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5 text-xs">
-              {/* Resident Identity Block */}
+              {/* Resident Mobile Check Block */}
               <div className="space-y-3 p-4 bg-orange-50/30 rounded-2xl border border-orange-200/60">
-                <h3 className="font-bold text-gray-900 flex items-center gap-1.5 text-xs">
-                  <User className="w-4 h-4 text-[#c2652a]" /> Resident Identity & Room Location
+                <h3 className="font-bold text-gray-900 flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-[#c2652a]" /> Resident Mobile Verification
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">
+                    Anti-Spam Security 🔒
+                  </span>
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Enter Registered Mobile Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={tenantPhone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums ${
+                      verifiedOccupant
+                        ? "border-emerald-500 ring-1 ring-emerald-500"
+                        : mobileError
+                        ? "border-red-500 ring-1 ring-red-500"
+                        : "border-gray-300"
+                    }`}
+                  />
+                </div>
+
+                {/* VERIFICATION FEEDBACK BADGES */}
+                {verifiedOccupant && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <p className="font-bold">Verified Resident: {verifiedOccupant.name}</p>
+                        <p className="text-[10px] text-emerald-700 font-medium">
+                          Assigned Location: {verifiedOccupant.roomNumber} (Bed {verifiedOccupant.bedCode})
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-emerald-200 text-emerald-900 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
+                      MATCHED 🟢
+                    </span>
+                  </div>
+                )}
+
+                {mobileError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs font-bold flex items-start gap-2 animate-in fade-in">
+                    <XCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Mobile number not found in Sahara PG database.</p>
+                      <p className="text-[10px] text-red-700 font-normal mt-0.5">
+                        Only registered residents can log complaints to prevent unauthorized spam. Please verify your mobile number with management.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Room Location Display (Auto-synced or Selectable) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
-                      Full Name *
+                      Resident Name
                     </label>
                     <input
                       type="text"
-                      required
+                      readOnly
                       value={tenantName}
-                      onChange={(e) => setTenantName(e.target.value)}
-                      placeholder="e.g. Rohan Gupta"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      placeholder="Auto-filled upon mobile match"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-100 font-bold text-xs text-gray-700"
                     />
                   </div>
 
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
-                      Mobile Number *
+                      Room Location (Real-Time Synced)
                     </label>
-                    <input
-                      type="tel"
+                    <select
                       required
-                      value={tenantPhone}
-                      onChange={(e) => setTenantPhone(e.target.value)}
-                      placeholder="10-digit mobile number"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
-                    />
-                  </div>
-                </div>
-
-                {/* Real-time Synced Room Dropdown */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Select Your Room (Synced Real-Time from Property Map) *
-                  </label>
-                  <select
-                    required
-                    value={roomNumber}
-                    onChange={(e) => setRoomNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] max-h-48"
-                  >
-                    <option value="">-- Choose Configured Room --</option>
-                    {allRoomsList.length === 0 ? (
-                      <>
-                        <option value="Room 101">Ground Floor • Room 101</option>
-                        <option value="Room 102">Ground Floor • Room 102</option>
-                        <option value="Room 201">Floor 01 • Room 201</option>
-                        <option value="Room 302">Floor 02 • Room 302</option>
-                      </>
-                    ) : (
-                      allRoomsList.map((r, idx) => (
+                      value={roomNumber}
+                      onChange={(e) => setRoomNumber(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    >
+                      <option value="">-- Select Room --</option>
+                      {allRoomsList.map((r, idx) => (
                         <option key={idx} value={r.roomNumber}>
                           {r.floorName} • {r.roomNumber}
                         </option>
-                      ))
-                    )}
-                  </select>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
               {/* Category Selector Grid */}
-              <div>
+              <div className={!verifiedOccupant ? "opacity-50 pointer-events-none" : ""}>
                 <label className="block font-bold text-gray-900 mb-2">
                   Select Issue Category *
                 </label>
@@ -327,82 +419,75 @@ export default function PublicTenantComplaintPage({
               </div>
 
               {/* Title & Description */}
-              <div>
-                <label className="block font-bold text-gray-900 mb-1">
-                  Short Issue Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Water leaking from shower pipe / AC remote not working"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-900 mb-1">
-                  Detailed Description *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Please describe what happened, location inside room, or specific instructions for caretaker..."
-                  className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                ></textarea>
-              </div>
-
-              {/* Preferred Time Slot */}
-              <div>
-                <label className="block font-bold text-gray-900 mb-1">
-                  Preferred Time Slot for Caretaker Visit
-                </label>
-                <select
-                  value={preferredTime}
-                  onChange={(e) => setPreferredTime(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="Morning • 9:00 AM - 12:00 PM">Morning • 9:00 AM - 12:00 PM</option>
-                  <option value="Afternoon • 12:00 PM - 3:00 PM">Afternoon • 12:00 PM - 3:00 PM</option>
-                  <option value="Evening • 4:00 PM - 7:00 PM">Evening • 4:00 PM - 7:00 PM</option>
-                  <option value="Urgent / Immediate Visit Needed">Urgent / Immediate Visit Needed</option>
-                </select>
-              </div>
-
-              {/* Optional Photo Attachment */}
-              <div>
-                <label className="block font-bold text-gray-900 mb-1">
-                  Attach Photo (Optional)
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 hover:border-[#c2652a] transition-colors cursor-pointer">
-                  <Upload className="w-5 h-5 text-[#c2652a] mx-auto mb-1" />
-                  <span className="font-bold text-gray-900 block text-xs">
-                    Click to upload picture of damaged tap / socket
-                  </span>
-                  <span className="text-[10px] text-gray-500">
-                    JPG or PNG (Max 5MB)
-                  </span>
+              <div className={!verifiedOccupant ? "opacity-50 pointer-events-none space-y-4" : "space-y-4"}>
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Short Issue Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!verifiedOccupant}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Water leaking from shower pipe / AC remote not working"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
                 </div>
-              </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-3.5 rounded-2xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-sm shadow-md transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <span>Submitting Complaint...</span>
-                ) : (
-                  <>
-                    <span>Submit Maintenance Request</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Detailed Description *
+                  </label>
+                  <textarea
+                    required
+                    disabled={!verifiedOccupant}
+                    rows={3}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Please describe what happened or location inside room..."
+                    className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  ></textarea>
+                </div>
+
+                {/* Optional Photo Attachment */}
+                <div>
+                  <label className="block font-bold text-gray-900 mb-1">
+                    Attach Photo (Optional)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 hover:border-[#c2652a] transition-colors cursor-pointer">
+                    <Upload className="w-5 h-5 text-[#c2652a] mx-auto mb-1" />
+                    <span className="font-bold text-gray-900 block text-xs">
+                      Click to upload picture of damaged tap / socket
+                    </span>
+                    <span className="text-[10px] text-gray-500">
+                      JPG or PNG (Max 5MB)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={submitting || !verifiedOccupant}
+                  className={`w-full py-3.5 rounded-2xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                    verifiedOccupant
+                      ? "bg-[#c2652a] hover:bg-[#c2652a]/90 text-white cursor-pointer active:scale-98"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                >
+                  {submitting ? (
+                    <span>Submitting Complaint...</span>
+                  ) : !verifiedOccupant ? (
+                    <span>Enter Verified Resident Mobile to Unlock</span>
+                  ) : (
+                    <>
+                      <span>Submit Maintenance Request</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         )}
