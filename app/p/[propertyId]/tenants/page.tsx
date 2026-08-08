@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
@@ -255,9 +257,11 @@ export default function TenantsDirectoryPage({
 
         // Check if entered tokens match name prefix (startsWith word), room, or phone
         const matchesAllTokens = searchTokens.every((token) => {
-          const nameWords = occNameLower.split(/\s+/);
-          const nameMatchesPrefix = nameWords.some((w) => w.startsWith(token)) || occNameLower.startsWith(token);
-          const roomMatches = occRoomLower.includes(token);
+          const cleanName = occNameLower.replace(/[^a-z0-9\s]/g, "");
+          const nameWords = cleanName.split(/\s+/).filter(Boolean);
+          // Match if full name starts with token OR any word in name starts with token
+          const nameMatchesPrefix = occNameLower.startsWith(token) || nameWords.some((w) => w.startsWith(token));
+          const roomMatches = occRoomLower.startsWith(token) || occRoomLower.includes(token);
           const aadhaarMatches = occAadhaar.startsWith(token);
           const phoneMatches = numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly);
 
