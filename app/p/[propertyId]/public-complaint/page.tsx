@@ -81,12 +81,12 @@ export default function PublicTenantComplaintPage({
 
   // Strict As-of-Today Active Resident Verification Handler
   const handlePhoneChange = (inputPhone: string) => {
-    setTenantPhone(inputPhone);
-    const cleanDigits = inputPhone.replace(/\D/g, "");
+    const cleanDigits = inputPhone.replace(/\D/g, "").slice(0, 10);
+    setTenantPhone(cleanDigits);
 
-    if (cleanDigits.length >= 10) {
+    if (cleanDigits.length === 10) {
       // Use SSOT active resident verifier (filters out future 'Booked' and past occupants)
-      const matched = getActiveResidentForToday(inputPhone, occupants);
+      const matched = getActiveResidentForToday(cleanDigits, occupants);
 
       if (matched) {
         setVerifiedOccupant(matched);
@@ -286,6 +286,7 @@ export default function PublicTenantComplaintPage({
                   <input
                     type="tel"
                     required
+                    maxLength={10}
                     value={tenantPhone}
                     onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
