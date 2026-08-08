@@ -28,6 +28,7 @@ import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverlay";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { DigitRollingOdometer } from "@/components/motion/DigitRollingOdometer";
+import { propertySettingsStore } from "@/constants/propertySettings";
 
 export interface PortfolioProperty {
   id: string;
@@ -116,10 +117,20 @@ export default function HomeWorkspacePage() {
 
     const colPct = totalDue > 0 ? Math.min(100, Math.round((totalPaid / totalDue) * 100)) + "%" : "100%";
 
+    let liveName = "Sunshine Heights PG";
+    let liveLocation = "Hitech City, Hyderabad";
+    try {
+      const settings = propertySettingsStore.getSettings("sunshine-pg");
+      if (settings?.propertyName) liveName = settings.propertyName;
+      if (settings?.propertyAddress) liveLocation = settings.propertyAddress;
+    } catch (e) {
+      console.error("Failed reading sunshine-pg settings", e);
+    }
+
     return {
       id: "sunshine-pg",
-      name: "Sunshine Luxury PG",
-      location: "Hitech City, Hyderabad",
+      name: liveName,
+      location: liveLocation,
       bedsCount: totalBeds || 52,
       occupancyRate: occPct,
       collectionRate: colPct,
@@ -136,7 +147,16 @@ export default function HomeWorkspacePage() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          customProps = parsed.filter((p: PortfolioProperty) => p.id !== "sunshine-pg");
+          customProps = parsed
+            .filter((p: PortfolioProperty) => p.id !== "sunshine-pg")
+            .map((p: PortfolioProperty) => {
+              const setting = propertySettingsStore.getSettings(p.id);
+              return {
+                ...p,
+                name: setting?.propertyName || p.name,
+                location: setting?.propertyAddress || p.location,
+              };
+            });
         }
       }
     } catch (e) {
@@ -145,7 +165,7 @@ export default function HomeWorkspacePage() {
 
     setProperties([liveSunshine, ...customProps]);
 
-    // Reactive subscription to real-time propertyStore & occupantStore!
+    // Reactive subscription to real-time propertyStore, occupantStore & propertySettingsStore!
     const unsubProperty = propertyStore.subscribe(() => {
       const updatedLive = computeLiveSunshineMetrics();
       setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
@@ -156,9 +176,15 @@ export default function HomeWorkspacePage() {
       setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
     });
 
+    const unsubSettings = propertySettingsStore.subscribe(() => {
+      const updatedLive = computeLiveSunshineMetrics();
+      setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+    });
+
     return () => {
       unsubProperty();
       unsubOccupant();
+      unsubSettings();
     };
   }, []);
 
@@ -181,6 +207,12 @@ export default function HomeWorkspacePage() {
       collectionRate: "100%",
       status: "HEALTHY",
     };
+
+    // Save initial property settings SSOT profile in Firestore & local store
+    propertySettingsStore.updateSettings({
+      propertyName: newBuilding.name,
+      propertyAddress: newBuilding.location,
+    }, newBuilding.id);
 
     const updatedProps = [...properties, newBuilding];
     setProperties(updatedProps);

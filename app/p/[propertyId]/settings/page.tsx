@@ -906,15 +906,35 @@ export default function PropertySettingsPage({
 
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Property Name *</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Property Display Name (Single Source of Truth) *</label>
                       <input
                         type="text"
                         required
                         value={settings.propertyName}
                         onChange={(e) => setSettings({ ...settings, propertyName: e.target.value })}
+                        placeholder="e.g. Sunshine Heights PG"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Single Source of Truth: Renaming here instantly syncs across the Home Welcome Dashboard, Property Sidebar, and WhatsApp Reminders.
+                      </p>
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Property Location / Address *</label>
+                      <input
+                        type="text"
+                        required
+                        value={settings.propertyAddress || "Hitech City, Hyderabad"}
+                        onChange={(e) => setSettings({ ...settings, propertyAddress: e.target.value })}
+                        placeholder="e.g. Hitech City, Hyderabad"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Syncs location badge on Home Welcome Screen building cards.
+                      </p>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Manager Mobile *</label>
                       <input

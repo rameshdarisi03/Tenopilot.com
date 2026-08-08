@@ -21,6 +21,7 @@ export interface PropertySettingsData {
   defaultSecurityDeposit: number;
   upiPaymentId: string;
   propertyName: string;
+  propertyAddress: string;
   managerPhone: string;
   qrProfiles: PaymentQRProfile[];
   rentalTiers: {
@@ -38,6 +39,7 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   defaultSecurityDeposit: 25000,
   upiPaymentId: "tenopilot.sunshine@okicici",
   propertyName: "Sunshine Heights PG",
+  propertyAddress: "Hitech City, Hyderabad",
   managerPhone: "+91 98765 43210",
   qrProfiles: DEFAULT_QR_PROFILES,
   rentalTiers: {
@@ -70,7 +72,7 @@ export const propertySettingsStore = {
     });
   },
 
-  getSettings(): PropertySettingsData {
+  getSettings(propertyId = "sunshine-pg"): PropertySettingsData {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tenopilot_property_settings");
       if (saved) {
