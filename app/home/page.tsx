@@ -26,6 +26,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverlay";
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 
 export interface PortfolioProperty {
   id: string;
@@ -277,6 +278,9 @@ export default function HomeWorkspacePage() {
             {properties.length} {properties.length === 1 ? "property" : "properties"} active in your portfolio. Tap a building card below to launch its operational dashboard.
           </p>
         </section>
+
+        {/* 1-Click PWA App Installation & QR Code Card */}
+        <PWAInstallBanner />
 
         {/* Tactile Mobile Bento Grid with Staggered cardIn Animations & Hover Lift */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">

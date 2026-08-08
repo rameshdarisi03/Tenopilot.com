@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Manrope } from "next/font/google";
 import QueryProvider from "@/providers/QueryProvider";
 import "./globals.css";
@@ -15,12 +15,23 @@ const manrope = Manrope({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#c2652a",
+};
+
 export const metadata: Metadata = {
-  title: "TenoPilot — Rental Operating System for PG & Hostel Management",
+  title: "TenoPilot.com — Rental Operating System for PG & Hostel Management",
   description:
     "Automate room allocation, tenant & guest onboarding, rent collections, partner profit settlements, and expense tracking for PG & Hostel owners.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "TenoPilot",
+  },
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icons/icon-192.svg",
+    apple: "/icons/icon-192.svg",
   },
 };
 
@@ -34,8 +45,32 @@ export default function RootLayout({
       lang="en"
       className={`${playfair.variable} ${manrope.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#c2652a" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="TenoPilot" />
+      </head>
       <body className="min-h-full font-sans bg-[#fff8f6] text-[#201a17]">
         <QueryProvider>{children}</QueryProvider>
+
+        {/* Service Worker Auto-Registration Script */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    console.log('TenoPilot PWA ServiceWorker registered with scope: ', registration.scope);
+                  }, function(err) {
+                    console.log('TenoPilot PWA ServiceWorker registration failed: ', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
