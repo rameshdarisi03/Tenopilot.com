@@ -54,12 +54,12 @@ export function GlidingTabs<T extends string>({
   return (
     <div
       ref={containerRef}
-      className={`relative inline-flex items-center p-1.5 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs ${className}`}
+      className={`relative inline-flex items-center p-1.5 bg-slate-100/90 backdrop-blur-md rounded-2xl border border-slate-200/80 shadow-xs ${className}`}
     >
       {/* Spring-Physics Gliding Backdrop Pill */}
       {isReady && (
         <div
-          className="absolute top-1.5 bottom-1.5 rounded-xl bg-white dark:bg-slate-900 shadow-md shadow-slate-200/60 dark:shadow-black/50 border border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+          className="absolute top-1.5 bottom-1.5 rounded-xl bg-white shadow-md shadow-slate-200/60 border border-slate-200/80 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
           style={{
             transform: `translateX(${pillStyle.left}px)`,
             width: `${pillStyle.width}px`,

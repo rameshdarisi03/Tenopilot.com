@@ -112,6 +112,16 @@ export default function OnboardGuestPage({
     pdf?: boolean;
   }>({});
 
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
@@ -870,16 +880,32 @@ export default function OnboardGuestPage({
                       </div>
 
                       {!isPhotoSaved ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsPhotoSaved(true)}
-                          className="w-full py-2.5 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                        >
-                          💾 Save Profile Photo to Database
-                        </button>
+                        <div className="flex gap-2 w-full">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsPhotoSaved(true);
+                              triggerToast("✓ Profile Photo saved to database");
+                            }}
+                            className="flex-1 py-2.5 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                          >
+                            💾 Save Profile Photo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPhotoDoc(null);
+                              setIsPhotoSaved(false);
+                              triggerToast("Photo skipped — flagged as KYC Pending");
+                            }}
+                            className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold text-xs cursor-pointer"
+                          >
+                            Skip Photo
+                          </button>
+                        </div>
                       ) : (
                         <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between">
-                          <span>✓ Photo Locked & Saved 🟢</span>
+                          <span>✓ Photo Saved 🟢</span>
                           <button
                             type="button"
                             onClick={() => setIsPhotoSaved(false)}
@@ -1026,13 +1052,38 @@ export default function OnboardGuestPage({
                       )}
                     </div>
                   )}
+
+                  {/* Section-level Save & Skip Actions for Govt ID */}
+                  {(aadhaarFrontDoc || aadhaarBackDoc) ? (
+                    <div className="space-y-2 w-full pt-2 border-t border-gray-200/80">
+                      <button
+                        type="button"
+                        onClick={() => triggerToast("✓ Govt ID proof saved to database")}
+                        className="w-full py-2.5 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      >
+                        💾 Save Govt ID to Database
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAadhaarFrontDoc(null);
+                        setAadhaarBackDoc(null);
+                        triggerToast("Govt ID skipped — flagged as KYC Pending 🟡");
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
+                    >
+                      ⏩ Skip Govt ID (KYC Pending 🟡)
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
                 <Info className="w-4 h-4 text-purple-700 shrink-0" />
                 <span>
-                  Don't have ID handy? Click <strong>Skip for Now</strong> below. Guest profile status will show <strong>KYC Pending 🟡</strong> until updated.
+                  The system verifies individual upload steps above. Profiles reflect <strong>Verified 🟢</strong>, <strong>Partial KYC 🟡</strong>, or <strong>KYC Pending 🟡</strong> accordingly.
                 </span>
               </div>
 
@@ -1045,29 +1096,13 @@ export default function OnboardGuestPage({
                   ← Back to Allocation
                 </button>
 
-                <div className="flex w-full md:w-auto items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoUploaded(false);
-                      setPhotoDoc(null);
-                      setAadhaarFrontDoc(null);
-                      setAadhaarBackDoc(null);
-                      handleFinalGuestSubmit();
-                    }}
-                    className="flex-1 md:flex-none px-5 py-3.5 rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs shadow-2xs min-h-[48px]"
-                  >
-                    Skip for Now (KYC Pending 🟡)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleFinalGuestSubmit}
-                    className="flex-1 md:flex-none px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleFinalGuestSubmit}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
+                </button>
               </div>
             </div>
           )}

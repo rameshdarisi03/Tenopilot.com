@@ -113,6 +113,16 @@ export default function OnboardTenantPage({
     pdf?: boolean;
   }>({});
 
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
   // Success Modal State (Step 5)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
@@ -879,16 +889,32 @@ export default function OnboardTenantPage({
                       </div>
 
                       {!isPhotoSaved ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsPhotoSaved(true)}
-                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                        >
-                          💾 Save Profile Photo to Database
-                        </button>
+                        <div className="flex gap-2 w-full">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsPhotoSaved(true);
+                              triggerToast("✓ Profile Photo saved to database");
+                            }}
+                            className="flex-1 py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                          >
+                            💾 Save Profile Photo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPhotoDoc(null);
+                              setIsPhotoSaved(false);
+                              triggerToast("Photo skipped — flagged as KYC Pending");
+                            }}
+                            className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold text-xs cursor-pointer"
+                          >
+                            Skip Photo
+                          </button>
+                        </div>
                       ) : (
                         <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between">
-                          <span>✓ Photo Locked & Saved 🟢</span>
+                          <span>✓ Photo Saved 🟢</span>
                           <button
                             type="button"
                             onClick={() => setIsPhotoSaved(false)}
@@ -1035,13 +1061,39 @@ export default function OnboardTenantPage({
                       )}
                     </div>
                   )}
+
+                  {/* Section-level Save & Skip Actions for Govt ID */}
+                  {(aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) ? (
+                    <div className="space-y-2 w-full pt-2 border-t border-gray-200/80">
+                      <button
+                        type="button"
+                        onClick={() => triggerToast("✓ Aadhaar / Govt ID proof saved to database")}
+                        className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      >
+                        💾 Save Govt ID to Database
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAadhaarFrontDoc(null);
+                        setAadhaarBackDoc(null);
+                        setAadhaarDoc(null);
+                        triggerToast("Govt ID skipped — flagged as KYC Pending 🟡");
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
+                    >
+                      ⏩ Skip Govt ID (KYC Pending 🟡)
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 text-xs flex items-center gap-2">
                 <Info className="w-4 h-4 text-[#c2652a] shrink-0" />
                 <span>
-                  Don't have Aadhaar handy? Click <strong>Skip for Now</strong> below. Tenant status will show <strong>KYC Pending 🟡</strong> until uploaded later from their profile.
+                  The system verifies individual upload steps above. Profiles reflect <strong>Verified 🟢</strong>, <strong>Partial KYC 🟡</strong>, or <strong>KYC Pending 🟡</strong> accordingly.
                 </span>
               </div>
 
@@ -1054,31 +1106,13 @@ export default function OnboardTenantPage({
                   ← Back to Allocation
                 </button>
 
-                <div className="flex w-full md:w-auto items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoUploaded(false);
-                      setAadhaarUploaded(false);
-                      setPhotoDoc(null);
-                      setAadhaarDoc(null);
-                      setAadhaarFrontDoc(null);
-                      setAadhaarBackDoc(null);
-                      handleStep3Next();
-                    }}
-                    className="flex-1 md:flex-none px-5 py-3.5 rounded-xl border border-orange-300 bg-orange-50 hover:bg-orange-100 text-[#c2652a] font-bold text-xs shadow-2xs min-h-[48px]"
-                  >
-                    Skip for Now (KYC Pending 🟡)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleStep3Next}
-                    className="flex-1 md:flex-none px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
-                  >
-                    Proceed to Agreement Preview <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleStep3Next}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
+                >
+                  Proceed to Agreement Preview <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
