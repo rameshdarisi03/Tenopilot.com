@@ -116,9 +116,7 @@ export function subscribeOccupantsFromFirestore(
         snapshot.forEach((doc) => {
           occupants.push(doc.data() as Occupant);
         });
-        if (occupants.length > 0) {
-          onUpdate(occupants);
-        }
+        onUpdate(occupants);
       },
       (error) => {
         console.warn("Firestore real-time listener error:", error);

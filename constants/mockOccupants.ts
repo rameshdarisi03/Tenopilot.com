@@ -1,4 +1,4 @@
-import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { saveOccupantToFirestore, deleteOccupantFromFirestore } from "@/lib/firestoreService";
 
 export interface PaymentHistoryItem {
   id: string;
@@ -919,6 +919,36 @@ function loadOccupants(): Occupant[] {
 export const occupantStore = {
   getOccupants(): Occupant[] {
     return loadOccupants();
+  },
+
+  setOccupantsFromFirestore(newList: Occupant[]) {
+    GLOBAL_OCCUPANTS_CACHE = newList;
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(newList));
+      } catch (e) {
+        console.warn("Failed to cache occupants store:", e);
+      }
+    }
+    occupantListeners.forEach((l) => l());
+  },
+
+  async deleteOccupant(occupantId: string, propertyId: string = "sunshine-pg") {
+    // 1. Delete document permanently from Cloud Firestore FIRST
+    await deleteOccupantFromFirestore(propertyId, occupantId);
+
+    // 2. Update local state & cache without deleted tenant
+    const list = this.getOccupants();
+    const updatedList = list.filter((o) => o.id !== occupantId);
+    GLOBAL_OCCUPANTS_CACHE = updatedList;
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(updatedList));
+      } catch (e) {
+        console.warn("Failed to save updated occupants store:", e);
+      }
+    }
+    occupantListeners.forEach((l) => l());
   },
 
   updateOccupants(newList: Occupant[], propertyId: string = "sunshine-pg") {

@@ -80,14 +80,9 @@ export default function PublicTenantComplaintPage({
     });
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
-      if (fsOccupants && fsOccupants.length > 0) {
-        const localList = occupantStore.getOccupants();
-        const mergedMap = new Map<string, Occupant>();
-        localList.forEach((o) => mergedMap.set(o.id, o));
-        fsOccupants.forEach((o) => mergedMap.set(o.id, o));
-        const merged = Array.from(mergedMap.values());
-        occupantStore.updateOccupants(merged, propertyId);
-        setOccupants(merged);
+      if (fsOccupants) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants);
+        setOccupants(fsOccupants);
       }
     });
 

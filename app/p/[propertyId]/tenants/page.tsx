@@ -67,13 +67,9 @@ export default function TenantsDirectoryPage({
     });
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
-      if (fsOccupants && fsOccupants.length > 0) {
-        const localList = occupantStore.getOccupants();
-        const mergedMap = new Map<string, Occupant>();
-        localList.forEach((o) => mergedMap.set(o.id, o));
-        fsOccupants.forEach((o) => mergedMap.set(o.id, o));
-        const merged = Array.from(mergedMap.values());
-        occupantStore.updateOccupants(merged, propertyId);
+      if (fsOccupants) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants);
+        setOccupantsList(fsOccupants);
       }
     });
 
@@ -1784,12 +1780,8 @@ export default function TenantsDirectoryPage({
                     const target = deletePastTenantTarget;
                     setDeletePastTenantTarget(null);
 
-                    // 1. Remove from local occupants list & update store
-                    const updated = occupantsList.filter((o) => o.id !== target.id);
-                    occupantStore.updateOccupants(updated, propertyId);
-
-                    // 2. Delete permanently from Cloud Firestore
-                    await deleteOccupantFromFirestore(propertyId, target.id);
+                    // Delete permanently from Cloud Firestore & update local store
+                    await occupantStore.deleteOccupant(target.id, propertyId);
 
                     triggerToast(`🗑️ Permanently erased record, KYC, and documents for ${target.name}`);
                   }}
