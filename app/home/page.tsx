@@ -25,6 +25,7 @@ import {
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { GrandWelcomeOverlay } from "@/components/motion/GrandWelcomeOverlay";
 
 export interface PortfolioProperty {
   id: string;
@@ -42,6 +43,7 @@ export default function HomeWorkspacePage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
 
   // New property form state
   const [newPropName, setNewPropName] = useState("");
@@ -174,6 +176,14 @@ export default function HomeWorkspacePage() {
 
   return (
     <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white pb-12">
+      {/* Grand Cinema Cinematic Opening Welcome Overlay */}
+      {showWelcomeOverlay && (
+        <GrandWelcomeOverlay
+          ownerName="Ramesh Darisi"
+          onComplete={() => setShowWelcomeOverlay(false)}
+        />
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-3">
@@ -202,6 +212,13 @@ export default function HomeWorkspacePage() {
 
           {/* User Profile & Actions */}
           <div className="flex items-center gap-3 sm:gap-5">
+            <button
+              onClick={() => setShowWelcomeOverlay(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 text-[#964407] text-xs font-bold hover:bg-amber-500/20 transition-all active:scale-95 cursor-pointer shadow-2xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#964407]" />
+              <span>Replay Intro 🎬</span>
+            </button>
             <button
               className="relative p-2 rounded-full hover:bg-[#f8ede3] text-[#554339] transition-colors active:scale-95 cursor-pointer"
               aria-label="Notifications"
