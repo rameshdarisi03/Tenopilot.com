@@ -86,9 +86,16 @@ export default function AdminComplaintsPage({
   // Resolution Note State for Modal
   const [resolutionInput, setResolutionInput] = useState("");
 
+  // Public Resident Portal Link (Dynamic for local & Vercel)
+  const [publicPortalUrl, setPublicPortalUrl] = useState(`http://localhost:3000/p/${propertyId}/public-complaint`);
+
   useEffect(() => {
     setIsMounted(true);
     setFloors(propertyStore.getStructure());
+
+    if (typeof window !== "undefined") {
+      setPublicPortalUrl(`${window.location.origin}/p/${propertyId}/public-complaint`);
+    }
 
     // Subscribe to Firebase real-time complaints listener
     const unsubscribe = subscribeToComplaints(propertyId, (list) => {
@@ -248,8 +255,6 @@ export default function AdminComplaintsPage({
   };
 
   if (!isMounted) return null;
-
-  const publicPortalUrl = `http://localhost:3000/p/${propertyId}/public-complaint`;
 
   return (
     <div className="flex h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-orange-100 selection:text-[#c2652a] overflow-hidden">

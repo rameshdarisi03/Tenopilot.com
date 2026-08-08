@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState, useEffect } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
@@ -26,6 +26,13 @@ export default function PropertyOverviewPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const [portalUrl, setPortalUrl] = useState(`http://localhost:3000/p/${propertyId}/public-complaint`);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPortalUrl(`${window.location.origin}/p/${propertyId}/public-complaint`);
+    }
+  }, [propertyId]);
 
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
@@ -157,7 +164,7 @@ export default function PropertyOverviewPage({
               <div className="p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60 flex items-center gap-4">
                 <div className="w-24 h-24 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
                   <QRCodeSVG
-                    value={`http://localhost:3000/p/${propertyId}/public-complaint`}
+                    value={portalUrl}
                     size={80}
                     fgColor="#201a17"
                     bgColor="#ffffff"

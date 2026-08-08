@@ -33,12 +33,11 @@ export const INITIAL_COMPLAINTS: Complaint[] = [
     complaintNumber: "CMP-1001",
     tenantName: "Rohan Gupta",
     tenantPhone: "9876543210",
-    roomNumber: "Room 302",
+    roomNumber: "Room 302 (Bed B)",
     category: "Plumbing",
     title: "Water Leakage in Bathroom Tap",
     description: "The main sink tap in room 302 bathroom is continuously dripping water and creating noise at night.",
     status: "OPEN",
-    preferredTime: "Morning • 9:00 AM - 11:00 AM",
     createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
     isRead: false,
   },
@@ -47,13 +46,12 @@ export const INITIAL_COMPLAINTS: Complaint[] = [
     complaintNumber: "CMP-1002",
     tenantName: "Sarah Jenkins",
     tenantPhone: "9876543211",
-    roomNumber: "Room 104",
+    roomNumber: "Room 104 (Bed A)",
     category: "Electrical",
     title: "Power Socket Sparking Near Desk",
     description: "Desk power strip socket emitted a small spark when laptop charger was plugged in. Needs inspection.",
     status: "IN_PROGRESS",
     resolutionNotes: "Caretaker Mahesh notified. Spare socket box dispatched.",
-    preferredTime: "Immediate / Urgent",
     createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     isRead: true,
   },
@@ -62,33 +60,77 @@ export const INITIAL_COMPLAINTS: Complaint[] = [
     complaintNumber: "CMP-1003",
     tenantName: "Vikram Malhotra",
     tenantPhone: "9876543212",
-    roomNumber: "Room 201",
-    category: "Wi-Fi",
+    roomNumber: "Room 201 (Bed A)",
+    category: "Wi-Fi & Net",
     title: "Wi-Fi Router Not Responding on 2nd Floor",
     description: "Signal drops frequently on 2nd floor corridor access point.",
     status: "RESOLVED",
     resolutionNotes: "Rebooted 2nd floor router and reset access point firmware. Speed test 150 Mbps restored.",
-    preferredTime: "Evening • 6:00 PM - 8:00 PM",
     createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     isRead: true,
   },
 ];
 
 let inMemoryComplaintsStore: Complaint[] = [...INITIAL_COMPLAINTS];
+const storeListeners: Set<(complaints: Complaint[]) => void> = new Set();
+
+function loadFromLocalStorage(propertyId: string): Complaint[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(`tenopilot_complaints_${propertyId}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn("LocalStorage complaints load error:", e);
+  }
+  return null;
+}
+
+function saveToLocalStorage(propertyId: string, complaints: Complaint[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`tenopilot_complaints_${propertyId}`, JSON.stringify(complaints));
+  } catch (e) {
+    console.warn("LocalStorage complaints save error:", e);
+  }
+}
+
+function notifyStoreListeners(complaints: Complaint[]) {
+  storeListeners.forEach((fn) => fn(complaints));
+}
 
 /**
- * Subscribe to complaints in real-time from Firebase Cloud Firestore
+ * Clean object of undefined fields before sending to Cloud Firestore
+ */
+function sanitizeForFirestore(obj: any): any {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined)
+  );
+}
+
+/**
+ * Subscribe to complaints in real-time from Firebase Cloud Firestore & Local Storage
  * Collection: properties/{propertyId}/complaints
  */
 export function subscribeToComplaints(
   propertyId: string,
   onUpdate: (complaints: Complaint[]) => void
 ) {
+  storeListeners.add(onUpdate);
+
+  // Initialize with local storage if available
+  const localSaved = loadFromLocalStorage(propertyId);
+  if (localSaved && localSaved.length > 0) {
+    inMemoryComplaintsStore = localSaved;
+    onUpdate(localSaved);
+  } else {
+    onUpdate(inMemoryComplaintsStore);
+  }
+
   try {
     const complaintsCol = collection(db, "properties", propertyId, "complaints");
     const q = query(complaintsCol);
 
-    return onSnapshot(
+    const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
         if (!snapshot.empty) {
@@ -107,31 +149,36 @@ export function subscribeToComplaints(
           );
 
           inMemoryComplaintsStore = list;
-          onUpdate(list);
+          saveToLocalStorage(propertyId, list);
+          notifyStoreListeners(list);
         } else {
           // If Firestore collection is empty, populate initial seeds
           INITIAL_COMPLAINTS.forEach((c) => {
-            setDoc(doc(db, "properties", propertyId, "complaints", c.id), c).catch(
+            setDoc(doc(db, "properties", propertyId, "complaints", c.id), sanitizeForFirestore(c)).catch(
               () => {}
             );
           });
-          onUpdate(INITIAL_COMPLAINTS);
         }
       },
       (error) => {
         console.warn("Firestore snapshot listener error, using in-memory:", error);
-        onUpdate(inMemoryComplaintsStore);
       }
     );
+
+    return () => {
+      storeListeners.delete(onUpdate);
+      unsubscribe();
+    };
   } catch (err) {
     console.warn("Firestore subscribe error fallback:", err);
-    onUpdate(inMemoryComplaintsStore);
-    return () => {};
+    return () => {
+      storeListeners.delete(onUpdate);
+    };
   }
 }
 
 /**
- * Create a new complaint record logged by tenant or property manager
+ * Create a new complaint record logged by resident or property manager
  */
 export async function createComplaintInFirestore(
   propertyId: string,
@@ -149,14 +196,19 @@ export async function createComplaintInFirestore(
     isRead: false,
   };
 
+  // Sanitize undefined fields to prevent Firestore setDoc crashes
+  const sanitizedDoc = sanitizeForFirestore(newComplaint);
+
   try {
     const docRef = doc(db, "properties", propertyId, "complaints", newId);
-    await setDoc(docRef, newComplaint);
+    await setDoc(docRef, sanitizedDoc);
   } catch (error) {
-    console.warn("Firestore create complaint error, fallback to memory:", error);
+    console.warn("Firestore create complaint error, fallback to local store:", error);
   }
 
-  inMemoryComplaintsStore.unshift(newComplaint);
+  inMemoryComplaintsStore = [newComplaint, ...inMemoryComplaintsStore];
+  saveToLocalStorage(propertyId, inMemoryComplaintsStore);
+  notifyStoreListeners(inMemoryComplaintsStore);
   
   // Future WhatsApp API Hook Trigger
   sendWhatsAppNotificationStub(newComplaint, "OPEN");
@@ -184,9 +236,9 @@ export async function updateComplaintStatusInFirestore(
 
   try {
     const docRef = doc(db, "properties", propertyId, "complaints", complaintId);
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeForFirestore(updates));
   } catch (error) {
-    console.warn("Firestore update complaint error, fallback to memory:", error);
+    console.warn("Firestore update complaint error, fallback to local store:", error);
   }
 
   const idx = inMemoryComplaintsStore.findIndex((c) => c.id === complaintId);
@@ -195,6 +247,9 @@ export async function updateComplaintStatusInFirestore(
       ...inMemoryComplaintsStore[idx],
       ...updates,
     };
+
+    saveToLocalStorage(propertyId, inMemoryComplaintsStore);
+    notifyStoreListeners(inMemoryComplaintsStore);
 
     // Trigger WhatsApp notification stub
     sendWhatsAppNotificationStub(inMemoryComplaintsStore[idx], newStatus);
@@ -221,6 +276,8 @@ export async function markComplaintAsReadInFirestore(
   const idx = inMemoryComplaintsStore.findIndex((c) => c.id === complaintId);
   if (idx !== -1) {
     inMemoryComplaintsStore[idx].isRead = isRead;
+    saveToLocalStorage(propertyId, inMemoryComplaintsStore);
+    notifyStoreListeners(inMemoryComplaintsStore);
   }
 
   return true;
@@ -241,6 +298,8 @@ export async function deleteComplaintInFirestore(
   }
 
   inMemoryComplaintsStore = inMemoryComplaintsStore.filter((c) => c.id !== complaintId);
+  saveToLocalStorage(propertyId, inMemoryComplaintsStore);
+  notifyStoreListeners(inMemoryComplaintsStore);
   return true;
 }
 
@@ -257,7 +316,6 @@ export function exportComplaintsCSV(complaints: Complaint[]) {
     "Title",
     "Description",
     "Status",
-    "Preferred Time",
     "Date Logged",
     "Resolution Notes",
   ];
@@ -271,7 +329,6 @@ export function exportComplaintsCSV(complaints: Complaint[]) {
     `"${c.title.replace(/"/g, '""')}"`,
     `"${c.description.replace(/"/g, '""')}"`,
     c.status,
-    `"${c.preferredTime || "N/A"}"`,
     new Date(c.createdAt).toLocaleString("en-IN"),
     `"${(c.resolutionNotes || "").replace(/"/g, '""')}"`,
   ]);
@@ -291,7 +348,6 @@ export function exportComplaintsCSV(complaints: Complaint[]) {
 
 /**
  * Future WhatsApp API Broadcast Stub
- * (Hook ready for WhatsApp Business API integration)
  */
 function sendWhatsAppNotificationStub(complaint: Complaint, actionStatus: string) {
   console.log(
