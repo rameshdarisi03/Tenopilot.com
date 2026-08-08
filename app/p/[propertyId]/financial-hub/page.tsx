@@ -339,7 +339,7 @@ export default function FinancialHubPage({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
+    <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
       {/* 256px Left Sidebar with 8 clean primary menus */}
       <PropertySidebar propertyId={propertyId} />
 
@@ -360,7 +360,7 @@ export default function FinancialHubPage({
             {/* Top Title & Controls Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-3">
-                <h1 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17]">
+                <h1 className="font-serif font-bold text-2xl md:text-3xl text-gray-900">
                   Financial Hub
                 </h1>
                 <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
@@ -369,8 +369,8 @@ export default function FinancialHubPage({
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] text-xs font-semibold text-[#201a17] shadow-2xs">
-                  <Calendar className="w-4 h-4 text-[#964407]" />
+                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs">
+                  <Calendar className="w-4 h-4 text-[#c2652a]" />
                   <span>This Month (Oct 2024)</span>
                 </div>
 
@@ -378,7 +378,7 @@ export default function FinancialHubPage({
                   <button
                     type="button"
                     onClick={() => setShowRecordDrawer(true)}
-                    className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> Record Expense
                   </button>
@@ -393,16 +393,16 @@ export default function FinancialHubPage({
                 onClick={() => setActiveTab("Operations")}
                 className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                   activeTab === "Operations"
-                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/20 shadow-md scale-[1.01]"
-                    : "bg-[#fff8f6] border-[#d7c2b9] hover:bg-white hover:border-gray-400"
+                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
+                    : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`p-2.5 rounded-xl transition-colors ${
                       activeTab === "Operations"
-                        ? "bg-[#964407] text-white"
-                        : "bg-orange-100 text-[#964407] group-hover:bg-[#964407] group-hover:text-white"
+                        ? "bg-[#c2652a] text-white"
+                        : "bg-orange-50 text-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white"
                     }`}
                   >
                     <Building2 className="w-5 h-5" />
@@ -410,16 +410,16 @@ export default function FinancialHubPage({
                   <div>
                     <h3
                       className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Operations" ? "text-[#964407]" : "text-[#201a17]"
+                        activeTab === "Operations" ? "text-[#c2652a]" : "text-gray-900"
                       }`}
                     >
                       Operations
                     </h3>
-                    <p className="text-[11px] text-[#554339]">Health & Task Tracking</p>
+                    <p className="text-[11px] text-gray-500">Health & Task Tracking</p>
                   </div>
                 </div>
                 {activeTab === "Operations" && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
                 )}
               </button>
 
@@ -428,16 +428,16 @@ export default function FinancialHubPage({
                 onClick={() => setActiveTab("Expenses")}
                 className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                   activeTab === "Expenses"
-                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/20 shadow-md scale-[1.01]"
-                    : "bg-[#fff8f6] border-[#d7c2b9] hover:bg-white hover:border-gray-400"
+                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
+                    : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`p-2.5 rounded-xl transition-colors ${
                       activeTab === "Expenses"
-                        ? "bg-[#964407] text-white"
-                        : "bg-emerald-100 text-emerald-800 group-hover:bg-[#964407] group-hover:text-white"
+                        ? "bg-[#c2652a] text-white"
+                        : "bg-emerald-100 text-emerald-800 group-hover:bg-[#c2652a] group-hover:text-white"
                     }`}
                   >
                     <Receipt className="w-5 h-5" />
@@ -445,16 +445,16 @@ export default function FinancialHubPage({
                   <div>
                     <h3
                       className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Expenses" ? "text-[#964407]" : "text-[#201a17]"
+                        activeTab === "Expenses" ? "text-[#c2652a]" : "text-gray-900"
                       }`}
                     >
                       Expenses Hub
                     </h3>
-                    <p className="text-[11px] text-[#554339]">Ledger, Recurring & Categories</p>
+                    <p className="text-[11px] text-gray-500">Ledger, Recurring & Categories</p>
                   </div>
                 </div>
                 {activeTab === "Expenses" && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
                 )}
               </button>
 
@@ -463,16 +463,16 @@ export default function FinancialHubPage({
                 onClick={() => setActiveTab("Partner Settlement")}
                 className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                   activeTab === "Partner Settlement"
-                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/20 shadow-md scale-[1.01]"
-                    : "bg-[#fff8f6] border-[#d7c2b9] hover:bg-white hover:border-gray-400"
+                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
+                    : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`p-2.5 rounded-xl transition-colors ${
                       activeTab === "Partner Settlement"
-                        ? "bg-[#964407] text-white"
-                        : "bg-purple-100 text-purple-700 group-hover:bg-[#964407] group-hover:text-white"
+                        ? "bg-[#c2652a] text-white"
+                        : "bg-purple-100 text-purple-700 group-hover:bg-[#c2652a] group-hover:text-white"
                     }`}
                   >
                     <Wallet className="w-5 h-5" />
@@ -480,16 +480,16 @@ export default function FinancialHubPage({
                   <div>
                     <h3
                       className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Partner Settlement" ? "text-[#964407]" : "text-[#201a17]"
+                        activeTab === "Partner Settlement" ? "text-[#c2652a]" : "text-gray-900"
                       }`}
                     >
                       Partner Settlement
                     </h3>
-                    <p className="text-[11px] text-[#554339]">Equity & Profit Share</p>
+                    <p className="text-[11px] text-gray-500">Equity & Profit Share</p>
                   </div>
                 </div>
                 {activeTab === "Partner Settlement" && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#964407] animate-pulse"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
                 )}
               </button>
             </div>
@@ -497,18 +497,18 @@ export default function FinancialHubPage({
 
           {/* TAB 1: OPERATIONS PLACEHOLDER */}
           {activeTab === "Operations" && (
-            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 text-center space-y-4 animate-in fade-in shadow-xs">
-              <div className="w-14 h-14 bg-orange-100 text-[#964407] rounded-2xl flex items-center justify-center mx-auto">
+            <div className="bg-white rounded-3xl border border-gray-200 p-8 text-center space-y-4 animate-in fade-in shadow-xs">
+              <div className="w-14 h-14 bg-orange-50 text-[#c2652a] rounded-2xl flex items-center justify-center mx-auto">
                 <Building2 className="w-7 h-7" />
               </div>
-              <h3 className="font-serif font-bold text-xl text-[#201a17]">
+              <h3 className="font-serif font-bold text-xl text-gray-900">
                 Financial Operations Workspace
               </h3>
-              <p className="text-xs text-[#554339] max-w-md mx-auto leading-relaxed font-medium">
+              <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed font-medium">
                 Operations sub-page workspace ready. In the next step, tell me how you'd like to structure operational KPI cards and pending tasks.
               </p>
               <div className="pt-2">
-                <span className="inline-block px-3 py-1 rounded-full bg-orange-50 text-[#964407] text-[10px] font-extrabold border border-orange-200 uppercase">
+                <span className="inline-block px-3 py-1 rounded-full bg-orange-50 text-[#c2652a] text-[10px] font-extrabold border border-orange-200 uppercase">
                   OPERATIONS SUB-PAGE READY 🟢
                 </span>
               </div>
@@ -521,13 +521,13 @@ export default function FinancialHubPage({
               {/* Top Bento Grid: Total Spent & Budget Weightages */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Main Summary Card */}
-                <div className="lg:col-span-8 bg-white border border-[#d7c2b9] p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
+                <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#554339] block">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
                       TOTAL SPENT THIS MONTH
                     </span>
                     <div className="flex items-baseline gap-4 mt-2">
-                      <h2 className="font-serif text-3xl md:text-4xl font-bold text-[#201a17]">
+                      <h2 className="font-serif text-3xl md:text-4xl font-bold text-gray-900">
                         ₹{totalSpent.toLocaleString("en-IN")}
                       </h2>
                       <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
@@ -536,26 +536,26 @@ export default function FinancialHubPage({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-[#f8ede3]">
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-gray-100">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                         HIGHEST CATEGORY
                       </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <Zap className="w-4 h-4 text-[#964407]" />
-                        <span className="font-serif font-bold text-base text-[#201a17]">
+                        <Zap className="w-4 h-4 text-[#c2652a]" />
+                        <span className="font-serif font-bold text-base text-gray-900">
                           {highestCat.category} (₹{highestCat.amount.toLocaleString("en-IN")})
                         </span>
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                         RECORDED TRANSACTIONS
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Receipt className="w-4 h-4 text-purple-700" />
-                        <span className="font-serif font-bold text-base text-[#201a17]">
+                        <span className="font-serif font-bold text-base text-gray-900">
                           {expenseList.length} Entries Logged
                         </span>
                       </div>
@@ -564,15 +564,15 @@ export default function FinancialHubPage({
                 </div>
 
                 {/* Category Weightage & Cost Breakdown Progress Card */}
-                <div className="lg:col-span-4 bg-white border border-[#d7c2b9] p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
-                  <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+                <div className="lg:col-span-4 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div>
-                      <h3 className="font-serif font-bold text-base text-[#201a17]">
+                      <h3 className="font-serif font-bold text-base text-gray-900">
                         Category Cost Weightage
                       </h3>
-                      <p className="text-[10px] text-[#554339] font-medium">% Share of total monthly spend</p>
+                      <p className="text-[10px] text-gray-500 font-medium">% Share of total monthly spend</p>
                     </div>
-                    <span className="text-[10px] font-bold text-[#964407] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 uppercase">
+                    <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 uppercase">
                       DYNAMIC
                     </span>
                   </div>
@@ -584,16 +584,16 @@ export default function FinancialHubPage({
                       categoryWeightages.map((cw, idx) => (
                         <div key={cw.category} className="space-y-1">
                           <div className="flex justify-between">
-                            <span className="text-[#554339]">{cw.category}</span>
-                            <span className="text-[#964407] font-mono">
+                            <span className="text-gray-600">{cw.category}</span>
+                            <span className="text-[#c2652a] font-mono">
                               ₹{cw.amount.toLocaleString("en-IN")} ({cw.percentage}%)
                             </span>
                           </div>
-                          <div className="h-2 w-full bg-[#f8ede3] rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${
                                 idx === 0
-                                  ? "bg-[#964407]"
+                                  ? "bg-[#c2652a]"
                                   : idx === 1
                                   ? "bg-emerald-600"
                                   : idx === 2
@@ -611,14 +611,14 @@ export default function FinancialHubPage({
               </div>
 
               {/* Expenses Sub-Tab Segment Switcher */}
-              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs max-w-md">
+              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white border border-gray-200 shadow-xs max-w-md">
                 <button
                   type="button"
                   onClick={() => setExpensesSubTab("LEDGER")}
                   className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
                     expensesSubTab === "LEDGER"
-                      ? "bg-[#964407] text-white shadow-xs"
-                      : "text-[#554339] hover:bg-[#fff8f6]"
+                      ? "bg-[#c2652a] text-white shadow-xs"
+                      : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
                   <Receipt className="w-4 h-4" /> Ledger & Recurring Bills
@@ -628,8 +628,8 @@ export default function FinancialHubPage({
                   onClick={() => setExpensesSubTab("CATEGORIES")}
                   className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
                     expensesSubTab === "CATEGORIES"
-                      ? "bg-[#964407] text-white shadow-xs"
-                      : "text-[#554339] hover:bg-[#fff8f6]"
+                      ? "bg-[#c2652a] text-white shadow-xs"
+                      : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
                   <Tag className="w-4 h-4" /> Category Customizer ({categories.length})
@@ -643,17 +643,17 @@ export default function FinancialHubPage({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-serif font-bold text-lg text-[#201a17]">
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
                       Recurring Bills & Utilities Summary
                     </h3>
-                    <span className="text-[10px] font-extrabold text-[#964407] bg-orange-100 px-2.5 py-0.5 rounded-full border border-orange-200">
+                    <span className="text-[10px] font-extrabold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
                       ↔️ Scrollable Row
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleOpenAddRecurringModal()}
-                    className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Bill Schedule
                   </button>
@@ -663,11 +663,11 @@ export default function FinancialHubPage({
                   {recurringBillsList.map((bill) => (
                     <div
                       key={bill.id}
-                      className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between shrink-0 w-72 sm:w-80 snap-start relative group"
+                      className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3 flex flex-col justify-between shrink-0 w-72 sm:w-80 snap-start relative group"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                          <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a]">
                             {bill.icon === "Droplet" ? (
                               <Droplet className="w-5 h-5" />
                             ) : bill.icon === "Users" ? (
@@ -683,8 +683,8 @@ export default function FinancialHubPage({
                             )}
                           </div>
                           <div>
-                            <h4 className="font-bold text-sm text-[#201a17]">{bill.title}</h4>
-                            <p className="text-[10px] text-[#554339] font-medium">{bill.dueDate}</p>
+                            <h4 className="font-bold text-sm text-gray-900">{bill.title}</h4>
+                            <p className="text-[10px] text-gray-500 font-medium">{bill.dueDate}</p>
                           </div>
                         </div>
 
@@ -699,7 +699,7 @@ export default function FinancialHubPage({
                       </div>
 
                       <div className="flex items-center justify-between pt-1">
-                        <span className="font-serif font-bold text-lg text-[#201a17]">
+                        <span className="font-serif font-bold text-lg text-gray-900">
                           ₹{bill.amount.toLocaleString("en-IN")}
                         </span>
                         <button
@@ -714,7 +714,7 @@ export default function FinancialHubPage({
                               saveNewDefault: false,
                             })
                           }
-                          className="text-[10px] font-extrabold text-white bg-[#964407] hover:bg-[#c2652a] px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                          className="text-[10px] font-extrabold text-white bg-[#c2652a] hover:bg-[#c2652a]/90 px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
                         >
                           + Log Payment
                         </button>
@@ -725,27 +725,27 @@ export default function FinancialHubPage({
                   {/* Add New Recurring Bill Action Dash Card */}
                   <div
                     onClick={() => handleOpenAddRecurringModal()}
-                    className="p-5 rounded-2xl border-2 border-dashed border-[#d7c2b9] bg-[#fff8f6] hover:bg-white hover:border-[#964407] transition-all cursor-pointer flex flex-col justify-center items-center text-center space-y-2 shrink-0 w-64 snap-start group min-h-[120px]"
+                    className="p-5 rounded-2xl border-2 border-dashed border-gray-300 bg-[#fcfcfc] hover:bg-white hover:border-[#c2652a] transition-all cursor-pointer flex flex-col justify-center items-center text-center space-y-2 shrink-0 w-64 snap-start group min-h-[120px]"
                   >
-                    <div className="p-3 rounded-full bg-orange-100 text-[#964407] group-hover:scale-110 transition-transform">
+                    <div className="p-3 rounded-full bg-orange-50 text-[#c2652a] group-hover:scale-110 transition-transform">
                       <Plus className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-xs text-[#201a17]">Add Recurring Bill</h4>
-                      <p className="text-[10px] text-[#554339]">Setup new monthly schedule</p>
+                      <h4 className="font-bold text-xs text-gray-900">Add Recurring Bill</h4>
+                      <p className="text-[10px] text-gray-500">Setup new monthly schedule</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Recent Expenses Detailed Table Section */}
-              <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[#f8ede3] pb-4">
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-4">
                   <div>
-                    <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                    <h3 className="font-serif font-bold text-xl text-gray-900">
                       Operational Expenses Ledger
                     </h3>
-                    <p className="text-xs text-[#554339]">
+                    <p className="text-xs text-gray-500">
                       Showing {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded expense transactions (Firebase Synced)
                     </p>
                   </div>
@@ -771,14 +771,14 @@ export default function FinancialHubPage({
 
                     {/* Category Filter Pills */}
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                      <span className="text-[#554339] font-bold flex items-center gap-1">
+                      <span className="text-gray-500 font-bold flex items-center gap-1">
                         <Filter className="w-3.5 h-3.5" /> Filter:
                       </span>
                       <button
                         onClick={() => setSelectedCategoryFilter("ALL")}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
                           selectedCategoryFilter === "ALL"
-                            ? "bg-[#964407] text-white shadow-xs"
+                            ? "bg-[#c2652a] text-white shadow-xs"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
@@ -790,7 +790,7 @@ export default function FinancialHubPage({
                           onClick={() => setSelectedCategoryFilter(c.name)}
                           className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
                             selectedCategoryFilter === c.name
-                              ? "bg-[#964407] text-white shadow-xs"
+                              ? "bg-[#c2652a] text-white shadow-xs"
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                           }`}
                         >
@@ -805,7 +805,7 @@ export default function FinancialHubPage({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-[#f8ede3] text-[10px] uppercase tracking-wider text-[#554339] font-bold bg-[#fff8f6]">
+                      <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
                         <th className="py-3 px-4 font-bold">DATE</th>
                         <th className="py-3 px-4 font-bold">CATEGORY</th>
                         <th className="py-3 px-4 font-bold">PAID BY</th>
@@ -815,28 +815,28 @@ export default function FinancialHubPage({
                         <th className="py-3 px-4 font-bold text-right">ACTIONS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#f8ede3]">
+                    <tbody className="divide-y divide-gray-100">
                       {expenseList
                         .filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter)
                         .map((exp) => (
-                          <tr key={exp.id} className="hover:bg-[#fff8f6]/60 transition-colors">
-                            <td className="py-4 px-4 text-[#554339] font-medium">{exp.date}</td>
-                            <td className="py-4 px-4 font-bold text-[#201a17] flex items-center gap-2">
-                              <span className="p-1.5 rounded-lg bg-orange-100 text-[#964407]">
+                          <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="py-4 px-4 text-gray-500 font-medium">{exp.date}</td>
+                            <td className="py-4 px-4 font-bold text-gray-900 flex items-center gap-2">
+                              <span className="p-1.5 rounded-lg bg-orange-50 text-[#c2652a]">
                                 <Receipt className="w-3.5 h-3.5" />
                               </span>
                               {exp.category}
                             </td>
                             <td className="py-4 px-4">
-                              <span className="font-semibold text-[#201a17] flex items-center gap-1.5">
-                                <span className="w-5 h-5 rounded-full bg-[#964407] text-white text-[9px] font-bold flex items-center justify-center">
+                              <span className="font-semibold text-gray-900 flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-[#c2652a] text-white text-[9px] font-bold flex items-center justify-center">
                                   {exp.paidFrom.charAt(0)}
                                 </span>
                                 {exp.paidFrom}
                               </span>
                             </td>
-                            <td className="py-4 px-4 text-[#554339]">{exp.property}</td>
-                            <td className="py-4 px-4 font-mono font-bold text-base text-[#201a17]">
+                            <td className="py-4 px-4 text-gray-500">{exp.property}</td>
+                            <td className="py-4 px-4 font-mono font-bold text-base text-gray-900">
                               ₹{exp.amount.toLocaleString("en-IN")}
                             </td>
                             <td className="py-4 px-4">
@@ -868,20 +868,20 @@ export default function FinancialHubPage({
                   </table>
                 </div>
               </div>
-              </div>
-              )}
+            </div>
+          )}
 
               {/* VIEW 2: CATEGORY CUSTOMIZER & 100+ ICONS */}
               {expensesSubTab === "CATEGORIES" && (
                 <div className="space-y-8 animate-in fade-in">
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     {/* Left Column: Color & Icon Category Creator Form */}
-                    <div className="lg:col-span-5 bg-white rounded-3xl border border-[#d7c2b9] p-6 sm:p-8 shadow-xs space-y-6">
+                    <div className="lg:col-span-5 bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6">
                       <div>
-                        <h3 className="font-serif font-bold text-xl text-[#201a17] flex items-center gap-2">
-                          <Tag className="w-5 h-5 text-[#964407]" /> Custom Category Creator
+                        <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                          <Tag className="w-5 h-5 text-[#c2652a]" /> Custom Category Creator
                         </h3>
-                        <p className="text-xs text-[#554339] mt-1">
+                        <p className="text-xs text-gray-500 mt-1">
                           Add new operational expense categories with custom theme colors and icons
                         </p>
                       </div>
@@ -897,14 +897,14 @@ export default function FinancialHubPage({
                             value={catNameInput}
                             onChange={(e) => setCatNameInput(e.target.value)}
                             placeholder="e.g. Generator Fuel, Pest Control"
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </div>
 
                         {/* Color Swatch Picker */}
                         <div>
                           <label className="block font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-                            <Palette className="w-3.5 h-3.5 text-[#964407]" /> Select Theme Color *
+                            <Palette className="w-3.5 h-3.5 text-[#c2652a]" /> Select Theme Color *
                           </label>
                           <div className="flex flex-wrap gap-2.5">
                             {COLOR_SWATCHES.map((swatch) => (
@@ -914,7 +914,7 @@ export default function FinancialHubPage({
                                 onClick={() => setSelectedColor(swatch.hex)}
                                 className={`w-8 h-8 rounded-full transition-all flex items-center justify-center cursor-pointer ${
                                   selectedColor === swatch.hex
-                                    ? "ring-2 ring-offset-2 ring-[#964407] scale-110 shadow-sm"
+                                    ? "ring-2 ring-offset-2 ring-[#c2652a] scale-110 shadow-sm"
                                     : "hover:scale-105 opacity-80 hover:opacity-100"
                                 }`}
                                 style={{ backgroundColor: swatch.hex }}
@@ -934,7 +934,7 @@ export default function FinancialHubPage({
                             <label className="block font-bold text-gray-900">
                               Select Business Icon (100+ Library) *
                             </label>
-                            <span className="text-[10px] font-bold text-[#964407] bg-orange-100 px-2 py-0.5 rounded-full">
+                            <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
                               Selected: {selectedIcon}
                             </span>
                           </div>
@@ -948,7 +948,7 @@ export default function FinancialHubPage({
                                 onClick={() => setSelectedIconGroupTab(group.category)}
                                 className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all cursor-pointer ${
                                   selectedIconGroupTab === group.category
-                                    ? "bg-[#964407] text-white shadow-xs"
+                                    ? "bg-[#c2652a] text-white shadow-xs"
                                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 }`}
                               >
@@ -968,7 +968,7 @@ export default function FinancialHubPage({
                                 onClick={() => setSelectedIcon(iconOpt.name)}
                                 className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
                                   selectedIcon === iconOpt.name
-                                    ? "bg-white border-[#964407] ring-2 ring-[#964407]/30 text-[#964407] font-bold shadow-xs scale-105"
+                                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/30 text-[#c2652a] font-bold shadow-xs scale-105"
                                     : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
                                 }`}
                               >
@@ -986,7 +986,7 @@ export default function FinancialHubPage({
 
                         <button
                           type="submit"
-                          className="w-full py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
+                          className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
                         >
                           + Save Category to System
                         </button>
@@ -997,10 +997,10 @@ export default function FinancialHubPage({
                     <div className="lg:col-span-7 space-y-4">
                       <div className="flex justify-between items-center">
                         <div>
-                          <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                          <h3 className="font-serif font-bold text-xl text-gray-900">
                             Active Categories Directory ({categories.length})
                           </h3>
-                          <p className="text-xs text-[#554339]">
+                          <p className="text-xs text-gray-500">
                             All operational building categories currently included in your ledger
                           </p>
                         </div>
@@ -1014,13 +1014,13 @@ export default function FinancialHubPage({
                           return (
                             <div
                               key={cat.id}
-                              className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs space-y-3 flex flex-col justify-between"
+                              className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3 flex flex-col justify-between"
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <div
                                     className="p-2.5 rounded-xl text-white font-bold shadow-xs flex items-center justify-center shrink-0"
-                                    style={{ backgroundColor: cat.color || "#964407" }}
+                                    style={{ backgroundColor: cat.color || "#c2652a" }}
                                   >
                                     <RenderDynamicCategoryIcon
                                       iconName={cat.icon}
@@ -1028,8 +1028,8 @@ export default function FinancialHubPage({
                                     />
                                   </div>
                                   <div>
-                                    <h4 className="font-bold text-sm text-[#201a17]">{cat.name}</h4>
-                                    <p className="text-[10px] text-[#554339]">
+                                    <h4 className="font-bold text-sm text-gray-900">{cat.name}</h4>
+                                    <p className="text-[10px] text-gray-500">
                                       {catExpenses.length} Logged Transactions
                                     </p>
                                   </div>
@@ -1045,9 +1045,9 @@ export default function FinancialHubPage({
                                 </button>
                               </div>
 
-                              <div className="border-t border-[#f8ede3] pt-2 flex justify-between items-center">
-                                <span className="text-[10px] text-[#554339] font-medium">Total Spend</span>
-                                <span className="font-mono font-bold text-[#964407] text-base">
+                              <div className="border-t border-gray-100 pt-2 flex justify-between items-center">
+                                <span className="text-[10px] text-gray-500 font-medium">Total Spend</span>
+                                <span className="font-mono font-bold text-[#c2652a] text-base">
                                   ₹{catTotal.toLocaleString("en-IN")}
                                 </span>
                               </div>
@@ -1096,7 +1096,7 @@ export default function FinancialHubPage({
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500 font-bold">Amount:</span>
-                        <span className="font-mono font-bold text-base text-[#964407]">
+                        <span className="font-mono font-bold text-base text-[#c2652a]">
                           ₹{activeReceiptModal.amount.toLocaleString("en-IN")}
                         </span>
                       </div>
@@ -1137,7 +1137,7 @@ export default function FinancialHubPage({
                     <div className="flex items-center justify-between border-b border-gray-100 pb-4">
                       <div>
                         <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
-                          <Receipt className="w-5 h-5 text-[#964407]" /> Record Operational Expense
+                          <Receipt className="w-5 h-5 text-[#c2652a]" /> Record Operational Expense
                         </h3>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Log building costs, utility bills, or staff salaries in seconds
@@ -1167,7 +1167,7 @@ export default function FinancialHubPage({
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             placeholder="Enter expense amount"
-                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </div>
                       </div>
@@ -1181,7 +1181,7 @@ export default function FinancialHubPage({
                             <button
                               type="button"
                               onClick={() => setIsAddingNewCategory(!isAddingNewCategory)}
-                              className="text-[11px] font-bold text-[#964407] hover:underline cursor-pointer"
+                              className="text-[11px] font-bold text-[#c2652a] hover:underline cursor-pointer"
                             >
                               {isAddingNewCategory ? "← Back to select" : "+ New Category"}
                             </button>
@@ -1194,12 +1194,12 @@ export default function FinancialHubPage({
                                 value={newCategoryInput}
                                 onChange={(e) => setNewCategoryInput(e.target.value)}
                                 placeholder="Category name (e.g. Generator Fuel)"
-                                className="w-full px-3 py-2 rounded-xl border border-[#964407] bg-[#fff8f6] text-xs font-bold text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                                className="w-full px-3 py-2 rounded-xl border border-[#c2652a] bg-orange-50/40 text-xs font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                               />
                               <button
                                 type="button"
                                 onClick={handleCreateInlineCategory}
-                                className="px-3 py-2 rounded-xl bg-[#964407] text-white font-bold text-xs shrink-0 cursor-pointer hover:bg-[#c2652a] shadow-xs"
+                                className="px-3 py-2 rounded-xl bg-[#c2652a] text-white font-bold text-xs shrink-0 cursor-pointer hover:bg-[#c2652a]/90 shadow-xs"
                               >
                                 Save
                               </button>
@@ -1208,14 +1208,14 @@ export default function FinancialHubPage({
                             <div className="relative">
                               <div
                                 onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 cursor-pointer flex items-center justify-between hover:border-[#964407] transition-all"
+                                className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 cursor-pointer flex items-center justify-between hover:border-[#c2652a] transition-all"
                               >
                                 <div className="flex items-center gap-2">
                                   <div
                                     className="p-1 rounded-lg text-white font-bold flex items-center justify-center shrink-0"
                                     style={{
                                       backgroundColor:
-                                        categories.find((c) => c.name === category)?.color || "#964407",
+                                        categories.find((c) => c.name === category)?.color || "#c2652a",
                                     }}
                                   >
                                     <RenderDynamicCategoryIcon
@@ -1239,13 +1239,13 @@ export default function FinancialHubPage({
                                         setCategory(cat.name);
                                         setIsCategoryDropdownOpen(false);
                                       }}
-                                      className={`p-2 rounded-xl flex items-center gap-2.5 cursor-pointer hover:bg-[#fff8f6] transition-colors ${
-                                        category === cat.name ? "bg-[#fff8f6] font-bold border border-[#964407]/30" : ""
+                                      className={`p-2 rounded-xl flex items-center gap-2.5 cursor-pointer hover:bg-orange-50 transition-colors ${
+                                        category === cat.name ? "bg-orange-50 font-bold border border-[#c2652a]/30" : ""
                                       }`}
                                     >
                                       <div
                                         className="p-1.5 rounded-lg text-white font-bold flex items-center justify-center shrink-0"
-                                        style={{ backgroundColor: cat.color || "#964407" }}
+                                        style={{ backgroundColor: cat.color || "#c2652a" }}
                                       >
                                         <RenderDynamicCategoryIcon iconName={cat.icon} className="w-3.5 h-3.5 text-white" />
                                       </div>
@@ -1257,7 +1257,7 @@ export default function FinancialHubPage({
                                       setIsAddingNewCategory(true);
                                       setIsCategoryDropdownOpen(false);
                                     }}
-                                    className="p-2 rounded-xl flex items-center gap-2 cursor-pointer hover:bg-orange-100 text-[#964407] font-bold border-t border-gray-100 text-xs"
+                                    className="p-2 rounded-xl flex items-center gap-2 cursor-pointer hover:bg-orange-100 text-[#c2652a] font-bold border-t border-gray-100 text-xs"
                                   >
                                     <span>+ Add Custom Category...</span>
                                   </div>
@@ -1274,7 +1274,7 @@ export default function FinancialHubPage({
                           <select
                             value={paidFrom}
                             onChange={(e) => setPaidFrom(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                           >
                             {paymentAccounts.map((acc) => (
                               <option key={acc.id} value={acc.name}>
@@ -1289,8 +1289,8 @@ export default function FinancialHubPage({
                         <label className="block font-bold text-gray-900 mb-1">
                           Receipt Attachment (Optional)
                         </label>
-                        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 cursor-pointer hover:border-[#964407] transition-colors">
-                          <Upload className="w-5 h-5 text-[#964407] mx-auto mb-1" />
+                        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 cursor-pointer hover:border-[#c2652a] transition-colors">
+                          <Upload className="w-5 h-5 text-[#c2652a] mx-auto mb-1" />
                           <span className="font-bold text-gray-900 block text-xs">
                             Click to upload receipt
                           </span>
@@ -1309,7 +1309,7 @@ export default function FinancialHubPage({
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           placeholder="Add details (vendor name, invoice number, etc)..."
-                          className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         ></textarea>
                       </div>
 
@@ -1323,7 +1323,7 @@ export default function FinancialHubPage({
                         </button>
                         <button
                           type="submit"
-                          className="flex-1 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+                          className="flex-1 py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
                         >
                           Save Expense
                         </button>
@@ -1346,7 +1346,7 @@ export default function FinancialHubPage({
                     <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                       <div>
                         <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                          <CheckCircle2 className="w-5 h-5 text-[#964407]" /> Confirm Recurring Bill Payment
+                          <CheckCircle2 className="w-5 h-5 text-[#c2652a]" /> Confirm Recurring Bill Payment
                         </h3>
                         <p className="text-[11px] text-gray-500 mt-0.5">
                           Review and confirm logging this monthly operational bill
@@ -1361,7 +1361,7 @@ export default function FinancialHubPage({
                       </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] space-y-3">
+                    <div className="p-4 rounded-2xl bg-orange-50/40 border border-orange-200 space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-gray-500">Bill Category:</span>
                         <span className="font-bold text-gray-900 text-sm">{recurringModal.category}</span>
@@ -1372,7 +1372,7 @@ export default function FinancialHubPage({
                           <label className="font-bold text-gray-900">
                             Payment Amount (₹) *
                           </label>
-                          <span className="text-[10px] font-semibold text-[#964407]">
+                          <span className="text-[10px] font-semibold text-[#c2652a]">
                             ✏️ Editable (Price Increase/Discount)
                           </span>
                         </div>
@@ -1391,7 +1391,7 @@ export default function FinancialHubPage({
                               })
                             }
                             placeholder="Enter payment amount"
-                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-[#964407] bg-white font-mono font-bold text-base text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-[#c2652a] bg-white font-mono font-bold text-base text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </div>
                       </div>
@@ -1407,7 +1407,7 @@ export default function FinancialHubPage({
                                 saveNewDefault: e.target.checked,
                               })
                             }
-                            className="w-4 h-4 rounded text-[#964407] focus:ring-[#964407]"
+                            className="w-4 h-4 rounded text-[#c2652a] focus:ring-[#c2652a]"
                           />
                           <span className="text-[11px] font-semibold text-gray-700">
                             Save ₹{recurringModal.amount.toLocaleString("en-IN")} as new default amount for future months
@@ -1426,7 +1426,7 @@ export default function FinancialHubPage({
                           onChange={(e) =>
                             setRecurringModal({ ...recurringModal, paidFrom: e.target.value })
                           }
-                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         >
                           {paymentAccounts.map((acc) => (
                             <option key={acc.id} value={acc.name}>
@@ -1447,7 +1447,7 @@ export default function FinancialHubPage({
                             setRecurringModal({ ...recurringModal, notes: e.target.value })
                           }
                           placeholder="Reference / invoice note..."
-                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
                     </div>
@@ -1463,7 +1463,7 @@ export default function FinancialHubPage({
                       <button
                         type="button"
                         onClick={handleConfirmRecurringBill}
-                        className="flex-1 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                        className="flex-1 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                       >
                         Confirm & Log Payment
                       </button>
@@ -1482,32 +1482,32 @@ export default function FinancialHubPage({
               {/* Stat Cards Grid (4 Cards matching screenshot) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Stat Card 1 */}
-                <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       Total Rent Collected
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                       <Wallet className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">₹8,00,000</p>
+                  <p className="font-serif font-bold text-2xl text-gray-900">₹8,00,000</p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
                     <ArrowUpRight className="w-3.5 h-3.5" /> 6.2% vs Sep 2024
                   </p>
                 </div>
 
                 {/* Stat Card 2 */}
-                <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       Total Expenses
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">
                       <Receipt className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">
+                  <p className="font-serif font-bold text-2xl text-gray-900">
                     ₹{totalSpent.toLocaleString("en-IN")}
                   </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
@@ -1516,16 +1516,16 @@ export default function FinancialHubPage({
                 </div>
 
                 {/* Stat Card 3 */}
-                <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       Net Profit
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
                       <TrendingUp className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">
+                  <p className="font-serif font-bold text-2xl text-gray-900">
                     ₹{(800000 - totalSpent).toLocaleString("en-IN")}
                   </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
@@ -1534,16 +1534,16 @@ export default function FinancialHubPage({
                 </div>
 
                 {/* Stat Card 4 */}
-                <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
+                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       Profit Margin
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
                       <Building2 className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-[#201a17]">
+                  <p className="font-serif font-bold text-2xl text-gray-900">
                     {(((800000 - totalSpent) / 800000) * 100).toFixed(1)}%
                   </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
@@ -1553,14 +1553,14 @@ export default function FinancialHubPage({
               </div>
 
               {/* Partner Settlement Overview Table Section */}
-              <div className="bg-white rounded-2xl border border-[#d7c2b9] p-6 shadow-xs">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-serif font-bold text-lg text-[#201a17]">
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
                     Partner Settlement Overview
                   </h3>
                   <a
                     href="#report"
-                    className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1"
+                    className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1"
                   >
                     View Full Report →
                   </a>
@@ -1569,7 +1569,7 @@ export default function FinancialHubPage({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-[#f8ede3] text-[10px] uppercase tracking-wider text-[#554339] font-bold">
+                      <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold">
                         <th className="pb-3 font-bold">Partner</th>
                         <th className="pb-3 font-bold">Ownership %</th>
                         <th className="pb-3 font-bold">Paid Out-Of-Pocket (This Month)</th>
@@ -1578,7 +1578,7 @@ export default function FinancialHubPage({
                         <th className="pb-3 font-bold text-right">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#f8ede3]">
+                    <tbody className="divide-y divide-gray-100">
                       {partners.map((p) => {
                         const totalNetProfit = 800000 - totalSpent;
                         const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
@@ -1587,18 +1587,18 @@ export default function FinancialHubPage({
 
                         return (
                           <tr key={p.id}>
-                            <td className="py-4 font-bold flex items-center gap-2 text-[#201a17]">
+                            <td className="py-4 font-bold flex items-center gap-2 text-gray-900">
                               <span
                                 className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-bold"
-                                style={{ backgroundColor: p.color || "#964407" }}
+                                style={{ backgroundColor: p.color || "#c2652a" }}
                               >
                                 {p.name.charAt(0)}
                               </span>
                               {p.name}
                             </td>
-                            <td className="py-4 text-[#554339] font-bold">{p.ownershipPercentage}%</td>
-                            <td className="py-4 text-[#554339] font-mono font-semibold">₹{actualPaid.toLocaleString("en-IN")}</td>
-                            <td className="py-4 font-mono font-bold text-[#201a17]">₹{profitShare.toLocaleString("en-IN")}</td>
+                            <td className="py-4 text-gray-500 font-bold">{p.ownershipPercentage}%</td>
+                            <td className="py-4 text-gray-500 font-mono font-semibold">₹{actualPaid.toLocaleString("en-IN")}</td>
+                            <td className="py-4 font-mono font-bold text-gray-900">₹{profitShare.toLocaleString("en-IN")}</td>
                             <td className={`py-4 font-mono font-bold ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
                               {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
                             </td>
@@ -1618,16 +1618,16 @@ export default function FinancialHubPage({
               </div>
 
               {/* Quick Expense Hub Reference Banner */}
-              <div className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-orange-100 text-[#964407]">
+                  <div className="p-3 rounded-xl bg-orange-50 text-[#c2652a]">
                     <Receipt className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="font-serif font-bold text-base text-[#201a17]">
+                    <h4 className="font-serif font-bold text-base text-gray-900">
                       Operational Expenses Ledger & Receipts
                     </h4>
-                    <p className="text-xs text-[#554339]">
+                    <p className="text-xs text-gray-500">
                       View, log, filter, and audit detailed building operational costs in the Central Expenses Hub.
                     </p>
                   </div>
@@ -1636,7 +1636,7 @@ export default function FinancialHubPage({
                 <button
                   type="button"
                   onClick={() => setActiveTab("Expenses")}
-                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                  className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
                 >
                   Open Expenses Hub →
                 </button>
@@ -1665,14 +1665,14 @@ export default function FinancialHubPage({
               )}
 
               {/* Partner Ownership Settings Reference Card */}
-              <div className="bg-white rounded-2xl border border-[#d7c2b9] p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-[#f8ede3]">
-                  <h4 className="font-serif font-bold text-sm text-[#201a17] flex items-center gap-2">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <h4 className="font-serif font-bold text-sm text-gray-900 flex items-center gap-2">
                     Partner Ownership & Ratios
                   </h4>
                   <Link
                     href={`/p/${propertyId}/settings`}
-                    className="text-[#964407] font-bold text-xs hover:underline flex items-center gap-1"
+                    className="text-[#c2652a] font-bold text-xs hover:underline flex items-center gap-1"
                   >
                     <Settings className="w-3.5 h-3.5" /> Manage in Settings ⚙️
                   </Link>
@@ -1681,27 +1681,27 @@ export default function FinancialHubPage({
                 <div className="space-y-3 text-xs">
                   {partners.map((p) => (
                     <div key={p.id} className="flex justify-between items-center">
-                      <span className="flex items-center gap-2 font-bold text-[#201a17]">
+                      <span className="flex items-center gap-2 font-bold text-gray-900">
                         <span
                           className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[9px] font-bold"
-                          style={{ backgroundColor: p.color || "#964407" }}
+                          style={{ backgroundColor: p.color || "#c2652a" }}
                         >
                           {p.name.charAt(0)}
                         </span>
                         {p.name}
                       </span>
-                      <span className="font-mono font-bold text-[#554339]">{p.ownershipPercentage}%</span>
+                      <span className="font-mono font-bold text-gray-500">{p.ownershipPercentage}%</span>
                     </div>
                   ))}
                 </div>
 
-                <div className="border-t border-[#f8ede3] pt-3 flex justify-between items-center text-xs font-bold text-[#201a17]">
+                <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-xs font-bold text-gray-900">
                   <span>Total Ownership</span>
                   <span className="font-mono">{partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%</span>
                 </div>
 
-                <p className="text-[10px] text-[#554339] italic pt-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-[#554339]" /> Fully editable from Settings page. Settlement updates in real-time.
+                <p className="text-[10px] text-gray-500 italic pt-1 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-gray-500" /> Fully editable from Settings page. Settlement updates in real-time.
                 </p>
               </div>
             </div>
@@ -1724,7 +1724,7 @@ export default function FinancialHubPage({
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-[#964407]" />
+                  <Clock className="w-5 h-5 text-[#c2652a]" />
                   {editingBillId ? "Edit Recurring Bill Schedule" : "Add Recurring Bill Schedule"}
                 </h3>
                 <p className="text-[11px] text-gray-500 mt-0.5">
@@ -1751,7 +1751,7 @@ export default function FinancialHubPage({
                   value={recTitle}
                   onChange={(e) => setRecTitle(e.target.value)}
                   placeholder="e.g. Elevator Maintenance AMC"
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                 />
               </div>
 
@@ -1763,7 +1763,7 @@ export default function FinancialHubPage({
                   <select
                     value={recCategory}
                     onChange={(e) => setRecCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.name}>
@@ -1783,7 +1783,7 @@ export default function FinancialHubPage({
                     value={recAmount}
                     onChange={(e) => setRecAmount(e.target.value)}
                     placeholder="e.g. 4500"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>
               </div>
@@ -1796,7 +1796,7 @@ export default function FinancialHubPage({
                   <select
                     value={recDueDate}
                     onChange={(e) => setRecDueDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   >
                     <option value="Monthly • 1st">Monthly • 1st</option>
                     <option value="Fixed • 5th">Fixed • 5th</option>
@@ -1812,7 +1812,7 @@ export default function FinancialHubPage({
                   <select
                     value={recPaidFrom}
                     onChange={(e) => setRecPaidFrom(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   >
                     {paymentAccounts.map((acc) => (
                       <option key={acc.id} value={acc.name}>
@@ -1832,7 +1832,7 @@ export default function FinancialHubPage({
                   value={recNotes}
                   onChange={(e) => setRecNotes(e.target.value)}
                   placeholder="e.g. Schindler Elevator Service Contract"
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                 />
               </div>
 
@@ -1846,7 +1846,7 @@ export default function FinancialHubPage({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
                   {editingBillId ? "Save Changes" : "Create Schedule"}
                 </button>
@@ -1885,7 +1885,7 @@ export default function FinancialHubPage({
             </div>
 
             {/* Create Category Input inside Modal */}
-            <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] space-y-2">
+            <div className="p-4 rounded-2xl bg-orange-50/40 border border-orange-200 space-y-2">
               <label className="block font-bold text-gray-900">
                 + Create New Expense Category
               </label>
@@ -1895,12 +1895,12 @@ export default function FinancialHubPage({
                   value={newCategoryInput}
                   onChange={(e) => setNewCategoryInput(e.target.value)}
                   placeholder="Enter category (e.g. Pest Control)"
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                 />
                 <button
                   type="button"
                   onClick={handleCreateInlineCategory}
-                  className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs"
                 >
                   Add Category
                 </button>
@@ -1919,7 +1919,7 @@ export default function FinancialHubPage({
                     className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-orange-100 text-[#964407] font-bold">
+                      <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a] font-bold">
                         <Receipt className="w-4 h-4" />
                       </div>
                       <div>
@@ -1930,7 +1930,7 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="font-mono font-bold text-sm text-[#964407]">
+                      <span className="font-mono font-bold text-sm text-[#c2652a]">
                         ₹{catTotal.toLocaleString("en-IN")}
                       </span>
                     </div>
@@ -1955,7 +1955,7 @@ export default function FinancialHubPage({
       {/* Floating Luxury Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="bg-[#201a17] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-[#964407]/40 flex items-center gap-3 max-w-md text-xs font-bold">
+          <div className="bg-[#201a17] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-[#c2652a]/40 flex items-center gap-3 max-w-md text-xs font-bold">
             <span className="shrink-0">{toastMessage}</span>
             <button
               type="button"
