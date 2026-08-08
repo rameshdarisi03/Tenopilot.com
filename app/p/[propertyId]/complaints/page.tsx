@@ -12,6 +12,7 @@ import {
   markComplaintAsReadInFirestore,
   deleteComplaintInFirestore,
   exportComplaintsCSV,
+  buildComplaintWhatsAppUrl,
 } from "@/lib/complaintStore";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { QRCodeSVG } from "qrcode.react";
@@ -153,19 +154,34 @@ export default function AdminComplaintsPage({
       newStatus,
       notes
     );
-    triggerToast(`Ticket ${statusModalTicket.complaintNumber} updated to ${newStatus}`);
+
+    // Auto-open WhatsApp wa.me pre-filled redirect link for resident
+    const waUrl = buildComplaintWhatsAppUrl(statusModalTicket, newStatus, notes);
+    if (typeof window !== "undefined") {
+      window.open(waUrl, "_blank");
+    }
+
+    triggerToast(`Ticket ${statusModalTicket.complaintNumber} updated to ${newStatus} & WhatsApp alert prepared!`);
     setStatusModalTicket(null);
   };
 
   const handleConfirmResolve = async () => {
     if (!resolveModalTicket) return;
+    const finalNotes = resolutionInput || "Resolved by property manager.";
     await updateComplaintStatusInFirestore(
       propertyId,
       resolveModalTicket.id,
       "RESOLVED",
-      resolutionInput || "Resolved by property manager."
+      finalNotes
     );
-    triggerToast(`Ticket ${resolveModalTicket.complaintNumber} marked as RESOLVED!`);
+
+    // Auto-open WhatsApp wa.me pre-filled redirect link for resident
+    const waUrl = buildComplaintWhatsAppUrl(resolveModalTicket, "RESOLVED", finalNotes);
+    if (typeof window !== "undefined") {
+      window.open(waUrl, "_blank");
+    }
+
+    triggerToast(`Ticket ${resolveModalTicket.complaintNumber} marked as RESOLVED & WhatsApp alert prepared!`);
     setResolveModalTicket(null);
     setResolutionInput("");
   };
@@ -558,6 +574,17 @@ export default function AdminComplaintsPage({
                       </div>
 
                       <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <a
+                          href={buildComplaintWhatsAppUrl(c)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                          title="Send status notification via WhatsApp"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>WhatsApp</span>
+                        </a>
+
                         <button
                           type="button"
                           onClick={() => setStatusModalTicket(c)}

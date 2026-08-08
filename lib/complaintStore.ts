@@ -347,6 +347,35 @@ export function exportComplaintsCSV(complaints: Complaint[]) {
 }
 
 /**
+ * Helper to construct WhatsApp Direct wa.me URL for resident status notification
+ */
+export function buildComplaintWhatsAppUrl(complaint: Complaint, customStatus?: string, customNotes?: string): string {
+  const cleanDigits = complaint.tenantPhone.replace(/\D/g, "");
+  const formattedPhone = cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits;
+  
+  const statusText = customStatus || complaint.status;
+  const statusEmoji = statusText === "RESOLVED" ? "🟢" : statusText === "IN_PROGRESS" ? "🟡" : statusText === "REJECTED" ? "⚪" : "🔴";
+  
+  const notesText = customNotes !== undefined ? customNotes : complaint.resolutionNotes;
+
+  const message = `Hello ${complaint.tenantName},
+
+Your maintenance request for Sahara PG has been updated:
+
+🎫 *Ticket ID*: ${complaint.complaintNumber}
+🏠 *Room Location*: ${complaint.roomNumber}
+🔧 *Category*: ${complaint.category}
+📝 *Title*: ${complaint.title}
+
+📌 *Current Status*: ${statusEmoji} *${statusText.replace("_", " ")}*${notesText ? `\n💬 *Management Note*: ${notesText}` : ""}
+
+Thank you,
+Sahara PG Management`;
+
+  return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+/**
  * Future WhatsApp API Broadcast Stub
  */
 function sendWhatsAppNotificationStub(complaint: Complaint, actionStatus: string) {
@@ -360,3 +389,4 @@ function sendWhatsAppNotificationStub(complaint: Complaint, actionStatus: string
     }
   );
 }
+
