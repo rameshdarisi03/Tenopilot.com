@@ -14,6 +14,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("admin@gmail.com");
@@ -207,6 +209,11 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+        </div>
+
+        {/* 1-Click PWA App Installation & QR Code Card */}
+        <div className="mt-10 max-w-4xl mx-auto w-full">
+          <PWAInstallBanner />
         </div>
       </main>
 

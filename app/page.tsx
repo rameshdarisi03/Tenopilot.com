@@ -21,6 +21,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { LandingPageClient } from "@/components/LandingPageClient";
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 
 export default function Home() {
   const faqData = [
@@ -134,7 +135,10 @@ export default function Home() {
             </a>
           </div>
 
-          {/* Device Mockup Composition */}
+          {/* 1-Click PWA Installation & QR Code Hero Card */}
+          <div className="max-w-4xl mx-auto mb-12">
+            <PWAInstallBanner />
+          </div>
           <div className="relative max-w-5xl mx-auto mt-12 px-2 sm:px-0">
             {/* Desktop Browser Frame */}
             <div className="relative z-0 rounded-2xl overflow-hidden border border-[#d7c2b9] bg-white shadow-2xl transition-transform duration-700 hover:scale-[1.005]">
