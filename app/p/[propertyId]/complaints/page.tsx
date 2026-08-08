@@ -560,18 +560,6 @@ export default function AdminComplaintsPage({
                       <div className="flex items-center gap-2 self-end sm:self-auto">
                         <button
                           type="button"
-                          onClick={() => handleToggleRead(c)}
-                          className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
-                            c.isRead
-                              ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                              : "bg-orange-50 text-[#c2652a] border border-orange-200"
-                          }`}
-                        >
-                          {c.isRead ? "Mark Unread" : "New Ticket"}
-                        </button>
-
-                        <button
-                          type="button"
                           onClick={() => setStatusModalTicket(c)}
                           className="px-3.5 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer"
                         >
@@ -630,7 +618,7 @@ export default function AdminComplaintsPage({
 
                       <div>
                         <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px] block">
-                          Logged Time & Preferred Slot
+                          Logged Time & Date
                         </span>
                         <span className="font-bold text-gray-900 block mt-0.5">
                           {new Date(c.createdAt).toLocaleTimeString("en-IN", {
@@ -638,9 +626,6 @@ export default function AdminComplaintsPage({
                             minute: "2-digit",
                           })}{" "}
                           • {new Date(c.createdAt).toLocaleDateString("en-IN")}
-                        </span>
-                        <span className="text-gray-500 text-[11px] block">
-                          Slot: {c.preferredTime || "Anytime"}
                         </span>
                       </div>
                     </div>
