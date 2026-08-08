@@ -25,7 +25,7 @@ import {
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
-import { GrandWelcomeOverlay } from "@/components/motion/GrandWelcomeOverlay";
+import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverlay";
 
 export interface PortfolioProperty {
   id: string;
@@ -176,10 +176,9 @@ export default function HomeWorkspacePage() {
 
   return (
     <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white pb-12">
-      {/* Grand Cinema Cinematic Opening Welcome Overlay */}
+      {/* Split-Flap Flight Board Instrument Logo Intro Overlay */}
       {showWelcomeOverlay && (
-        <GrandWelcomeOverlay
-          ownerName="Ramesh Darisi"
+        <InstrumentIntroOverlay
           onComplete={() => setShowWelcomeOverlay(false)}
         />
       )}
