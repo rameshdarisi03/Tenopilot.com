@@ -19,6 +19,8 @@ import {
   Users,
   Plus,
   Trash2,
+  Upload,
+  X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -53,6 +55,11 @@ export default function PropertySettingsPage({
   const [newQrBank, setNewQrBank] = useState("");
   const [newQrUpi, setNewQrUpi] = useState("");
   const [newQrType, setNewQrType] = useState<"UPI_QR" | "BANK_TRANSFER" | "CASH_DESK">("UPI_QR");
+  const [newQrImageName, setNewQrImageName] = useState<string | null>(null);
+  const [newQrImageUrl, setNewQrImageUrl] = useState<string | null>(null);
+
+  // Custom Delete Confirmation Modal State
+  const [deleteQrTarget, setDeleteQrTarget] = useState<PaymentQRProfile | null>(null);
 
   // Form State
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
@@ -66,7 +73,7 @@ export default function PropertySettingsPage({
   const [newAccName, setNewAccName] = useState("");
   const [newAccType, setNewAccType] = useState<PaymentAccountConfig["type"]>("Bank Account");
 
-  const handleAddQrProfile = () => {
+  const handleAddQrProfile = async () => {
     if (!newQrName || !newQrUpi) {
       alert("Please enter a Profile Name and UPI VPA ID.");
       return;
@@ -77,27 +84,30 @@ export default function PropertySettingsPage({
       bankLabel: newQrBank || "UPI Bank Account",
       upiId: newQrUpi,
       accountType: newQrType,
+      qrImageUrl: newQrImageUrl || undefined,
     };
     const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
     const updated = [...currentProfiles, newProf];
     const newSettings = { ...settings, qrProfiles: updated };
     setSettings(newSettings);
-    propertySettingsStore.updateSettings(newSettings, propertyId);
+    await propertySettingsStore.updateSettings(newSettings, propertyId);
     setNewQrName("");
     setNewQrBank("");
     setNewQrUpi("");
+    setNewQrImageName(null);
+    setNewQrImageUrl(null);
     triggerToast(`Added Payment QR Profile: ${newProf.name}`);
   };
 
-  const handleDeleteQrProfile = (id: string) => {
-    if (confirm("Are you sure you want to remove this QR profile?")) {
-      const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
-      const updated = currentProfiles.filter((q) => q.id !== id);
-      const newSettings = { ...settings, qrProfiles: updated };
-      setSettings(newSettings);
-      propertySettingsStore.updateSettings(newSettings, propertyId);
-      triggerToast("Payment QR profile removed.");
-    }
+  const handleConfirmDeleteQrProfile = async () => {
+    if (!deleteQrTarget) return;
+    const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
+    const updated = currentProfiles.filter((q) => q.id !== deleteQrTarget.id);
+    const newSettings = { ...settings, qrProfiles: updated };
+    setSettings(newSettings);
+    await propertySettingsStore.updateSettings(newSettings, propertyId);
+    triggerToast(`✓ Removed Payment QR Profile: ${deleteQrTarget.name}`);
+    setDeleteQrTarget(null);
   };
 
   useEffect(() => {
@@ -507,7 +517,7 @@ export default function PropertySettingsPage({
                       </div>
                       <div>
                         <h3 className="font-bold text-sm text-gray-900">Pre-Configured Payment QR Profiles & Bank Accounts</h3>
-                        <p className="text-[11px] text-gray-500">Manage business bank accounts, UPI QR IDs, and cash payment requests for rent reminders</p>
+                        <p className="text-[11px] text-gray-500">Manage business bank accounts, UPI QR IDs, and custom uploaded QR images directly saved in Firebase Firestore</p>
                       </div>
                     </div>
 
@@ -516,42 +526,89 @@ export default function PropertySettingsPage({
                     </span>
                   </div>
 
-                  {/* Add New QR Profile Input Row */}
-                  <div className="p-4 rounded-xl border border-gray-200 bg-orange-50/30 space-y-3">
-                    <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
-                      <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment QR Profile
-                    </h4>
+                  {/* Add New QR Profile Input Row with Custom Image Upload */}
+                  <div className="p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment QR Profile & Upload Image
+                      </h4>
+                      <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
+                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-center">
                       <input
                         type="text"
                         placeholder="Profile Name (e.g. ICICI Tax Acc)"
                         value={newQrName}
                         onChange={(e) => setNewQrName(e.target.value)}
-                        className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                       <input
                         type="text"
                         placeholder="Bank Label (e.g. ICICI Bank Ltd)"
                         value={newQrBank}
                         onChange={(e) => setNewQrBank(e.target.value)}
-                        className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                       <input
                         type="text"
                         placeholder="UPI VPA ID (e.g. saharapg@icici)"
                         value={newQrUpi}
                         onChange={(e) => setNewQrUpi(e.target.value)}
-                        className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
+
+                      {/* File Picker for Custom QR Image */}
+                      <label className="px-3 py-2.5 rounded-xl border border-dashed border-orange-300 bg-white hover:bg-orange-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer truncate">
+                        <Upload className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        <span className="truncate">{newQrImageName || "Upload QR Image"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setNewQrImageName(file.name);
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                setNewQrImageUrl(event.target?.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+
                       <button
                         type="button"
                         onClick={handleAddQrProfile}
-                        className="py-2 px-4 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                        className="py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                       >
                         <Plus className="w-4 h-4" /> Save Profile
                       </button>
                     </div>
+
+                    {/* Image Thumbnail Preview if selected */}
+                    {newQrImageUrl && (
+                      <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-orange-200 w-fit">
+                        <img src={newQrImageUrl} alt="QR Preview" className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
+                        <div className="text-xs">
+                          <span className="font-bold text-emerald-700 block">✓ Custom QR Image Attached</span>
+                          <span className="text-[10px] text-gray-500 font-mono">{newQrImageName}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewQrImageUrl(null);
+                            setNewQrImageName(null);
+                          }}
+                          className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Configured Profiles Grid */}
@@ -562,13 +619,17 @@ export default function PropertySettingsPage({
                         className="p-4 rounded-2xl border border-gray-200 bg-white shadow-2xs flex items-center justify-between gap-4"
                       >
                         <div className="flex items-center gap-3.5 min-w-0">
-                          <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs">
-                            <QRCodeSVG
-                              value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=Sahara%20PG&cu=INR`}
-                              size={56}
-                              fgColor="#201a17"
-                              bgColor="#ffffff"
-                            />
+                          <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
+                            {qr.qrImageUrl ? (
+                              <img src={qr.qrImageUrl} alt={qr.name} className="w-full h-full object-cover rounded-lg" />
+                            ) : (
+                              <QRCodeSVG
+                                value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=Sahara%20PG&cu=INR`}
+                                size={56}
+                                fgColor="#201a17"
+                                bgColor="#ffffff"
+                              />
+                            )}
                           </div>
 
                           <div className="min-w-0 space-y-0.5">
@@ -577,12 +638,15 @@ export default function PropertySettingsPage({
                             <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
                               💳 {qr.upiId}
                             </span>
+                            {qr.qrImageUrl && (
+                              <span className="text-[9px] text-emerald-700 font-bold block">✓ Custom Image Attached</span>
+                            )}
                           </div>
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => handleDeleteQrProfile(qr.id)}
+                          onClick={() => setDeleteQrTarget(qr)}
                           className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors cursor-pointer shrink-0"
                           title="Remove QR Profile"
                         >
@@ -880,6 +944,47 @@ export default function PropertySettingsPage({
               </div>
             )}
           </form>
+
+          {/* CUSTOM DELETE CONFIRMATION MODAL */}
+          {deleteQrTarget && (
+            <div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+              onClick={() => setDeleteQrTarget(null)}
+            >
+              <div
+                className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto font-bold">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">Remove Payment QR Profile?</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Are you sure you want to delete <strong>"{deleteQrTarget.name}"</strong>? This profile will be permanently removed from Firebase Firestore.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteQrTarget(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmDeleteQrProfile}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md transition-all cursor-pointer"
+                  >
+                    Confirm Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

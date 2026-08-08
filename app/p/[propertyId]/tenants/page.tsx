@@ -1506,13 +1506,17 @@ export default function TenantsDirectoryPage({
 
                   return (
                     <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-4">
-                      <div className="w-28 h-28 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
-                        <QRCodeSVG
-                          value={activeQr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${activeQr.upiId}&pn=Sahara%20PG&cu=INR`}
-                          size={96}
-                          fgColor="#201a17"
-                          bgColor="#ffffff"
-                        />
+                      <div className="w-28 h-28 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center overflow-hidden">
+                        {activeQr.qrImageUrl ? (
+                          <img src={activeQr.qrImageUrl} alt={activeQr.name} className="w-full h-full object-cover rounded-lg" />
+                        ) : (
+                          <QRCodeSVG
+                            value={activeQr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${activeQr.upiId}&pn=Sahara%20PG&cu=INR`}
+                            size={96}
+                            fgColor="#201a17"
+                            bgColor="#ffffff"
+                          />
+                        )}
                       </div>
 
                       <div className="space-y-1.5 flex-1 min-w-0 text-center sm:text-left">
