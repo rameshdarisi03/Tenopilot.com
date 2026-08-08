@@ -1604,10 +1604,12 @@ export default function TenantsDirectoryPage({
                       .map((occ) => {
                         const cleanPhone = occ.phone.replace(/\D/g, "");
                         const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                        const isCashReq = activeQr.upiId === "CASH_PAYMENT" || activeQr.accountType === "CASH_DESK";
-                        const paymentNote = isCashReq
-                          ? `💵 *Payment Mode*: Cash Request at ${activeQr.bankLabel}\nPlease visit reception desk to clear rent.`
-                          : `💳 *Pay via UPI ID*: ${activeQr.upiId} (${activeQr.bankLabel})\nPlease scan QR code or pay via UPI.`;
+                        const isCashReq = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.accountType === "CASH_DESK";
+                        const paymentNote = activeQr
+                          ? (isCashReq
+                            ? `💵 *Payment Mode*: Cash Request at ${activeQr.bankLabel}\nPlease visit reception desk to clear rent.`
+                            : `💳 *Pay via UPI ID*: ${activeQr.upiId} (${activeQr.bankLabel})\nPlease scan QR code or pay via UPI.`)
+                          : `💳 *Payment Details*: Please contact management for rent payment instructions.`;
 
                         const msg = encodeURIComponent(
                           `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "Sahara PG"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "Sahara PG"} Management`
