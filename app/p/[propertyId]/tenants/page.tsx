@@ -236,14 +236,16 @@ export default function TenantsDirectoryPage({
         const occPhoneDigits = normalizePhoneNumber(occ.phone);
         const occAadhaar = occ.aadhaarNumber.toLowerCase();
 
-        // Check if all entered tokens match either name, room, or phone
-        const matchesAllTokens = searchTokens.every(
-          (token) =>
-            occNameLower.includes(token) ||
-            occRoomLower.includes(token) ||
-            occAadhaar.includes(token) ||
-            (numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly))
-        );
+        // Check if entered tokens match name prefix (startsWith word), room, or phone
+        const matchesAllTokens = searchTokens.every((token) => {
+          const nameWords = occNameLower.split(/\s+/);
+          const nameMatchesPrefix = nameWords.some((w) => w.startsWith(token)) || occNameLower.startsWith(token);
+          const roomMatches = occRoomLower.includes(token);
+          const aadhaarMatches = occAadhaar.startsWith(token);
+          const phoneMatches = numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly);
+
+          return nameMatchesPrefix || roomMatches || aadhaarMatches || phoneMatches;
+        });
 
         // If searching, return true if matches query (Ignore tab & dropdown filters for True Global Search)
         return matchesAllTokens;
@@ -1468,40 +1470,66 @@ export default function TenantsDirectoryPage({
                     <span>1. Select Pre-Configured Payment QR Profile</span>
                   </h4>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveQrIndex((prev) =>
-                          prev > 0 ? prev - 1 : (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1
-                        )
-                      }
-                      className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
-                      title="Previous QR Profile"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className="text-[10px] font-bold text-gray-600 px-1 font-mono">
-                      {activeQrIndex + 1} / {(currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveQrIndex((prev) =>
-                          prev < (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1 ? prev + 1 : 0
-                        )
-                      }
-                      className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
-                      title="Next QR Profile"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {(currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveQrIndex((prev) =>
+                            prev > 0 ? prev - 1 : (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1
+                          )
+                        }
+                        className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
+                        title="Previous QR Profile"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="text-[10px] font-bold text-gray-600 px-1 font-mono">
+                        {activeQrIndex + 1} / {(currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveQrIndex((prev) =>
+                            prev < (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1 ? prev + 1 : 0
+                          )
+                        }
+                        className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
+                        title="Next QR Profile"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Active QR Profile Display Card */}
+                {/* Active QR Profile Display Card or Empty State */}
                 {(() => {
                   const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
+                  
+                  if (profiles.length === 0) {
+                    return (
+                      <div className="p-5 bg-white rounded-2xl border border-gray-200 text-center space-y-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto">
+                          <QrCode className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-xs text-gray-900">No Payment QR Profiles Configured</h5>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Add your real business bank accounts or UPI QR profiles in Settings to send custom QR payment reminders.
+                          </p>
+                        </div>
+                        <Link
+                          href={`/p/${propertyId}/settings`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-xs shadow-2xs hover:bg-[#c2652a]/90"
+                        >
+                          <span>Configure QR Profiles in Settings</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    );
+                  }
+
                   const activeQr = profiles[activeQrIndex] || profiles[0];
 
                   return (

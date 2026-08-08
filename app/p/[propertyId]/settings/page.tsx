@@ -611,50 +611,62 @@ export default function PropertySettingsPage({
                     )}
                   </div>
 
-                  {/* Configured Profiles Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    {(settings.qrProfiles || DEFAULT_QR_PROFILES).map((qr) => (
-                      <div
-                        key={qr.id}
-                        className="p-4 rounded-2xl border border-gray-200 bg-white shadow-2xs flex items-center justify-between gap-4"
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
-                            {qr.qrImageUrl ? (
-                              <img src={qr.qrImageUrl} alt={qr.name} className="w-full h-full object-cover rounded-lg" />
-                            ) : (
-                              <QRCodeSVG
-                                value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=Sahara%20PG&cu=INR`}
-                                size={56}
-                                fgColor="#201a17"
-                                bgColor="#ffffff"
-                              />
-                            )}
-                          </div>
-
-                          <div className="min-w-0 space-y-0.5">
-                            <span className="font-bold text-xs text-gray-900 block truncate">{qr.name}</span>
-                            <span className="text-[11px] text-gray-500 block truncate">🏦 {qr.bankLabel}</span>
-                            <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
-                              💳 {qr.upiId}
-                            </span>
-                            {qr.qrImageUrl && (
-                              <span className="text-[9px] text-emerald-700 font-bold block">✓ Custom Image Attached</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setDeleteQrTarget(qr)}
-                          className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors cursor-pointer shrink-0"
-                          title="Remove QR Profile"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                  {/* Configured Profiles Grid or Empty State */}
+                  {(settings.qrProfiles || DEFAULT_QR_PROFILES).length === 0 ? (
+                    <div className="p-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-300 text-center space-y-2">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto">
+                        <QrCode className="w-6 h-6" />
                       </div>
-                    ))}
-                  </div>
+                      <h4 className="font-bold text-sm text-gray-900">No Payment QR Profiles Configured Yet</h4>
+                      <p className="text-xs text-gray-500 max-w-md mx-auto">
+                        Add your business bank account, UPI VPA ID, or upload a custom QR image above to enable seamless rent reminders for tenants.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      {(settings.qrProfiles || DEFAULT_QR_PROFILES).map((qr) => (
+                        <div
+                          key={qr.id}
+                          className="p-4 rounded-2xl border border-gray-200 bg-white shadow-2xs flex items-center justify-between gap-4"
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
+                              {qr.qrImageUrl ? (
+                                <img src={qr.qrImageUrl} alt={qr.name} className="w-full h-full object-cover rounded-lg" />
+                              ) : (
+                                <QRCodeSVG
+                                  value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=Sahara%20PG&cu=INR`}
+                                  size={56}
+                                  fgColor="#201a17"
+                                  bgColor="#ffffff"
+                                />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 space-y-0.5">
+                              <span className="font-bold text-xs text-gray-900 block truncate">{qr.name}</span>
+                              <span className="text-[11px] text-gray-500 block truncate">🏦 {qr.bankLabel}</span>
+                              <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
+                                💳 {qr.upiId}
+                              </span>
+                              {qr.qrImageUrl && (
+                                <span className="text-[9px] text-emerald-700 font-bold block">✓ Custom Image Attached</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setDeleteQrTarget(qr)}
+                            className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors cursor-pointer shrink-0"
+                            title="Remove QR Profile"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

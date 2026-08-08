@@ -12,44 +12,7 @@ export interface PaymentQRProfile {
   qrImageUrl?: string; // Optional custom uploaded image URL/base64
 }
 
-export const DEFAULT_QR_PROFILES: PaymentQRProfile[] = [
-  {
-    id: "qr-1",
-    name: "PhonePe PG Business Account",
-    bankLabel: "PhonePe / Yes Bank",
-    upiId: "saharapg@ybl",
-    accountType: "UPI_QR",
-    isDefault: true,
-  },
-  {
-    id: "qr-2",
-    name: "GooglePay Main Operations",
-    bankLabel: "GooglePay / Axis Bank",
-    upiId: "sahara.pg@okaxis",
-    accountType: "UPI_QR",
-  },
-  {
-    id: "qr-3",
-    name: "HDFC Bank Tax Account",
-    bankLabel: "HDFC Bank Ltd",
-    upiId: "sahara.pg@hdfcbank",
-    accountType: "BANK_TRANSFER",
-  },
-  {
-    id: "qr-4",
-    name: "ICICI Operational Expenses",
-    bankLabel: "ICICI Bank",
-    upiId: "saharapg.ops@icici",
-    accountType: "UPI_QR",
-  },
-  {
-    id: "qr-5",
-    name: "Reception Cash Desk Request",
-    bankLabel: "PG Reception Desk",
-    upiId: "CASH_PAYMENT",
-    accountType: "CASH_DESK",
-  },
-];
+export const DEFAULT_QR_PROFILES: PaymentQRProfile[] = [];
 
 export interface PropertySettingsData {
   billingCycleDates: "1st to End of Month" | "Anniversary Date";
