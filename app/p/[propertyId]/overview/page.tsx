@@ -133,6 +133,95 @@ export default function PropertyOverviewPage({
               </p>
             </Link>
           </div>
+
+          {/* Bottom Section: Resident Complaint QR Code Card & Maintenance Operations Link */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-4 border-t border-gray-200">
+            {/* Bottom-Left: PG Resident Complaint QR Code Card */}
+            <div className="md:col-span-6 lg:col-span-5 bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+                    RESIDENT COMPLAINT PORTAL
+                  </span>
+                  <h3 className="font-serif font-bold text-lg text-gray-900 mt-2">
+                    Resident QR Scan Code
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Display in PG corridors & reception desk for 24/7 resident complaint lodging.
+                  </p>
+                </div>
+              </div>
+
+              {/* QR Canvas Container */}
+              <div className="p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60 flex items-center gap-4">
+                <div className="w-24 h-24 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
+                  <svg className="w-full h-full text-gray-900" viewBox="0 0 100 100" fill="currentColor">
+                    <rect x="10" y="10" width="25" height="25" fill="#c2652a" />
+                    <rect x="15" y="15" width="15" height="15" fill="#ffffff" />
+                    <rect x="18" y="18" width="9" height="9" fill="#c2652a" />
+                    <rect x="65" y="10" width="25" height="25" fill="#c2652a" />
+                    <rect x="70" y="15" width="15" height="15" fill="#ffffff" />
+                    <rect x="73" y="18" width="9" height="9" fill="#c2652a" />
+                    <rect x="10" y="65" width="25" height="25" fill="#c2652a" />
+                    <rect x="15" y="70" width="15" height="15" fill="#ffffff" />
+                    <rect x="18" y="73" width="9" height="9" fill="#c2652a" />
+                    <rect x="40" y="10" width="8" height="8" fill="#111827" />
+                    <rect x="50" y="18" width="8" height="8" fill="#111827" />
+                    <rect x="40" y="30" width="12" height="12" fill="#111827" />
+                    <rect x="40" y="65" width="15" height="8" fill="#111827" />
+                    <rect x="60" y="60" width="10" height="20" fill="#111827" />
+                    <rect x="75" y="65" width="15" height="15" fill="#111827" />
+                  </svg>
+                </div>
+
+                <div className="space-y-1.5 min-w-0">
+                  <span className="font-bold text-xs text-gray-900 block">
+                    Real-Time Room Sync Enabled
+                  </span>
+                  <p className="text-[11px] text-gray-500 leading-snug">
+                    Residents enter Name, Mobile & select their room synced live from Property Map.
+                  </p>
+                  <a
+                    href={`/p/${propertyId}/public-complaint`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#c2652a] hover:underline pt-1"
+                  >
+                    Open Resident Portal →
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom-Right: Maintenance Operations Link Card */}
+            <Link
+              href={`/p/${propertyId}/complaints`}
+              className="md:col-span-6 lg:col-span-7 bg-white rounded-3xl border border-gray-200 p-6 shadow-xs hover:border-[#c2652a] transition-all group flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-3 rounded-2xl bg-orange-50 text-[#c2652a] group-hover:scale-110 transition-transform">
+                    <Wrench className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+                    REAL-TIME FIREBASE SYNCED 🟢
+                  </span>
+                </div>
+                <h3 className="font-serif font-bold text-xl text-gray-900">
+                  Complaints & Maintenance Operations Desk
+                </h3>
+                <p className="text-xs text-gray-500 mt-1 max-w-lg">
+                  View, filter, update ticket statuses, log walk-in issues, and export monthly maintenance reports for Sahara PG.
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-xs font-bold text-[#c2652a] group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                  Open Maintenance Desk →
+                </span>
+              </div>
+            </Link>
+          </div>
         </div>
       </div>
     </div>
