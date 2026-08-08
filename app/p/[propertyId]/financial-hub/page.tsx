@@ -390,9 +390,9 @@ export default function FinancialHubPage({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
               <button
                 type="button"
-                onClick={() => setActiveTab("Operations")}
+                onClick={() => setActiveTab("Revenues")}
                 className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
-                  activeTab === "Operations"
+                  activeTab === "Revenues"
                     ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
                     : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
                 }`}
@@ -400,25 +400,25 @@ export default function FinancialHubPage({
                 <div className="flex items-center gap-3">
                   <div
                     className={`p-2.5 rounded-xl transition-colors ${
-                      activeTab === "Operations"
+                      activeTab === "Revenues"
                         ? "bg-[#c2652a] text-white"
-                        : "bg-orange-50 text-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white"
+                        : "bg-emerald-100 text-emerald-800 group-hover:bg-[#c2652a] group-hover:text-white"
                     }`}
                   >
-                    <Building2 className="w-5 h-5" />
+                    <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
                     <h3
                       className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Operations" ? "text-[#c2652a]" : "text-gray-900"
+                        activeTab === "Revenues" ? "text-[#c2652a]" : "text-gray-900"
                       }`}
                     >
-                      Operations
+                      Revenues
                     </h3>
-                    <p className="text-[11px] text-gray-500">Health & Task Tracking</p>
+                    <p className="text-[11px] text-gray-500">Income Streams & Yield</p>
                   </div>
                 </div>
-                {activeTab === "Operations" && (
+                {activeTab === "Revenues" && (
                   <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
                 )}
               </button>
@@ -495,22 +495,331 @@ export default function FinancialHubPage({
             </div>
           </div>
 
-          {/* TAB 1: OPERATIONS PLACEHOLDER */}
-          {activeTab === "Operations" && (
-            <div className="bg-white rounded-3xl border border-gray-200 p-8 text-center space-y-4 animate-in fade-in shadow-xs">
-              <div className="w-14 h-14 bg-orange-50 text-[#c2652a] rounded-2xl flex items-center justify-center mx-auto">
-                <Building2 className="w-7 h-7" />
+          {/* TAB 1: REVENUES WORKSPACE */}
+          {activeTab === "Revenues" && (
+            <div className="space-y-8 animate-in fade-in">
+              {/* 1. Top 4 Revenue KPI Metrics Bento Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {/* KPI 1: Gross Monthly Revenue */}
+                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      GROSS REVENUE (THIS MONTH)
+                    </span>
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                    ₹2,48,500
+                  </h2>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <span className="bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">
+                      +14.2% vs last month
+                    </span>
+                    <span className="text-gray-400 text-[10px] font-normal">Real-Time</span>
+                  </div>
+                </div>
+
+                {/* KPI 2: Rent Collection Efficiency Rate */}
+                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      COLLECTION EFFICIENCY
+                    </span>
+                    <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                    92.4%
+                  </h2>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    ₹2.48L collected out of ₹2.67L total billed rent
+                  </p>
+                </div>
+
+                {/* KPI 3: Average Revenue Per Bed (ARPB) */}
+                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      AVERAGE YIELD PER BED (ARPB)
+                    </span>
+                    <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                    ₹12,850
+                  </h2>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Yield per occupied bed across all 4 sharing tiers
+                  </p>
+                </div>
+
+                {/* KPI 4: Pending Uncollected Rent Arrears */}
+                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      UNCOLLECTED ARREARS
+                    </span>
+                    <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <h2 className="font-sans font-bold text-3xl text-amber-900 tracking-tight">
+                    ₹18,500
+                  </h2>
+                  <span className="inline-block bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    3 Overdue Tenant Reminders Pending
+                  </span>
+                </div>
               </div>
-              <h3 className="font-serif font-bold text-xl text-gray-900">
-                Financial Operations Workspace
-              </h3>
-              <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed font-medium">
-                Operations sub-page workspace ready. In the next step, tell me how you'd like to structure operational KPI cards and pending tasks.
-              </p>
-              <div className="pt-2">
-                <span className="inline-block px-3 py-1 rounded-full bg-orange-50 text-[#c2652a] text-[10px] font-extrabold border border-orange-200 uppercase">
-                  OPERATIONS SUB-PAGE READY 🟢
-                </span>
+
+              {/* 2. Multi-Stream Income Breakdown & Payment Channels */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Multi-Stream Income Sources Breakdown */}
+                <div className="lg:col-span-7 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div>
+                      <h3 className="font-serif font-bold text-lg text-gray-900">
+                        Revenue Stream Breakdown
+                      </h3>
+                      <p className="text-xs text-gray-500">Categorized income distribution across estate services</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                      OCTOBER 2024
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Stream 1: Room Rent */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-gray-800 flex items-center gap-2">
+                          🏠 Monthly Room Rent Collection
+                        </span>
+                        <span className="text-[#c2652a] font-mono tabular-nums">
+                          ₹2,05,000 (82.5%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#c2652a] rounded-full" style={{ width: "82.5%" }}></div>
+                      </div>
+                    </div>
+
+                    {/* Stream 2: Security Deposits */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-gray-800 flex items-center gap-2">
+                          🔐 Security Deposit Collateral Intake
+                        </span>
+                        <span className="text-emerald-700 font-mono tabular-nums">
+                          ₹25,000 (10.0%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-600 rounded-full" style={{ width: "10.0%" }}></div>
+                      </div>
+                    </div>
+
+                    {/* Stream 3: Utility Surcharges */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-gray-800 flex items-center gap-2">
+                          ⚡ Metered AC & Electricity Surcharges
+                        </span>
+                        <span className="text-purple-700 font-mono tabular-nums">
+                          ₹12,500 (5.0%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-600 rounded-full" style={{ width: "5.0%" }}></div>
+                      </div>
+                    </div>
+
+                    {/* Stream 4: Laundry & Guest Stay Add-ons */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-gray-800 flex items-center gap-2">
+                          🍱 Meal, Laundry & Guest Stay Fees
+                        </span>
+                        <span className="text-blue-700 font-mono tabular-nums">
+                          ₹6,000 (2.5%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-600 rounded-full" style={{ width: "2.5%" }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Channels Distribution */}
+                <div className="lg:col-span-5 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                  <div className="border-b border-gray-100 pb-3">
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Payment Channels Analytics
+                    </h3>
+                    <p className="text-xs text-gray-500">Method distribution of collected payments</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-orange-50/60 border border-orange-200/60 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs">
+                          UPI
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">PhonePe / GPay / UPI</h4>
+                          <span className="text-[10px] text-gray-500 font-medium">Instant VPA Collection</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-sm text-[#c2652a] block">₹1,93,830</span>
+                        <span className="text-[10px] font-bold text-orange-700">78% of Total</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/60 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
+                          NEFT
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">Direct Bank Transfer</h4>
+                          <span className="text-[10px] text-gray-500 font-medium">NEFT / IMPS Credit</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-sm text-blue-700 block">₹37,275</span>
+                        <span className="text-[10px] font-bold text-blue-700">15% of Total</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/60 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">
+                          💵
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">Cash Desk Receipts</h4>
+                          <span className="text-[10px] text-gray-500 font-medium">Front Desk Reception</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-sm text-emerald-700 block">₹17,395</span>
+                        <span className="text-[10px] font-bold text-emerald-700">7% of Total</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Live Recent Revenue Transaction Log */}
+              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Recent Income & Revenue Log
+                    </h3>
+                    <p className="text-xs text-gray-500">Verified receipts and incoming payments for Sunshine Heights PG</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> LIVE REVENUE STREAM
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
+                        <th className="py-3 px-4 rounded-l-xl">Date & Time</th>
+                        <th className="py-3 px-4">Resident / Source</th>
+                        <th className="py-3 px-4">Room Location</th>
+                        <th className="py-3 px-4">Income Category</th>
+                        <th className="py-3 px-4">Payment Channel</th>
+                        <th className="py-3 px-4 text-right">Amount Billed</th>
+                        <th className="py-3 px-4 rounded-r-xl text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-medium">
+                      <tr className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-gray-500 font-mono">Today • 10:45 AM</td>
+                        <td className="py-3.5 px-4 font-bold text-gray-900">Aarav Mehta</td>
+                        <td className="py-3.5 px-4 text-gray-600">Room 201 (Bed A)</td>
+                        <td className="py-3.5 px-4">
+                          <span className="bg-orange-50 text-[#c2652a] text-[10px] font-bold px-2.5 py-1 rounded-full border border-orange-200">
+                            Monthly Rent
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600 font-mono">PhonePe UPI</td>
+                        <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">₹14,500</td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            ✓ Verified
+                          </span>
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-gray-500 font-mono">Yesterday • 04:20 PM</td>
+                        <td className="py-3.5 px-4 font-bold text-gray-900">Rohan Verma</td>
+                        <td className="py-3.5 px-4 text-gray-600">Room 104 (Bed B)</td>
+                        <td className="py-3.5 px-4">
+                          <span className="bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-200">
+                            Security Deposit
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600 font-mono">Bank NEFT</td>
+                        <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">₹25,000</td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            ✓ Verified
+                          </span>
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-gray-500 font-mono">06 Oct • 02:15 PM</td>
+                        <td className="py-3.5 px-4 font-bold text-gray-900">Priya Sharma</td>
+                        <td className="py-3.5 px-4 text-gray-600">Room 302 (Bed A)</td>
+                        <td className="py-3.5 px-4">
+                          <span className="bg-purple-50 text-purple-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-purple-200">
+                            AC Surcharge
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600 font-mono">Google Pay UPI</td>
+                        <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">₹2,500</td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            ✓ Verified
+                          </span>
+                        </td>
+                      </tr>
+
+                      <tr className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3.5 px-4 text-gray-500 font-mono">05 Oct • 11:10 AM</td>
+                        <td className="py-3.5 px-4 font-bold text-gray-900">Vikram K.</td>
+                        <td className="py-3.5 px-4 text-gray-600">Room 105 (Bed C)</td>
+                        <td className="py-3.5 px-4">
+                          <span className="bg-blue-50 text-blue-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-blue-200">
+                            Guest Stay Fee
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600 font-mono">Cash Desk</td>
+                        <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">₹1,200</td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            ✓ Verified
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
