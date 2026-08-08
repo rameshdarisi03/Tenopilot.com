@@ -527,7 +527,7 @@ export default function FinancialHubPage({
                       TOTAL SPENT THIS MONTH
                     </span>
                     <div className="flex items-baseline gap-4 mt-2">
-                      <h2 className="font-serif text-3xl md:text-4xl font-bold text-gray-900">
+                      <h2 className="font-sans font-bold text-3xl md:text-4xl text-gray-900 tracking-tight">
                         ₹{totalSpent.toLocaleString("en-IN")}
                       </h2>
                       <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
@@ -543,7 +543,7 @@ export default function FinancialHubPage({
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Zap className="w-4 h-4 text-[#c2652a]" />
-                        <span className="font-serif font-bold text-base text-gray-900">
+                        <span className="font-sans font-bold text-base text-gray-900">
                           {highestCat.category} (₹{highestCat.amount.toLocaleString("en-IN")})
                         </span>
                       </div>
@@ -555,7 +555,7 @@ export default function FinancialHubPage({
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Receipt className="w-4 h-4 text-purple-700" />
-                        <span className="font-serif font-bold text-base text-gray-900">
+                        <span className="font-sans font-bold text-base text-gray-900">
                           {expenseList.length} Entries Logged
                         </span>
                       </div>
@@ -585,7 +585,7 @@ export default function FinancialHubPage({
                         <div key={cw.category} className="space-y-1">
                           <div className="flex justify-between">
                             <span className="text-gray-600">{cw.category}</span>
-                            <span className="text-[#c2652a] font-mono">
+                            <span className="text-[#c2652a] font-sans font-bold tabular-nums">
                               ₹{cw.amount.toLocaleString("en-IN")} ({cw.percentage}%)
                             </span>
                           </div>
@@ -699,7 +699,7 @@ export default function FinancialHubPage({
                       </div>
 
                       <div className="flex items-center justify-between pt-1">
-                        <span className="font-serif font-bold text-lg text-gray-900">
+                        <span className="font-sans font-bold text-lg text-gray-900 tracking-tight tabular-nums">
                           ₹{bill.amount.toLocaleString("en-IN")}
                         </span>
                         <button
@@ -836,7 +836,7 @@ export default function FinancialHubPage({
                               </span>
                             </td>
                             <td className="py-4 px-4 text-gray-500">{exp.property}</td>
-                            <td className="py-4 px-4 font-mono font-bold text-base text-gray-900">
+                            <td className="py-4 px-4 font-sans font-bold text-sm text-gray-900 tabular-nums">
                               ₹{exp.amount.toLocaleString("en-IN")}
                             </td>
                             <td className="py-4 px-4">
@@ -1047,7 +1047,7 @@ export default function FinancialHubPage({
 
                               <div className="border-t border-gray-100 pt-2 flex justify-between items-center">
                                 <span className="text-[10px] text-gray-500 font-medium">Total Spend</span>
-                                <span className="font-mono font-bold text-[#c2652a] text-base">
+                                <span className="font-sans font-bold text-[#c2652a] text-base tabular-nums">
                                   ₹{catTotal.toLocaleString("en-IN")}
                                 </span>
                               </div>
@@ -1096,7 +1096,7 @@ export default function FinancialHubPage({
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500 font-bold">Amount:</span>
-                        <span className="font-mono font-bold text-base text-[#c2652a]">
+                        <span className="font-sans font-bold text-base text-[#c2652a] tabular-nums">
                           ₹{activeReceiptModal.amount.toLocaleString("en-IN")}
                         </span>
                       </div>
@@ -1167,7 +1167,7 @@ export default function FinancialHubPage({
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             placeholder="Enter expense amount"
-                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-sans font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
                           />
                         </div>
                       </div>
@@ -1391,7 +1391,7 @@ export default function FinancialHubPage({
                               })
                             }
                             placeholder="Enter payment amount"
-                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-[#c2652a] bg-white font-mono font-bold text-base text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-[#c2652a] bg-white font-sans font-bold text-base text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
                           />
                         </div>
                       </div>
@@ -1491,7 +1491,7 @@ export default function FinancialHubPage({
                       <Wallet className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-gray-900">₹8,00,000</p>
+                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">₹8,00,000</p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
                     <ArrowUpRight className="w-3.5 h-3.5" /> 6.2% vs Sep 2024
                   </p>
@@ -1507,7 +1507,7 @@ export default function FinancialHubPage({
                       <Receipt className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-gray-900">
+                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
                     ₹{totalSpent.toLocaleString("en-IN")}
                   </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
@@ -1525,7 +1525,7 @@ export default function FinancialHubPage({
                       <TrendingUp className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-gray-900">
+                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
                     ₹{(800000 - totalSpent).toLocaleString("en-IN")}
                   </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
@@ -1543,7 +1543,7 @@ export default function FinancialHubPage({
                       <Building2 className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-serif font-bold text-2xl text-gray-900">
+                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
                     {(((800000 - totalSpent) / 800000) * 100).toFixed(1)}%
                   </p>
                   <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
@@ -1596,10 +1596,10 @@ export default function FinancialHubPage({
                               </span>
                               {p.name}
                             </td>
-                            <td className="py-4 text-gray-500 font-bold">{p.ownershipPercentage}%</td>
-                            <td className="py-4 text-gray-500 font-mono font-semibold">₹{actualPaid.toLocaleString("en-IN")}</td>
-                            <td className="py-4 font-mono font-bold text-gray-900">₹{profitShare.toLocaleString("en-IN")}</td>
-                            <td className={`py-4 font-mono font-bold ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
+                            <td className="py-4 text-gray-500 font-sans font-bold tabular-nums">{p.ownershipPercentage}%</td>
+                            <td className="py-4 text-gray-500 font-sans font-semibold tabular-nums">₹{actualPaid.toLocaleString("en-IN")}</td>
+                            <td className="py-4 font-sans font-bold text-gray-900 tabular-nums">₹{profitShare.toLocaleString("en-IN")}</td>
+                            <td className={`py-4 font-sans font-bold tabular-nums ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
                               {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
                             </td>
                             <td className="py-4 text-right">
@@ -1690,14 +1690,14 @@ export default function FinancialHubPage({
                         </span>
                         {p.name}
                       </span>
-                      <span className="font-mono font-bold text-gray-500">{p.ownershipPercentage}%</span>
+                      <span className="font-sans font-bold text-gray-500 tabular-nums">{p.ownershipPercentage}%</span>
                     </div>
                   ))}
                 </div>
 
                 <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-xs font-bold text-gray-900">
                   <span>Total Ownership</span>
-                  <span className="font-mono">{partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%</span>
+                  <span className="font-sans font-bold tabular-nums">{partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%</span>
                 </div>
 
                 <p className="text-[10px] text-gray-500 italic pt-1 flex items-center gap-1">
@@ -1783,7 +1783,7 @@ export default function FinancialHubPage({
                     value={recAmount}
                     onChange={(e) => setRecAmount(e.target.value)}
                     placeholder="e.g. 4500"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-sans font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
                   />
                 </div>
               </div>
@@ -1930,7 +1930,7 @@ export default function FinancialHubPage({
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="font-mono font-bold text-sm text-[#c2652a]">
+                      <span className="font-sans font-bold text-sm text-[#c2652a] tabular-nums">
                         ₹{catTotal.toLocaleString("en-IN")}
                       </span>
                     </div>
