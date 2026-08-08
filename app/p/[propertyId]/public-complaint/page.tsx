@@ -1,11 +1,14 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { getActiveResidentForToday } from "@/utils/domainSSOT";
 import { createComplaintInFirestore, Complaint } from "@/lib/complaintStore";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import {
   Wrench,
   Zap,
@@ -72,12 +75,27 @@ export default function PublicTenantComplaintPage({
     setIsMounted(true);
     setOccupants(occupantStore.getOccupants());
 
-    const unsubscribe = propertyStore.subscribe(() => {
+    const unsubscribeLocal = propertyStore.subscribe(() => {
       setOccupants(occupantStore.getOccupants());
     });
 
-    return () => unsubscribe();
-  }, []);
+    const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        const localList = occupantStore.getOccupants();
+        const mergedMap = new Map<string, Occupant>();
+        localList.forEach((o) => mergedMap.set(o.id, o));
+        fsOccupants.forEach((o) => mergedMap.set(o.id, o));
+        const merged = Array.from(mergedMap.values());
+        occupantStore.updateOccupants(merged, propertyId);
+        setOccupants(merged);
+      }
+    });
+
+    return () => {
+      unsubscribeLocal();
+      unsubscribeFirestore();
+    };
+  }, [propertyId]);
 
   // Strict As-of-Today Active Resident Verification Handler
   const handlePhoneChange = (inputPhone: string) => {
