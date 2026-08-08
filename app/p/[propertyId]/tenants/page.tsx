@@ -62,10 +62,10 @@ export default function TenantsDirectoryPage({
   const [rawSearchTerm, setRawSearchTerm] = useState("");
   const [activeFilterTab, setActiveFilterTab] = useState<
     "All" | "Booked" | "Active" | "Notice" | "Past" | "Guests"
-  >("Active");
+  >("All");
 
   // Dropdown filter states
-  const [tenantStatusFilter, setTenantStatusFilter] = useState("Active");
+  const [tenantStatusFilter, setTenantStatusFilter] = useState("All");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("All");
   const [paymentDueFilter, setPaymentDueFilter] = useState("All");
   const [floorFilter, setFloorFilter] = useState("All Floors");
@@ -86,8 +86,8 @@ export default function TenantsDirectoryPage({
     "name-asc" | "name-desc" | "room" | "rent-desc" | "due"
   >("name-asc");
 
-  // Selection state for bulk actions
-  const [selectedIds, setSelectedIds] = useState<string[]>(["occ-1001"]);
+  // Selection state for bulk actions (Default empty, no ghost selected banners!)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
 

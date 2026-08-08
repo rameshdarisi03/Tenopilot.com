@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import {
   propertyStore,
   getBedVacatingDate,
@@ -307,8 +307,8 @@ export default function OnboardGuestPage({
       paymentHistory: [],
     };
 
-    // Prepend to MOCK_OCCUPANTS_200 & occupantStore (Saves to localStorage & Firebase)
-    MOCK_OCCUPANTS_200.unshift(newGuest);
+    // Prepend to occupantStore & sync across all pages, localStorage & Firebase
+    occupantStore.updateOccupants([newGuest, ...occupantStore.getOccupants()], propertyId);
 
     // Update bed status in propertyStore
     if (selectedBed) {
