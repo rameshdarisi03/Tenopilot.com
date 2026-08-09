@@ -1060,13 +1060,24 @@ function loadOccupants(): Occupant[] {
     }
   }
 
-  // Inject the 5 sequential mock guests for Room 101 BED A if not present
+  // Inject/refresh the 5 sequential mock guests for Room 101 BED A in local store & Firestore
   MOCK_SEQUENTIAL_GUESTS_BED_101_A.forEach((mockGuest) => {
-    if (!list.some((o) => o.id === mockGuest.id)) {
+    const existingIdx = list.findIndex((o) => o.id === mockGuest.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = mockGuest;
+    } else {
       list.push(mockGuest);
-      saveOccupantToFirestore("sunshine-pg", mockGuest);
     }
+    saveOccupantToFirestore("sunshine-pg", mockGuest);
   });
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {
+      console.warn("Failed to save refreshed occupants store:", e);
+    }
+  }
 
   GLOBAL_OCCUPANTS_CACHE = list;
   return GLOBAL_OCCUPANTS_CACHE;

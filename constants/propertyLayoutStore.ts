@@ -127,8 +127,8 @@ export function generateInitialPropertyStructure(): FloorConfig[] {
   return floors;
 }
 
-// Persistent Reactive Store for Property Structure (Clean v3 with 25 curated test occupants)
-const STORAGE_KEY = "tenopilot_property_layout_clean_v3";
+// Persistent Reactive Store for Property Structure (Clean v4 with real-time occupant sync)
+const STORAGE_KEY = "tenopilot_property_layout_clean_v4";
 
 let GLOBAL_PROPERTY_STRUCTURE: FloorConfig[] | null = null;
 const listeners: Array<() => void> = [];
