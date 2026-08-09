@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   Camera,
   Clock,
+  Trash2,
   X,
   Lock,
   User,
@@ -1089,13 +1090,31 @@ export default function IndividualTenantProfilePage({
               )}
 
               {/* 🔑 5. Formal Check-Out & Deposit Settlement (Rendered for Active, Notice, Guest, Booked) */}
-              {occupantState.lifecycleStatus !== "Past" && (
+              {occupantState.lifecycleStatus !== "Past" ? (
                 <button
                   type="button"
                   onClick={() => setShowCheckOutModal(true)}
                   className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
                 >
                   🔑 Formal Check-Out & Deposit Settlement
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (
+                      confirm(
+                        `Are you sure you want to permanently delete past tenant ${occupantState.name}? This will wipe out all KYC, receipts, and stay history from Cloud Firestore.`
+                      )
+                    ) {
+                      await occupantStore.deleteOccupant(occupantState.id, propertyId);
+                      alert(`🗑️ Permanently erased ${occupantState.name} from Cloud Firestore.`);
+                      window.location.href = `/p/${propertyId}/tenants`;
+                    }
+                  }}
+                  className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-200" /> 🗑️ Delete Past Tenant Record
                 </button>
               )}
 

@@ -39,6 +39,7 @@ import {
   ShieldCheck,
   ChevronDown,
   Trash2,
+  Eye,
   User,
   CreditCard,
   ArrowRightLeft,
@@ -1029,75 +1030,134 @@ export default function TenantsDirectoryPage({
               paginatedOccupants.map((occ) => {
                 const isSelected = selectedIds.includes(occ.id);
                 const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
-
-                const handleTouchStart = () => {
-                  const timer = setTimeout(() => {
-                    setIsMobileMultiSelectMode(true);
-                    handleSelectOne(occ.id);
-                    if (navigator.vibrate) navigator.vibrate(50);
-                  }, 500);
-                  setLongPressTimer(timer);
-                };
-
-                const handleTouchEnd = () => {
-                  if (longPressTimer) clearTimeout(longPressTimer);
-                };
+                const isActionMenuOpen = activeActionDropdownId === occ.id;
 
                 return (
                   <div
                     key={occ.id}
-                    onTouchStart={handleTouchStart}
-                    onTouchEnd={handleTouchEnd}
-                    onMouseDown={handleTouchStart}
-                    onMouseUp={handleTouchEnd}
-                    className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all ${
+                    className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all relative ${
                       isSelected ? "border-[#c2652a] bg-orange-50/40 ring-1 ring-[#c2652a]" : "border-gray-200"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        {isMobileMultiSelectMode && (
+                        {isMobileMultiSelectMode ? (
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleSelectOne(occ.id)}
-                            className="w-5 h-5 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] shrink-0"
+                            className="w-5 h-5 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] shrink-0 cursor-pointer"
                           />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMobileMultiSelectMode(true);
+                              handleSelectOne(occ.id);
+                            }}
+                            title="Tap photo to select multiple"
+                            className="relative group shrink-0"
+                          >
+                            <img
+                              src={occ.avatar}
+                              alt={occ.name}
+                              className="w-11 h-11 rounded-full border border-gray-200 object-cover group-hover:opacity-80 transition-opacity"
+                            />
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-[#c2652a]/80 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                                ✓
+                              </div>
+                            )}
+                          </button>
                         )}
                         <Link
                           href={`/p/${propertyId}/tenants/${occ.id}`}
-                          className="flex items-center gap-3"
+                          className="flex-1 min-w-0"
                         >
-                          <img
-                            src={occ.avatar}
-                            alt={occ.name}
-                            className="w-11 h-11 rounded-full border border-gray-200 object-cover"
-                          />
-                          <div>
-                            <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2">
-                              {occ.name}
-                              {occ.stayType === "Guest" && (
-                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                                  🟣 GUEST
-                                </span>
-                               )}
-                            </h3>
-                            <p className="text-xs text-gray-500">{occ.phone}</p>
-                          </div>
+                          <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2 truncate">
+                            {occ.name}
+                            {occ.stayType === "Guest" && (
+                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
+                                🟣 GUEST
+                              </span>
+                            )}
+                          </h3>
+                          <p className="text-xs text-gray-500 font-mono truncate">{occ.phone}</p>
                         </Link>
                       </div>
 
-                      <span
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase shrink-0 ${
-                          occ.paymentStatus === "Paid"
-                            ? "bg-green-100 text-green-700"
-                            : occ.paymentStatus === "Overdue"
-                            ? "bg-red-100 text-red-600"
-                            : "bg-orange-100 text-orange-600"
-                        }`}
-                      >
-                        {occ.paymentStatus}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
+                            occ.paymentStatus === "Paid"
+                              ? "bg-green-100 text-green-700"
+                              : occ.paymentStatus === "Overdue"
+                              ? "bg-red-100 text-red-600"
+                              : "bg-orange-100 text-orange-600"
+                          }`}
+                        >
+                          {occ.paymentStatus}
+                        </span>
+
+                        {/* Mobile Three-Dots Action Button */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setActiveActionDropdownId(isActionMenuOpen ? null : occ.id)}
+                            className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer"
+                            title="More Actions"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {/* Mobile Action Dropdown Popup */}
+                          {isActionMenuOpen && (
+                            <div className="absolute right-0 top-9 z-30 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 text-xs font-semibold animate-in fade-in zoom-in-95">
+                              <Link
+                                href={`/p/${propertyId}/tenants/${occ.id}`}
+                                onClick={() => setActiveActionDropdownId(null)}
+                                className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-800"
+                              >
+                                <Eye className="w-4 h-4 text-purple-600" /> View Profile
+                              </Link>
+                              {occ.lifecycleStatus !== "Past" && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setActiveActionDropdownId(null);
+                                      setCollectRentOccupant(occ);
+                                      setPaymentAmount(occ.rentAmount);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-800"
+                                  >
+                                    <CreditCard className="w-4 h-4 text-emerald-600" /> Collect Rent
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActiveActionDropdownId(null);
+                                      triggerToast(`Initiated Room Transfer for ${occ.name}`);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-800"
+                                  >
+                                    <ArrowRightLeft className="w-4 h-4 text-gray-500" /> Transfer Room
+                                  </button>
+                                </>
+                              )}
+                              {isPastTenant && (
+                                <button
+                                  onClick={() => {
+                                    setActiveActionDropdownId(null);
+                                    setDeletePastTenantTarget(occ);
+                                  }}
+                                  className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-rose-50 text-rose-600 border-t border-gray-100 font-bold"
+                                >
+                                  <Trash2 className="w-4 h-4 text-rose-600" /> Delete Past Tenant
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
