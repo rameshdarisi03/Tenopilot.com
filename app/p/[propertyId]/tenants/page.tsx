@@ -10,7 +10,7 @@ import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOcc
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
-import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -73,10 +73,8 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants) {
-        // Preserve all real onboarded tenants and guests (IDs like occ-1786256400000 or guest-1786256400000)
-        const cleanList = fsOccupants.filter(
-          (o) => /^(occ|guest)-\d{12,16}$/.test(o.id) || (!o.id.startsWith("tera") && !o.id.includes("test-"))
-        );
+        // Preserve all real onboarded tenants and guests
+        const cleanList = fsOccupants.filter((o) => isGenuineOccupantId(o.id));
         occupantStore.setOccupantsFromFirestore(cleanList);
         setOccupantsList(cleanList);
       }

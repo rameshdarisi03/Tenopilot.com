@@ -79,8 +79,28 @@ export async function deleteOccupantFromFirestore(
 }
 
 /**
+ * Standardized identification helpers for Mock vs Genuine Onboarded Occupants
+ * - Mock IDs: mock-tenant-*, mock-guest-*, tera*, *test-*, demo-*
+ * - Genuine Onboarded IDs: tenant-timestamp, guest-timestamp, occ-timestamp
+ */
+export function isMockOccupantId(id: string): boolean {
+  if (!id) return false;
+  return (
+    id.startsWith("mock-") ||
+    id.startsWith("tera") ||
+    id.includes("test-") ||
+    id.startsWith("demo-")
+  );
+}
+
+export function isGenuineOccupantId(id: string): boolean {
+  if (!id) return false;
+  return !isMockOccupantId(id);
+}
+
+/**
  * Purge all mock/demo occupants permanently from Firebase Cloud Firestore
- * Keeps ONLY real onboarded tenants (which have timestamp IDs like occ-1786256400000)
+ * Keeps ONLY real onboarded tenants and guests
  */
 export async function purgeAllMockOccupantsFromFirestore(
   propertyId: string = "sunshine-pg"
@@ -93,10 +113,7 @@ export async function purgeAllMockOccupantsFromFirestore(
     for (const docSnap of snapshot.docs) {
       const id = docSnap.id;
 
-      // Real onboarded tenants/guests created via Onboarding Portal have timestamp IDs (e.g. occ-1786256400000 or guest-1786256400000)
-      const isRealOnboarded = /^(occ|guest)-\d{12,16}$/.test(id) || (!id.startsWith("tera") && !id.includes("test-"));
-
-      if (!isRealOnboarded) {
+      if (isMockOccupantId(id)) {
         await deleteDoc(doc(db, "properties", propertyId, "occupants", id));
         deletedCount++;
       }
