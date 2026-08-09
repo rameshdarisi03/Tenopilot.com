@@ -247,7 +247,7 @@ export default function OnboardGuestPage({
 
   // Final Action: Complete Guest Onboarding
   const handleFinalGuestSubmit = () => {
-    const newId = `guest-${Date.now()}`;
+    const newId = `og-guest-${Date.now()}`;
     const formattedCheckIn = new Date(checkInDate).toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",

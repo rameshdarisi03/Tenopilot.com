@@ -251,7 +251,7 @@ export default function OnboardTenantPage({
 
   // Final Action: Agree & Onboard Tenant
   const handleFinalSubmit = () => {
-    const newId = `occ-${Date.now()}`;
+    const newId = `og-tenant-${Date.now()}`;
     const formattedJoiningDate = new Date(joiningDate).toLocaleDateString(
       "en-GB",
       { day: "2-digit", month: "short", year: "numeric" }
