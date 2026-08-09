@@ -12,6 +12,7 @@ import {
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
 import { getBedOccupantsTimeline, BedOccupantsTimeline } from "@/utils/domainSSOT";
+import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
   ChevronLeft,
   Settings,
@@ -107,6 +108,13 @@ export default function PropertyMapPage({
     roomNumber: string;
     floorName: string;
     timeline: BedOccupantsTimeline;
+  } | null>(null);
+
+  // Formal Check-Out & Settlement Modal state
+  const [checkOutOccupantData, setCheckOutOccupantData] = useState<{
+    occupant: Occupant;
+    roomNumber: string;
+    bedCode: string;
   } | null>(null);
 
   // Toast notification state
@@ -816,9 +824,25 @@ export default function PropertyMapPage({
                     </button>
                   </div>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeBedSlot.bed.occupant) {
+                        setCheckOutOccupantData({
+                          occupant: activeBedSlot.bed.occupant,
+                          roomNumber: activeBedSlot.roomNumber,
+                          bedCode: activeBedSlot.bed.bedCode,
+                        });
+                      }
+                    }}
+                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                  >
+                    🔑 Formal Check-Out & Deposit Settlement
+                  </button>
+
                   <Link
                     href={`/p/${propertyId}/tenants/${activeBedSlot.bed.occupant.id}`}
-                    className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block text-center"
+                    className="w-full py-3 rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-2 transition-all block text-center"
                   >
                     View Full Profile <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -1074,6 +1098,22 @@ export default function PropertyMapPage({
               </div>
             </div>
           </div>
+        )}
+
+        {/* 🔑 Formal Check-Out & Settlement Modal */}
+        {checkOutOccupantData && (
+          <CheckOutSettlementModal
+            occupant={checkOutOccupantData.occupant}
+            roomNumber={checkOutOccupantData.roomNumber}
+            bedCode={checkOutOccupantData.bedCode}
+            propertyId={propertyId}
+            isOpen={!!checkOutOccupantData}
+            onClose={() => setCheckOutOccupantData(null)}
+            onSuccess={() => {
+              triggerToast(`🎉 Completed formal check-out & deposit settlement for ${checkOutOccupantData.occupant.name}! Bed ${checkOutOccupantData.roomNumber} (${checkOutOccupantData.bedCode}) is now Available 🟢`);
+              setActiveBedSlot(null);
+            }}
+          />
         )}
       </div>
     </div>

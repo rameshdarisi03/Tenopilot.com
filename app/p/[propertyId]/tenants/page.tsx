@@ -12,6 +12,7 @@ import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
+import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
 import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";
@@ -137,6 +138,7 @@ export default function TenantsDirectoryPage({
   const [showCompleteCheckInPopup, setShowCompleteCheckInPopup] = useState<boolean>(false);
   const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
   const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
+  const [checkOutModalOccupant, setCheckOutModalOccupant] = useState<Occupant | null>(null);
 
   const [currentSettings, setCurrentSettings] = useState(() => propertySettingsStore.getSettings());
 
@@ -1750,6 +1752,21 @@ export default function TenantsDirectoryPage({
               </div>
             </div>
           </div>
+        )}
+
+        {/* 🔑 Formal Check-Out & Settlement Modal */}
+        {checkOutModalOccupant && (
+          <CheckOutSettlementModal
+            occupant={checkOutModalOccupant}
+            roomNumber={checkOutModalOccupant.roomNumber}
+            bedCode={checkOutModalOccupant.bedCode}
+            propertyId={propertyId}
+            isOpen={!!checkOutModalOccupant}
+            onClose={() => setCheckOutModalOccupant(null)}
+            onSuccess={() => {
+              triggerToast(`🎉 Completed formal check-out & deposit settlement for ${checkOutModalOccupant.name}! Bed ${checkOutModalOccupant.roomNumber} (${checkOutModalOccupant.bedCode}) is now Available 🟢`);
+            }}
+          />
         )}
       </div>
     </div>

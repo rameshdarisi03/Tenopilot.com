@@ -183,6 +183,29 @@ export const propertyStore = {
     listeners.forEach((l) => l());
   },
 
+  // Method to clear bed slot and reset status to "Available" upon tenant checkout
+  freeUpBedSlot(propertyId: string = "sunshine-pg", roomNumber: string, bedCode: string) {
+    const current = this.getStructure();
+    const updated = current.map((fl) => ({
+      ...fl,
+      rooms: fl.rooms.map((rm) => {
+        if (rm.roomNumber !== roomNumber) return rm;
+        return {
+          ...rm,
+          beds: rm.beds.map((bd) => {
+            if (bd.bedCode !== bedCode) return bd;
+            return {
+              ...bd,
+              status: "Available" as const,
+              occupant: undefined,
+            };
+          }),
+        };
+      }),
+    }));
+    this.updateStructure(updated, propertyId);
+  },
+
   subscribe(listener: () => void) {
     listeners.push(listener);
     return () => {

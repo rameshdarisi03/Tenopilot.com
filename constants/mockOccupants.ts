@@ -1089,10 +1089,20 @@ export const occupantStore = {
   },
 
   setOccupantsFromFirestore(newList: Occupant[]) {
-    GLOBAL_OCCUPANTS_CACHE = newList;
+    // Intelligently merge Firestore records with local cache so newly created tenants/guests are NEVER overwritten
+    const current = loadOccupants();
+    const map = new Map<string, Occupant>();
+
+    // 1. Add existing local items
+    current.forEach((o) => map.set(o.id, o));
+    // 2. Add/update items from Cloud Firestore
+    newList.forEach((o) => map.set(o.id, o));
+
+    const mergedList = Array.from(map.values());
+    GLOBAL_OCCUPANTS_CACHE = mergedList;
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(newList));
+        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(mergedList));
       } catch (e) {
         console.warn("Failed to cache occupants store:", e);
       }

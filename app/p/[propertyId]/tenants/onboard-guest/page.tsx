@@ -45,6 +45,7 @@ import {
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { lookupExistingOccupant } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
+import { saveOccupantToFirestore } from "@/lib/firestoreService";
 
 export default function OnboardGuestPage({
   params,
@@ -322,7 +323,8 @@ export default function OnboardGuestPage({
       paymentHistory: [],
     };
 
-    // Prepend to occupantStore & sync across all pages, localStorage & Firebase
+    // Direct Cloud Firestore write & sync across all pages
+    saveOccupantToFirestore(propertyId, newGuest);
     occupantStore.updateOccupants([newGuest, ...occupantStore.getOccupants()], propertyId);
 
     // Update bed status in propertyStore
@@ -927,38 +929,50 @@ export default function OnboardGuestPage({
                     </button>
                   </div>
 
-                  {/* MODE A: Front & Back Images */}
+                  {/* MODE A: Front & Back Images (Stacked Vertically for Maximum Clarity) */}
                   {idUploadMode === "IMAGES" ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full pt-1">
-                      <UnifiedPhotoUploadSlot
-                        label="ID Card Front"
-                        aspectRatio="idcard"
-                        value={aadhaarFrontUrl || aadhaarFrontDoc?.previewUrl}
-                        onChange={(base64) => {
-                          setAadhaarFrontUrl(base64);
-                          setIsIdSaved(true);
-                          triggerToast("✓ ID Card Front attached");
-                        }}
-                        onRemove={() => {
-                          setAadhaarFrontUrl("");
-                          setAadhaarFrontDoc(null);
-                        }}
-                      />
+                    <div className="space-y-4 w-full pt-1 text-left">
+                      {/* Front ID Photo Slot */}
+                      <div className="space-y-1.5">
+                        <label className="block font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                          💳 ID Card Front Photo *
+                        </label>
+                        <UnifiedPhotoUploadSlot
+                          label="ID Card Front Photo"
+                          aspectRatio="idcard"
+                          value={aadhaarFrontUrl || aadhaarFrontDoc?.previewUrl}
+                          onChange={(base64) => {
+                            setAadhaarFrontUrl(base64);
+                            setIsIdSaved(true);
+                            triggerToast("✓ ID Card Front attached");
+                          }}
+                          onRemove={() => {
+                            setAadhaarFrontUrl("");
+                            setAadhaarFrontDoc(null);
+                          }}
+                        />
+                      </div>
 
-                      <UnifiedPhotoUploadSlot
-                        label="ID Card Back"
-                        aspectRatio="idcard"
-                        value={aadhaarBackUrl || aadhaarBackDoc?.previewUrl}
-                        onChange={(base64) => {
-                          setAadhaarBackUrl(base64);
-                          setIsIdSaved(true);
-                          triggerToast("✓ ID Card Back attached");
-                        }}
-                        onRemove={() => {
-                          setAadhaarBackUrl("");
-                          setAadhaarBackDoc(null);
-                        }}
-                      />
+                      {/* Back ID Photo Slot */}
+                      <div className="space-y-1.5">
+                        <label className="block font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                          💳 ID Card Back Photo *
+                        </label>
+                        <UnifiedPhotoUploadSlot
+                          label="ID Card Back Photo"
+                          aspectRatio="idcard"
+                          value={aadhaarBackUrl || aadhaarBackDoc?.previewUrl}
+                          onChange={(base64) => {
+                            setAadhaarBackUrl(base64);
+                            setIsIdSaved(true);
+                            triggerToast("✓ ID Card Back attached");
+                          }}
+                          onRemove={() => {
+                            setAadhaarBackUrl("");
+                            setAadhaarBackDoc(null);
+                          }}
+                        />
+                      </div>
                     </div>
                   ) : (
                     /* MODE B: Single PDF Upload */
