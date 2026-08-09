@@ -7,6 +7,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
+import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import {
   calculateRoomTransferProRata,
   calculateGuestRoomTransferAdjustment,
@@ -3467,57 +3468,28 @@ export default function IndividualTenantProfilePage({
               </div>
 
               <form onSubmit={handleCompleteKycSubmit} className="space-y-4">
-                {/* 1. Profile Photo Upload / Save */}
+                {/* 1. Profile Photo Live Capture / Upload */}
                 <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
                   <label className="block font-bold text-gray-800 text-xs">
-                    📷 1. Tenant Profile Photo
+                    📷 1. Tenant Headshot Profile Photo
                   </label>
-                  <div className="flex items-center gap-2">
-                    <label className="flex-1 cursor-pointer py-2 px-3 rounded-xl bg-white border border-gray-300 font-bold text-gray-800 text-center hover:bg-gray-100">
-                      Choose Photo File
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              setKycInputPhotoUrl(ev.target?.result as string);
-                              setIsKycPhotoSaved(false);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  {kycInputPhotoUrl && (
-                    <div className="space-y-2 pt-1">
-                      <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-lg font-medium">
-                        ✓ Photo Loaded Successfully
-                      </div>
-                      {!isKycPhotoSaved ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsKycPhotoSaved(true)}
-                          className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs cursor-pointer"
-                        >
-                          💾 Save Profile Photo to Database
-                        </button>
-                      ) : (
-                        <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between">
-                          <span>✓ Photo Locked & Saved 🟢</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <UnifiedPhotoUploadSlot
+                    label="Tenant Profile Photo"
+                    aspectRatio="headshot"
+                    value={kycInputPhotoUrl}
+                    onChange={(base64) => {
+                      setKycInputPhotoUrl(base64);
+                      setIsKycPhotoSaved(true);
+                    }}
+                    onRemove={() => {
+                      setKycInputPhotoUrl("");
+                      setIsKycPhotoSaved(false);
+                    }}
+                  />
                 </div>
 
-                {/* 2. Aadhaar / Govt ID Input */}
-                <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
+                {/* 2. Aadhaar / Govt ID Number & Photos */}
+                <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
                   <label className="block font-bold text-gray-800 text-xs">
                     🪪 2. Aadhaar / Govt ID Number *
                   </label>
@@ -3526,30 +3498,47 @@ export default function IndividualTenantProfilePage({
                     required
                     value={kycInputAadhaar}
                     onChange={(e) => setKycInputAadhaar(e.target.value)}
-                    placeholder="e.g. 9812-4412-8811 or Govt ID"
+                    placeholder="e.g. 9812-4412-8811 or Govt ID Number"
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 font-mono text-xs font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
 
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <label className="cursor-pointer py-2 px-2 rounded-xl bg-white border border-gray-300 font-bold text-gray-700 text-center hover:bg-gray-100 text-[10px]">
-                      {kycFrontUploaded ? "✓ Front Uploaded" : "+ Upload Front ID"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={() => setKycFrontUploaded(true)}
+                  {/* ID Front & Back Photo Slots (Stacked Vertically) */}
+                  <div className="space-y-3 pt-1">
+                    <div className="space-y-1 text-left">
+                      <label className="block font-bold text-gray-900 text-xs">
+                        💳 ID Card Front Photo *
+                      </label>
+                      <UnifiedPhotoUploadSlot
+                        label="ID Card Front Photo"
+                        aspectRatio="idcard"
+                        value={occupantState.kycDocs?.aadhaarFrontUrl}
+                        onChange={(base64) => {
+                          setKycFrontUploaded(true);
+                          setOccupantState((prev) => ({
+                            ...prev,
+                            kycDocs: { ...prev.kycDocs, aadhaarFrontUrl: base64 },
+                          }));
+                        }}
                       />
-                    </label>
+                    </div>
 
-                    <label className="cursor-pointer py-2 px-2 rounded-xl bg-white border border-gray-300 font-bold text-gray-700 text-center hover:bg-gray-100 text-[10px]">
-                      {kycBackUploaded ? "✓ Back Uploaded" : "+ Upload Back ID"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={() => setKycBackUploaded(true)}
+                    <div className="space-y-1 text-left">
+                      <label className="block font-bold text-gray-900 text-xs">
+                        💳 ID Card Back Photo *
+                      </label>
+                      <UnifiedPhotoUploadSlot
+                        label="ID Card Back Photo"
+                        aspectRatio="idcard"
+                        value={occupantState.kycDocs?.aadhaarBackUrl}
+                        onChange={(base64) => {
+                          setKycBackUploaded(true);
+                          setOccupantState((prev) => ({
+                            ...prev,
+                            kycDocs: { ...prev.kycDocs, aadhaarBackUrl: base64 },
+                          }));
+                        }}
                       />
-                    </label>
+                    </div>
                   </div>
                 </div>
 

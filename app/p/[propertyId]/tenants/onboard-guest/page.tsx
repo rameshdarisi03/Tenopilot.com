@@ -283,6 +283,10 @@ export default function OnboardGuestPage({
     const initialLifecycleStatus: "Active" | "Booked" = isFutureCheckIn ? "Booked" : "Active";
     const initialPaymentStatus: "Due" = "Due"; // Tariff + Deposit is RECEIVABLE upon onboarding!
 
+    const isIdProvided = Boolean(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc);
+    const isVerified = isIdProvided;
+    const finalAadhaarNumber = isIdProvided ? "XXXX-XXXX-8811" : "Skipped";
+
     const newGuest: Occupant = {
       id: newId,
       name: fullName.trim(),
@@ -301,10 +305,10 @@ export default function OnboardGuestPage({
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedCheckIn,
       avatar: photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
-      kycVerified: Boolean(aadhaarFrontDoc || aadhaarBackDoc || photoDoc),
+      kycVerified: isVerified,
       hasPdfAgreement: false,
       address: address.trim(),
-      aadhaarNumber: Boolean(aadhaarFrontDoc || aadhaarBackDoc) ? "XXXX-XXXX-8811" : "Skipped",
+      aadhaarNumber: finalAadhaarNumber,
       emergencyContact: {
         name: "Parent / Guardian",
         phone: fullEmergencyPhone,
@@ -996,28 +1000,20 @@ export default function OnboardGuestPage({
                     </div>
                   )}
 
-                  {/* Section-level Save & Skip Actions for Govt ID */}
-                  {(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc) ? (
+                  {/* Section-level Indicator for Govt ID */}
+                  {(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) ? (
                     <div className="space-y-2 w-full pt-2 border-t border-gray-200/80">
                       <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between animate-in fade-in">
                         <span className="flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Govt ID Saved 🟢
+                          <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Govt ID Attached 🟢
                         </span>
                       </div>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAadhaarFrontDoc(null);
-                        setAadhaarBackDoc(null);
-                        setIsIdSaved(false);
-                        triggerToast("Govt ID skipped — flagged as KYC Pending 🟡");
-                      }}
-                      className="w-full py-2 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
-                    >
-                      ⏩ Skip Govt ID (KYC Pending 🟡)
-                    </button>
+                    <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 font-bold text-[11px] flex items-center gap-1.5 animate-in fade-in">
+                      <Info className="w-4 h-4 text-purple-700 shrink-0" />
+                      <span>💡 Optional: If left empty, completing onboarding automatically marks KYC as Pending 🟡</span>
+                    </div>
                   )}
                 </div>
               </div>

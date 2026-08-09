@@ -74,9 +74,9 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants && fsOccupants.length > 0) {
-        // Keep all Firestore records (both og- and mock- data remain until explicit user purge)
+        // Keep all Firestore records & merge with local onboarded occupants
         occupantStore.setOccupantsFromFirestore(fsOccupants);
-        setOccupantsList(fsOccupants);
+        setOccupantsList(occupantStore.getOccupants());
       }
     });
 

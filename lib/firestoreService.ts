@@ -13,6 +13,18 @@ import {
 import { Occupant } from "@/constants/mockOccupants";
 
 /**
+ * Recursively sanitizes an object for Firebase Cloud Firestore by stripping all `undefined` values.
+ * Firestore throws unsupported error if any object property is `undefined`.
+ */
+export function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) return null as unknown as T;
+  if (typeof obj !== "object") return obj;
+  return JSON.parse(
+    JSON.stringify(obj, (_key, value) => (value === undefined ? null : value))
+  ) as T;
+}
+
+/**
  * Save or update an occupant record in Firebase Cloud Firestore
  * Collection Path: properties/{propertyId}/occupants/{occupantId}
  */
@@ -28,7 +40,8 @@ export async function saveOccupantToFirestore(
       "occupants",
       occupant.id
     );
-    await setDoc(occupantRef, occupant, { merge: true });
+    const sanitizedOccupant = sanitizeForFirestore(occupant);
+    await setDoc(occupantRef, sanitizedOccupant, { merge: true });
     return true;
   } catch (error) {
     console.warn("Firestore save fallback to in-memory store:", error);
@@ -52,7 +65,8 @@ export async function updateOccupantInFirestore(
       "occupants",
       occupantId
     );
-    await updateDoc(occupantRef, updates);
+    const sanitizedUpdates = sanitizeForFirestore(updates);
+    await updateDoc(occupantRef, sanitizedUpdates);
     return true;
   } catch (error) {
     console.warn("Firestore update fallback to in-memory store:", error);
