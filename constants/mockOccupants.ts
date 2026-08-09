@@ -894,25 +894,181 @@ export function generateMockOccupants(count = 25): Occupant[] {
   return [];
 }
 
+export const MOCK_SEQUENTIAL_GUESTS_BED_101_A: Occupant[] = [
+  // 1. Mock Guest 1 (Past Guest - Checked Out 31 Jul)
+  {
+    id: "mock-guest-01",
+    name: "Mock Guest 1 (Anil Kumble)",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AnilKumble",
+    phone: "+91 98001 00001",
+    email: "anil.kumble@mock.com",
+    stayType: "Guest",
+    lifecycleStatus: "Past",
+    paymentStatus: "Paid",
+    rentAmount: 4800,
+    joiningDate: "25 Jul 2026",
+    vacatingDate: "31 Jul 2026",
+    dueDate: "31 Jul 2026",
+    dueDay: 31,
+    lastPaidDate: "25 Jul 2026",
+    daysDiff: -9,
+    daysRemainingText: "Checked Out",
+    roomNumber: "101",
+    bedCode: "BED A",
+    kycVerified: false,
+    aadhaarNumber: "Skipped",
+    emergencyContact: { name: "Raj Kumble", phone: "+91 98001 99991", relation: "Brother" },
+    securityDeposit: 1000,
+    depositStatus: "PAID",
+    arrearsBalance: 0,
+    workplace: "Cricket Academy",
+    address: "Bengaluru, KA",
+  },
+  // 2. Mock Guest 2 (Currently Active Guest - 02 Aug to 09 Aug)
+  {
+    id: "mock-guest-02",
+    name: "Mock Guest 2 (Rahul Dravid)",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RahulDravid",
+    phone: "+91 98001 00002",
+    email: "rahul.dravid@mock.com",
+    stayType: "Guest",
+    lifecycleStatus: "Active",
+    paymentStatus: "Due",
+    rentAmount: 5600,
+    joiningDate: "02 Aug 2026",
+    vacatingDate: "09 Aug 2026",
+    dueDate: "09 Aug 2026",
+    dueDay: 9,
+    lastPaidDate: "Unpaid / Due Now",
+    daysDiff: 0,
+    daysRemainingText: "Checking Out Today",
+    roomNumber: "101",
+    bedCode: "BED A",
+    kycVerified: false,
+    aadhaarNumber: "Skipped",
+    emergencyContact: { name: "Vijeta Dravid", phone: "+91 98001 99992", relation: "Spouse" },
+    securityDeposit: 1000,
+    depositStatus: "PENDING",
+    arrearsBalance: 0,
+    workplace: "NCA Head",
+    address: "Indiranagar, Bengaluru",
+  },
+  // 3. Mock Guest 3 (Upcoming Booked Guest #1 - 11 Aug to 18 Aug)
+  {
+    id: "mock-guest-03",
+    name: "Mock Guest 3 (VVS Laxman)",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VVSLaxman",
+    phone: "+91 98001 00003",
+    email: "vvs.laxman@mock.com",
+    stayType: "Guest",
+    lifecycleStatus: "Booked",
+    paymentStatus: "Due",
+    rentAmount: 5600,
+    joiningDate: "11 Aug 2026",
+    vacatingDate: "18 Aug 2026",
+    dueDate: "18 Aug 2026",
+    dueDay: 18,
+    lastPaidDate: "Reserved / Unpaid",
+    daysDiff: 2,
+    daysRemainingText: "Checking in 11 Aug",
+    roomNumber: "101",
+    bedCode: "BED A",
+    kycVerified: false,
+    aadhaarNumber: "Skipped",
+    emergencyContact: { name: "Shailaja Laxman", phone: "+91 98001 99993", relation: "Spouse" },
+    securityDeposit: 1000,
+    depositStatus: "PENDING",
+    arrearsBalance: 0,
+    workplace: "Sunrisers Mentor",
+    address: "Hyderabad, TS",
+  },
+  // 4. Mock Guest 4 (Upcoming Booked Guest #2 - 20 Aug to 27 Aug)
+  {
+    id: "mock-guest-04",
+    name: "Mock Guest 4 (Javagal Srinath)",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=JavagalSrinath",
+    phone: "+91 98001 00004",
+    email: "javagal.srinath@mock.com",
+    stayType: "Guest",
+    lifecycleStatus: "Booked",
+    paymentStatus: "Due",
+    rentAmount: 5600,
+    joiningDate: "20 Aug 2026",
+    vacatingDate: "27 Aug 2026",
+    dueDate: "27 Aug 2026",
+    dueDay: 27,
+    lastPaidDate: "Reserved / Unpaid",
+    daysDiff: 11,
+    daysRemainingText: "Checking in 20 Aug",
+    roomNumber: "101",
+    bedCode: "BED A",
+    kycVerified: false,
+    aadhaarNumber: "Skipped",
+    emergencyContact: { name: "Madhavi Srinath", phone: "+91 98001 99994", relation: "Spouse" },
+    securityDeposit: 1000,
+    depositStatus: "PENDING",
+    arrearsBalance: 0,
+    workplace: "ICC Match Referee",
+    address: "Mysuru, KA",
+  },
+  // 5. Mock Guest 5 (Upcoming Booked Guest #3 - 29 Aug to 05 Sep)
+  {
+    id: "mock-guest-05",
+    name: "Mock Guest 5 (Venkatesh Prasad)",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VenkateshPrasad",
+    phone: "+91 98001 00005",
+    email: "venkatesh.prasad@mock.com",
+    stayType: "Guest",
+    lifecycleStatus: "Booked",
+    paymentStatus: "Due",
+    rentAmount: 5600,
+    joiningDate: "29 Aug 2026",
+    vacatingDate: "05 Sep 2026",
+    dueDate: "05 Sep 2026",
+    dueDay: 5,
+    lastPaidDate: "Reserved / Unpaid",
+    daysDiff: 20,
+    daysRemainingText: "Checking in 29 Aug",
+    roomNumber: "101",
+    bedCode: "BED A",
+    kycVerified: false,
+    aadhaarNumber: "Skipped",
+    emergencyContact: { name: "Jayanthi Prasad", phone: "+91 98001 99995", relation: "Spouse" },
+    securityDeposit: 1000,
+    depositStatus: "PENDING",
+    arrearsBalance: 0,
+    workplace: "Bowling Coach",
+    address: "Bengaluru, KA",
+  },
+];
+
 const OCCUPANTS_STORAGE_KEY = "tenopilot_real_occupants_v1";
 let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
 const occupantListeners: Array<() => void> = [];
 
 function loadOccupants(): Occupant[] {
   if (GLOBAL_OCCUPANTS_CACHE) return GLOBAL_OCCUPANTS_CACHE;
+  let list: Occupant[] = [];
   if (typeof window !== "undefined") {
     try {
       const saved = localStorage.getItem(OCCUPANTS_STORAGE_KEY);
       if (saved) {
-        GLOBAL_OCCUPANTS_CACHE = JSON.parse(saved);
-        return GLOBAL_OCCUPANTS_CACHE!;
+        list = JSON.parse(saved);
       }
     } catch (e) {
       console.warn("Failed to load occupants from localStorage", e);
     }
   }
-  // Zero mock occupants policy: Only onboarded tenants saved to Firestore/User input!
-  GLOBAL_OCCUPANTS_CACHE = [];
+
+  // Inject the 5 sequential mock guests for Room 101 BED A if not present
+  MOCK_SEQUENTIAL_GUESTS_BED_101_A.forEach((mockGuest) => {
+    if (!list.some((o) => o.id === mockGuest.id)) {
+      list.push(mockGuest);
+      saveOccupantToFirestore("sunshine-pg", mockGuest);
+    }
+  });
+
+  GLOBAL_OCCUPANTS_CACHE = list;
   return GLOBAL_OCCUPANTS_CACHE;
 }
 
