@@ -266,11 +266,11 @@ export default function PropertySettingsPage({
           <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="p-3 bg-orange-100 text-[#c2652a] rounded-2xl shrink-0">
-                <Sliders className="w-6 h-6" />
+                <Settings className="w-6 h-6" />
               </div>
               <div>
                 <h1 className="font-serif font-bold text-xl text-gray-900">
-                  Global Property Configuration
+                  Settings
                 </h1>
                 <p className="text-xs text-gray-500 font-medium">
                   Customize billing cycles, 5th rent due dates, pro-rata proration, and PG preferences.

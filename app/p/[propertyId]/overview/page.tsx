@@ -21,6 +21,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { propertySettingsStore } from "@/constants/propertySettings";
+
 export default function PropertyOverviewPage({
   params,
 }: {
@@ -29,6 +31,19 @@ export default function PropertyOverviewPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const [portalUrl, setPortalUrl] = useState(`http://localhost:3000/p/${propertyId}/public-complaint`);
+
+  const [propertySettings, setPropertySettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    const unsubscribe = propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
+    return unsubscribe;
+  }, [propertyId]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -59,10 +74,10 @@ export default function PropertyOverviewPage({
                 OPERATIONAL HEALTHY 🟢
               </span>
               <h2 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17] mt-2">
-                Sunshine PG Dashboard
+                {propertySettings.propertyName} Dashboard
               </h2>
               <p className="text-xs text-[#554339] mt-0.5">
-                Kondapur, Hyderabad • 48 Total Beds • 98.5% Occupancy
+                {propertySettings.propertyAddress} • 78 Total Beds • 98.5% Occupancy
               </p>
             </div>
 

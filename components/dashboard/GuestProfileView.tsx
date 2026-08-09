@@ -25,7 +25,11 @@ import {
   TrendingUp,
   TrendingDown,
   Eye,
+  Camera,
+  Lock,
+  FileText,
 } from "lucide-react";
+import { propertySettingsStore } from "@/constants/propertySettings";
 
 interface GuestProfileViewProps {
   occupantState: Occupant;
@@ -52,13 +56,23 @@ export function GuestProfileView({
   const [viewKycModal, setViewKycModal] = useState<{
     open: boolean;
     title: string;
-    docType: "front" | "back";
-  } | null>(null);
+    docType: "photo" | "front" | "back" | "pdf" | "";
+  }>({ open: false, title: "", docType: "" });
+
+  const [propertySettings, setPropertySettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    const unsubscribe = propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
+    return unsubscribe;
+  }, [propertyId]);
 
   // Calculate stay duration & days remaining dynamically via SSOT Domain Engine
   const checkInDateStr = occupantState.joiningDate || occupantState.lastPaidDate || "02 Aug 2026";
@@ -79,24 +93,33 @@ export function GuestProfileView({
         <div className="flex items-center gap-2">
           <Link
             href={`/p/${propertyId}/tenants`}
-            className="flex items-center gap-1 text-gray-600 hover:text-[#c2652a] transition-colors"
+            className="hover:text-purple-700 flex items-center gap-1 font-bold text-gray-700"
           >
-            <ChevronLeft className="w-4 h-4" /> TENANTS & GUESTS
+            <ChevronLeft className="w-4 h-4" /> Tenants & Guests Directory
           </Link>
           <span>/</span>
-          <span className="text-gray-900 font-bold uppercase">
-            {occupantState.name} (GUEST PROFILE)
+          <span className="text-purple-900 font-bold">
+            Guest Profile: {occupantState.name}
           </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onEditProfile}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Edit className="w-3.5 h-3.5 text-[#c2652a]" /> Edit Guest
+          </button>
         </div>
       </div>
 
-      {/* 👤 Guest Profile Header Banner */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-xs flex flex-col md:flex-row justify-between md:items-center gap-4">
+      {/* 👤 Guest Header Card */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <img
-            src={occupantState.avatar}
+            src={occupantState.kycDocs?.photoUrl || occupantState.avatar}
             alt={occupantState.name}
-            className="w-16 h-16 rounded-2xl bg-purple-50 p-1 border border-purple-200 object-cover shadow-2xs"
+            className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-200 shadow-xs shrink-0"
           />
           <div>
             <div className="flex items-center gap-2">
@@ -107,8 +130,8 @@ export function GuestProfileView({
                 {statusBadge.label}
               </span>
             </div>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Room {occupantState.roomNumber} ({occupantState.bedCode}) • Sunshine Heights PG
+            <p className="text-xs text-gray-500 mt-0.5 font-medium">
+              Room {occupantState.roomNumber} ({occupantState.bedCode}) • {propertySettings.propertyName}
             </p>
           </div>
         </div>
@@ -350,127 +373,131 @@ export function GuestProfileView({
               </div>
             </div>
           </div>
+        </div>
 
+        {/* Right Column: Guest KYC & Stay Package Statements */}
+        <div className="lg:col-span-2 space-y-6">
           {/* 🪪 Real-Time KYC Verification & Identity Card for Guests */}
           {(() => {
             const isKycVerified = occupantState.kycVerified === true;
-            const hasAadhaar = occupantState.aadhaarNumber && occupantState.aadhaarNumber !== "Skipped" && occupantState.aadhaarNumber !== "XXXX-XXXX-8811";
+            const hasPhoto = Boolean(occupantState.kycDocs?.photoUrl || (occupantState.avatar && !occupantState.avatar.includes("dicebear")));
+            const hasAadhaar = Boolean(
+              occupantState.aadhaarNumber &&
+              occupantState.aadhaarNumber !== "Skipped" &&
+              occupantState.aadhaarNumber !== "XXXX-XXXX-8811"
+            );
 
             return (
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                  <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
-                    <ShieldCheck className={`w-4 h-4 ${isKycVerified ? "text-blue-600" : "text-amber-600"}`} /> Identity & KYC Verification
-                  </h3>
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className={`w-4.5 h-4.5 ${isKycVerified ? "text-blue-600" : "text-amber-600"}`} /> Identity & KYC Verification
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-medium">
+                      🔒 Real-time Verification Checklist
+                    </p>
+                  </div>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
                     isKycVerified
                       ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                      : (hasPhoto || hasAadhaar)
+                      ? "bg-orange-100 text-orange-800 border-orange-300"
                       : "bg-amber-100 text-amber-800 border-amber-300"
                   }`}>
-                    {isKycVerified ? "VERIFIED 🟢" : "SKIPPED / PENDING 🔴"}
+                    {isKycVerified ? "VERIFIED 🟢" : (hasPhoto || hasAadhaar) ? "PARTIAL / PENDING 🟧" : "SKIPPED / PENDING 🔴"}
                   </span>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Aadhaar / Govt ID</span>
-                    <span className={`font-bold font-mono ${isKycVerified ? "text-gray-900" : "text-amber-700"}`}>
-                      {hasAadhaar ? occupantState.aadhaarNumber : isKycVerified ? "XXXX-XXXX-8821" : "Skipped at Onboarding"}
-                    </span>
+                  {/* Itemized Checklist Container */}
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                    {/* Row 1: Profile Photo Headshot */}
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="text-gray-900 font-bold flex items-center gap-1.5">
+                          <Camera className="w-3.5 h-3.5 text-purple-700" /> Guest Profile Photo
+                        </span>
+                        <p className="text-[10px] text-gray-500">
+                          {hasPhoto ? "Uploaded & Locked in Database 🟢" : "Pending Upload 🔴"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasPhoto ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                          {hasPhoto ? "COMPLETED ✅" : "PENDING 🔴"}
+                        </span>
+                        {hasPhoto && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewKycModal({
+                                open: true,
+                                title: "Guest Profile Headshot",
+                                docType: "photo",
+                              })
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                          >
+                            <Eye className="w-3 h-3 text-purple-700" /> View Photo
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 2: Govt ID / Aadhaar Proof */}
+                    <div className="flex justify-between items-center pt-2 border-t border-gray-200/60">
+                      <div>
+                        <span className="text-gray-900 font-bold flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Govt ID / Aadhaar Proof
+                        </span>
+                        <p className="text-[10px] text-gray-500 font-mono">
+                          {hasAadhaar ? occupantState.aadhaarNumber : "Skipped at Onboarding"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasAadhaar ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                          {hasAadhaar ? "COMPLETED ✅" : "SKIPPED / PENDING 🔴"}
+                        </span>
+                        {hasAadhaar && (
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setViewKycModal({
+                                  open: true,
+                                  title: "Govt ID — Front Photo",
+                                  docType: "front",
+                                })
+                              }
+                              className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                            >
+                              <Eye className="w-3 h-3 text-blue-600" /> Front ID
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setViewKycModal({
+                                  open: true,
+                                  title: "Govt ID — Back Photo",
+                                  docType: "back",
+                                })
+                              }
+                              className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+                            >
+                              <Eye className="w-3 h-3 text-blue-600" /> Back ID
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-
-                  {isKycVerified ? (
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Front Photo", docType: "front" })}
-                        className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-blue-600" /> View Front ID
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setViewKycModal({ open: true, title: "Aadhaar Card — Back Photo", docType: "back" })}
-                        className="py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold hover:bg-gray-100 text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-blue-600" /> View Back ID
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2">
-                      <p className="text-[11px] text-amber-900 font-semibold leading-snug">
-                        ⚠️ KYC skipped during guest onboarding. Identity documents are pending upload.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setViewKycModal({ open: true, title: "Upload Aadhaar / Govt ID Photo", docType: "front" })}
-                        className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                      >
-                        + Upload & Complete Guest KYC
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             );
           })()}
         </div>
 
-        {/* 📷 KYC DOCUMENT LIGHTBOX MODAL */}
-        {viewKycModal && viewKycModal.open && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" /> {viewKycModal.title}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setViewKycModal(null)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
 
-              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center justify-center space-y-3">
-                <div className="w-full aspect-video bg-gradient-to-br from-blue-900 to-indigo-950 rounded-xl p-4 text-white flex flex-col justify-between shadow-md">
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-blue-200">
-                      GOVERNMENT OF INDIA • AADHAAR
-                    </span>
-                    <span className="text-[9px] bg-emerald-500/30 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-400/40">
-                      VERIFIED 🟢
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="font-bold text-sm">{occupantState.name}</p>
-                    <p className="font-mono text-xs text-blue-200">
-                      {occupantState.aadhaarNumber || "XXXX-XXXX-8821"}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-[10px] text-gray-500 font-semibold">
-                  Encrypted Digital KYC Card Copy • TenoPilot Verification Engine
-                </p>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setViewKycModal(null)}
-                  className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold"
-                >
-                  Close Document
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Right Column: Guest Billing & Stay Log */}
-        <div className="lg:col-span-2 space-y-6">
           {(() => {
             const stmt = calculateOccupantFinancialStatement(occupantState);
             const guestHistory = occupantState.paymentHistory || [];
@@ -590,8 +617,104 @@ export function GuestProfileView({
               </>
             );
           })()}
+
+          {/* 🔒 SECURE VIEW-ONLY KYC DOCUMENT MODAL (NO LOCAL DOWNLOAD FOR PG OWNERS) */}
+          {viewKycModal.open && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in-95 select-none">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-lg text-gray-900">
+                        {viewKycModal.title}
+                      </h3>
+                      <p className="text-[10px] text-gray-400 font-semibold">
+                        GUEST / TENANT: {occupantState.name} ({occupantState.id})
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewKycModal({ open: false, title: "", docType: "" })}
+                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Security Privacy Protection Banner */}
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    <strong>🔒 Secure View-Only Mode:</strong> Direct file downloading is disabled per SaaS privacy regulations to prevent local disk misuse of identity PII.
+                  </span>
+                </div>
+
+                {/* Document Image Viewer Container */}
+                <div
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="bg-gray-900 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden border border-gray-800"
+                >
+                  {viewKycModal.docType === "photo" ? (
+                    <img
+                      src={occupantState.kycDocs?.photoUrl || occupantState.avatar}
+                      alt={occupantState.name}
+                      className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    />
+                  ) : viewKycModal.docType === "front" ? (
+                    <img
+                      src={
+                        occupantState.kycDocs?.aadhaarFrontUrl ||
+                        occupantState.kycDocs?.photoUrl ||
+                        occupantState.avatar
+                      }
+                      alt="Govt ID Front"
+                      className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    />
+                  ) : viewKycModal.docType === "back" ? (
+                    <img
+                      src={
+                        occupantState.kycDocs?.aadhaarBackUrl ||
+                        occupantState.kycDocs?.photoUrl ||
+                        occupantState.avatar
+                      }
+                      alt="Govt ID Back"
+                      className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    />
+                  ) : (
+                    /* PDF Document View */
+                    <div className="w-full bg-white/95 rounded-xl p-6 text-center space-y-3 pointer-events-none select-none text-gray-900 font-mono text-xs">
+                      <FileText className="w-14 h-14 text-blue-600 mx-auto" />
+                      <div className="font-bold text-sm text-gray-900">
+                        {occupantState.name} — GOVT ID PROOF (PDF)
+                      </div>
+                      <div className="text-[11px] text-gray-500 font-sans">
+                        DOCUMENT NUMBER: {occupantState.aadhaarNumber || "XXXX-XXXX-4819"}
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] p-2 rounded-lg font-sans font-bold">
+                        ✓ ENCRYPTED & VERIFIED IN FIREBASE CLOUD STORAGE BUCKET
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewKycModal({ open: false, title: "", docType: "" })}
+                    className="px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs cursor-pointer"
+                  >
+                    Close Viewer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

@@ -34,6 +34,8 @@ import {
   Download,
 } from "lucide-react";
 
+import { propertySettingsStore } from "@/constants/propertySettings";
+
 export default function PropertyMapPage({
   params,
 }: {
@@ -48,6 +50,19 @@ export default function PropertyMapPage({
   // Reactive Property Layout Structure State (Subscribed to propertyStore)
   const [propertyGrid, setPropertyGrid] = useState<FloorConfig[]>([]);
   const [isMounted, setIsMounted] = useState(false);
+
+  const [propertySettings, setPropertySettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    const unsubscribe = propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
+    return unsubscribe;
+  }, [propertyId]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -217,13 +232,13 @@ export default function PropertyMapPage({
                 <span>›</span>
                 <span>Properties</span>
                 <span>›</span>
-                <span className="text-gray-800 font-bold">Sunshine Heights PG</span>
+                <span className="text-gray-800 font-bold">{propertySettings.propertyName}</span>
               </div>
               <h1 className="font-serif text-3xl font-bold text-gray-900 mt-1">
-                Sunshine Heights PG
+                {propertySettings.propertyName}
               </h1>
               <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5 font-medium">
-                📍 122 Luxury Estates, Marigold District, Hitech City, Hyderabad
+                📍 {propertySettings.propertyAddress}
               </p>
             </div>
 
