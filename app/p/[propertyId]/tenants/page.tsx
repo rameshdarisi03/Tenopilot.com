@@ -1009,22 +1009,53 @@ export default function TenantsDirectoryPage({
             </div>
           </div>
 
-          {/* Mobile Card List View (Tactile Long-Press Multi-Select Enabled) */}
+          {/* Mobile Card List View (Samsung One UI 1.0s Long-Press Multi-Select Pattern) */}
           <div className="md:hidden space-y-4">
-            <div className="p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 text-[11px] font-medium flex items-center justify-between">
-              <span>💡 <strong>Tip:</strong> Long-press any card to select multiple tenants for batch WhatsApp reminders.</span>
-              {isMobileMultiSelectMode && (
+            {/* 📱 Samsung One UI Style Top Header Bar in Selection Mode */}
+            {isMobileMultiSelectMode || selectedIds.length > 0 ? (
+              <div className="bg-slate-900 text-white rounded-2xl p-3 px-4 shadow-xl flex items-center justify-between animate-in slide-in-from-top-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = filteredOccupants.map((o) => o.id);
+                      const areAllSelected = allIds.every((id) => selectedIds.includes(id));
+                      if (areAllSelected) {
+                        setSelectedIds([]);
+                      } else {
+                        setSelectedIds(allIds);
+                        setIsMobileMultiSelectMode(true);
+                      }
+                    }}
+                    className="flex items-center gap-2 text-xs font-bold bg-slate-800 hover:bg-slate-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all cursor-pointer border border-slate-700"
+                  >
+                    <span className="w-4 h-4 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold">
+                      {filteredOccupants.length > 0 && filteredOccupants.every((o) => selectedIds.includes(o.id)) ? "✓" : ""}
+                    </span>
+                    <span>Select All</span>
+                  </button>
+
+                  <span className="text-xs font-extrabold bg-[#c2652a] px-3 py-1 rounded-full text-white shadow-xs">
+                    {selectedIds.length} Selected
+                  </span>
+                </div>
+
                 <button
+                  type="button"
                   onClick={() => {
                     setIsMobileMultiSelectMode(false);
                     setSelectedIds([]);
                   }}
-                  className="px-2 py-0.5 rounded bg-orange-200 text-orange-950 font-bold text-[10px]"
+                  className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs cursor-pointer transition-all active:scale-95"
                 >
-                  Exit Select
+                  Cancel
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-orange-50/70 border border-orange-200 text-orange-950 text-[11px] font-medium flex items-center justify-between">
+                <span>💡 <strong>Tip:</strong> Press & hold any card for 1 sec 📳 to select multiple tenants.</span>
+              </div>
+            )}
 
             {paginatedOccupants.length > 0 ? (
               paginatedOccupants.map((occ) => {
@@ -1032,46 +1063,66 @@ export default function TenantsDirectoryPage({
                 const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
                 const isActionMenuOpen = activeActionDropdownId === occ.id;
 
+                const startTouchTimer = () => {
+                  if (isMobileMultiSelectMode) return;
+                  const timer = setTimeout(() => {
+                    setIsMobileMultiSelectMode(true);
+                    handleSelectOne(occ.id);
+                    if (typeof window !== "undefined" && navigator.vibrate) {
+                      navigator.vibrate(60);
+                    }
+                  }, 1000); // 1.0 second exact long-press threshold
+                  setLongPressTimer(timer);
+                };
+
+                const clearTouchTimer = () => {
+                  if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    setLongPressTimer(null);
+                  }
+                };
+
                 return (
                   <div
                     key={occ.id}
+                    onTouchStart={startTouchTimer}
+                    onTouchEnd={clearTouchTimer}
+                    onTouchMove={clearTouchTimer}
+                    onMouseDown={startTouchTimer}
+                    onMouseUp={clearTouchTimer}
+                    onClick={(e) => {
+                      if (isMobileMultiSelectMode) {
+                        e.preventDefault();
+                        handleSelectOne(occ.id);
+                      }
+                    }}
                     className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all relative ${
                       isSelected ? "border-[#c2652a] bg-orange-50/40 ring-1 ring-[#c2652a]" : "border-gray-200"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        {isMobileMultiSelectMode ? (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleSelectOne(occ.id)}
-                            className="w-5 h-5 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] shrink-0 cursor-pointer"
+                        <div className="relative shrink-0">
+                          <img
+                            src={occ.avatar}
+                            alt={occ.name}
+                            className="w-11 h-11 rounded-full border border-gray-200 object-cover"
                           />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsMobileMultiSelectMode(true);
-                              handleSelectOne(occ.id);
-                            }}
-                            title="Tap photo to select multiple"
-                            className="relative group shrink-0"
-                          >
-                            <img
-                              src={occ.avatar}
-                              alt={occ.name}
-                              className="w-11 h-11 rounded-full border border-gray-200 object-cover group-hover:opacity-80 transition-opacity"
-                            />
-                            {isSelected && (
-                              <div className="absolute inset-0 bg-[#c2652a]/80 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                ✓
-                              </div>
-                            )}
-                          </button>
-                        )}
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-[#c2652a] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md animate-in zoom-in-50">
+                              ✓
+                            </div>
+                          )}
+                        </div>
+
                         <Link
-                          href={`/p/${propertyId}/tenants/${occ.id}`}
+                          href={isMobileMultiSelectMode ? "#" : `/p/${propertyId}/tenants/${occ.id}`}
+                          onClick={(e) => {
+                            if (isMobileMultiSelectMode) {
+                              e.preventDefault();
+                              handleSelectOne(occ.id);
+                            }
+                          }}
                           className="flex-1 min-w-0"
                         >
                           <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2 truncate">
