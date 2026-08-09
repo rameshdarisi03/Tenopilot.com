@@ -47,7 +47,7 @@ export interface Occupant {
     aadhaarPdfUrl?: string;
   };
   securityDeposit?: number;
-  depositStatus?: "PAID" | "PENDING" | "PARTIAL";
+  depositStatus?: "PAID" | "PENDING" | "PARTIAL" | "REFUNDED";
   partialPaidThisCycle?: number;
   arrearsBalance?: number;
   paymentHistory?: PaymentHistoryItem[];

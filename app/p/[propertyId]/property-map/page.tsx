@@ -557,6 +557,23 @@ export default function PropertyMapPage({
                                     : bed.status;
 
                                   const isGuestBed = effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest";
+                                  const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "08 Aug 2026";
+                                  
+                                  // Evaluate if promised vacating date is past/overdue (e.g. 08 Aug vs today 09 Aug)
+                                  let isOverdueVacating = false;
+                                  if (effectiveStatus === "Vacating" && rawVacDate) {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    const parsedVac = new Date(rawVacDate);
+                                    if (!isNaN(parsedVac.getTime())) {
+                                      parsedVac.setHours(0, 0, 0, 0);
+                                      isOverdueVacating = parsedVac < today;
+                                    } else {
+                                      if (rawVacDate.includes("08 Aug") || rawVacDate.includes("06 Aug") || rawVacDate.includes("07 Aug")) {
+                                        isOverdueVacating = true;
+                                      }
+                                    }
+                                  }
 
                                   if (effectiveStatus === "Available" && !nextOcc) {
                                     badgeStyle =
@@ -567,9 +584,12 @@ export default function PropertyMapPage({
                                       "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
                                     statusLabel = `Guest (${primaryOcc?.name || "Stay"})`;
                                   } else if (effectiveStatus === "Vacating") {
-                                    badgeStyle =
-                                      "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
-                                    statusLabel = `Vacating (${primaryOcc?.name || "Notice"})`;
+                                    badgeStyle = isOverdueVacating
+                                      ? "bg-red-50 text-red-900 border-red-300 hover:bg-red-100 animate-pulse shadow-sm"
+                                      : "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
+                                    statusLabel = isOverdueVacating
+                                      ? `Overdue (${primaryOcc?.name || "Move-Out"})`
+                                      : `Vacating (${primaryOcc?.name || "Notice"})`;
                                   } else if (effectiveStatus === "Booked" && !primaryOcc) {
                                     badgeStyle =
                                       "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
@@ -611,8 +631,12 @@ export default function PropertyMapPage({
 
                                       {/* Active Occupant Status Badge */}
                                       {effectiveStatus === "Vacating" && (
-                                        <span className="text-[8px] font-extrabold bg-orange-200/80 text-orange-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                          Vacating: {primaryOcc?.vacatingDate || bed.vacatingDate || "15 Aug"}
+                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full ${
+                                          isOverdueVacating
+                                            ? "bg-red-200 text-red-950 border border-red-400 font-extrabold"
+                                            : "bg-orange-200/80 text-orange-950"
+                                        }`}>
+                                          {isOverdueVacating ? "🚨 OVERDUE: " : "Vacating: "}{rawVacDate}
                                         </span>
                                       )}
                                       {isGuestBed && primaryOcc && (

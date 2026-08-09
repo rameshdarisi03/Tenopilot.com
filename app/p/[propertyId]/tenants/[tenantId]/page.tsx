@@ -8,6 +8,7 @@ import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
+import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
   calculateRoomTransferProRata,
   calculateGuestRoomTransferAdjustment,
@@ -316,6 +317,7 @@ export default function IndividualTenantProfilePage({
   const [noticeActionTab, setNoticeActionTab] = useState<"extend" | "cancel">("extend");
   const [showExtendNoticeModal, setShowExtendNoticeModal] = useState<boolean>(false);
   const [extendedNoticeDate, setExtendedNoticeDate] = useState<string>("2026-08-30");
+  const [showCheckOutModal, setShowCheckOutModal] = useState<boolean>(false);
 
   const [showCancelNoticeModal, setShowCancelNoticeModal] = useState<boolean>(false);
   const [showExtendGuestStayModal, setShowExtendGuestStayModal] = useState<boolean>(false);
@@ -1047,26 +1049,28 @@ export default function IndividualTenantProfilePage({
                 <Edit className="w-4 h-4 text-[#c2652a]" /> Edit Profile
               </button>
 
-              {/* 2. Collect Rent */}
+              {/* 2. Collect Rent (Disabled for Past Tenants) */}
               <button
+                disabled={occupantState.lifecycleStatus === "Past"}
                 onClick={() => {
                   setPaymentAmount(occupantState.rentAmount);
                   setShowCollectRentModal(true);
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <CreditCard className="w-4 h-4" /> Collect Rent
               </button>
 
-              {/* 3. Transfer Room (Interactive Bed & Room Shift Modal) */}
+              {/* 3. Transfer Room (Disabled for Past Tenants) */}
               <button
+                disabled={occupantState.lifecycleStatus === "Past"}
                 onClick={() => setShowTransferModal(true)}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Action Button 4: Log Notice vs Manage Notice (Single Combined Option!) */}
+              {/* 4. Log Notice vs Manage Notice (Disabled for Past Tenants) */}
               {occupantState.lifecycleStatus === "Notice" ? (
                 <button
                   onClick={() => setShowManageNoticeModal(true)}
@@ -1076,14 +1080,26 @@ export default function IndividualTenantProfilePage({
                 </button>
               ) : (
                 <button
+                  disabled={occupantState.lifecycleStatus === "Past"}
                   onClick={() => setShowLogNoticeModal(true)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all cursor-pointer"
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
                 </button>
               )}
 
-              {/* 6. Edit Check-In Date (Only rendered for Booked profiles — Auto-checkin runs on move-in date) */}
+              {/* 🔑 5. Formal Check-Out & Deposit Settlement (Rendered for Active, Notice, Guest, Booked) */}
+              {occupantState.lifecycleStatus !== "Past" && (
+                <button
+                  type="button"
+                  onClick={() => setShowCheckOutModal(true)}
+                  className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                >
+                  🔑 Formal Check-Out & Deposit Settlement
+                </button>
+              )}
+
+              {/* 6. Edit Check-In Date (Only rendered for Booked profiles) */}
               {occupantState.lifecycleStatus === "Booked" && (
                 <button
                   onClick={() => setShowEditCheckInModal(true)}
@@ -1095,9 +1111,9 @@ export default function IndividualTenantProfilePage({
             </div>
           </div>
 
-          {/* 🟧 NOTICE PERIOD ACTIVE BANNER CALLOUT */}
+          {/* 🟧 NOTICE PERIOD ACTIVE BANNER CALLOUT (Duplicate Manage Notice button removed) */}
           {occupantState.lifecycleStatus === "Notice" && (
-            <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-100/60 rounded-2xl p-5 border border-orange-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in">
+            <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-100/60 rounded-2xl p-5 border border-orange-200 shadow-xs flex items-center justify-between gap-4 animate-in fade-in">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-orange-200 text-orange-900 font-bold flex items-center justify-center text-lg shrink-0">
                   🟧
@@ -1110,15 +1126,6 @@ export default function IndividualTenantProfilePage({
                     Scheduled Vacating Date: <strong>{occupantState.vacatingDate || "15 Aug 2026"}</strong> • Bed {occupantState.roomNumber} ({occupantState.bedCode})
                   </p>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  onClick={() => setShowManageNoticeModal(true)}
-                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
-                >
-                  <Calendar className="w-4 h-4 text-purple-200" /> Manage Move-Out Notice ⚙️
-                </button>
               </div>
             </div>
           )}
@@ -1338,16 +1345,45 @@ export default function IndividualTenantProfilePage({
                         </div>
                       </div>
 
+                      {/* Past Tenant Deposit Settlement Audit Card */}
+                      {occupantState.lifecycleStatus === "Past" && (
+                        <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-950 space-y-2">
+                          <div className="flex items-center justify-between border-b border-purple-200/60 pb-1.5 font-bold text-xs">
+                            <span className="flex items-center gap-1.5">
+                              <ShieldCheck className="w-4 h-4 text-purple-700" /> Check-Out Deposit Settlement Audit
+                            </span>
+                            <span className="text-[10px] bg-purple-200 px-2 py-0.5 rounded-full text-purple-950 font-extrabold">
+                              REFUNDED 🟢
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px] font-mono text-purple-900">
+                            <div className="flex justify-between">
+                              <span>Initial Deposit Intake:</span>
+                              <span className="font-bold">₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-800 font-bold border-t border-purple-200/60 pt-1">
+                              <span>Net Amount Refunded:</span>
+                              <span>₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="text-[10px] opacity-80 pt-1 font-sans">
+                              Checked Out: {occupantState.vacatingDate || "09 Aug 2026"} • Status: Settled & Closed
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* 1-Click Action */}
-                      <button
-                        onClick={() => {
-                          setPaymentAmount(tenantStmt.netOutstandingBalance);
-                          setShowCollectRentModal(true);
-                        }}
-                        className="w-full py-2.5 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                      >
-                        <CreditCard className="w-4 h-4" /> Collect Payment / Record Receipt (₹{tenantStmt.netOutstandingBalance.toLocaleString("en-IN")})
-                      </button>
+                      {occupantState.lifecycleStatus !== "Past" && (
+                        <button
+                          onClick={() => {
+                            setPaymentAmount(tenantStmt.netOutstandingBalance);
+                            setShowCollectRentModal(true);
+                          }}
+                          className="w-full py-2.5 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          <CreditCard className="w-4 h-4" /> Collect Payment / Record Receipt (₹{tenantStmt.netOutstandingBalance.toLocaleString("en-IN")})
+                        </button>
+                      )}
                     </>
                   );
                 })()}
@@ -3560,6 +3596,26 @@ export default function IndividualTenantProfilePage({
               </form>
             </div>
           </div>
+        )}
+
+        {/* 🔑 Formal Check-Out & Settlement Modal */}
+        {showCheckOutModal && (
+          <CheckOutSettlementModal
+            occupant={occupantState}
+            roomNumber={occupantState.roomNumber}
+            bedCode={occupantState.bedCode}
+            propertyId={propertyId}
+            isOpen={showCheckOutModal}
+            onClose={() => setShowCheckOutModal(false)}
+            onSuccess={() => {
+              setOccupantState((prev) => ({
+                ...prev,
+                lifecycleStatus: "Past",
+                depositStatus: "REFUNDED",
+              }));
+              triggerToast(`🎉 Completed formal check-out & deposit settlement for ${occupantState.name}!`);
+            }}
+          />
         )}
       </div>
     </div>
