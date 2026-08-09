@@ -1181,7 +1181,14 @@ export default function IndividualTenantProfilePage({
                 ₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}
               </p>
               <p className="text-[10px] text-gray-500 font-bold mt-1.5 flex items-center gap-1">
-                STATUS: <span className="text-purple-700 font-extrabold">{occupantState.depositStatus || "PAID 🟢"}</span>
+                STATUS:{" "}
+                <span className="text-purple-700 font-extrabold">
+                  {occupantState.lifecycleStatus === "Past" || occupantState.depositStatus === "REFUNDED"
+                    ? occupantState.arrearsBalance && occupantState.arrearsBalance > 0
+                      ? "PARTIAL REFUND 🟡"
+                      : "FULL REFUND 🟢"
+                    : occupantState.depositStatus || "PAID 🟢"}
+                </span>
               </p>
             </div>
 
@@ -1352,8 +1359,14 @@ export default function IndividualTenantProfilePage({
                             <span className="flex items-center gap-1.5">
                               <ShieldCheck className="w-4 h-4 text-purple-700" /> Check-Out Deposit Settlement Audit
                             </span>
-                            <span className="text-[10px] bg-purple-200 px-2 py-0.5 rounded-full text-purple-950 font-extrabold">
-                              REFUNDED 🟢
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                              occupantState.arrearsBalance && occupantState.arrearsBalance > 0
+                                ? "bg-amber-200 text-amber-950 border border-amber-300"
+                                : "bg-emerald-200 text-emerald-950 border border-emerald-300"
+                            }`}>
+                              {occupantState.arrearsBalance && occupantState.arrearsBalance > 0
+                                ? "PARTIAL REFUND 🟡"
+                                : "FULL REFUND 🟢"}
                             </span>
                           </div>
                           <div className="space-y-1 text-[11px] font-mono text-purple-900">

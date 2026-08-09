@@ -297,15 +297,16 @@ function loadOccupants(): Occupant[] {
     }
   }
 
-  // Inject/refresh the 5 sequential mock guests for Room 101 BED A in local store & Firestore
-  MOCK_SEQUENTIAL_GUESTS_BED_101_A.forEach((mockGuest) => {
-    const existingIdx = list.findIndex((o) => o.id === mockGuest.id);
-    if (existingIdx >= 0) {
-      list[existingIdx] = mockGuest;
-    } else {
-      list.push(mockGuest);
+  // 🧹 PURGE ALL OUTDATED LEGACY MOCK GUESTS AND TEST RECORDS FROM CACHE
+  const LEGACY_PURGE_KEYS = ["mock-guest-", "occ-test-", "tera01", "tera02"];
+  list = list.filter((o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key));
+
+  // 🌟 ALWAYS ENSURE THE 3 NEW ONBOARDED TENANTS ARE INJECTED INTO LIST
+  const freshCurated = generateMockOccupants();
+  freshCurated.forEach((freshOcc) => {
+    if (!list.some((o) => o.id === freshOcc.id)) {
+      list.push(freshOcc);
     }
-    saveOccupantToFirestore("sunshine-pg", mockGuest);
   });
 
   if (typeof window !== "undefined") {
@@ -326,14 +327,17 @@ export const occupantStore = {
   },
 
   setOccupantsFromFirestore(newList: Occupant[]) {
-    // Intelligently merge Firestore records with local cache so newly created tenants/guests are NEVER overwritten
+    // Intelligently merge Firestore records with local cache while filtering out purged legacy mock items
+    const LEGACY_PURGE_KEYS = ["mock-guest-", "occ-test-", "tera01", "tera02"];
+    const filteredFirestoreList = newList.filter((o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key));
+
     const current = loadOccupants();
     const map = new Map<string, Occupant>();
 
     // 1. Add existing local items
     current.forEach((o) => map.set(o.id, o));
     // 2. Add/update items from Cloud Firestore
-    newList.forEach((o) => map.set(o.id, o));
+    filteredFirestoreList.forEach((o) => map.set(o.id, o));
 
     const mergedList = Array.from(map.values());
     GLOBAL_OCCUPANTS_CACHE = mergedList;

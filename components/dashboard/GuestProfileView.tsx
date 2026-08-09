@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Occupant } from "@/constants/mockOccupants";
+import { Occupant, occupantStore } from "@/constants/mockOccupants";
 import { getGuestStayTimeline, getOccupantStatusBadge, calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
@@ -30,6 +30,7 @@ import {
   FileText,
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 
 interface GuestProfileViewProps {
   occupantState: Occupant;
@@ -58,6 +59,13 @@ export function GuestProfileView({
     title: string;
     docType: "photo" | "front" | "back" | "pdf" | "";
   }>({ open: false, title: "", docType: "" });
+  const [showUploadKycModal, setShowUploadKycModal] = useState<boolean>(false);
+  const [guestPhotoUrl, setGuestPhotoUrl] = useState<string>(occupantState.avatar || "");
+  const [guestAadhaarNum, setGuestAadhaarNum] = useState<string>(
+    occupantState.aadhaarNumber !== "Skipped" ? occupantState.aadhaarNumber || "" : ""
+  );
+  const [guestFrontUrl, setGuestFrontUrl] = useState<string>(occupantState.kycDocs?.aadhaarFrontUrl || "");
+  const [guestBackUrl, setGuestBackUrl] = useState<string>(occupantState.kycDocs?.aadhaarBackUrl || "");
 
   const [propertySettings, setPropertySettings] = useState(() =>
     propertySettingsStore.getSettings(propertyId)
@@ -489,12 +497,22 @@ export function GuestProfileView({
                           </div>
                         )}
                       </div>
-                    </div>
+                  {/* Upload & Complete KYC Call-To-Action Button */}
+                  {(!isKycVerified || !hasAadhaar || !hasPhoto) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowUploadKycModal(true)}
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-bold text-xs shadow-md cursor-pointer transition-all flex items-center justify-center gap-2 active:scale-98"
+                    >
+                      <Camera className="w-4 h-4 text-purple-200" /> 🛡️ Upload & Complete KYC Documents
+                    </button>
+                  )}
                   </div>
                 </div>
               </div>
-            );
-          })()}
+            </div>
+          );
+        })()}
         </div>
 
 
@@ -711,6 +729,119 @@ export function GuestProfileView({
                     Close Viewer
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 🛡️ Upload & Complete KYC Modal for Guests */}
+          {showUploadKycModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 text-xs">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-purple-700" /> Complete Guest KYC Verification
+                    </h3>
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      Upload live camera headshot & Aadhaar ID for {occupantState.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowUploadKycModal(false)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    occupantState.kycVerified = true;
+                    occupantState.aadhaarNumber = guestAadhaarNum || "XXXX-XXXX-8811";
+                    if (!occupantState.kycDocs) occupantState.kycDocs = {};
+                    if (guestPhotoUrl) occupantState.kycDocs.photoUrl = guestPhotoUrl;
+                    if (guestFrontUrl) occupantState.kycDocs.aadhaarFrontUrl = guestFrontUrl;
+                    if (guestBackUrl) occupantState.kycDocs.aadhaarBackUrl = guestBackUrl;
+                    if (guestPhotoUrl) occupantState.avatar = guestPhotoUrl;
+
+                    occupantStore.updateOccupant(occupantState, propertyId);
+                    setShowUploadKycModal(false);
+                    alert(`🎉 Guest KYC Verification Completed & Saved for ${occupantState.name}!`);
+                  }}
+                  className="space-y-4"
+                >
+                  {/* 1. Profile Photo Headshot */}
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
+                    <label className="block font-bold text-gray-800 text-xs">
+                      📷 1. Guest Profile Photo Headshot
+                    </label>
+                    <UnifiedPhotoUploadSlot
+                      label="Guest Profile Photo"
+                      aspectRatio="headshot"
+                      value={guestPhotoUrl}
+                      onChange={(base64) => setGuestPhotoUrl(base64)}
+                      onRemove={() => setGuestPhotoUrl("")}
+                    />
+                  </div>
+
+                  {/* 2. Aadhaar / Govt ID Input & Photos */}
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                    <label className="block font-bold text-gray-800 text-xs">
+                      🪪 2. Aadhaar / Govt ID Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={guestAadhaarNum}
+                      onChange={(e) => setGuestAadhaarNum(e.target.value)}
+                      placeholder="e.g. 9812-4412-8811 or Govt ID Number"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 font-mono text-xs font-bold text-gray-900 focus:ring-1 focus:ring-purple-600"
+                    />
+
+                    <div className="space-y-3 pt-1">
+                      <div className="space-y-1 text-left">
+                        <label className="block font-bold text-gray-900 text-xs">
+                          💳 ID Card Front Photo
+                        </label>
+                        <UnifiedPhotoUploadSlot
+                          label="ID Card Front Photo"
+                          aspectRatio="idcard"
+                          value={guestFrontUrl}
+                          onChange={(base64) => setGuestFrontUrl(base64)}
+                        />
+                      </div>
+
+                      <div className="space-y-1 text-left">
+                        <label className="block font-bold text-gray-900 text-xs">
+                          💳 ID Card Back Photo
+                        </label>
+                        <UnifiedPhotoUploadSlot
+                          label="ID Card Back Photo"
+                          aspectRatio="idcard"
+                          value={guestBackUrl}
+                          onChange={(base64) => setGuestBackUrl(base64)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowUploadKycModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-md cursor-pointer"
+                    >
+                      🚀 Complete & Save Guest KYC
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
