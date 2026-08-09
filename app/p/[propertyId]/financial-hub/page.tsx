@@ -47,6 +47,7 @@ import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBi
 import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon } from "@/constants/businessIconLibrary";
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 
 const COLOR_SWATCHES = [
@@ -73,11 +74,58 @@ export default function FinancialHubPage({
   const [showRecordDrawer, setShowRecordDrawer] = useState(false);
   const [showToast, setShowToast] = useState(true);
 
+  // Responsive Mobile Menu Drawer State
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Property Settings SSOT State
+  const [propertySettings, setPropertySettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    const unsubscribe = propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
+    return unsubscribe;
+  }, [propertyId]);
+
+  // Timeline Filter State (This Month, Last Month, Quarter, Year, All Time)
+  const [selectedTimelineFilter, setSelectedTimelineFilter] = useState<
+    "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_YEAR" | "ALL_TIME"
+  >("THIS_MONTH");
+
   // Form state
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Electricity");
   const [paidFrom, setPaidFrom] = useState("Business Account");
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [receiptFile, setReceiptFile] = useState<{ url: string; fileName: string; size: string } | null>(null);
+
+  // Handle Receipt Upload File Input
+  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size exceeds 5MB limit. Please attach a smaller image or PDF.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Url = event.target?.result as string;
+      const sizeKb = (file.size / 1024).toFixed(0) + " KB";
+      setReceiptFile({
+        url: base64Url,
+        fileName: file.name,
+        size: sizeKb,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Expenses SSOT State
   const [expenseList, setExpenseList] = useState<ExpenseRecord[]>([]);
@@ -167,16 +215,14 @@ export default function FinancialHubPage({
       ? Math.round(totalGrossRevenue / occupiedCount)
       : 0;
 
-    const totalChannel = upiAmount + bankAmount + cashAmount || 1;
-    const upiPct = Math.round((upiAmount / totalChannel) * 100) || 75;
-    const bankPct = Math.round((bankAmount / totalChannel) * 100) || 18;
-    const cashPct = Math.max(0, 100 - upiPct - bankPct);
+    const totalChannel = (upiAmount + bankAmount) + cashAmount || 1;
+    const onlineTotal = upiAmount + bankAmount;
+    const upiPct = Math.round((onlineTotal / totalChannel) * 100) || 85;
+    const cashPct = 100 - upiPct;
 
-    const totalStreams = (rentStream + depositStream + utilityStream + guestStream) || 1;
-    const rentPct = Math.round((rentStream / totalStreams) * 100);
-    const depositPct = Math.round((depositStream / totalStreams) * 100);
-    const utilityPct = Math.round((utilityStream / totalStreams) * 100);
-    const guestPct = Math.max(0, 100 - rentPct - depositPct - utilityPct);
+    const totalStreams = (rentStream + depositStream) || 1;
+    const rentPct = Math.round((rentStream / totalStreams) * 100) || 75;
+    const depositPct = 100 - rentPct;
 
     return {
       totalGrossRevenue,
@@ -186,17 +232,11 @@ export default function FinancialHubPage({
       arpb,
       rentStream,
       depositStream,
-      utilityStream,
-      guestStream,
       rentPct,
       depositPct,
-      utilityPct,
-      guestPct,
-      upiAmount,
-      bankAmount,
+      onlineTotal,
       cashAmount,
       upiPct,
-      bankPct,
       cashPct,
       occupants,
     };
@@ -297,24 +337,28 @@ export default function FinancialHubPage({
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString("en-GB", {
+    const dateObj = expenseDate ? new Date(expenseDate) : new Date();
+    const dateFormatted = dateObj.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
 
     await expenseStore.addExpense(propertyId, {
-      date: todayStr,
+      date: dateFormatted,
       category,
       paidFrom,
-      property: "Sunshine Luxury PG",
+      property: propertySettings.propertyName || "Sunshine PG",
       amount: numAmount,
-      hasReceipt: true,
+      hasReceipt: !!receiptFile,
+      receiptUrl: receiptFile?.url,
+      receiptName: receiptFile?.fileName,
       notes,
     });
 
     setAmount("");
     setNotes("");
+    setReceiptFile(null);
     setShowRecordDrawer(false);
     triggerToast(`🟢 Expense of ₹${numAmount.toLocaleString("en-IN")} (${category}) recorded & synced to cloud!`);
   };
@@ -445,16 +489,23 @@ export default function FinancialHubPage({
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
       {/* 256px Left Sidebar with 8 clean primary menus */}
-      <PropertySidebar propertyId={propertyId} />
+      <PropertySidebar
+        propertyId={propertyId}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Header with In-Page Section Tabs */}
         <PropertyHeader
           title="Financial Hub"
+          showSearch={false}
+          propertyId={propertyId}
           sectionTabs={["Operations", "Expenses", "Partner Settlement", "Reports"]}
           activeTab={activeTab}
           onTabChange={(tab) => setActiveTab(tab)}
+          onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
         {/* Workspace Body */}
@@ -473,9 +524,20 @@ export default function FinancialHubPage({
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs">
-                  <Calendar className="w-4 h-4 text-[#c2652a]" />
-                  <span>This Month (Oct 2024)</span>
+                {/* 📅 Interactive Timeline Filter Selector */}
+                <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs">
+                  <Calendar className="w-4 h-4 text-[#c2652a] shrink-0" />
+                  <select
+                    value={selectedTimelineFilter}
+                    onChange={(e) => setSelectedTimelineFilter(e.target.value as any)}
+                    className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none cursor-pointer pr-2"
+                  >
+                    <option value="THIS_MONTH">This Month (Aug 2026)</option>
+                    <option value="LAST_MONTH">Last Month (Jul 2026)</option>
+                    <option value="THIS_QUARTER">This Quarter (Q3 2026)</option>
+                    <option value="THIS_YEAR">This Year (2026)</option>
+                    <option value="ALL_TIME">All Time Records</option>
+                  </select>
                 </div>
 
                 {activeTab === "Expenses" && (
@@ -725,36 +787,6 @@ export default function FinancialHubPage({
                         <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, revenueMetrics.depositPct)}%` }}></div>
                       </div>
                     </div>
-
-                    {/* Stream 3: Utility Surcharges */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-gray-800 flex items-center gap-2">
-                          ⚡ Metered AC & Electricity Surcharges
-                        </span>
-                        <span className="text-purple-700 font-mono tabular-nums">
-                          ₹{revenueMetrics.utilityStream.toLocaleString("en-IN")} ({revenueMetrics.utilityPct}%)
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-600 rounded-full" style={{ width: `${Math.min(100, revenueMetrics.utilityPct)}%` }}></div>
-                      </div>
-                    </div>
-
-                    {/* Stream 4: Guest Stay Add-ons */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-gray-800 flex items-center gap-2">
-                          🍱 Meal, Laundry & Guest Stay Fees
-                        </span>
-                        <span className="text-blue-700 font-mono tabular-nums">
-                          ₹{revenueMetrics.guestStream.toLocaleString("en-IN")} ({revenueMetrics.guestPct}%)
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, revenueMetrics.guestPct)}%` }}></div>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -774,29 +806,13 @@ export default function FinancialHubPage({
                           UPI
                         </div>
                         <div>
-                          <h4 className="font-bold text-xs text-gray-900">PhonePe / GPay / UPI</h4>
+                          <h4 className="font-bold text-xs text-gray-900">Online payments (UPI)</h4>
                           <span className="text-[10px] text-gray-500 font-medium">Instant VPA Collection</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="font-mono font-bold text-sm text-[#c2652a] block">₹{revenueMetrics.upiAmount.toLocaleString("en-IN")}</span>
+                        <span className="font-mono font-bold text-sm text-[#c2652a] block">₹{revenueMetrics.onlineTotal.toLocaleString("en-IN")}</span>
                         <span className="text-[10px] font-bold text-orange-700">{revenueMetrics.upiPct}% of Total</span>
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/60 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
-                          NEFT
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-xs text-gray-900">Direct Bank Transfer</h4>
-                          <span className="text-[10px] text-gray-500 font-medium">NEFT / IMPS Credit</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-sm text-blue-700 block">₹{revenueMetrics.bankAmount.toLocaleString("en-IN")}</span>
-                        <span className="text-[10px] font-bold text-blue-700">{revenueMetrics.bankPct}% of Total</span>
                       </div>
                     </div>
 
@@ -806,8 +822,8 @@ export default function FinancialHubPage({
                           💵
                         </div>
                         <div>
-                          <h4 className="font-bold text-xs text-gray-900">Cash Desk Receipts</h4>
-                          <span className="text-[10px] text-gray-500 font-medium">Front Desk Reception</span>
+                          <h4 className="font-bold text-xs text-gray-900">Cash Desk</h4>
+                          <span className="text-[10px] text-gray-500 font-medium font-medium">Front Desk Reception</span>
                         </div>
                       </div>
                       <div className="text-right">
@@ -1489,6 +1505,26 @@ export default function FinancialHubPage({
                           <p className="text-gray-700 italic">{activeReceiptModal.notes}</p>
                         </div>
                       )}
+                      {activeReceiptModal.receiptUrl && (
+                        <div className="pt-3 border-t border-gray-200 space-y-2">
+                          <span className="text-gray-900 font-bold block">Uploaded Receipt File:</span>
+                          {activeReceiptModal.receiptUrl.startsWith("data:image") ? (
+                            <img
+                              src={activeReceiptModal.receiptUrl}
+                              alt="Expense Receipt"
+                              className="max-h-56 w-full object-contain rounded-xl border border-gray-200 bg-white"
+                            />
+                          ) : (
+                            <a
+                              href={activeReceiptModal.receiptUrl}
+                              download={activeReceiptModal.receiptName || "receipt.pdf"}
+                              className="px-4 py-2.5 rounded-xl bg-purple-600 text-white font-bold text-xs inline-flex items-center gap-2 hover:bg-purple-700 transition-colors"
+                            >
+                              <FileText className="w-4 h-4" /> Download Receipt File ({activeReceiptModal.receiptName || "PDF"})
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
@@ -1503,7 +1539,7 @@ export default function FinancialHubPage({
                 </div>
               )}
 
-              {/* Record Expense Modal Drawer inside Expenses Tab */}
+              {/* Record Expense Modal Drawer inside Expenses Tab (Image 02 Structure) */}
               {showRecordDrawer && (
                 <div
                   className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
@@ -1531,27 +1567,28 @@ export default function FinancialHubPage({
                       </button>
                     </div>
 
-                    <form onSubmit={handleSaveExpense} className="space-y-4 text-xs">
-                      <div>
-                        <label className="block font-bold text-gray-900 mb-1">
-                          Amount *
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-2.5 text-gray-500 font-bold">
-                            ₹
-                          </span>
-                          <input
-                            type="number"
-                            required
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            placeholder="Enter expense amount"
-                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-sans font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
-                          />
-                        </div>
-                      </div>
-
+                    <form onSubmit={handleSaveExpense} className="space-y-5 text-xs">
+                      {/* SECTION 1: Amount & Category */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">
+                            Amount *
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-2.5 text-gray-500 font-bold">
+                              ₹
+                            </span>
+                            <input
+                              type="number"
+                              required
+                              value={amount}
+                              onChange={(e) => setAmount(e.target.value)}
+                              placeholder="Enter expense amount"
+                              className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white font-sans font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
+                            />
+                          </div>
+                        </div>
+
                         <div>
                           <div className="flex justify-between items-center mb-1">
                             <label className="block font-bold text-gray-900">
@@ -1645,7 +1682,10 @@ export default function FinancialHubPage({
                             </div>
                           )}
                         </div>
+                      </div>
 
+                      {/* SECTION 2: Paid From Account & Expense Date */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block font-bold text-gray-900 mb-1">
                             Paid From Account *
@@ -1662,23 +1702,69 @@ export default function FinancialHubPage({
                             ))}
                           </select>
                         </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-900 mb-1">
+                            Expense Date *
+                          </label>
+                          <input
+                            type="date"
+                            value={expenseDate}
+                            onChange={(e) => setExpenseDate(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          />
+                        </div>
                       </div>
 
+                      {/* SECTION 3: Receipt Attachment Upload Dropzone (Image 02) */}
                       <div>
                         <label className="block font-bold text-gray-900 mb-1">
                           Receipt Attachment (Optional)
                         </label>
-                        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 cursor-pointer hover:border-[#c2652a] transition-colors">
-                          <Upload className="w-5 h-5 text-[#c2652a] mx-auto mb-1" />
-                          <span className="font-bold text-gray-900 block text-xs">
-                            Click to upload receipt
-                          </span>
-                          <span className="text-[10px] text-gray-500">
-                            JPG, PNG, PDF (Max 5MB)
-                          </span>
-                        </div>
+                        {receiptFile ? (
+                          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0">
+                                <FileText className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-gray-900 text-xs truncate block">
+                                  {receiptFile.fileName}
+                                </span>
+                                <span className="text-[10px] text-emerald-700 font-medium">
+                                  {receiptFile.size} • Attached & Ready
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptFile(null)}
+                              className="p-1.5 rounded-lg hover:bg-emerald-100 text-red-600 font-bold text-xs cursor-pointer"
+                              title="Remove Receipt"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 cursor-pointer hover:border-[#c2652a] hover:bg-orange-50/40 transition-colors block">
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              onChange={handleReceiptUpload}
+                              className="hidden"
+                            />
+                            <Upload className="w-5 h-5 text-[#c2652a] mx-auto mb-1" />
+                            <span className="font-bold text-gray-900 block text-xs">
+                              Click to upload receipt
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              JPG, PNG, WEBP, PDF (Max 5MB)
+                            </span>
+                          </label>
+                        )}
                       </div>
 
+                      {/* SECTION 4: Notes / Description */}
                       <div>
                         <label className="block font-bold text-gray-900 mb-1">
                           Notes / Description (Optional)

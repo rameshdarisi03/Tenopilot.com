@@ -248,8 +248,8 @@ export default function PropertySettingsPage({
         {/* Top Header */}
         <PropertyHeader
           title="Property & Financial Settings"
-          searchValue=""
-          onSearchChange={() => {}}
+          showSearch={false}
+          propertyId={propertyId}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

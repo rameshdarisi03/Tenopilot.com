@@ -219,6 +219,8 @@ export default function PropertyMapPage({
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
         <PropertyHeader
           title="Property Map"
+          showSearch={false}
+          propertyId={propertyId}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

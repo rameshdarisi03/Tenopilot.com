@@ -51,18 +51,27 @@ export default function PropertyOverviewPage({
     }
   }, [propertyId]);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
       {/* 256px Left Sidebar with 8 clean primary menus */}
-      <PropertySidebar propertyId={propertyId} />
+      <PropertySidebar
+        propertyId={propertyId}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Header */}
         <PropertyHeader
           title="Overview"
+          showSearch={false}
+          propertyId={propertyId}
           sectionTabs={["Metrics", "Recent Activity"]}
           activeTab="Metrics"
+          onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
         {/* Workspace Body */}

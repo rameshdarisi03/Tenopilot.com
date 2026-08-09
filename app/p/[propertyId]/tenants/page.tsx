@@ -411,6 +411,8 @@ export default function TenantsDirectoryPage({
         {/* Top Header with Synchronized Search */}
         <PropertyHeader
           title="Tenant Operations"
+          showSearch={true}
+          propertyId={propertyId}
           searchValue={rawSearchTerm}
           onSearchChange={(val) => {
             setRawSearchTerm(val);

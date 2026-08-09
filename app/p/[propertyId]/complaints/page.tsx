@@ -299,6 +299,8 @@ export default function AdminComplaintsPage({
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         <PropertyHeader
           title="Complaints"
+          showSearch={false}
+          propertyId={propertyId}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

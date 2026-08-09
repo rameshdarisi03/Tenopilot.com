@@ -14,6 +14,8 @@ export interface ExpenseRecord {
   property: string;
   amount: number;
   hasReceipt: boolean;
+  receiptUrl?: string;
+  receiptName?: string;
   notes?: string;
   vendorName?: string;
   paymentMethod?: string;
