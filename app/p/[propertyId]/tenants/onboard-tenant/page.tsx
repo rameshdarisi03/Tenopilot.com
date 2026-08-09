@@ -45,6 +45,7 @@ import {
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
 import { lookupExistingOccupant } from "@/utils/phoneLookup";
+import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 
 export default function OnboardTenantPage({
   params,
@@ -104,6 +105,8 @@ export default function OnboardTenantPage({
 
   // Live Firebase Storage URLs
   const [photoUrl, setPhotoUrl] = useState<string>("");
+  const [aadhaarFrontUrl, setAadhaarFrontUrl] = useState<string>("");
+  const [aadhaarBackUrl, setAadhaarBackUrl] = useState<string>("");
   const [isPhotoSaved, setIsPhotoSaved] = useState<boolean>(false);
   const [aadhaarUrl, setAadhaarUrl] = useState<string>("");
   const [isIdSaved, setIsIdSaved] = useState<boolean>(false);
@@ -845,7 +848,7 @@ export default function OnboardTenantPage({
             </div>
           )}
 
-          {/* STEP 3: KYC & DOCUMENT UPLOAD WITH LIVE FIREBASE STORAGE BUCKET UPLOADS */}
+          {/* STEP 3: KYC & DOCUMENT UPLOAD WITH UNIFIED LIVE CAMERA + FILE UPLOADS */}
           {currentStep === 3 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in text-xs">
               <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
@@ -853,10 +856,10 @@ export default function OnboardTenantPage({
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Tenant Photo Card */}
-                <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-3 text-center flex flex-col items-center justify-between">
-                  <div className="space-y-1">
-                    <div className="p-3 rounded-full bg-orange-100 text-[#c2652a] w-12 h-12 flex items-center justify-center mx-auto">
+                {/* 1. Tenant Profile Headshot Photo Card */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-4 text-center flex flex-col items-center justify-between">
+                  <div className="space-y-1 w-full">
+                    <div className="p-3 rounded-full bg-orange-100 text-[#c2652a] w-12 h-12 flex items-center justify-center mx-auto mb-2">
                       <Camera className="w-6 h-6" />
                     </div>
                     <h3 className="font-bold text-sm text-gray-900">
@@ -867,82 +870,30 @@ export default function OnboardTenantPage({
                     </p>
                   </div>
 
-                  <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center justify-center gap-2 shadow-2xs transition-all w-full">
-                    {uploadingState.photo ? (
-                      <Loader2 className="w-4 h-4 text-[#c2652a] animate-spin" />
-                    ) : (
-                      <Upload className="w-4 h-4 text-[#c2652a]" />
-                    )}
-                    {photoDoc ? "Change Photo File" : "Upload / Choose Photo File"}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleFileUpload("photo", file);
-                          setIsPhotoSaved(false);
-                        }
+                  <div className="w-full">
+                    <UnifiedPhotoUploadSlot
+                      label="Tenant Profile Photo"
+                      aspectRatio="headshot"
+                      value={photoUrl || photoDoc?.previewUrl}
+                      onChange={(base64) => {
+                        setPhotoUrl(base64);
+                        setIsPhotoSaved(true);
+                        triggerToast("✓ Profile photo attached successfully!");
+                      }}
+                      onRemove={() => {
+                        setPhotoUrl("");
+                        setPhotoDoc(null);
+                        setIsPhotoSaved(false);
+                        triggerToast("Profile photo removed.");
                       }}
                     />
-                  </label>
-
-                  {photoDoc && (
-                    <div className="space-y-2 w-full">
-                      <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
-                        ✓ Photo Selected: <strong>{photoDoc.fileName}</strong>
-                        {photoDoc.isCompressed && (
-                          <div className="text-emerald-700 font-mono mt-0.5">
-                            ⚡ Auto-compressed: {photoDoc.originalSizeMb} MB → {photoDoc.compressedSizeMb} MB
-                          </div>
-                        )}
-                      </div>
-
-                      {!isPhotoSaved ? (
-                        <div className="flex gap-2 w-full">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsPhotoSaved(true);
-                              triggerToast("✓ Profile Photo saved to database");
-                            }}
-                            className="flex-1 py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                          >
-                            💾 Save Profile Photo
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPhotoDoc(null);
-                              setIsPhotoSaved(false);
-                              triggerToast("Photo skipped — flagged as KYC Pending");
-                            }}
-                            className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold text-xs cursor-pointer"
-                          >
-                            Skip Photo
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between">
-                          <span>✓ Photo Saved 🟢</span>
-                          <button
-                            type="button"
-                            onClick={() => setIsPhotoSaved(false)}
-                            className="text-[10px] underline text-emerald-800 font-semibold"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  </div>
                 </div>
 
-                {/* Aadhaar / Govt ID Card Section */}
+                {/* 2. Aadhaar / Govt ID Card Section */}
                 <div className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-4 text-center flex flex-col items-center justify-between">
-                  <div className="space-y-1">
-                    <div className="p-3 rounded-full bg-blue-100 text-blue-700 w-12 h-12 flex items-center justify-center mx-auto">
+                  <div className="space-y-1 w-full">
+                    <div className="p-3 rounded-full bg-blue-100 text-blue-700 w-12 h-12 flex items-center justify-center mx-auto mb-2">
                       <ShieldCheck className="w-6 h-6" />
                     </div>
                     <h3 className="font-bold text-sm text-gray-900">
@@ -981,126 +932,67 @@ export default function OnboardTenantPage({
 
                   {/* MODE A: Front & Back Images */}
                   {idUploadMode === "IMAGES" ? (
-                    <div className="grid grid-cols-2 gap-3 w-full pt-1">
-                      {/* Front Image Input */}
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-gray-700 block">
-                          ID Card Front *
-                        </span>
-                        <label className="cursor-pointer px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-[11px] font-bold text-gray-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all w-full">
-                          {uploadingState.front ? (
-                            <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                          ) : (
-                            <Upload className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          )}
-                          {aadhaarFrontDoc ? "Change Front" : "Upload Front"}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleFileUpload("aadhaar_front", file);
-                            }}
-                          />
-                        </label>
-                        {aadhaarFrontDoc && (
-                          <div className="text-[9px] bg-emerald-50 text-emerald-800 p-1.5 rounded-lg font-medium">
-                            ✓ Front ({aadhaarFrontDoc.compressedSizeMb} MB)
-                          </div>
-                        )}
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full pt-1">
+                      <UnifiedPhotoUploadSlot
+                        label="ID Card Front"
+                        aspectRatio="idcard"
+                        value={aadhaarFrontUrl || aadhaarFrontDoc?.previewUrl}
+                        onChange={(base64) => {
+                          setAadhaarFrontUrl(base64);
+                          setIsIdSaved(true);
+                          triggerToast("✓ ID Card Front attached");
+                        }}
+                        onRemove={() => {
+                          setAadhaarFrontUrl("");
+                          setAadhaarFrontDoc(null);
+                        }}
+                      />
 
-                      {/* Back Image Input */}
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-gray-700 block">
-                          ID Card Back *
-                        </span>
-                        <label className="cursor-pointer px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-[11px] font-bold text-gray-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all w-full">
-                          {uploadingState.back ? (
-                            <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                          ) : (
-                            <Upload className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          )}
-                          {aadhaarBackDoc ? "Change Back" : "Upload Back"}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleFileUpload("aadhaar_back", file);
-                            }}
-                          />
-                        </label>
-                        {aadhaarBackDoc && (
-                          <div className="text-[9px] bg-emerald-50 text-emerald-800 p-1.5 rounded-lg font-medium">
-                            ✓ Back ({aadhaarBackDoc.compressedSizeMb} MB)
-                          </div>
-                        )}
-                      </div>
+                      <UnifiedPhotoUploadSlot
+                        label="ID Card Back"
+                        aspectRatio="idcard"
+                        value={aadhaarBackUrl || aadhaarBackDoc?.previewUrl}
+                        onChange={(base64) => {
+                          setAadhaarBackUrl(base64);
+                          setIsIdSaved(true);
+                          triggerToast("✓ ID Card Back attached");
+                        }}
+                        onRemove={() => {
+                          setAadhaarBackUrl("");
+                          setAadhaarBackDoc(null);
+                        }}
+                      />
                     </div>
                   ) : (
-                    /* MODE B: Single PDF (Max 1MB) */
-                    <div className="w-full space-y-2 pt-1">
-                      <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-100 text-xs font-bold text-gray-800 flex items-center justify-center gap-2 shadow-2xs transition-all w-full">
-                        {uploadingState.pdf ? (
-                          <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                        ) : (
-                          <Upload className="w-4 h-4 text-blue-600" />
-                        )}
-                        {aadhaarDoc ? "Change PDF File" : "Upload Aadhaar PDF"}
+                    /* MODE B: Single PDF Upload */
+                    <div className="w-full">
+                      <label className="cursor-pointer px-4 py-3 rounded-2xl bg-white border-2 border-dashed border-gray-300 hover:border-blue-500 text-xs font-bold text-gray-800 flex items-center justify-center gap-2 shadow-2xs transition-all w-full">
+                        <Upload className="w-4 h-4 text-blue-600" />
+                        {aadhaarDoc ? `PDF: ${aadhaarDoc.fileName}` : "Upload Single PDF File"}
                         <input
                           type="file"
                           accept="application/pdf"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) handleFileUpload("aadhaar_pdf", file);
+                            if (file) {
+                              handleFileUpload("aadhaar_pdf", file);
+                              setIsIdSaved(true);
+                            }
                           }}
                         />
                       </label>
-
-                      <p className="text-[10px] text-gray-400 font-medium">
-                        Strictly capped to 1 MB limit for identity PDF documents
-                      </p>
-
-                      {aadhaarDoc && (
-                        <div className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-xl w-full font-medium">
-                          ✓ Uploaded PDF: <strong>{aadhaarDoc.fileName}</strong> ({aadhaarDoc.compressedSizeMb} MB)
-                        </div>
-                      )}
                     </div>
                   )}
 
                   {/* Section-level Save & Skip Actions for Govt ID */}
-                  {(aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) ? (
+                  {(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) ? (
                     <div className="space-y-2 w-full pt-2 border-t border-gray-200/80">
-                      {!isIdSaved ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsIdSaved(true);
-                            triggerToast("✓ Aadhaar / Govt ID proof saved to database 🟢");
-                          }}
-                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                        >
-                          💾 Save Govt ID to Database
-                        </button>
-                      ) : (
-                        <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between animate-in fade-in">
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Govt ID Saved 🟢
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setIsIdSaved(false)}
-                            className="text-[10px] underline text-emerald-800 font-semibold cursor-pointer"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      )}
+                      <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between animate-in fade-in">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Govt ID Saved 🟢
+                        </span>
+                      </div>
                     </div>
                   ) : (
                     <button
