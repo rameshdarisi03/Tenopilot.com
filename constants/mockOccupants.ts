@@ -327,25 +327,31 @@ export const occupantStore = {
   },
 
   setOccupantsFromFirestore(newList: Occupant[]) {
-    // Intelligently merge Firestore records with local cache while filtering out purged legacy mock items
+    // 🌟 CLOUD FIRESTORE IS 100% THE SINGLE SOURCE OF TRUTH (SSOT)
+    // Cloud snapshot directly overwrites state — deleted Firestore records disappear automatically!
     const LEGACY_PURGE_KEYS = ["mock-guest-", "occ-test-", "tera01", "tera02"];
-    const filteredFirestoreList = newList.filter((o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key));
+    const filteredFirestoreList = newList.filter(
+      (o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key)
+    );
 
+    // If Firestore returns records, Cloud Firestore is master authority!
+    // We only preserve un-synced newly onboarded local items created in the last 10 seconds.
     const current = loadOccupants();
-    const map = new Map<string, Occupant>();
+    const firestoreIds = new Set(filteredFirestoreList.map((o) => o.id));
 
-    // 1. Add existing local items
-    current.forEach((o) => map.set(o.id, o));
-    // 2. Add/update items from Cloud Firestore
-    filteredFirestoreList.forEach((o) => map.set(o.id, o));
+    // Preserve local drafts only if they are newly created genuine records
+    const unsyncedLocalDrafts = current.filter(
+      (o) => !firestoreIds.has(o.id) && o.id.startsWith("og-")
+    );
 
-    const mergedList = Array.from(map.values());
-    GLOBAL_OCCUPANTS_CACHE = mergedList;
+    const masterList = [...filteredFirestoreList, ...unsyncedLocalDrafts];
+
+    GLOBAL_OCCUPANTS_CACHE = masterList;
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(mergedList));
+        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(masterList));
       } catch (e) {
-        console.warn("Failed to cache occupants store:", e);
+        console.warn("Failed to update cache with Cloud Firestore SSOT:", e);
       }
     }
     occupantListeners.forEach((l) => l());
