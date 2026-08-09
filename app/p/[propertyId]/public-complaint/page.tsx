@@ -81,7 +81,9 @@ export default function PublicTenantComplaintPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants) {
-        const cleanList = fsOccupants.filter((o) => /^occ-\d{12,16}$/.test(o.id));
+        const cleanList = fsOccupants.filter(
+          (o) => /^(occ|guest)-\d{12,16}$/.test(o.id) || (!o.id.startsWith("tera") && !o.id.includes("test-"))
+        );
         occupantStore.setOccupantsFromFirestore(cleanList);
         setOccupants(cleanList);
       }

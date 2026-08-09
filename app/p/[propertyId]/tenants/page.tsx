@@ -65,9 +65,6 @@ export default function TenantsDirectoryPage({
   const [occupantsList, setOccupantsList] = useState<Occupant[]>(() => occupantStore.getOccupants());
 
   useEffect(() => {
-    // 1. Trigger automated auto-purge of legacy mock occupants from Cloud Firestore
-    purgeAllMockOccupantsFromFirestore(propertyId);
-
     setOccupantsList(occupantStore.getOccupants());
 
     const unsubscribeLocal = occupantStore.subscribe(() => {
@@ -76,8 +73,10 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants) {
-        // Keep ONLY real onboarded tenants (timestamp IDs like occ-1786256400000)
-        const cleanList = fsOccupants.filter((o) => /^occ-\d{12,16}$/.test(o.id));
+        // Preserve all real onboarded tenants and guests (IDs like occ-1786256400000 or guest-1786256400000)
+        const cleanList = fsOccupants.filter(
+          (o) => /^(occ|guest)-\d{12,16}$/.test(o.id) || (!o.id.startsWith("tera") && !o.id.includes("test-"))
+        );
         occupantStore.setOccupantsFromFirestore(cleanList);
         setOccupantsList(cleanList);
       }

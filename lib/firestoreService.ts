@@ -93,10 +93,10 @@ export async function purgeAllMockOccupantsFromFirestore(
     for (const docSnap of snapshot.docs) {
       const id = docSnap.id;
 
-      // Real onboarded tenants created via Onboarding Portal have 13-digit timestamp IDs (e.g. occ-1786256400000)
-      const isRealOnboardedTenant = /^occ-\d{12,16}$/.test(id);
+      // Real onboarded tenants/guests created via Onboarding Portal have timestamp IDs (e.g. occ-1786256400000 or guest-1786256400000)
+      const isRealOnboarded = /^(occ|guest)-\d{12,16}$/.test(id) || (!id.startsWith("tera") && !id.includes("test-"));
 
-      if (!isRealOnboardedTenant) {
+      if (!isRealOnboarded) {
         await deleteDoc(doc(db, "properties", propertyId, "occupants", id));
         deletedCount++;
       }
