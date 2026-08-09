@@ -106,6 +106,7 @@ export default function OnboardTenantPage({
   const [photoUrl, setPhotoUrl] = useState<string>("");
   const [isPhotoSaved, setIsPhotoSaved] = useState<boolean>(false);
   const [aadhaarUrl, setAadhaarUrl] = useState<string>("");
+  const [isIdSaved, setIsIdSaved] = useState<boolean>(false);
   const [uploadingState, setUploadingState] = useState<{
     photo?: boolean;
     front?: boolean;
@@ -376,6 +377,16 @@ export default function OnboardTenantPage({
             <span>/</span>
             <span className="text-gray-900 font-bold">New Tenant Onboarding</span>
           </div>
+
+          {/* Floating Toast Notification Banner */}
+          {toastMessage && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between shadow-md animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-700 shrink-0" />
+                <span>{toastMessage}</span>
+              </div>
+            </div>
+          )}
 
           {/* Stepper Header */}
           <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
@@ -1065,13 +1076,31 @@ export default function OnboardTenantPage({
                   {/* Section-level Save & Skip Actions for Govt ID */}
                   {(aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) ? (
                     <div className="space-y-2 w-full pt-2 border-t border-gray-200/80">
-                      <button
-                        type="button"
-                        onClick={() => triggerToast("✓ Aadhaar / Govt ID proof saved to database")}
-                        className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                      >
-                        💾 Save Govt ID to Database
-                      </button>
+                      {!isIdSaved ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsIdSaved(true);
+                            triggerToast("✓ Aadhaar / Govt ID proof saved to database 🟢");
+                          }}
+                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        >
+                          💾 Save Govt ID to Database
+                        </button>
+                      ) : (
+                        <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between animate-in fade-in">
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Govt ID Saved 🟢
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsIdSaved(false)}
+                            className="text-[10px] underline text-emerald-800 font-semibold cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -1080,6 +1109,7 @@ export default function OnboardTenantPage({
                         setAadhaarFrontDoc(null);
                         setAadhaarBackDoc(null);
                         setAadhaarDoc(null);
+                        setIsIdSaved(false);
                         triggerToast("Govt ID skipped — flagged as KYC Pending 🟡");
                       }}
                       className="w-full py-2 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
