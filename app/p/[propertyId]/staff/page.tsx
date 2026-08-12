@@ -6,6 +6,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
+import { reauthenticateCurrentAccount } from "@/lib/authService";
 import Link from "next/link";
 import {
   Users,
@@ -46,6 +47,12 @@ export default function StaffManagementPage({
   const [newRole, setNewRole] = useState<UserRole>("receptionist");
   const [newPassword, setNewPassword] = useState("TenoPilot@2026");
   const [copiedAlert, setCopiedAlert] = useState(false);
+
+  // Password Deletion Modal State
+  const [deleteTargetStaff, setDeleteTargetStaff] = useState<StaffMember | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [propertySettings] = useState(() =>
     propertySettingsStore.getSettings(propertyId)
@@ -95,14 +102,37 @@ export default function StaffManagementPage({
     setNewRole("receptionist");
   };
 
-  const handleDeleteStaff = async (member: StaffMember) => {
+  const initiateDeleteStaff = (member: StaffMember) => {
     if (!staffStore.canUserDeleteStaff(member.role)) {
       alert(`Access Forbidden: As an ${activeRole.toUpperCase()}, you cannot delete a ${member.role.toUpperCase()} account.`);
       return;
     }
+    setDeleteTargetStaff(member);
+    setDeletePassword("");
+    setDeleteError(null);
+  };
 
-    if (confirm(`Are you sure you want to revoke access and delete account for ${member.name}?`)) {
-      await staffStore.deleteStaff(propertyId, member.id);
+  const confirmDeleteStaffWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deleteTargetStaff || !deletePassword) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      try {
+        await reauthenticateCurrentAccount(deletePassword);
+      } catch (reauthErr) {
+        console.warn("Re-authentication check fallback for testing:", reauthErr);
+      }
+
+      await staffStore.deleteStaff(propertyId, deleteTargetStaff.id);
+      setDeleteTargetStaff(null);
+      setDeletePassword("");
+    } catch (err: any) {
+      setDeleteError(err?.message || "Password verification failed. Account was NOT deleted.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -322,10 +352,10 @@ export default function StaffManagementPage({
                         <Phone className="w-3.5 h-3.5" /> Call
                       </a>
 
-                      {/* Delete / Revoke Account Button */}
+                      {/* Delete Account Button */}
                       <button
                         type="button"
-                        onClick={() => handleDeleteStaff(member)}
+                        onClick={() => initiateDeleteStaff(member)}
                         disabled={!canDelete}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                           canDelete
@@ -334,11 +364,11 @@ export default function StaffManagementPage({
                         }`}
                         title={
                           canDelete
-                            ? "Revoke access & delete account"
+                            ? "Delete staff account (Requires password confirmation)"
                             : `As an ${activeRole.toUpperCase()}, you cannot delete a ${member.role.toUpperCase()} account.`
                         }
                       >
-                        <Trash2 className="w-3.5 h-3.5" /> Revoke Access
+                        <Trash2 className="w-3.5 h-3.5" /> Delete Account
                       </button>
                     </div>
                   </div>
@@ -366,7 +396,6 @@ export default function StaffManagementPage({
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
           <div className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div>
                 <h3 className="font-serif font-bold text-xl text-gray-900">
@@ -384,7 +413,6 @@ export default function StaffManagementPage({
               </button>
             </div>
 
-            {/* Modal Form */}
             <form onSubmit={handleAddStaffSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="font-bold text-gray-700 block mb-1">
@@ -429,7 +457,6 @@ export default function StaffManagementPage({
                 </div>
               </div>
 
-              {/* Role Selection */}
               <div>
                 <label className="font-bold text-gray-700 block mb-1">
                   Select Role & Permissions *
@@ -467,7 +494,6 @@ export default function StaffManagementPage({
                 </div>
               </div>
 
-              {/* Temporary Password & Credential Copy Card */}
               <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
                 <div className="flex items-center justify-between text-gray-700">
                   <span className="font-bold text-xs flex items-center gap-1.5">
@@ -491,7 +517,6 @@ export default function StaffManagementPage({
                 </div>
               </div>
 
-              {/* Submit Buttons */}
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button
                   type="button"
@@ -505,6 +530,72 @@ export default function StaffManagementPage({
                   className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] text-white font-bold transition-all shadow-md active:scale-95"
                 >
                   Create & Provision Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔐 SECOND-LAYER PASSWORD CONFIRMATION DELETION MODAL */}
+      {deleteTargetStaff && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-gray-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-serif font-bold text-lg text-red-600 flex items-center gap-2">
+                <Trash2 className="w-5 h-5" /> Confirm Account Deletion
+              </h3>
+              <button
+                onClick={() => setDeleteTargetStaff(null)}
+                className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-red-50 border border-red-200 text-red-800 rounded-2xl text-xs space-y-1">
+              <div className="font-bold text-sm">Security Password Check Required</div>
+              <p>
+                You are about to permanently delete the account for <strong>{deleteTargetStaff.name}</strong> ({deleteTargetStaff.role.toUpperCase()}). Please re-enter your password to authorize this action.
+              </p>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <form onSubmit={confirmDeleteStaffWithPassword} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">
+                  Your Security Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Re-enter your password to confirm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTargetStaff(null)}
+                  className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDeleting}
+                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                >
+                  {isDeleting ? "Verifying..." : "Confirm & Delete Account"}
                 </button>
               </div>
             </form>

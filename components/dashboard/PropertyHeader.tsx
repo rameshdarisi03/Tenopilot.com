@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Complaint, subscribeToComplaints, INITIAL_COMPLAINTS } from "@/lib/complaintStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
+import { initializePropertyTrial, calculateTrialDaysRemaining } from "@/lib/trialService";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -34,11 +35,17 @@ export function PropertyHeader({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>(INITIAL_COMPLAINTS);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number>(10);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    initializePropertyTrial(propertyId).then((meta) => {
+      const res = calculateTrialDaysRemaining(meta.trialEndsAtMs);
+      setTrialDaysLeft(res.daysRemaining);
+    });
+
     const unsubscribe = subscribeToComplaints(propertyId, (list) => {
       if (list && list.length > 0) {
         setComplaints(list);
@@ -222,6 +229,12 @@ export function PropertyHeader({
               </div>
             </div>
           )}
+        </div>
+
+        {/* ⏳ Hack-Proof 10-Day Free Trial Badge */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold shadow-2xs">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span>10-Day Free Trial ({trialDaysLeft} Days Left)</span>
         </div>
 
         {actionElement && <div className="hidden sm:block">{actionElement}</div>}
