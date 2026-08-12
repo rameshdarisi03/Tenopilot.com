@@ -61,23 +61,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             setProfile(data);
-            if (!data.displayName || data.displayName === "Property Owner") {
+            if (data.isNewUser || !data.displayName || data.displayName === "Property Owner") {
               setShowNameModal(true);
             }
           } else {
             const newProf: UserProfile = {
               uid: currentUser.uid,
               email: email,
-              displayName: currentUser.displayName || (isMasterTest ? "Ishara Pandey" : "Property Owner"),
+              displayName: isMasterTest ? "Ishara Pandey" : "Property Owner",
               role: "master_admin",
               assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
               isNewUser: true,
             };
             await setDoc(userDocRef, newProf, { merge: true });
             setProfile(newProf);
-            if (!currentUser.displayName || currentUser.displayName === "Property Owner") {
-              setShowNameModal(true);
-            }
+            setShowNameModal(true);
           }
         } catch (e) {
           console.warn("Auth profile fetch fallback:", e);
