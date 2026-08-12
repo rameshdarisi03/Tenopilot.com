@@ -5,7 +5,8 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
-import { X, Sparkles, UserCheck } from "lucide-react";
+import { sanitizeTitleCase } from "@/lib/authService";
+import { Sparkles, UserCheck } from "lucide-react";
 
 export interface UserProfile {
   uid: string;
@@ -108,19 +109,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, loading, pathname, router]);
 
-  // Update Profile Name function with Real-time propagation
+  // Update Profile Name function with Real-time propagation & Title-Case Sanitization
   const updateProfileName = async (newName: string) => {
     if (!user || !newName.trim()) return;
-    const trimmed = newName.trim();
+    const cleanName = sanitizeTitleCase(newName);
 
     const updatedProfile: UserProfile = {
       ...(profile || {
         uid: user.uid,
         email: user.email || "",
-        role: "admin",
-        assignedPropertyId: "sunshine-pg",
+        role: "master_admin",
+        assignedPropertyId: "",
       }),
-      displayName: trimmed,
+      displayName: cleanName,
       isNewUser: false,
     };
 
@@ -128,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, { displayName: trimmed, isNewUser: false }, { merge: true });
+      await setDoc(userDocRef, { displayName: cleanName, isNewUser: false }, { merge: true });
     } catch (e) {
       console.warn("Firestore profile name update fallback:", e);
     }

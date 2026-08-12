@@ -40,7 +40,9 @@ export function PropertyHeader({
   const [editNameInput, setEditNameInput] = useState(profile?.displayName || "");
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
-  const [complaints, setComplaints] = useState<Complaint[]>(INITIAL_COMPLAINTS);
+  const [complaints, setComplaints] = useState<Complaint[]>(
+    propertyId === "sunshine-pg" ? INITIAL_COMPLAINTS : []
+  );
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(10);
 
   const displayName = profile?.displayName || "Ishara Pandey";

@@ -151,8 +151,52 @@ function loadStructure(): FloorConfig[] {
 }
 
 export const propertyStore = {
-  getStructure(): FloorConfig[] {
-    return loadStructure();
+  getStructure(propertyId: string = "sunshine-pg"): FloorConfig[] {
+    const isMasterDemo = !propertyId || propertyId === "sunshine-pg";
+    if (isMasterDemo) {
+      return loadStructure();
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        const savedKey = `tenopilot_layout_${propertyId}`;
+        const saved = localStorage.getItem(savedKey);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.warn(`Failed to load structure for property ${propertyId}:`, e);
+      }
+    }
+    // Default clean 2-floor layout for new property (0 demo occupants)
+    return [
+      {
+        id: `fl-01-${propertyId}`,
+        floorName: "FLOOR 01",
+        floorSubtitle: "MAIN SUITES",
+        totalBeds: 8,
+        rooms: [
+          {
+            id: `rm-101-${propertyId}`,
+            roomNumber: "101",
+            sharingType: 2,
+            beds: [
+              { id: `b-101A-${propertyId}`, bedCode: "BED A", status: "Available" },
+              { id: `b-101B-${propertyId}`, bedCode: "BED B", status: "Available" },
+            ],
+          },
+          {
+            id: `rm-102-${propertyId}`,
+            roomNumber: "102",
+            sharingType: 2,
+            beds: [
+              { id: `b-102A-${propertyId}`, bedCode: "BED A", status: "Available" },
+              { id: `b-102B-${propertyId}`, bedCode: "BED B", status: "Available" },
+            ],
+          },
+        ],
+      },
+    ];
   },
 
   updateStructure(newStructure: FloorConfig[], propertyId: string = "sunshine-pg") {

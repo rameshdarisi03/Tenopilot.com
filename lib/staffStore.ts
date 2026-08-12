@@ -135,9 +135,10 @@ class StaffStore {
   // Firestore Real-Time Listener
   initFirebaseListener(propertyId: string) {
     if (typeof window === "undefined") return;
+    const isMasterDemo = propertyId === "sunshine-pg";
 
     if (!this.staffList.has(propertyId)) {
-      this.staffList.set(propertyId, [...INITIAL_STAFF]);
+      this.staffList.set(propertyId, isMasterDemo ? [...INITIAL_STAFF] : []);
     }
 
     try {
@@ -151,6 +152,9 @@ class StaffStore {
         if (firestoreItems.length > 0) {
           this.staffList.set(propertyId, firestoreItems);
           this.notify();
+        } else if (!isMasterDemo) {
+          this.staffList.set(propertyId, []);
+          this.notify();
         }
       });
     } catch (e) {
@@ -159,7 +163,8 @@ class StaffStore {
   }
 
   getStaff(propertyId: string): StaffMember[] {
-    return this.staffList.get(propertyId) || INITIAL_STAFF;
+    const isMasterDemo = propertyId === "sunshine-pg";
+    return this.staffList.get(propertyId) || (isMasterDemo ? INITIAL_STAFF : []);
   }
 
   async addStaff(propertyId: string, member: StaffMember): Promise<boolean> {

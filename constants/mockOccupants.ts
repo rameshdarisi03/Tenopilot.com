@@ -322,8 +322,24 @@ function loadOccupants(): Occupant[] {
 }
 
 export const occupantStore = {
-  getOccupants(): Occupant[] {
-    return loadOccupants();
+  getOccupants(propertyId: string = "sunshine-pg"): Occupant[] {
+    const isMasterDemo = !propertyId || propertyId === "sunshine-pg";
+    if (isMasterDemo) {
+      return loadOccupants();
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        const savedKey = `tenopilot_occupants_${propertyId}`;
+        const saved = localStorage.getItem(savedKey);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.warn(`Failed to load occupants for property ${propertyId}:`, e);
+      }
+    }
+    return [];
   },
 
   setOccupantsFromFirestore(newList: Occupant[]) {

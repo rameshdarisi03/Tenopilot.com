@@ -133,8 +133,8 @@ class ExpenseStore {
         );
         this.expenses = [...otherPropExpenses, ...(cloudData as ExpenseRecord[])];
         this.notify();
-      } else {
-        // Seed initial mock records to Cloud Firestore if empty
+      } else if (propertyId === "sunshine-pg") {
+        // Seed initial mock records to Cloud Firestore for sunshine-pg demo benchmark only
         const initialForProp = INITIAL_EXPENSES.filter(
           (e) => e.propertyId === propertyId
         );

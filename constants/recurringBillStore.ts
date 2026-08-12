@@ -111,8 +111,8 @@ class RecurringBillStore {
         );
         this.bills = [...otherPropBills, ...(cloudData as RecurringBillRecord[])];
         this.notify();
-      } else {
-        // Seed initial mock records to Cloud Firestore if empty
+      } else if (propertyId === "sunshine-pg") {
+        // Seed initial mock records to Cloud Firestore for sunshine-pg demo benchmark only
         const initialForProp = INITIAL_RECURRING_BILLS.filter(
           (b) => b.propertyId === propertyId
         );

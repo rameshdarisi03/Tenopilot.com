@@ -117,13 +117,17 @@ export function subscribeToComplaints(
 ) {
   storeListeners.add(onUpdate);
 
-  // Initialize with local storage if available
+  const isMasterDemo = propertyId === "sunshine-pg";
   const localSaved = loadFromLocalStorage(propertyId);
-  if (localSaved && localSaved.length > 0) {
+  if (localSaved) {
     inMemoryComplaintsStore = localSaved;
     onUpdate(localSaved);
-  } else {
+  } else if (isMasterDemo) {
+    inMemoryComplaintsStore = [...INITIAL_COMPLAINTS];
     onUpdate(inMemoryComplaintsStore);
+  } else {
+    inMemoryComplaintsStore = [];
+    onUpdate([]);
   }
 
   try {
@@ -152,12 +156,17 @@ export function subscribeToComplaints(
           saveToLocalStorage(propertyId, list);
           notifyStoreListeners(list);
         } else {
-          // If Firestore collection is empty, populate initial seeds
-          INITIAL_COMPLAINTS.forEach((c) => {
-            setDoc(doc(db, "properties", propertyId, "complaints", c.id), sanitizeForFirestore(c)).catch(
-              () => {}
-            );
-          });
+          if (isMasterDemo) {
+            INITIAL_COMPLAINTS.forEach((c) => {
+              setDoc(doc(db, "properties", propertyId, "complaints", c.id), sanitizeForFirestore(c)).catch(
+                () => {}
+              );
+            });
+          } else {
+            inMemoryComplaintsStore = [];
+            saveToLocalStorage(propertyId, []);
+            notifyStoreListeners([]);
+          }
         }
       },
       (error) => {

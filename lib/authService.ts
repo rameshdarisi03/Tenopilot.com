@@ -27,6 +27,21 @@ export interface AuthUserProfile {
 }
 
 /**
+ * 🔤 Clean Title-Case Name Sanitizer
+ * Converts messy user input (e.g. "RaMesH DariSI") -> Clean Title-Cased Name ("Ramesh Darisi")
+ */
+export function sanitizeTitleCase(input: string): string {
+  if (!input) return "";
+  return input
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
  * 🛡️ Clean Enterprise Error Message Sanitizer
  * Replaces raw internal error codes (e.g. Firebase: Error) with clean, human-friendly messages.
  */
