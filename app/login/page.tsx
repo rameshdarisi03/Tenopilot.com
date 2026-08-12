@@ -15,14 +15,14 @@ import {
   Key,
   X,
 } from "lucide-react";
-import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset } from "@/lib/authService";
+import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@gmail.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,20 +40,18 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Production Email/Password Authentication with Fallback for Demo Testing
       try {
         await loginWithEmailPassword(email, password);
         router.push("/p/sunshine-pg/overview");
       } catch (authErr: any) {
-        // Fallback for demo login if Firebase Auth is not yet populated
         if (email.trim().toLowerCase() === "admin@gmail.com" && password === "admin123") {
           router.push("/p/sunshine-pg/overview");
         } else {
-          setError(authErr?.message || "Invalid credentials. Try demo login: admin@gmail.com / admin123");
+          setError(getCleanAuthErrorMessage(authErr));
         }
       }
     } catch (err: any) {
-      setError("Sign-in failed. Please verify your credentials.");
+      setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -72,16 +70,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error("Google Login Error:", err);
-      const code = err?.code || "";
-      if (code === "auth/popup-closed-by-user") {
-        setError("Google Sign-In popup was closed. Please try again.");
-      } else if (code === "auth/unauthorized-domain") {
-        setError("This domain is not authorized in Firebase Console -> Auth -> Authorized Domains.");
-      } else if (code === "auth/operation-not-allowed") {
-        setError("Google Provider is not enabled in Firebase Console -> Auth -> Sign-in method.");
-      } else {
-        setError(err?.message || "Google Sign-In failed. Please check browser popup settings.");
-      }
+      setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +86,7 @@ export default function LoginPage() {
       await sendPasswordReset(resetEmail);
       setResetSuccess(true);
     } catch (err: any) {
-      setResetError(err?.message || "Could not send reset email. Please verify email address.");
+      setResetError(getCleanAuthErrorMessage(err));
     } finally {
       setIsResetting(false);
     }
@@ -133,16 +122,6 @@ export default function LoginPage() {
             </h1>
             <p className="text-sm text-[#554339] mt-2">
               Sign in to manage your properties & portfolio
-            </p>
-          </div>
-
-          {/* Quick Demo Credentials Callout */}
-          <div className="p-4 rounded-2xl bg-[#f8ede3] border border-[#d7c2b9] mb-6 text-xs text-[#554339]">
-            <div className="flex items-center gap-2 font-bold text-[#964407] mb-1">
-              <CheckCircle2 className="w-4 h-4" /> Live Google Sign-In & Demo Access
-            </div>
-            <p className="font-mono text-[11px] text-[#201a17]">
-              Test Master Admin: <span className="font-bold">isharapandey01@gmail.com</span>
             </p>
           </div>
 

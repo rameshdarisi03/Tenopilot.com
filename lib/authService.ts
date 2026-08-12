@@ -27,6 +27,62 @@ export interface AuthUserProfile {
 }
 
 /**
+ * 🛡️ Clean Enterprise Error Message Sanitizer
+ * Replaces raw internal error codes (e.g. Firebase: Error) with clean, human-friendly messages.
+ */
+export function getCleanAuthErrorMessage(err: any): string {
+  if (!err) return "An unexpected error occurred. Please try again.";
+  
+  const code = typeof err === "string" ? err : err?.code || "";
+  const msg = typeof err === "string" ? err : err?.message || "";
+
+  if (
+    code === "auth/invalid-credential" ||
+    code === "auth/wrong-password" ||
+    code === "auth/user-not-found" ||
+    msg.includes("invalid-credential") ||
+    msg.includes("user-not-found")
+  ) {
+    return "Invalid email or password. Please verify your credentials and try again.";
+  }
+  if (code === "auth/user-disabled") {
+    return "This account has been suspended. Please contact platform support.";
+  }
+  if (code === "auth/too-many-requests") {
+    return "Too many failed login attempts. Please wait a moment or reset your password.";
+  }
+  if (code === "auth/email-already-in-use") {
+    return "An account with this email address already exists. Please sign in instead.";
+  }
+  if (code === "auth/network-request-failed") {
+    return "Network connection error. Please check your internet connection and try again.";
+  }
+  if (code === "auth/popup-closed-by-user") {
+    return "Google Sign-In was cancelled. Please try again.";
+  }
+  if (code === "auth/unauthorized-domain") {
+    return "Domain authorization pending. Please contact system support.";
+  }
+  if (code === "auth/operation-not-allowed") {
+    return "This sign-in method is temporarily unavailable. Please try another method.";
+  }
+  if (code === "auth/invalid-email") {
+    return "Please enter a valid email address.";
+  }
+
+  let cleanMsg = msg
+    .replace(/^Firebase:\s*Error\s*\(.*?\)\s*:?\s*/i, "")
+    .replace(/\(auth\/.*?\)\.?/gi, "")
+    .trim();
+
+  if (!cleanMsg || cleanMsg.startsWith("auth/")) {
+    return "Authentication failed. Please check your details and try again.";
+  }
+
+  return cleanMsg;
+}
+
+/**
  * 🌐 Sign In or Onboard with Google OAuth 2.0
  */
 export async function loginWithGoogle(): Promise<{ user: User; profile: AuthUserProfile } | null> {
