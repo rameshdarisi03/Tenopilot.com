@@ -72,8 +72,16 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error("Google Login Error:", err);
-      // Fallback demo redirect if popup was closed or offline
-      router.push("/p/sunshine-pg/overview");
+      const code = err?.code || "";
+      if (code === "auth/popup-closed-by-user") {
+        setError("Google Sign-In popup was closed. Please try again.");
+      } else if (code === "auth/unauthorized-domain") {
+        setError("This domain is not authorized in Firebase Console -> Auth -> Authorized Domains.");
+      } else if (code === "auth/operation-not-allowed") {
+        setError("Google Provider is not enabled in Firebase Console -> Auth -> Sign-in method.");
+      } else {
+        setError(err?.message || "Google Sign-In failed. Please check browser popup settings.");
+      }
     } finally {
       setIsLoading(false);
     }
