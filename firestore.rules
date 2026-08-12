@@ -24,7 +24,15 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 🏢 1. PROPERTY SETTINGS & SETUP
+    // 👤 1. UNIVERSAL USER PROFILES & ONBOARDING
+    // Path: users/{userId}
+    // ==========================================
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // ==========================================
+    // 🏢 2. PROPERTY SETTINGS & SETUP
     // Path: properties/{propertyId}/settings/{docId}
     // ==========================================
     match /properties/{propertyId}/settings/{settingId} {
@@ -33,7 +41,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 👥 2. OCCUPANTS (TENANTS & GUESTS)
+    // 👥 3. OCCUPANTS (TENANTS & GUESTS)
     // Path: properties/{propertyId}/occupants/{occupantId}
     // ==========================================
     match /properties/{propertyId}/occupants/{occupantId} {
@@ -41,7 +49,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 🔧 3. COMPLAINTS & MAINTENANCE TICKETS
+    // 🔧 4. COMPLAINTS & MAINTENANCE TICKETS
     // Path: properties/{propertyId}/complaints/{complaintId}
     // ==========================================
     match /properties/{propertyId}/complaints/{complaintId} {
@@ -50,7 +58,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 💰 4. FINANCIAL HUB (EXPENSES & REVENUE)
+    // 💰 5. FINANCIAL HUB (EXPENSES & REVENUE)
     // Path: properties/{propertyId}/financials/{docId}
     // ==========================================
     match /properties/{propertyId}/financials/{docId} {
@@ -58,7 +66,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 👥 5. STAFF MANAGEMENT & RBAC
+    // 👥 6. STAFF MANAGEMENT & RBAC
     // Path: properties/{propertyId}/staff/{staffId}
     // ==========================================
     match /properties/{propertyId}/staff/{staffId} {
