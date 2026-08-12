@@ -20,6 +20,7 @@ import {
   Check,
   HelpCircle,
 } from "lucide-react";
+import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { LandingPageClient } from "@/components/LandingPageClient";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 
@@ -52,18 +53,8 @@ export default function Home() {
       {/* 1. Global Navigation */}
       <nav className="sticky top-0 z-50 bg-[#fff8f6]/85 backdrop-blur-xl border-b border-[#d7c2b9]/60 transition-all">
         <div className="max-w-[1240px] mx-auto px-6 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-xl shadow-md group-hover:bg-[#c2652a] transition-colors">
-              T
-            </div>
-            <div>
-              <span className="font-serif font-bold text-2xl tracking-tight text-[#201a17]">
-                TenoPilot
-              </span>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
-                Rental Operating System
-              </span>
-            </div>
+          <Link href="/" className="flex items-center gap-3">
+            <TenoPilotLogo size="md" />
           </Link>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-[#554339]">
@@ -82,19 +73,13 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Item 3 Sign In */}
             <Link
               href="/login"
               id="nav-login-btn"
-              className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-[#554339] hover:text-[#964407] transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/home"
-              id="nav-cta-btn"
               className="px-6 py-2.5 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-sm font-semibold transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
             >
-              Launch Dashboard <ArrowRight className="w-4 h-4" />
+              Sign In <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -103,8 +88,12 @@ export default function Home() {
       {/* 2. Hero Section */}
       <header className="relative pt-16 pb-24 md:pt-24 md:pb-32 overflow-hidden">
         <div className="max-w-[1240px] mx-auto px-6 text-center relative z-10">
+          {/* Item 5 PRECISION RENTAL OS with blinking status dot */}
           <div className="inline-flex items-center gap-2 bg-[#f8ede3] text-[#964407] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-8 border border-[#d7c2b9]">
-            <span className="flex h-2 w-2 rounded-full bg-[#964407] animate-pulse"></span>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
             Precision Rental OS
           </div>
 
@@ -118,10 +107,11 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 mb-16">
+            {/* Item 6 Start 10-Day Free Trial */}
             <Link
-              href="/home"
+              href="/login"
               id="hero-primary-cta"
-              className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-base font-bold transition-all shadow-xl hover:shadow-[#964407]/20 hover:-translate-y-0.5 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-base font-bold transition-all shadow-xl hover:shadow-[#964407]/20 hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
             >
               Start 10-Day Free Trial <ArrowRight className="w-5 h-5" />
             </Link>

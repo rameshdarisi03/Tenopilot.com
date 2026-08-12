@@ -1,11 +1,12 @@
 "use client";
 
-import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight } from "lucide-react";
+import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, UserCheck, Edit3 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Complaint, subscribeToComplaints, INITIAL_COMPLAINTS } from "@/lib/complaintStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { initializePropertyTrial, calculateTrialDaysRemaining } from "@/lib/trialService";
+import { useAuth } from "@/providers/AuthProvider";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -30,12 +31,20 @@ export function PropertyHeader({
   propertyId?: string;
   actionElement?: React.ReactNode;
 }) {
+  const { profile, updateProfileName, logout } = useAuth();
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editNameInput, setEditNameInput] = useState(profile?.displayName || "");
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [complaints, setComplaints] = useState<Complaint[]>(INITIAL_COMPLAINTS);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(10);
+
+  const displayName = profile?.displayName || "Ishara Pandey";
+  const userEmail = profile?.email || "isharapandey01@gmail.com";
+  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "IP";
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -239,7 +248,7 @@ export function PropertyHeader({
 
         {actionElement && <div className="hidden sm:block">{actionElement}</div>}
 
-        {/* 👤 User Profile Dropdown Avatar (RD) */}
+        {/* 👤 User Profile Dropdown Avatar */}
         <div className="relative" ref={profileRef}>
           <button
             type="button"
@@ -247,7 +256,7 @@ export function PropertyHeader({
             className="flex items-center gap-2 pl-2 border-l border-gray-200 cursor-pointer active:scale-95 transition-transform"
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#c2652a] to-amber-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
-              RD
+              {userInitials}
             </div>
           </button>
 
@@ -256,11 +265,11 @@ export function PropertyHeader({
             <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-gray-200 shadow-2xl z-50 p-4 space-y-3 animate-in zoom-in-95 text-xs">
               <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
                 <div className="w-10 h-10 rounded-full bg-[#c2652a] text-white font-bold flex items-center justify-center text-sm shadow-xs">
-                  RD
+                  {userInitials}
                 </div>
-                <div>
-                  <p className="font-bold text-gray-900 text-sm">Ramesh Darisi</p>
-                  <p className="text-[10px] text-gray-400 font-medium">rameshdarisi03@gmail.com</p>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-gray-900 text-sm truncate">{displayName}</p>
+                  <p className="text-[10px] text-gray-400 font-medium truncate">{userEmail}</p>
                   <span className="inline-block mt-0.5 text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
                     SUPER ADMIN • OWNER
                   </span>
@@ -268,13 +277,29 @@ export function PropertyHeader({
               </div>
 
               <div className="space-y-1">
+                {/* ✏️ EDIT PROFILE BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setEditNameInput(displayName);
+                    setShowEditProfileModal(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-amber-50 text-[#964407] font-bold transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Edit3 className="w-3.5 h-3.5 text-[#c2652a]" /> Edit Profile
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+
                 <Link
                   href={`/p/${propertyId}/settings`}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <Settings className="w-3.5 h-3.5 text-[#c2652a]" /> Global Settings
+                    <Settings className="w-3.5 h-3.5 text-gray-600" /> Global Settings
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
                 </Link>
@@ -289,15 +314,120 @@ export function PropertyHeader({
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
                 </Link>
+
+                {/* 🚪 LOGOUT BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-red-50 text-red-600 font-bold transition-colors cursor-pointer border-t border-gray-100 mt-2"
+                >
+                  <span className="flex items-center gap-2">
+                    <LogOut className="w-3.5 h-3.5 text-red-600" /> Sign Out / Logout
+                  </span>
+                </button>
               </div>
 
-              <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-400 text-center font-medium">
-                TenoPilot OS v1.2 • Sunshine PG
+              <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-400 flex items-center justify-between">
+                <span>TenoPilot v2.1</span>
+                <span>• {propertyId}</span>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* ✏️ EDIT PROFILE MODAL */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-gray-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-[#964407]" /> Edit Profile Details
+              </h3>
+              <button
+                onClick={() => setShowEditProfileModal(false)}
+                className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setIsUpdatingName(true);
+                await updateProfileName(editNameInput);
+                setIsUpdatingName(false);
+                setShowEditProfileModal(false);
+              }}
+              className="space-y-4 text-xs"
+            >
+              {/* Full Name (Editable) */}
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">
+                  Full Name / Username *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editNameInput}
+                  onChange={(e) => setEditNameInput(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#964407] font-semibold text-gray-900"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Updating your name here will instantly update your welcome dashboard greeting and profile cards across the app.
+                </p>
+              </div>
+
+              {/* Email Address (Disabled for now) */}
+              <div>
+                <label className="font-bold text-gray-400 block mb-1">
+                  Email Address (Disabled)
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  value={userEmail}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-400 text-sm cursor-not-allowed font-mono"
+                />
+              </div>
+
+              {/* Mobile Number (Disabled for now) */}
+              <div>
+                <label className="font-bold text-gray-400 block mb-1">
+                  Mobile Number (Disabled)
+                </label>
+                <input
+                  type="tel"
+                  disabled
+                  value="+91 9876543210"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-400 text-sm cursor-not-allowed font-mono"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingName}
+                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isUpdatingName ? "Saving..." : "Save Profile"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

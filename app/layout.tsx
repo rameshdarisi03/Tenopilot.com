@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Manrope } from "next/font/google";
 import QueryProvider from "@/providers/QueryProvider";
+import { AuthProvider } from "@/providers/AuthProvider";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -53,7 +54,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="TenoPilot" />
       </head>
       <body className="min-h-full font-sans bg-[#fff8f6] text-[#201a17]">
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
 
         {/* Service Worker Auto-Registration Script */}
         <script

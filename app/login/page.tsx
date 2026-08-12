@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset } from "@/lib/authService";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -99,18 +100,8 @@ export default function LoginPage() {
       {/* Top Header */}
       <header className="px-6 py-6 border-b border-[#d7c2b9]/40 bg-[#fff8f6]/80 backdrop-blur-md">
         <div className="max-w-[1240px] mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-xl shadow-md group-hover:bg-[#c2652a] transition-colors">
-              T
-            </div>
-            <div>
-              <span className="font-serif font-bold text-2xl tracking-tight text-[#201a17]">
-                TenoPilot
-              </span>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
-                Rental Operating System
-              </span>
-            </div>
+          <Link href="/" className="flex items-center gap-3">
+            <TenoPilotLogo size="md" />
           </Link>
 
           <Link

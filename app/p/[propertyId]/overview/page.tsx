@@ -22,6 +22,15 @@ import {
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { useAuth } from "@/providers/AuthProvider";
+
+function getTimeAwareGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 22) return "Good evening";
+  return "Good night";
+}
 
 export default function PropertyOverviewPage({
   params,
@@ -53,6 +62,10 @@ export default function PropertyOverviewPage({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const { profile } = useAuth();
+  const userName = profile?.displayName || "Ishara Pandey";
+  const greetingText = `${getTimeAwareGreeting()}, ${userName}!`;
+
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
       {/* 256px Left Sidebar with 8 clean primary menus */}
@@ -83,10 +96,10 @@ export default function PropertyOverviewPage({
                 OPERATIONAL HEALTHY 🟢
               </span>
               <h2 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17] mt-2">
-                {propertySettings.propertyName} Dashboard
+                {greetingText}
               </h2>
               <p className="text-xs text-[#554339] mt-0.5">
-                {propertySettings.propertyAddress} • 78 Total Beds • 98.5% Occupancy
+                {propertySettings.propertyName} • {propertySettings.propertyAddress} • 78 Total Beds • 98.5% Occupancy
               </p>
             </div>
 

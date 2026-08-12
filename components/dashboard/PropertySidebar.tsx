@@ -14,10 +14,12 @@ import {
   Settings,
   HelpCircle,
   X,
+  LogOut,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
 import { staffStore, UserRole } from "@/lib/staffStore";
+import { useAuth } from "@/providers/AuthProvider";
 
 export function PropertySidebar({
   propertyId = "sunshine-pg",
@@ -30,6 +32,7 @@ export function PropertySidebar({
 }) {
   const pathname = usePathname();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+  const { profile, logout } = useAuth();
 
   useEffect(() => {
     const unsubscribe = staffStore.subscribe(() => {
@@ -50,7 +53,7 @@ export function PropertySidebar({
       icon: MapPin,
     },
     {
-      name: "Tenants",
+      name: "Tenants & Guests",
       href: `/p/${propertyId}/tenants`,
       icon: Users,
     },
@@ -60,12 +63,12 @@ export function PropertySidebar({
       icon: Wallet,
     },
     {
-      name: "Complaints",
+      name: "Complaints Desk",
       href: `/p/${propertyId}/complaints`,
       icon: Wrench,
     },
     {
-      name: "Reports",
+      name: "Reports & Analytics",
       href: `/p/${propertyId}/reports`,
       icon: BarChart3,
     },
@@ -75,101 +78,113 @@ export function PropertySidebar({
       icon: UserCheck,
     },
     {
-      name: "Settings",
-      href: `/p/${propertyId}/settings`,
+      name: "Property Setup",
+      href: `/p/${propertyId}/property-setup`,
       icon: Settings,
     },
   ];
 
-  const sidebarContent = (
-    <div className="flex flex-col justify-between h-full bg-white border-r border-gray-200 select-none">
-      <div className="p-6 space-y-6">
-        {/* Mobile Close Button */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/home"
-            id="sidebar-brand-link"
-            className="group transition-transform active:scale-98"
-            title="Return to Welcome Home Dashboard"
-          >
-            <TenoPilotLogo size="md" />
-          </Link>
+  const displayName = profile?.displayName || "Ishara Pandey";
+  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "IP";
+  const roleDisplay = profile?.role === "master_admin" ? "Master Admin 👑" : profile?.role === "admin" ? "Admin (Owner) 🏢" : "Receptionist 🔑";
 
-          {onMobileClose && (
-            <button
-              onClick={onMobileClose}
-              className="lg:hidden p-1 rounded-full text-gray-500 hover:bg-gray-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-[#fff8f6] border-r border-[#d7c2b9]/60 select-none">
+      {/* Sidebar Header */}
+      <div className="p-5 border-b border-[#d7c2b9]/40 flex items-center justify-between">
+        <Link href={`/p/${propertyId}/overview`}>
+          <TenoPilotLogo size="sm" />
+        </Link>
+        {mobileOpen && (
+          <button
+            onClick={onMobileClose}
+            className="p-1 rounded-lg hover:bg-gray-100 text-gray-500 lg:hidden"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Navigation Menus */}
+      <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <div className="px-3 pb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#964407]">
+          Property Management
         </div>
 
-        {/* Primary Clean Menu Nav (RBAC Filtered) */}
-        <nav className="space-y-1 pt-2">
+        <nav className="space-y-1">
           {navItems
             .filter((item) => {
               if (activeRole === "receptionist") {
-                return !["Staff Management", "Settings"].includes(item.name);
+                return !["Staff Management", "Property Setup"].includes(item.name);
               }
               return true;
             })
             .map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.name === "Tenants" && pathname?.includes("tenants")) ||
-              (item.name === "Financial Hub" && pathname?.includes("financial-hub")) ||
-              (item.name === "Overview" && pathname?.includes("overview"));
+              const isActive =
+                pathname === item.href ||
+                (item.name === "Tenants & Guests" && pathname?.includes("tenants")) ||
+                (item.name === "Financial Hub" && pathname?.includes("financial-hub")) ||
+                (item.name === "Overview" && pathname?.includes("overview"));
 
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => onMobileClose && onMobileClose()}
-                className={`relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer select-none active:scale-95 ${
-                  isActive
-                    ? "bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-[#c2652a] font-bold border-l-4 border-[#c2652a] shadow-xs"
-                    : "text-gray-600 hover:bg-orange-50/60 hover:text-[#c2652a] hover:translate-x-1"
-                }`}
-              >
-                <Icon className={`w-4 h-4 transition-transform duration-200 ${isActive ? "text-[#c2652a] scale-110" : "text-gray-500 group-hover:scale-110"}`} />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
+              const Icon = item.icon;
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => onMobileClose && onMobileClose()}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive
+                      ? "bg-[#201a17] text-white shadow-sm"
+                      : "text-[#554339] hover:bg-[#f8ede3] hover:text-[#964407]"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? "text-amber-400" : "text-[#554339]"}`} />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
         </nav>
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-gray-100 space-y-1 text-xs text-gray-600">
+      <div className="p-4 border-t border-[#d7c2b9]/40 space-y-1 text-xs text-[#554339]">
         <Link
           href={`/p/${propertyId}/settings`}
           onClick={() => onMobileClose && onMobileClose()}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f8ede3]"
         >
-          <Settings className="w-4 h-4 text-gray-500" />
+          <Settings className="w-4 h-4 text-[#554339]" />
           <span>Settings</span>
         </Link>
         <a
           href="#support"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f8ede3] text-[#554339]"
         >
-          <HelpCircle className="w-4 h-4 text-gray-500" />
+          <HelpCircle className="w-4 h-4 text-[#554339]" />
           <span>Support</span>
         </a>
 
         {/* User Profile Card */}
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs border-2 border-white shadow-xs">
-              RD
+        <div className="mt-4 p-3 bg-white rounded-xl border border-[#d7c2b9] flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-xs border border-amber-300 shrink-0">
+              {userInitials}
             </div>
-            <div>
-              <p className="text-xs font-bold text-gray-900">Ramesh Darisi</p>
-              <p className="text-[10px] text-gray-500">Super Admin</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-[#201a17] truncate">{displayName}</p>
+              <p className="text-[10px] text-[#554339] truncate">{roleDisplay}</p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={logout}
+            title="Sign Out / Logout"
+            className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors cursor-pointer shrink-0 ml-1"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
