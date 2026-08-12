@@ -16,6 +16,7 @@ export function PropertyHeader({
   onTabChange,
   onMobileMenuToggle,
   propertyId = "sunshine-pg",
+  actionElement,
 }: {
   title?: string;
   sectionTabs?: string[];
@@ -26,6 +27,7 @@ export function PropertyHeader({
   onTabChange?: (tab: string) => void;
   onMobileMenuToggle?: () => void;
   propertyId?: string;
+  actionElement?: React.ReactNode;
 }) {
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -221,6 +223,8 @@ export function PropertyHeader({
             </div>
           )}
         </div>
+
+        {actionElement && <div className="hidden sm:block">{actionElement}</div>}
 
         {/* 👤 User Profile Dropdown Avatar (RD) */}
         <div className="relative" ref={profileRef}>

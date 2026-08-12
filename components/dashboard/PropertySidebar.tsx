@@ -16,6 +16,9 @@ import {
   X,
 } from "lucide-react";
 
+import { useState, useEffect } from "react";
+import { staffStore, UserRole } from "@/lib/staffStore";
+
 export function PropertySidebar({
   propertyId = "sunshine-pg",
   mobileOpen = false,
@@ -26,6 +29,14 @@ export function PropertySidebar({
   onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+
+  useEffect(() => {
+    const unsubscribe = staffStore.subscribe(() => {
+      setActiveRole(staffStore.getActiveRole());
+    });
+    return unsubscribe;
+  }, []);
 
   const navItems = [
     {
@@ -94,9 +105,16 @@ export function PropertySidebar({
           )}
         </div>
 
-        {/* 8 Primary Clean Menu Nav */}
+        {/* Primary Clean Menu Nav (RBAC Filtered) */}
         <nav className="space-y-1 pt-2">
-          {navItems.map((item) => {
+          {navItems
+            .filter((item) => {
+              if (activeRole === "receptionist") {
+                return !["Staff Management", "Settings"].includes(item.name);
+              }
+              return true;
+            })
+            .map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||

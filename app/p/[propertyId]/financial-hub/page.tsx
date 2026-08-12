@@ -49,6 +49,8 @@ import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { staffStore, UserRole } from "@/lib/staffStore";
+import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -82,13 +84,23 @@ export default function FinancialHubPage({
     propertySettingsStore.getSettings(propertyId)
   );
 
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+
   useEffect(() => {
     propertySettingsStore.initFirebaseListener(propertyId);
     setPropertySettings(propertySettingsStore.getSettings(propertyId));
-    const unsubscribe = propertySettingsStore.subscribe(() => {
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
       setPropertySettings(propertySettingsStore.getSettings(propertyId));
     });
-    return unsubscribe;
+
+    const unsubscribeStaff = staffStore.subscribe(() => {
+      setActiveRole(staffStore.getActiveRole());
+    });
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeStaff();
+    };
   }, [propertyId]);
 
   // Timeline Filter State (This Month, Last Month, Quarter, Year, All Time)
@@ -506,6 +518,7 @@ export default function FinancialHubPage({
           activeTab={activeTab}
           onTabChange={(tab) => setActiveTab(tab)}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
+          actionElement={<RoleSwitcherBadge />}
         />
 
         {/* Workspace Body */}

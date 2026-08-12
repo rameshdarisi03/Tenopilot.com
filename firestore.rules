@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==========================================
+    // 🛡️ HELPER FUNCTIONS
+    // ==========================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isMasterAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'master_admin' || 
+        !('role' in request.auth.token) // Default owner fallback
+      );
+    }
+    
+    function isOrgAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role in ['master_admin', 'admin'] || 
+        !('role' in request.auth.token) // Default owner fallback
+      );
+    }
+
+    // ==========================================
+    // 🏢 1. PROPERTY SETTINGS & SETUP
+    // Path: properties/{propertyId}/settings/{docId}
+    // ==========================================
+    match /properties/{propertyId}/settings/{settingId} {
+      allow read: if true;
+      allow write: if isOrgAdmin();
+    }
+
+    // ==========================================
+    // 👥 2. OCCUPANTS (TENANTS & GUESTS)
+    // Path: properties/{propertyId}/occupants/{occupantId}
+    // ==========================================
+    match /properties/{propertyId}/occupants/{occupantId} {
+      allow read, write: if true;
+    }
+
+    // ==========================================
+    // 🔧 3. COMPLAINTS & MAINTENANCE TICKETS
+    // Path: properties/{propertyId}/complaints/{complaintId}
+    // ==========================================
+    match /properties/{propertyId}/complaints/{complaintId} {
+      allow read, create: if true; // Public complaint submission
+      allow update, delete: if isAuthenticated();
+    }
+
+    // ==========================================
+    // 💰 4. FINANCIAL HUB (EXPENSES & REVENUE)
+    // Path: properties/{propertyId}/financials/{docId}
+    // ==========================================
+    match /properties/{propertyId}/financials/{docId} {
+      allow read, write: if true;
+    }
+
+    // ==========================================
+    // 👥 5. STAFF MANAGEMENT & RBAC
+    // Path: properties/{propertyId}/staff/{staffId}
+    // ==========================================
+    match /properties/{propertyId}/staff/{staffId} {
+      allow read, write: if true;
+    }
+  }
+}
