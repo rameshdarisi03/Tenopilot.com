@@ -92,7 +92,11 @@ export function PropertySidebar({
     <div className="flex flex-col h-full bg-[#fff8f6] border-r border-[#d7c2b9]/60 select-none">
       {/* Sidebar Header */}
       <div className="p-5 border-b border-[#d7c2b9]/40 flex items-center justify-between">
-        <Link href={`/p/${propertyId}/overview`}>
+        <Link
+          href={`/p/${propertyId}/overview`}
+          className="cursor-pointer transition-transform hover:scale-[1.02] block"
+          title="Return to Welcome Overview Screen"
+        >
           <TenoPilotLogo size="sm" />
         </Link>
         {mobileOpen && (

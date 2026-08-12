@@ -17,22 +17,22 @@ export const TenoPilotLogo: React.FC<TenoPilotLogoProps> = ({
   className = "",
 }) => {
   const iconSizeClasses = {
-    sm: "w-8 h-8",
-    md: "w-10 h-10",
-    lg: "w-14 h-14",
-    xl: "w-20 h-20",
+    sm: "w-9 h-9",
+    md: "w-11 h-11",
+    lg: "w-16 h-16",
+    xl: "w-22 h-22",
   };
 
   const wordmarkSizeClasses = {
-    sm: "text-xl",
-    md: "text-2xl md:text-3xl",
-    lg: "text-3xl md:text-4xl",
-    xl: "text-5xl md:text-6xl",
+    sm: "text-xl font-extrabold",
+    md: "text-2xl sm:text-3xl font-extrabold",
+    lg: "text-3xl sm:text-4xl font-extrabold",
+    xl: "text-5xl sm:text-6xl font-extrabold",
   };
 
   return (
-    <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* 🟧 OFFICIAL TERRACOTTA BADGE (WINGED 'T' + 4-POINT COMPASS STAR) — NO BOX SHADOW OR BACKGROUND FRAMES */}
+    <div className={`inline-flex items-center gap-2 sm:gap-2.5 select-none ${className}`}>
+      {/* 🟧 OFFICIAL TERRACOTTA BADGE — OPTICALLY ALIGNED TO WORDMARK CAP-HEIGHT */}
       <div className={`relative ${iconSizeClasses[size]} shrink-0 transition-transform group-hover:scale-105`}>
         <Image
           src="/tenopilot_official_badge.png"
@@ -44,11 +44,11 @@ export const TenoPilotLogo: React.FC<TenoPilotLogoProps> = ({
         />
       </div>
 
-      {/* 🪶 OFFICIAL SERIF WORDMARK "TenoPilot.com" — NO TAGLINE BELOW */}
+      {/* 🪶 OFFICIAL SERIF WORDMARK "TenoPilot.com" */}
       {showWordmark && (
-        <div className="flex items-center">
+        <div className="flex items-center leading-none">
           <span
-            className={`font-serif font-extrabold tracking-tight leading-none ${wordmarkSizeClasses[size]} ${
+            className={`font-serif tracking-tight leading-none ${wordmarkSizeClasses[size]} ${
               variant === "light" ? "text-white" : "text-[#0b132b]"
             }`}
           >

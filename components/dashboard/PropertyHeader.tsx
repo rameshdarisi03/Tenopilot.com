@@ -112,8 +112,14 @@ export function PropertyHeader({
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
           </div>
         ) : (
-          <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-gray-500">
-            <span className="font-serif font-bold text-sm text-gray-900">{title}</span>
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+            <Link
+              href={`/p/${propertyId}/overview`}
+              className="font-serif font-bold text-sm text-gray-900 hover:text-[#964407] transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Return to Welcome Overview Screen"
+            >
+              <span>{title}</span>
+            </Link>
           </div>
         )}
       </div>
