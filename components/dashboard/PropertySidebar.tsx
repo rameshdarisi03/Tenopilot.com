@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import {
   LayoutDashboard,
   MapPin,
@@ -77,20 +78,10 @@ export function PropertySidebar({
           <Link
             href="/home"
             id="sidebar-brand-link"
-            className="flex items-center gap-3 group transition-transform active:scale-98"
+            className="group transition-transform active:scale-98"
             title="Return to Welcome Home Dashboard"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#c2652a] text-white flex items-center justify-center font-serif font-bold text-lg shadow-sm">
-              T
-            </div>
-            <div>
-              <span className="font-serif font-bold text-xl tracking-tight text-gray-900">
-                TenoPilot.com
-              </span>
-              <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block -mt-1">
-                Property Management OS
-              </span>
-            </div>
+            <TenoPilotLogo size="md" />
           </Link>
 
           {onMobileClose && (
