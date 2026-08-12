@@ -69,8 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: currentUser.uid,
               email: email,
               displayName: currentUser.displayName || (isMasterTest ? "Ishara Pandey" : "Property Owner"),
-              role: isMasterTest ? "master_admin" : "admin",
-              assignedPropertyId: defaultPropId,
+              role: "master_admin",
+              assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
               isNewUser: true,
             };
             await setDoc(userDocRef, newProf, { merge: true });
@@ -84,9 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const fallbackProf: UserProfile = {
             uid: currentUser.uid,
             email: email,
-            displayName: isMasterTest ? "Ishara Pandey" : "Ramesh Darisi",
-            role: isMasterTest ? "master_admin" : "admin",
-            assignedPropertyId: "sunshine-pg",
+            displayName: isMasterTest ? "Ishara Pandey" : (currentUser.displayName || "Property Owner"),
+            role: "master_admin",
+            assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
           };
           setProfile(fallbackProf);
         }

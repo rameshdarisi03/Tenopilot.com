@@ -29,6 +29,8 @@ import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverl
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { DigitRollingOdometer } from "@/components/motion/DigitRollingOdometer";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { useAuth } from "@/providers/AuthProvider";
+import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
 export interface PortfolioProperty {
   id: string;
@@ -43,6 +45,7 @@ export interface PortfolioProperty {
 }
 
 export default function HomeWorkspacePage() {
+  const { profile, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
@@ -140,11 +143,13 @@ export default function HomeWorkspacePage() {
 
   // Load live properties & subscribe to real-time store changes
   useEffect(() => {
+    const isMasterTest = profile?.email?.toLowerCase() === "isharapandey01@gmail.com";
     propertySettingsStore.initFirebaseListener("sunshine-pg");
     const liveSunshine = computeLiveSunshineMetrics();
     let customProps: PortfolioProperty[] = [];
     try {
-      const saved = localStorage.getItem("tenopilot_portfolio_properties");
+      const savedKey = profile?.uid ? `tenopilot_portfolio_${profile.uid}` : "tenopilot_portfolio_properties";
+      const saved = localStorage.getItem(savedKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -164,22 +169,32 @@ export default function HomeWorkspacePage() {
       console.error("Failed to load portfolio properties", e);
     }
 
-    setProperties([liveSunshine, ...customProps]);
+    if (isMasterTest) {
+      setProperties([liveSunshine, ...customProps]);
+    } else {
+      setProperties(customProps);
+    }
 
     // Reactive subscription to real-time propertyStore, occupantStore & propertySettingsStore!
     const unsubProperty = propertyStore.subscribe(() => {
-      const updatedLive = computeLiveSunshineMetrics();
-      setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+      if (isMasterTest) {
+        const updatedLive = computeLiveSunshineMetrics();
+        setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+      }
     });
 
     const unsubOccupant = occupantStore.subscribe(() => {
-      const updatedLive = computeLiveSunshineMetrics();
-      setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+      if (isMasterTest) {
+        const updatedLive = computeLiveSunshineMetrics();
+        setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+      }
     });
 
     const unsubSettings = propertySettingsStore.subscribe(() => {
-      const updatedLive = computeLiveSunshineMetrics();
-      setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+      if (isMasterTest) {
+        const updatedLive = computeLiveSunshineMetrics();
+        setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
+      }
     });
 
     return () => {
@@ -187,7 +202,7 @@ export default function HomeWorkspacePage() {
       unsubOccupant();
       unsubSettings();
     };
-  }, []);
+  }, [profile]);
 
   const handleCreateProperty = (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,7 +234,8 @@ export default function HomeWorkspacePage() {
     setProperties(updatedProps);
 
     try {
-      localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(updatedProps));
+      const savedKey = profile?.uid ? `tenopilot_portfolio_${profile.uid}` : "tenopilot_portfolio_properties";
+      localStorage.setItem(savedKey, JSON.stringify(updatedProps));
     } catch (err) {
       console.error("Failed to persist new property", err);
     }
@@ -232,6 +248,21 @@ export default function HomeWorkspacePage() {
     triggerToast(`🏢 Successfully onboarded building "${newBuilding.name}" into portfolio!`);
   };
 
+  const hour = new Date().getHours();
+  let greetingText = "Good morning";
+  if (hour >= 12 && hour < 17) greetingText = "Good afternoon";
+  else if (hour >= 17 && hour < 22) greetingText = "Good evening";
+  else if (hour >= 22 || hour < 5) greetingText = "Good night";
+
+  const userDisplayName = profile?.displayName || "Property Owner";
+  const userInitials = userDisplayName
+    .split(" ")
+    .map((n) => n[0])
+    .filter(Boolean)
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "PO";
+
   return (
     <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white pb-12">
       {/* Split-Flap Flight Board Instrument Logo Intro Overlay */}
@@ -243,26 +274,20 @@ export default function HomeWorkspacePage() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-3">
-          <Sparkles className="w-4 h-4 text-emerald-400" />
+        <div className="fixed bottom-6 right-6 z-50 bg-[#201a17] text-white px-5 py-3 rounded-2xl shadow-2xl border border-[#964407]/40 text-xs font-bold flex items-center gap-2.5 animate-in slide-in-from-bottom-5">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Header Navigation */}
-      <header className="sticky top-0 z-50 bg-[#fff8f6]/90 backdrop-blur-md border-b border-[#d7c2b9]/60">
-        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
-          {/* Brand */}
-          <Link href="/home" className="flex items-center gap-2.5 sm:gap-3 group">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-lg sm:text-xl shadow-md group-hover:bg-[#c2652a] transition-colors">
-              T
-            </div>
-            <div>
-              <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-[#201a17]">
-                TenoPilot<span className="text-[#964407]">.com</span>
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-[#964407] block -mt-1">
-                Home Dashboard
+      {/* Header Bar */}
+      <header className="sticky top-0 z-40 bg-[#fff8f6]/90 backdrop-blur-md border-b border-[#d7c2b9]/40 px-4 sm:px-8 py-3.5 select-none">
+        <div className="max-w-[1240px] mx-auto flex items-center justify-between">
+          <Link href="/home" className="flex items-center gap-3 group">
+            <TenoPilotLogo size="sm" />
+            <div className="hidden sm:flex flex-col">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407]">
+                Master Admin Console
               </span>
             </div>
           </Link>
@@ -276,13 +301,6 @@ export default function HomeWorkspacePage() {
               <Sparkles className="w-3.5 h-3.5 text-[#964407]" />
               <span>Replay Intro 🎬</span>
             </button>
-            <button
-              className="relative p-2 rounded-full hover:bg-[#f8ede3] text-[#554339] transition-colors active:scale-95 cursor-pointer"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#964407]"></span>
-            </button>
 
             <div className="relative">
               <button
@@ -290,12 +308,12 @@ export default function HomeWorkspacePage() {
                 className="flex items-center gap-2.5 p-1 rounded-full hover:bg-[#f8ede3] transition-all active:scale-95 cursor-pointer"
               >
                 <div className="w-9 h-9 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-xs sm:text-sm border-2 border-[#964407]/20 shadow-sm">
-                  AS
+                  {userInitials}
                 </div>
                 <div className="hidden lg:flex flex-col text-left">
-                  <span className="text-xs font-bold text-[#201a17]">Alex Stratton</span>
+                  <span className="text-xs font-bold text-[#201a17]">{userDisplayName}</span>
                   <span className="text-[10px] text-[#554339] uppercase font-bold tracking-wider">
-                    Principal Manager
+                    Master Admin
                   </span>
                 </div>
               </button>
@@ -304,15 +322,15 @@ export default function HomeWorkspacePage() {
               {showProfileMenu && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#d7c2b9] shadow-xl py-2 z-50 text-xs font-medium text-[#201a17]">
                   <div className="px-4 py-2 border-b border-[#f8ede3]">
-                    <p className="font-bold text-sm">Alex Stratton</p>
-                    <p className="text-xs text-[#554339]">admin@gmail.com</p>
+                    <p className="font-bold text-sm">{userDisplayName}</p>
+                    <p className="text-xs text-[#554339]">{profile?.email || "Master Admin"}</p>
                   </div>
-                  <Link
-                    href="/login"
-                    className="flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-[#ba1a1a] transition-colors"
+                  <button
+                    onClick={() => logout()}
+                    className="w-full text-left flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-[#ba1a1a] transition-colors cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" /> Sign Out
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
@@ -325,25 +343,49 @@ export default function HomeWorkspacePage() {
         {/* Welcome Greeting */}
         <section className="max-w-3xl">
           <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3.5 py-1 rounded-full border border-[#d7c2b9] inline-block mb-3 shadow-2xs">
-            WELCOME HOME
+            MASTER ADMIN CONSOLE • 10-DAY FREE TRIAL ACTIVE
           </span>
           <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl font-bold text-[#201a17] leading-[1.1] tracking-tight">
-            <span className="block">Good morning, Alex.</span>
-            <span className="text-[#a69a8e] font-normal italic block mt-1">Your portfolio is calling.</span>
+            <span className="block">{greetingText}, {userDisplayName}.</span>
+            <span className="text-[#a69a8e] font-normal italic block mt-1">Your organization portfolio is calling.</span>
           </h1>
           <p className="text-sm sm:text-base text-[#5b5049] mt-4 font-sans font-normal leading-relaxed max-w-xl">
-            {properties.length} {properties.length === 1 ? "property" : "properties"} active in your portfolio. Tap a building card below to launch its operational dashboard.
+            {properties.length} {properties.length === 1 ? "property" : "properties"} active in your organization. Tap a building card below to launch its operational dashboard.
           </p>
         </section>
 
-        {/* Tactile Mobile Bento Grid with 3D Perspective Tilt Cascade & Parallax Spotlight */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 perspective-[1200px] transform-style-3d">
-          {/* Card 1: Consolidated Portfolio Dashboard Card */}
-          <div
-            onMouseMove={handleCardMouseMove}
-            onMouseLeave={handleCardMouseLeave}
-            className="animate-3d-card-1 bg-gradient-to-br from-[#964407] to-[#a8451f] text-white rounded-3xl p-7 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[300px] sm:min-h-[340px] transition-all duration-300 transform-style-3d cursor-pointer group"
-          >
+        {/* Empty Portfolio Visual State for New Master Admin Organizations */}
+        {properties.length === 0 ? (
+          <div className="bg-white border-2 border-dashed border-[#d7c2b9] rounded-3xl p-8 md:p-12 text-center max-w-2xl mx-auto space-y-5 shadow-sm my-8">
+            <div className="w-20 h-20 bg-[#f8ede3] rounded-3xl flex items-center justify-center mx-auto text-[#964407] border border-[#d7c2b9]">
+              <Building2 className="w-10 h-10" />
+            </div>
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407] bg-[#f8ede3] px-3 py-1 rounded-full border border-[#d7c2b9]">
+                New Organization Portfolio
+              </span>
+              <h3 className="font-serif text-2xl md:text-3xl font-bold text-[#201a17] mt-3">
+                Welcome to TenoPilot!
+              </h3>
+              <p className="text-sm text-[#554339] max-w-md mx-auto mt-2 leading-relaxed">
+                You are logged in as <strong>Master Admin</strong> of your new organization. You haven't onboarded any properties or buildings yet.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAddPropertyModal(true)}
+              className="px-6 py-3.5 rounded-2xl bg-[#964407] hover:bg-[#7e3905] text-white font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 mx-auto cursor-pointer active:scale-95"
+            >
+              <Plus className="w-5 h-5" /> Add First Building / Property
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 perspective-[1200px] transform-style-3d">
+            {/* Card 1: Consolidated Portfolio Dashboard Card */}
+            <div
+              onMouseMove={handleCardMouseMove}
+              onMouseLeave={handleCardMouseLeave}
+              className="animate-3d-card-1 bg-gradient-to-br from-[#964407] to-[#a8451f] text-white rounded-3xl p-7 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[300px] sm:min-h-[340px] transition-all duration-300 transform-style-3d cursor-pointer group"
+            >
             {/* Cursor-Tracked Radial Spotlight Backdrop */}
             <div
               className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"
@@ -454,7 +496,8 @@ export default function HomeWorkspacePage() {
             </span>
             <p className="text-xs text-[#8a7f74] mt-1">Expand your PG or Hostel portfolio</p>
           </button>
-        </div>
+          </div>
+        )}
       </main>
 
       {/* 🏢 ADD NEW PROPERTY MODAL */}
