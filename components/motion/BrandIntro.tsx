@@ -1,18 +1,20 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 
 interface BrandIntroProps {
   onComplete?: () => void;
 }
 
 /**
- * BrandIntro - World-Class 60 FPS Vector SVG Logo Reveal & Shared-Element Handoff
+ * BrandIntro - YouTube Motion Graphics Award-Winning Logo Reveal & Shared-Element Handoff
  * 
- * Phases:
- * 0.0s - 1.0s: Compass Star Ignition & Monogram Laser Stroke Draw
- * 1.0s - 1.8s: Terracotta Badge 3D Pop & "TenoPilot.com" Serif Wordmark Unmask
- * 1.8s - 2.8s: 🔥 Shared-Element Handoff -> Logo scales & glides to top-left header as app reveals
+ * Features:
+ * 1. Uses the 100% exact official TenoPilot logo badge (Winged 'T' + 4-Point Compass Star) & wordmark
+ * 2. Phase 1: Particle Spark Ignition & Radial Shockwave Ring
+ * 3. Phase 2: Elastic Spring Badge Pop, Diagonal Light Glare Sweep & Kinetic Clip Unmask
+ * 4. Phase 3: Seamless Header Handoff -> Glides directly into top-left dashboard sidebar
  */
 export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
   const [stage, setStage] = useState<"ignite" | "reveal" | "handoff" | "done">("ignite");
@@ -21,7 +23,7 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
   useEffect(() => {
     // Check if intro has already played in this browser session
     try {
-      const seen = sessionStorage.getItem("tenopilot_brand_intro_v2");
+      const seen = sessionStorage.getItem("tenopilot_brand_intro_v3");
       if (seen === "true") {
         setRemoved(true);
         if (onComplete) onComplete();
@@ -29,10 +31,10 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
       }
     } catch {}
 
-    // Timeline Timers
-    const timer1 = setTimeout(() => setStage("reveal"), 900);   // Terracotta pop & wordmark unmask
-    const timer2 = setTimeout(() => setStage("handoff"), 1900); // Gliding handoff to top-left header
-    const timer3 = setTimeout(() => handleFinish(), 2800);     // Complete & unmount
+    // High-Energy Motion Graphics Timeline
+    const timer1 = setTimeout(() => setStage("reveal"), 750);   // Elastic Badge Pop & Glare Sweep
+    const timer2 = setTimeout(() => setStage("handoff"), 1850); // Gliding Header Handoff
+    const timer3 = setTimeout(() => handleFinish(), 2750);     // Unmount & complete
 
     return () => {
       clearTimeout(timer1);
@@ -43,7 +45,7 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
 
   const handleFinish = () => {
     try {
-      sessionStorage.setItem("tenopilot_brand_intro_v2", "true");
+      sessionStorage.setItem("tenopilot_brand_intro_v3", "true");
     } catch {}
     setStage("done");
     setTimeout(() => {
@@ -61,24 +63,35 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
         stage === "done" ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
       style={{
-        backgroundColor: stage === "handoff" ? "transparent" : "#070a11",
+        backgroundColor: stage === "handoff" ? "transparent" : "#050811",
         transition: "background-color 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
-      {/* Dark Backdrop Curtain that dissolves on handoff */}
+      {/* Dark Curtain Backdrop */}
       <div
-        className={`absolute inset-0 bg-[#070a11] transition-opacity duration-800 pointer-events-none ${
+        className={`absolute inset-0 bg-[#050811] transition-opacity duration-800 pointer-events-none ${
           stage === "handoff" ? "opacity-0" : "opacity-100"
         }`}
       />
 
-      {/* Radial Ambient Glow */}
+      {/* Motion Graphics Pulse Shockwave Ring */}
       <div
-        className={`absolute w-[600px] h-[600px] rounded-full pointer-events-none transition-all duration-1000 ${
-          stage === "handoff" ? "opacity-0 scale-50" : "opacity-40 scale-100"
+        className={`absolute w-[500px] h-[500px] rounded-full border border-amber-500/20 pointer-events-none transition-all duration-1000 ${
+          stage === "ignite"
+            ? "scale-50 opacity-100"
+            : stage === "reveal"
+            ? "scale-125 opacity-30"
+            : "scale-150 opacity-0"
+        }`}
+      />
+
+      {/* Radial Warm Amber Ambient Glow */}
+      <div
+        className={`absolute w-[700px] h-[700px] rounded-full pointer-events-none transition-all duration-1000 ${
+          stage === "handoff" ? "opacity-0 scale-50" : "opacity-50 scale-100"
         }`}
         style={{
-          background: "radial-gradient(circle, rgba(200,91,43,0.35) 0%, rgba(11,19,43,0) 70%)",
+          background: "radial-gradient(circle, rgba(200,91,43,0.4) 0%, rgba(5,8,17,0) 70%)",
         }}
       />
 
@@ -89,7 +102,7 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
           e.stopPropagation();
           handleFinish();
         }}
-        className={`absolute top-6 right-6 z-50 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white/80 hover:text-white font-bold text-xs transition-all border border-white/15 active:scale-95 shadow-md ${
+        className={`absolute top-6 right-6 z-50 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white/90 hover:text-white font-bold text-xs transition-all border border-white/20 active:scale-95 shadow-xl flex items-center gap-1.5 ${
           stage === "handoff" ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
       >
@@ -98,7 +111,7 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
 
       {/* 🔥 THE SHARED LOGO LOCKUP CONTAINER */}
       <div
-        className="relative z-20 flex items-center gap-4 transition-all duration-900 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        className="relative z-20 flex items-center gap-5 transition-all duration-900 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{
           transform:
             stage === "handoff"
@@ -106,73 +119,52 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
               : "translate(0, 0) scale(1)",
         }}
       >
-        {/* 🟧 1. OFFICIAL TERRACOTTA MONOGRAM ICON BADGE */}
+        {/* 🟧 1. OFFICIAL TERRACOTTA BADGE (WINGED 'T' + COMPASS STAR) */}
         <div
-          className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-[26px] bg-gradient-to-br from-[#d4602f] via-[#c85b2b] to-[#a8451f] shadow-2xl flex items-center justify-center border border-white/20 transition-all duration-700 ${
+          className={`relative w-24 h-24 sm:w-32 sm:h-32 rounded-[28px] shadow-2xl flex items-center justify-center transition-all duration-700 ${
             stage === "ignite"
-              ? "scale-90 opacity-90 shadow-orange-950/20"
-              : "scale-100 opacity-100 shadow-orange-950/80 ring-2 ring-amber-300/30"
+              ? "scale-0 opacity-0 rotate-12"
+              : "scale-100 opacity-100 rotate-0 shadow-orange-950/80 ring-2 ring-amber-300/40"
           }`}
+          style={{
+            transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
         >
-          {/* Specular Light Sheen Overlay */}
-          <div className="absolute inset-0 rounded-[26px] overflow-hidden pointer-events-none">
+          {/* Official Badge Image Asset */}
+          <Image
+            src="/tenopilot_official_badge.png"
+            alt="Official TenoPilot Badge"
+            width={128}
+            height={128}
+            className="w-full h-full object-contain rounded-[28px] drop-shadow-2xl"
+            priority
+          />
+
+          {/* Dynamic Light Glare Sheen Sweep */}
+          <div className="absolute inset-0 rounded-[28px] overflow-hidden pointer-events-none">
             <div
-              className={`absolute -top-full -left-full w-[200%] h-[200%] bg-gradient-to-br from-transparent via-white/25 to-transparent transform rotate-45 transition-transform duration-1000 ${
-                stage === "reveal" ? "translate-x-full translate-y-full" : ""
+              className={`absolute -top-full -left-full w-[200%] h-[200%] bg-gradient-to-br from-transparent via-white/40 to-transparent transform rotate-45 transition-transform duration-900 ${
+                stage === "reveal" ? "translate-x-full translate-y-full" : "-translate-x-full -translate-y-full"
               }`}
             />
           </div>
 
-          {/* ✦ Pure Vector SVG Monogram "T" + Compass Star */}
-          <svg
-            className="w-16 h-16 sm:w-18 sm:h-18 text-white drop-shadow-md"
-            viewBox="0 0 100 100"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            {/* Top Serif Bar */}
-            <path
-              d="M 22 25 L 78 25 C 80 25 81 27 81 29 L 81 33 C 81 35 80 36 78 36 L 73 36 L 73 38 C 73 40 71 42 69 42 L 67 42 C 65 42 63 40 63 38 L 63 36 L 37 36 L 37 38 C 37 40 35 42 33 42 L 31 42 C 29 42 27 40 27 38 L 27 36 L 22 36 C 20 36 19 35 19 33 L 19 29 C 19 27 20 25 22 25 Z"
-              fill="currentColor"
-            />
-
-            {/* Vertical Stem & Aerodynamic Wing Curve */}
-            <path
-              d="M 42 36 L 58 36 L 58 65 C 58 72 63 76 72 76 L 78 76 C 80 76 81 77 81 79 L 81 83 C 81 85 80 86 78 86 L 68 86 C 54 86 46 78 46 64 L 46 42 L 34 42 C 32 42 30 40 30 38 L 30 36 Z"
-              fill="currentColor"
-            />
-
-            {/* ✦ Central 4-Point Compass Star Sparkle */}
-            <g
-              className={`transition-all duration-700 origin-center ${
-                stage === "ignite" ? "scale-125 opacity-100 filter drop-shadow-[0_0_12px_rgba(255,255,255,1)]" : "scale-100 opacity-95"
-              }`}
-            >
-              {/* Star Core Geometry */}
-              <path
-                d="M 50 38 C 50 48 40 50 30 50 C 40 50 50 52 50 62 C 50 52 60 50 70 50 C 60 50 50 48 50 38 Z"
-                fill="#ffffff"
-              />
-              {/* Outer Radiant Lens Rays */}
-              <path
-                d="M 50 30 L 50 70 M 30 50 L 70 50"
-                stroke="#ffffff"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                opacity="0.85"
-              />
-            </g>
-          </svg>
+          {/* ✦ Central Sparkle Ignite Flash during ignite stage */}
+          {stage === "ignite" && (
+            <div className="absolute inset-0 flex items-center justify-center animate-ping">
+              <span className="text-white text-4xl font-bold">✦</span>
+            </div>
+          )}
         </div>
 
         {/* 🪶 2. OFFICIAL SERIF WORDMARK "TenoPilot.com" */}
         <div className="flex flex-col">
           <div
             className={`overflow-hidden transition-all duration-800 ease-out ${
-              stage === "ignite" ? "max-w-0 opacity-0" : "max-w-[400px] opacity-100"
+              stage === "ignite" ? "max-w-0 opacity-0" : "max-w-[420px] opacity-100"
             }`}
           >
-            <h1 className="font-serif font-bold text-3xl sm:text-5xl text-white tracking-tight flex items-center drop-shadow-lg whitespace-nowrap">
+            <h1 className="font-serif font-bold text-3xl sm:text-5xl text-white tracking-tight flex items-center drop-shadow-2xl whitespace-nowrap">
               <span>TenoPilot</span>
               <span className="text-amber-400 font-serif font-medium">.com</span>
             </h1>
@@ -180,8 +172,8 @@ export const BrandIntro: React.FC<BrandIntroProps> = ({ onComplete }) => {
 
           {/* Subtitle Tagline */}
           <p
-            className={`text-[11px] sm:text-xs font-sans tracking-[0.25em] uppercase font-bold text-amber-200/80 mt-1 transition-all duration-700 delay-200 whitespace-nowrap ${
-              stage === "ignite" ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
+            className={`text-[10px] sm:text-xs font-sans tracking-[0.25em] uppercase font-extrabold text-amber-200/90 mt-1.5 transition-all duration-700 delay-200 whitespace-nowrap ${
+              stage === "ignite" ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
             }`}
           >
             Single Source of Truth for Property Management
