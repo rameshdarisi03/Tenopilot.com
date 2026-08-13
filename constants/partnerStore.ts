@@ -155,7 +155,26 @@ export const partnerStore = {
 
   getPartners(propertyId = "sunshine-pg"): PartnerConfig[] {
     this.initFirebaseListener(propertyId);
-    return partnerState;
+    if (propertyId === "sunshine-pg") {
+      return partnerState;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`tenopilot_partners_${propertyId}`);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn(`Failed to read partners for ${propertyId}:`, e);
+      }
+    }
+    return [
+      {
+        id: `p-owner-${propertyId}`,
+        name: "Property Owner",
+        ownershipPercentage: 100,
+        color: "#964407",
+        accountType: "Primary Business Account",
+      },
+    ];
   },
 
   async syncToFirestore(propertyId = "sunshine-pg") {

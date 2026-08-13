@@ -80,8 +80,8 @@ export function PropertyHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Compute real-time notification alerts from complaints & occupantStore
-  const occupants = occupantStore.getOccupants();
+  // Compute real-time notification alerts from complaints & occupantStore per property scope
+  const occupants = occupantStore.getOccupants(propertyId);
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
   const overdueOccupants = occupants.filter((o) => o.daysDiff <= 0 && o.lifecycleStatus !== "Past");
   const pendingKycOccupants = occupants.filter((o) => !o.kycVerified && o.lifecycleStatus !== "Past");

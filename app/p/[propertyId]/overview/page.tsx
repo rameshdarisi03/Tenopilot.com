@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { occupantStore, Occupant } from "@/constants/mockOccupants";
+import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { useAuth } from "@/providers/AuthProvider";
 
 function getTimeAwareGreeting(): string {
@@ -66,6 +68,42 @@ export default function PropertyOverviewPage({
   const userName = profile?.displayName || "Ishara Pandey";
   const greetingText = `${getTimeAwareGreeting()}, ${userName}!`;
 
+  const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
+  const [structure, setStructure] = useState<FloorConfig[]>(() => propertyStore.getStructure(propertyId));
+
+  useEffect(() => {
+    setOccupants(occupantStore.getOccupants(propertyId));
+    setStructure(propertyStore.getStructure(propertyId));
+    const unsubOcc = occupantStore.subscribe(() => setOccupants(occupantStore.getOccupants(propertyId)));
+    const unsubProp = propertyStore.subscribe(() => setStructure(propertyStore.getStructure(propertyId)));
+    return () => {
+      unsubOcc();
+      unsubProp();
+    };
+  }, [propertyId]);
+
+  const isDemo = propertyId === "sunshine-pg";
+  const realTenants = occupants.filter((o) => o.stayType === "Tenant" && o.lifecycleStatus === "Active").length;
+  const realGuests = occupants.filter((o) => o.stayType === "Guest" && o.lifecycleStatus === "Active").length;
+
+  let realTotalBeds = 0;
+  let realAvailBeds = 0;
+  structure.forEach((fl) => {
+    fl.rooms.forEach((rm) => {
+      rm.beds.forEach((bd) => {
+        realTotalBeds++;
+        if (bd.status === "Available") realAvailBeds++;
+      });
+    });
+  });
+
+  const displayTotalBeds = isDemo ? 78 : realTotalBeds;
+  const displayActiveTenants = isDemo ? 38 : realTenants;
+  const displayActiveGuests = isDemo ? 6 : realGuests;
+  const displayAvailableBeds = isDemo ? 4 : realAvailBeds;
+  const displayOpenComplaints = isDemo ? 2 : 0;
+  const displayOccRate = displayTotalBeds > 0 ? Math.round(((displayTotalBeds - displayAvailableBeds) / displayTotalBeds) * 100) + "%" : "0%";
+
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
       {/* 256px Left Sidebar with 8 clean primary menus */}
@@ -99,7 +137,7 @@ export default function PropertyOverviewPage({
                 {greetingText}
               </h2>
               <p className="text-xs text-[#554339] mt-0.5">
-                {propertySettings.propertyName} • {propertySettings.propertyAddress} • 78 Total Beds • 98.5% Occupancy
+                {propertySettings.propertyName} • {propertySettings.propertyAddress} • {displayTotalBeds} Total Beds • {displayOccRate} Occupancy
               </p>
             </div>
 
@@ -120,7 +158,7 @@ export default function PropertyOverviewPage({
                 Active Tenants
               </span>
               <p className="font-serif font-bold text-2xl text-[#964407] mt-1">
-                <AnimatedNumberCounter value={38} />
+                <AnimatedNumberCounter value={displayActiveTenants} />
               </p>
               <p className="text-[11px] text-[#059669] font-bold mt-1">Monthly Billing</p>
             </MagneticGlowCard>
@@ -129,7 +167,7 @@ export default function PropertyOverviewPage({
                 Active Guests
               </span>
               <p className="font-serif font-bold text-2xl text-purple-700 mt-1">
-                <AnimatedNumberCounter value={6} />
+                <AnimatedNumberCounter value={displayActiveGuests} />
               </p>
               <p className="text-[11px] text-purple-700 font-bold mt-1">Purple Badge</p>
             </MagneticGlowCard>
@@ -138,7 +176,7 @@ export default function PropertyOverviewPage({
                 Available Beds
               </span>
               <p className="font-serif font-bold text-2xl text-[#059669] mt-1">
-                <AnimatedNumberCounter value={4} />
+                <AnimatedNumberCounter value={displayAvailableBeds} />
               </p>
               <p className="text-[11px] text-[#059669] font-bold mt-1">Ready for Allocation</p>
             </MagneticGlowCard>
@@ -147,7 +185,7 @@ export default function PropertyOverviewPage({
                 Open Complaints
               </span>
               <p className="font-serif font-bold text-2xl text-amber-700 mt-1">
-                <AnimatedNumberCounter value={2} />
+                <AnimatedNumberCounter value={displayOpenComplaints} />
               </p>
               <p className="text-[11px] text-amber-700 font-bold mt-1">In Progress</p>
             </MagneticGlowCard>

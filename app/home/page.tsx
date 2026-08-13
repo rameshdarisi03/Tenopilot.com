@@ -143,12 +143,15 @@ export default function HomeWorkspacePage() {
 
   // Load live properties & subscribe to real-time store changes
   useEffect(() => {
-    const isMasterTest = profile?.email?.toLowerCase() === "isharapandey01@gmail.com";
-    propertySettingsStore.initFirebaseListener("sunshine-pg");
-    const liveSunshine = computeLiveSunshineMetrics();
+    const isMasterTest = profile?.organizationId === "org_demo_meghana";
+    if (isMasterTest) {
+      propertySettingsStore.initFirebaseListener("sunshine-pg");
+    }
+    const liveSunshine = isMasterTest ? computeLiveSunshineMetrics() : null;
     let customProps: PortfolioProperty[] = [];
     try {
-      const savedKey = profile?.uid ? `tenopilot_portfolio_${profile.uid}` : "tenopilot_portfolio_properties";
+      const orgId = profile?.organizationId || (profile?.uid ? `org_${profile.uid}` : "org_default");
+      const savedKey = `tenopilot_portfolio_${orgId}`;
       const saved = localStorage.getItem(savedKey);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -169,7 +172,7 @@ export default function HomeWorkspacePage() {
       console.error("Failed to load portfolio properties", e);
     }
 
-    if (isMasterTest) {
+    if (isMasterTest && liveSunshine) {
       setProperties([liveSunshine, ...customProps]);
     } else {
       setProperties(customProps);
@@ -234,7 +237,8 @@ export default function HomeWorkspacePage() {
     setProperties(updatedProps);
 
     try {
-      const savedKey = profile?.uid ? `tenopilot_portfolio_${profile.uid}` : "tenopilot_portfolio_properties";
+      const orgId = profile?.organizationId || (profile?.uid ? `org_${profile.uid}` : "org_default");
+      const savedKey = `tenopilot_portfolio_${orgId}`;
       localStorage.setItem(savedKey, JSON.stringify(updatedProps));
     } catch (err) {
       console.error("Failed to persist new property", err);

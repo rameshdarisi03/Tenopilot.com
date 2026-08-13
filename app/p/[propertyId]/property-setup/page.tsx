@@ -50,21 +50,22 @@ export default function PropertySetupPage({
 
   // Reactive Property Layout Structure State
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
-    propertyStore.getStructure()
+    propertyStore.getStructure(propertyId)
   );
 
   // Subscribe to propertyStore updates
   useEffect(() => {
+    setPropertyStructure(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
-      setPropertyStructure(propertyStore.getStructure());
+      setPropertyStructure(propertyStore.getStructure(propertyId));
     });
     return unsubscribe;
-  }, []);
+  }, [propertyId]);
 
   // Update global store whenever structure mutates
   const updateLayoutStructure = (newStructure: FloorConfig[]) => {
     setPropertyStructure(newStructure);
-    propertyStore.updateStructure(newStructure);
+    propertyStore.updateStructure(newStructure, propertyId);
   };
 
   // Toast notification state

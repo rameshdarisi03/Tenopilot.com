@@ -174,7 +174,7 @@ export default function FinancialHubPage({
 
   // 100% Real-Time Live Revenues Calculation Engine
   const computeLiveRevenueData = () => {
-    const occupants = occupantStore.getOccupants().filter((o) => o.lifecycleStatus !== "Past");
+    const occupants = occupantStore.getOccupants(propertyId).filter((o) => o.lifecycleStatus !== "Past");
     let totalGrossRevenue = 0;
     let totalBilledRent = 0;
     let totalUncollectedArrears = 0;

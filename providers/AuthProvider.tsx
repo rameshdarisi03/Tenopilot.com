@@ -12,6 +12,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  organizationId: string;
   phone?: string;
   role: "master_admin" | "admin" | "receptionist";
   assignedPropertyId: string;
@@ -36,7 +37,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,13 +55,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currentUser) {
         const email = currentUser.email?.toLowerCase() || "";
         const isMasterTest = email === "isharapandey01@gmail.com";
-        const defaultPropId = isMasterTest ? "sunshine-pg" : `prop_${currentUser.uid.slice(0, 8)}`;
+        const orgId = isMasterTest ? "org_demo_meghana" : `org_${currentUser.uid}`;
 
         const userDocRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
+            data.organizationId = data.organizationId || orgId;
             if (!isMasterTest && data.assignedPropertyId === "sunshine-pg") {
               data.assignedPropertyId = "";
             }
@@ -76,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: currentUser.uid,
               email: email,
               displayName: isMasterTest ? "Ishara Pandey" : "Property Owner",
+              organizationId: orgId,
               role: "master_admin",
               assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
               isNewUser: true,
@@ -90,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             uid: currentUser.uid,
             email: email,
             displayName: isMasterTest ? "Ishara Pandey" : (currentUser.displayName || "Property Owner"),
+            organizationId: orgId,
             role: "master_admin",
             assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
           };
@@ -124,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...(profile || {
         uid: user.uid,
         email: user.email || "",
+        organizationId: `org_${user.uid}`,
         role: "master_admin",
         assignedPropertyId: "",
       }),

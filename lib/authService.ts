@@ -20,6 +20,7 @@ export interface AuthUserProfile {
   uid: string;
   email: string;
   displayName: string;
+  organizationId: string;
   photoURL?: string;
   role: "master_admin" | "admin" | "receptionist";
   assignedPropertyId: string;
@@ -28,12 +29,14 @@ export interface AuthUserProfile {
 
 /**
  * 🔤 Clean Title-Case Name Sanitizer
- * Converts messy user input (e.g. "RaMesH DariSI") -> Clean Title-Cased Name ("Ramesh Darisi")
+ * Converts messy user input (e.g. "RaMesH DariSI" or "rameshdarisi01") -> Clean Title-Cased Name ("Ramesh Darisi")
  */
 export function sanitizeTitleCase(input: string): string {
   if (!input) return "";
-  return input
-    .trim()
+  let clean = input.trim().replace(/\d+$/, "");
+  clean = clean.replace(/([a-z])([A-Z])/g, "$1 $2");
+
+  return clean
     .replace(/\s+/g, " ")
     .toLowerCase()
     .split(" ")
@@ -117,14 +120,16 @@ export async function loginWithGoogle(): Promise<{ user: User; profile: AuthUser
     } else {
       // 🌟 NEW USER ONBOARDING
       const isMasterTest = email === "isharapandey01@gmail.com";
-      const assignedPropertyId = isMasterTest ? "sunshine-pg" : `prop_${user.uid.slice(0, 8)}`;
+      const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
+      const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
 
       profile = {
         uid: user.uid,
         email: email,
         displayName: user.displayName || "Property Owner",
+        organizationId: orgId,
         photoURL: user.photoURL || undefined,
-        role: isMasterTest ? "master_admin" : "admin",
+        role: "master_admin",
         assignedPropertyId: assignedPropertyId,
         isNewUser: true,
       };
