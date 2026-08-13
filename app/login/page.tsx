@@ -42,10 +42,10 @@ export default function LoginPage() {
     try {
       try {
         await loginWithEmailPassword(email, password);
-        router.push("/p/sunshine-pg/overview");
+        router.push("/home");
       } catch (authErr: any) {
         if (email.trim().toLowerCase() === "admin@gmail.com" && password === "admin123") {
-          router.push("/p/sunshine-pg/overview");
+          router.push("/home");
         } else {
           setError(getCleanAuthErrorMessage(authErr));
         }
@@ -61,13 +61,8 @@ export default function LoginPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const res = await loginWithGoogle();
-      if (res && res.profile) {
-        const targetPropertyId = res.profile.assignedPropertyId || "sunshine-pg";
-        router.push(`/p/${targetPropertyId}/overview`);
-      } else {
-        router.push("/p/sunshine-pg/overview");
-      }
+      await loginWithGoogle();
+      router.push("/home");
     } catch (err: any) {
       console.error("Google Login Error:", err);
       setError(getCleanAuthErrorMessage(err));

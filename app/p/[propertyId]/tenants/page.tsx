@@ -63,21 +63,23 @@ export default function TenantsDirectoryPage({
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Dynamic Occupants Store State (Updates in real time)
-  const [occupantsList, setOccupantsList] = useState<Occupant[]>(() => occupantStore.getOccupants());
+  // Dynamic Occupants Store State (Updates in real time per property scope)
+  const [occupantsList, setOccupantsList] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
 
   useEffect(() => {
-    setOccupantsList(occupantStore.getOccupants());
+    setOccupantsList(occupantStore.getOccupants(propertyId));
 
     const unsubscribeLocal = occupantStore.subscribe(() => {
-      setOccupantsList(occupantStore.getOccupants());
+      setOccupantsList(occupantStore.getOccupants(propertyId));
     });
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants && fsOccupants.length > 0) {
-        // Keep all Firestore records & merge with local onboarded occupants
         occupantStore.setOccupantsFromFirestore(fsOccupants);
-        setOccupantsList(occupantStore.getOccupants());
+        setOccupantsList(occupantStore.getOccupants(propertyId));
+      } else if (propertyId !== "sunshine-pg") {
+        occupantStore.setOccupantsFromFirestore([]);
+        setOccupantsList([]);
       }
     });
 

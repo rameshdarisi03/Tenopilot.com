@@ -67,12 +67,12 @@ export default function PropertyMapPage({
 
   useEffect(() => {
     setIsMounted(true);
-    setPropertyGrid(propertyStore.getStructure());
+    setPropertyGrid(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
-      setPropertyGrid(propertyStore.getStructure());
+      setPropertyGrid(propertyStore.getStructure(propertyId));
     });
     return unsubscribe;
-  }, []);
+  }, [propertyId]);
 
   // Dynamic Room Filter options derived from propertyStore
   const availableRooms = useMemo(() => propertyStore.getRoomNumbers(), [propertyGrid]);

@@ -61,6 +61,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
+            if (!isMasterTest && data.assignedPropertyId === "sunshine-pg") {
+              data.assignedPropertyId = "";
+            }
+            if (data.displayName) {
+              data.displayName = sanitizeTitleCase(data.displayName);
+            }
             setProfile(data);
             if (data.isNewUser || !data.displayName || data.displayName === "Property Owner") {
               setShowNameModal(true);
