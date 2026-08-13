@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Lock,
   Mail,
+  User as UserIcon,
   ArrowRight,
   Sparkles,
   AlertCircle,
@@ -33,6 +34,7 @@ function SignUpPageContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -73,6 +75,11 @@ function SignUpPageContent() {
     e.preventDefault();
     setError(null);
 
+    if (!fullName.trim()) {
+      setError("Please enter your full name.");
+      return;
+    }
+
     if (!agreedTerms) {
       setError("Please agree to TenoPilot Terms of Service & Privacy Policy to continue.");
       return;
@@ -91,7 +98,7 @@ function SignUpPageContent() {
     setIsLoading(true);
 
     try {
-      await registerWithEmailPassword(email, password);
+      await registerWithEmailPassword(email, password, fullName);
       setVerificationSent(true);
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
@@ -319,6 +326,21 @@ function SignUpPageContent() {
 
             {/* Email & Password Registration Form */}
             <form onSubmit={handleEmailSignUp} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#201a17] block">Full Name *</label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Ramesh Darisi"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#201a17] block">Work Email Address *</label>
                 <div className="relative">

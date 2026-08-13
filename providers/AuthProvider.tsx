@@ -6,7 +6,6 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import { sanitizeTitleCase } from "@/lib/authService";
-import { Sparkles, UserCheck } from "lucide-react";
 
 export interface UserProfile {
   uid: string;
@@ -41,9 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [inputName, setInputName] = useState("");
-  const [isSavingName, setIsSavingName] = useState(false);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -70,22 +66,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               data.displayName = sanitizeTitleCase(data.displayName);
             }
             setProfile(data);
-            if (data.isNewUser || !data.displayName || data.displayName === "Property Owner") {
-              setShowNameModal(true);
-            }
           } else {
+            const rawName = currentUser.displayName || (isMasterTest ? "Ishara Pandey" : "Property Owner");
             const newProf: UserProfile = {
               uid: currentUser.uid,
               email: email,
-              displayName: isMasterTest ? "Ishara Pandey" : "Property Owner",
+              displayName: sanitizeTitleCase(rawName),
               organizationId: orgId,
               role: "master_admin",
               assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
-              isNewUser: true,
+              isNewUser: false,
             };
             await setDoc(userDocRef, newProf, { merge: true });
             setProfile(newProf);
-            setShowNameModal(true);
           }
         } catch (e) {
           console.warn("Auth profile fetch fallback:", e);
@@ -164,68 +157,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/login");
   };
 
-  const handleNameModalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputName.trim()) return;
-    setIsSavingName(true);
-    await updateProfileName(inputName);
-    setIsSavingName(false);
-    setShowNameModal(false);
-  };
-
   return (
     <AuthContext.Provider value={{ user, profile, loading, updateProfileName, logout }}>
       {children}
-
-      {/* NEW CUSTOMER NAME ONBOARDING MODAL */}
-      {showNameModal && user && (
-        <div className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-amber-200 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto border border-[#d7c2b9]">
-              <Sparkles className="w-7 h-7" />
-            </div>
-
-            <div>
-              <h2 className="font-serif font-bold text-2xl text-gray-900">
-                Welcome to TenoPilot!
-              </h2>
-              <p className="text-xs text-gray-600 mt-1">
-                Please enter your Full Name to personalize your workspace & dashboard.
-              </p>
-            </div>
-
-            <form onSubmit={handleNameModalSubmit} className="space-y-4 text-left">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
-                  Your Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ishara Pandey"
-                  value={inputName}
-                  onChange={(e) => setInputName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#964407] font-semibold text-gray-900"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSavingName}
-                className="w-full py-3.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-sm transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isSavingName ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <UserCheck className="w-4 h-4" /> Save & Enter Dashboard
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </AuthContext.Provider>
   );
-};
+}
