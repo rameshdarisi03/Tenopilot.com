@@ -109,15 +109,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Strict Access Guard — Protect dashboard routes & redirect authenticated users from auth pages
+  // Strict Access Guard — Protect dashboard routes & enforce Email Verification Gatekeeper
   useEffect(() => {
     if (!loading) {
       const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
       const isAuthPage = pathname === "/login" || pathname === "/signup";
 
-      if (isProtectedPage && !user) {
-        router.push("/login");
-      } else if (isAuthPage && user) {
+      const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
+      const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
+
+      if (isProtectedPage) {
+        if (!user) {
+          router.push("/login");
+        } else if (isEmailUnverified) {
+          router.push("/signup?verify=true");
+        }
+      } else if (isAuthPage && user && !isEmailUnverified) {
         router.push("/home");
       }
     }
