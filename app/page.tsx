@@ -72,14 +72,20 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Item 3 Sign In */}
+          <div className="flex items-center gap-3">
             <Link
               href="/login"
               id="nav-login-btn"
-              className="px-6 py-2.5 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-sm font-semibold transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center gap-2"
+              className="text-sm font-semibold text-[#554339] hover:text-[#964407] px-3 py-2 transition-colors"
             >
-              Sign In <ArrowRight className="w-4 h-4" />
+              Log in
+            </Link>
+            <Link
+              href="/signup"
+              id="nav-signup-btn"
+              className="px-5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:border-[#964407] text-[#201a17] font-bold text-sm transition-all shadow-xs hover:shadow-sm"
+            >
+              Sign up
             </Link>
           </div>
         </div>
@@ -109,7 +115,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 mb-16">
             {/* Item 6 Start 10-Day Free Trial */}
             <Link
-              href="/login"
+              href="/signup"
               id="hero-primary-cta"
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-base font-bold transition-all shadow-xl hover:shadow-[#964407]/20 hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
             >

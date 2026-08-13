@@ -4,6 +4,8 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
@@ -142,6 +144,62 @@ export async function loginWithGoogle(): Promise<{ user: User; profile: AuthUser
     console.error("Google Sign-In Error:", error);
     throw error;
   }
+}
+
+/**
+ * 📧 Register New Customer with Email, Password & Send Email Verification Link
+ */
+export async function registerWithEmailPassword(
+  email: string,
+  pass: string,
+  displayName?: string
+): Promise<{ user: User; profile: AuthUserProfile }> {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const result = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+    const user = result.user;
+
+    const isMasterTest = cleanEmail === "isharapandey01@gmail.com";
+    const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
+    const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
+
+    const cleanName = displayName ? sanitizeTitleCase(displayName) : "Property Owner";
+
+    const profile: AuthUserProfile = {
+      uid: user.uid,
+      email: cleanEmail,
+      displayName: cleanName,
+      organizationId: orgId,
+      role: "master_admin",
+      assignedPropertyId: assignedPropertyId,
+      isNewUser: true,
+    };
+
+    const userDocRef = doc(db, "users", user.uid);
+    await setDoc(userDocRef, profile, { merge: true });
+
+    // Send Firebase Email Verification Link to User Inbox
+    try {
+      await sendEmailVerification(user);
+    } catch (verr) {
+      console.warn("Email verification send notice:", verr);
+    }
+
+    return { user, profile };
+  } catch (error: any) {
+    console.error("Registration Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * 🔄 Resend Verification Link to Current User Inbox
+ */
+export async function sendUserEmailVerification(): Promise<boolean> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No active user session.");
+  await sendEmailVerification(user);
+  return true;
 }
 
 /**

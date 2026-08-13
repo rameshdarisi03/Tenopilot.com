@@ -109,12 +109,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Strict Access Guard — Protect dashboard routes
+  // Strict Access Guard — Protect dashboard routes & redirect authenticated users from auth pages
   useEffect(() => {
     if (!loading) {
       const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
+      const isAuthPage = pathname === "/login" || pathname === "/signup";
+
       if (isProtectedPage && !user) {
         router.push("/login");
+      } else if (isAuthPage && user) {
+        router.push("/home");
       }
     }
   }, [user, loading, pathname, router]);
