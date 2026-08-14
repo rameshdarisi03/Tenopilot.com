@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import {
   loginWithGoogle,
+  loginWithApple,
   registerWithEmailPassword,
   sendUserEmailVerification,
   logoutUser,
@@ -115,6 +116,20 @@ function SignUpPageContent() {
       router.push("/home");
     } catch (err: any) {
       console.error("Google Sign-Up Error:", err);
+      setError(getCleanAuthErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSignUp = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await loginWithApple();
+      router.push("/home");
+    } catch (err: any) {
+      console.error("Apple Sign-Up Error:", err);
       setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -305,7 +320,7 @@ function SignUpPageContent() {
 
               <button
                 type="button"
-                onClick={handleGoogleSignUp}
+                onClick={handleAppleSignUp}
                 disabled={isLoading}
                 className="w-full py-3 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
               >

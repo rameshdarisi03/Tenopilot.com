@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Shield,
 } from "lucide-react";
-import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
+import { loginWithGoogle, loginWithApple, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
@@ -67,6 +67,20 @@ export default function LoginPage() {
       router.push("/home");
     } catch (err: any) {
       console.error("Google Login Error:", err);
+      setError(getCleanAuthErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      await loginWithApple();
+      router.push("/home");
+    } catch (err: any) {
+      console.error("Apple Login Error:", err);
       setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -158,7 +172,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={handleGoogleSignIn}
+            onClick={handleAppleSignIn}
             disabled={isLoading}
             className="w-full py-3 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
           >
