@@ -19,6 +19,8 @@ export interface FastTrackParsedRow {
   paymentMode: string;
   blockName?: string;
   floorName?: string;
+  isCurrentMonthRentPaid?: boolean; // Rent Paid This Month (Yes / No, default false)
+  priorArrearsAmount?: number; // Previous Arrears / Pending Due (default 0)
   isValid: boolean;
   warnings: string[];
   rawSource?: string;
@@ -563,6 +565,8 @@ export function parseRawSpreadsheetText(
       paymentMode: "UPI",
       blockName: inferred.blockName,
       floorName: inferred.floorName,
+      isCurrentMonthRentPaid: false,
+      priorArrearsAmount: 0,
       isValid,
       warnings,
       rawSource: rawLine,

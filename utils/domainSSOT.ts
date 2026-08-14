@@ -219,7 +219,26 @@ export function calculateProRataRent(monthlyRent: number, joiningDateStr?: strin
   isFullMonth: boolean;
   joiningDay: number;
 } {
-  const joiningDate = parseOccupantDate(joiningDateStr || "") || new Date();
+  const now = new Date();
+  const joiningDate = parseOccupantDate(joiningDateStr || "") || now;
+
+  // Check if joining date falls strictly within the CURRENT calendar month & year
+  const isCurrentMonthJoining =
+    joiningDate.getFullYear() === now.getFullYear() &&
+    joiningDate.getMonth() === now.getMonth();
+
+  // If established tenant joined in a previous month/year, standard full monthly cycle applies
+  if (!isCurrentMonthJoining) {
+    const totalDaysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return {
+      proRataAmount: monthlyRent,
+      totalDaysInMonth: totalDaysInCurrentMonth,
+      remainingDays: totalDaysInCurrentMonth,
+      isFullMonth: true,
+      joiningDay: 1,
+    };
+  }
+
   const year = joiningDate.getFullYear();
   const month = joiningDate.getMonth();
   const joiningDay = joiningDate.getDate();

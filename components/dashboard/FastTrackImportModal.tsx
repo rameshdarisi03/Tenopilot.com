@@ -235,6 +235,8 @@ export function FastTrackImportModal({
       securityDeposit: defaultRent * 2,
       joiningDate: todayStr,
       paymentMode: "UPI",
+      isCurrentMonthRentPaid: markCurrentMonthRentPaid,
+      priorArrearsAmount: 0,
       isValid: false,
       warnings: ["Enter 10-digit mobile number"],
     };
@@ -1149,7 +1151,15 @@ Priya Verma    9855667788   Room 201   22000"
                   <input
                     type="checkbox"
                     checked={markCurrentMonthRentPaid}
-                    onChange={(e) => setMarkCurrentMonthRentPaid(e.target.checked)}
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      setMarkCurrentMonthRentPaid(val);
+                      setEditableRows((prev) => {
+                        const updated = prev.map((r) => ({ ...r, isCurrentMonthRentPaid: val }));
+                        handleSaveDraft(updated);
+                        return updated;
+                      });
+                    }}
                     className="rounded text-[#c2652a] focus:ring-[#c2652a]"
                   />
                   <span>Mark Current Month Rent as Paid</span>
@@ -1487,6 +1497,8 @@ Anil Verma   9812345678   Room 103   12000"
                       </th>
                       <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
                       <th className="py-2.5 px-3 min-w-[100px]">Deposit</th>
+                      <th className="py-2.5 px-3 min-w-[130px] text-center">Rent Paid (This Mo)</th>
+                      <th className="py-2.5 px-3 min-w-[110px]">Prior Arrears</th>
                       <th className="py-2.5 px-3 text-center">Status</th>
                       <th className="py-2.5 px-3 text-center">Action</th>
                     </tr>
@@ -1583,6 +1595,32 @@ Anil Verma   9812345678   Room 103   12000"
                             onChange={(e) => updateRowField(idx, "securityDeposit", Number(e.target.value))}
                             className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <select
+                            value={row.isCurrentMonthRentPaid ? "YES" : "NO"}
+                            onChange={(e) => updateRowField(idx, "isCurrentMonthRentPaid", e.target.value === "YES")}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                              row.isCurrentMonthRentPaid
+                                ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
+                                : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            <option value="NO">No (Due)</option>
+                            <option value="YES">Yes (Paid)</option>
+                          </select>
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a]">
+                            <span className="text-gray-400 font-mono text-xs">₹</span>
+                            <input
+                              type="number"
+                              value={row.priorArrearsAmount ?? 0}
+                              onChange={(e) => updateRowField(idx, "priorArrearsAmount", Math.max(0, Number(e.target.value)))}
+                              placeholder="0"
+                              className="w-20 font-mono font-bold text-gray-900 text-xs border-0 p-0 focus:ring-0"
+                            />
+                          </div>
                         </td>
                         <td className="py-2 px-3 text-center">
                           {row.isValid ? (

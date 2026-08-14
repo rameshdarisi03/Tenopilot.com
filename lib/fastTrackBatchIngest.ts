@@ -105,20 +105,55 @@ export async function executeFastTrackBatchIngest(
     const occupantId = `occ_ft_${propertyId}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
     const rent = Number(row.rentAmount) || settings.rentalTiers?.sharing2 || 12000;
     const deposit = Number(row.securityDeposit) || rent * 2;
+    const priorArrears = Number(row.priorArrearsAmount) || 0;
+    const isRentPaid = row.isCurrentMonthRentPaid !== undefined ? Boolean(row.isCurrentMonthRentPaid) : (options.markCurrentMonthRentPaid ?? false);
+    const isDepositPaid = options.markDepositsPaid !== false;
     totalMonthlyRevenue += rent;
 
-    // Build initial payment ledger item
+    // Build initial payment ledger items
     const paymentHistory: PaymentHistoryItem[] = [];
-    if (options.markCurrentMonthRentPaid) {
+
+    // 1. If security deposit was paid during historical move-in
+    if (isDepositPaid) {
       paymentHistory.push({
-        id: `pay_${Date.now()}_${idx}`,
+        id: `pay_dep_${Date.now()}_${idx}`,
+        month: "Security Deposit",
+        date: row.joiningDate || now.toISOString().split("T")[0],
+        amount: deposit,
+        mode: "UPI",
+        receiptNo: `REC-DEP-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        status: "PAID",
+      });
+    }
+
+    // 2. If current month rent is marked as paid
+    if (isRentPaid) {
+      paymentHistory.push({
+        id: `pay_rent_${Date.now()}_${idx}`,
         month: currentMonthStr,
         date: row.joiningDate || now.toISOString().split("T")[0],
         amount: rent,
         mode: row.paymentMode || "UPI",
-        receiptNo: `REC-FT-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        receiptNo: `REC-RENT-${Date.now().toString().slice(-4)}-${idx + 1}`,
         status: "PAID",
       });
+    }
+
+    // Row-specific payment status
+    let rowPaymentStatus: "Paid" | "Due" | "Overdue" = "Due";
+    let rowDaysRemainingText = "DUE TODAY";
+    if (isRentPaid) {
+      rowPaymentStatus = "Paid";
+      rowDaysRemainingText = "PAID (CURRENT CYCLE)";
+    } else if (daysDiff < -settings.gracePeriodDays) {
+      rowPaymentStatus = "Overdue";
+      rowDaysRemainingText = `${Math.abs(daysDiff)} DAYS OVERDUE`;
+    } else if (daysDiff <= 0) {
+      rowPaymentStatus = "Due";
+      rowDaysRemainingText = "DUE TODAY";
+    } else {
+      rowPaymentStatus = "Due";
+      rowDaysRemainingText = `Due in ${daysDiff} Days`;
     }
 
     const initials = row.fullName
@@ -141,13 +176,13 @@ export async function executeFastTrackBatchIngest(
       roomNumber: rawRoom,
       bedCode: finalBedCode,
       joiningDate: row.joiningDate || now.toISOString().split("T")[0],
-      lastPaidDate: options.markCurrentMonthRentPaid ? `01 ${currentMonthStr}` : "—",
+      lastPaidDate: isRentPaid ? `01 ${currentMonthStr}` : "—",
       dueDate: dueDateStr,
       dueDay,
-      daysRemainingText,
+      daysRemainingText: rowDaysRemainingText,
       daysDiff,
       rentAmount: rent,
-      paymentStatus,
+      paymentStatus: rowPaymentStatus,
       lifecycleStatus: "Active",
       aadhaarNumber: `XXXX-XXXX-${Math.floor(1000 + Math.random() * 9000)}`,
       emergencyContact: {
@@ -158,8 +193,8 @@ export async function executeFastTrackBatchIngest(
       kycVerified: false,
       hasPdfAgreement: false,
       securityDeposit: deposit,
-      depositStatus: options.markDepositsPaid ? "PAID" : "PENDING",
-      arrearsBalance: options.markCurrentMonthRentPaid ? 0 : rent,
+      depositStatus: isDepositPaid ? "PAID" : "PENDING",
+      arrearsBalance: priorArrears,
       paymentHistory,
     };
 

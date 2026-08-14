@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseRawSpreadsheetText, FastTrackParsedRow } from "@/lib/fastTrackHeuristicParser";
+import { parseRawSpreadsheetText, FastTrackParsedRow, normalizeIndianPhoneNumber } from "@/lib/fastTrackHeuristicParser";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +73,8 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
 8. "rentAmount" (number): Plain numeric rent in INR (e.g. 10500, 8500).
 9. "securityDeposit" (number): Plain numeric deposit in INR (e.g. 5000).
 10. "paymentMode" (string): "UPI", "Cash", or "Bank Transfer" (default "UPI").
+11. "isCurrentMonthRentPaid" (boolean): true if ledger says "Paid", "Cleared", "Done", false if "Due", "Unpaid", "Pending", or omitted (default false).
+12. "priorArrearsAmount" (number): Any previous balance/arrears/pending due written (e.g. 2000, 1500, default 0).
 
 ==================================================================
 4. STRICT ROW INTEGRITY
@@ -97,6 +99,8 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       "securityDeposit": number,
       "joiningDate": string,
       "paymentMode": string,
+      "isCurrentMonthRentPaid": boolean,
+      "priorArrearsAmount": number,
       "notes": string
     }
   ]
@@ -106,7 +110,6 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       const contentsParts: any[] = [{ text: prompt }];
 
       for (const img of images) {
-        // Strip data:image/...;base64, prefix if present
         const base64Data = img.data.replace(/^data:image\/[a-z]+;base64,/, "");
         contentsParts.push({
           inlineData: {
@@ -119,43 +122,56 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       const modelsToTry = [
         "gemini-3.5-flash",
         "gemini-3.7-flash",
-        "gemini-flash-latest"
+        "gemini-flash-latest",
       ];
 
-      let lastError = "";
+      let lastError: string | null = null;
+
       for (const model of modelsToTry) {
         try {
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          const geminiRes = await fetch(geminiUrl, {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const bodyPayload: any = {
+            contents: [{ parts: contentsParts }],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.1,
+            },
+          };
+
+          if (model.includes("3.7")) {
+            bodyPayload.generationConfig.thinkingConfig = {
+              thinkingBudget: 0,
+            };
+          }
+
+          const geminiRes = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: contentsParts }],
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.1,
-                thinkingConfig: {
-                  thinkingBudget: 0,
-                },
-              },
-            }),
+            body: JSON.stringify(bodyPayload),
           });
 
           if (geminiRes.ok) {
-            const geminiJson = await geminiRes.json();
-            const rawContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text;
+            const data = await geminiRes.json();
+            const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (rawContent) {
-              const parsed = JSON.parse(rawContent);
-              const rawList = parsed.occupants || parsed.tenants || parsed;
-              if (Array.isArray(rawList) && rawList.length > 0) {
-                // Room-scoped bed allocation tracking: ensures Bed A, Bed B, Bed C per room
+              const cleanJson = rawContent
+                .replace(/^```json\s*/i, "")
+                .replace(/```\s*$/i, "")
+                .trim();
+              const parsed = JSON.parse(cleanJson);
+
+              if (Array.isArray(parsed.occupants) && parsed.occupants.length > 0) {
                 const roomOccupancyMap = new Map<string, number>();
 
-                const rows: FastTrackParsedRow[] = rawList.map((item: any, idx: number) => {
-                  const phone = String(item.phone || "").replace(/\D/g, "").slice(-10);
+                const rows: FastTrackParsedRow[] = parsed.occupants.map((item: any, idx: number) => {
+                  const phone = normalizeIndianPhoneNumber(item.phone);
                   const warnings: string[] = [];
-                  if (!phone || phone.length !== 10) warnings.push("Missing or incomplete phone number");
-                  if (!item.roomNumber) warnings.push("Missing room number");
+                  if (!phone || phone.length !== 10) {
+                    warnings.push("Verify 10-digit mobile number");
+                  }
+                  if (!item.fullName || item.fullName.trim().length === 0) {
+                    warnings.push("Missing full name");
+                  }
 
                   const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
 
@@ -169,7 +185,6 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
                   const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
                   const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
 
-                  // Sharing type calculation
                   const explicitSharing = Number(item.sharingType);
                   const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
                   const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
@@ -186,6 +201,8 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
                     securityDeposit: deposit,
                     joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
                     paymentMode: item.paymentMode || "UPI",
+                    isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
+                    priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
                     isValid: warnings.length === 0,
                     warnings,
                     rawSource: item.notes || "Extracted via Gemini 3.7 Flash Vision AI",
