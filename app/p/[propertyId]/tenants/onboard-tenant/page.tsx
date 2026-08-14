@@ -70,8 +70,8 @@ export default function OnboardTenantPage({
 
   // Instant lookup match against occupantStore (APPLIES STRICTLY TO PRIMARY PHONE FIELD ONLY)
   const existingOccupantMatch = useMemo(() => {
-    return lookupExistingOccupant(phone);
-  }, [phone]);
+    return lookupExistingOccupant(phone, propertyId);
+  }, [phone, propertyId]);
   const [email, setEmail] = useState("");
   const [emergencyCountryCode, setEmergencyCountryCode] = useState("+91");
   const [emergencyPhone, setEmergencyPhone] = useState("");
