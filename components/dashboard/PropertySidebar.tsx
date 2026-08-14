@@ -77,15 +77,10 @@ export function PropertySidebar({
       href: `/p/${propertyId}/staff`,
       icon: UserCheck,
     },
-    {
-      name: "Property Setup",
-      href: `/p/${propertyId}/property-setup`,
-      icon: Settings,
-    },
   ];
 
-  const displayName = profile?.displayName || "Ishara Pandey";
-  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "IP";
+  const displayName = profile?.displayName || "Property Owner";
+  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "PO";
   const roleDisplay = profile?.role === "master_admin" ? "Master Admin 👑" : profile?.role === "admin" ? "Admin (Owner) 🏢" : "Receptionist 🔑";
 
   const sidebarContent = (
@@ -119,7 +114,7 @@ export function PropertySidebar({
           {navItems
             .filter((item) => {
               if (activeRole === "receptionist") {
-                return !["Staff Management", "Property Setup"].includes(item.name);
+                return item.name !== "Staff Management";
               }
               return true;
             })
@@ -152,21 +147,26 @@ export function PropertySidebar({
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-[#d7c2b9]/40 space-y-1 text-xs text-[#554339]">
+      <div className="p-4 border-t border-[#d7c2b9]/60 space-y-2 text-xs text-[#554339]">
         <Link
           href={`/p/${propertyId}/settings`}
           onClick={() => onMobileClose && onMobileClose()}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f8ede3]"
+          className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all border ${
+            pathname?.includes("settings")
+              ? "bg-[#964407] text-white border-[#964407] shadow-sm"
+              : "bg-white text-[#201a17] border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] shadow-2xs"
+          }`}
         >
-          <Settings className="w-4 h-4 text-[#554339]" />
-          <span>Settings</span>
+          <Settings className={`w-4 h-4 ${pathname?.includes("settings") ? "text-amber-300" : "text-[#964407]"}`} />
+          <span>Property Settings</span>
         </Link>
+
         <a
-          href="#support"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f8ede3] text-[#554339]"
+          href="mailto:support@tenopilot.com"
+          className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-white text-[#201a17] border border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] text-xs font-extrabold transition-all shadow-2xs"
         >
-          <HelpCircle className="w-4 h-4 text-[#554339]" />
-          <span>Support</span>
+          <HelpCircle className="w-4 h-4 text-[#964407]" />
+          <span>Support & Help</span>
         </a>
 
         {/* User Profile Card */}

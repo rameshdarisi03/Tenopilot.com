@@ -449,7 +449,7 @@ export default function AdminComplaintsPage({
                 </div>
               </div>
               <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight tabular-nums">
-                1.8 <span className="text-sm font-semibold text-gray-500">Hours</span>
+                {resolvedCount > 0 ? "1.8" : "0.0"} <span className="text-sm font-semibold text-gray-500">Hours</span>
               </p>
               <p className="text-[11px] text-gray-500 font-medium mt-1">
                 Fast resolution turnaround target

@@ -1957,7 +1957,7 @@ export default function FinancialHubPage({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Main Content Left (Stat Cards, Settlement Overview, Recent Expenses) */}
               <div className="lg:col-span-8 space-y-8">
-              {/* Stat Cards Grid (4 Cards matching screenshot) */}
+              {/* Financial Summary Stat Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Stat Card 1 */}
                 <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
@@ -1969,9 +1969,11 @@ export default function FinancialHubPage({
                       <Wallet className="w-4 h-4" />
                     </div>
                   </div>
-                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">₹8,00,000</p>
-                  <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
-                    <ArrowUpRight className="w-3.5 h-3.5" /> 6.2% vs Sep 2024
+                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
+                    ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                    Live Real-Time SSOT
                   </p>
                 </div>
 
@@ -1981,15 +1983,15 @@ export default function FinancialHubPage({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       Total Expenses
                     </span>
-                    <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-orange-100 text-[#c2652a] flex items-center justify-center">
                       <Receipt className="w-4 h-4" />
                     </div>
                   </div>
                   <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
                     ₹{totalSpent.toLocaleString("en-IN")}
                   </p>
-                  <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
-                    <TrendingUp className="w-3.5 h-3.5" /> Firebase Live
+                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                    Firebase Live
                   </p>
                 </div>
 
@@ -2004,10 +2006,10 @@ export default function FinancialHubPage({
                     </div>
                   </div>
                   <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                    ₹{(800000 - totalSpent).toLocaleString("en-IN")}
+                    ₹{Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent).toLocaleString("en-IN")}
                   </p>
-                  <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
-                    <ArrowUpRight className="w-3.5 h-3.5" /> 7.8% vs Sep 2024
+                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                    Calculated Yield
                   </p>
                 </div>
 
@@ -2022,10 +2024,12 @@ export default function FinancialHubPage({
                     </div>
                   </div>
                   <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                    {(((800000 - totalSpent) / 800000) * 100).toFixed(1)}%
+                    {revenueMetrics.totalGrossRevenue > 0
+                      ? (((revenueMetrics.totalGrossRevenue - totalSpent) / revenueMetrics.totalGrossRevenue) * 100).toFixed(1)
+                      : "0.0"}%
                   </p>
-                  <p className="text-[11px] text-[#059669] font-bold mt-1.5 flex items-center gap-1">
-                    <ArrowUpRight className="w-3.5 h-3.5" /> Live Ratio
+                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                    Live Ratio
                   </p>
                 </div>
               </div>
@@ -2036,62 +2040,62 @@ export default function FinancialHubPage({
                   <h3 className="font-serif font-bold text-lg text-gray-900">
                     Partner Settlement Overview
                   </h3>
-                  <a
-                    href="#report"
-                    className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1"
-                  >
-                    View Full Report →
-                  </a>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold">
-                        <th className="pb-3 font-bold">Partner</th>
-                        <th className="pb-3 font-bold">Ownership %</th>
-                        <th className="pb-3 font-bold">Paid Out-Of-Pocket (This Month)</th>
-                        <th className="pb-3 font-bold">Profit Share</th>
-                        <th className="pb-3 font-bold">Receivable / Payable</th>
-                        <th className="pb-3 font-bold text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {partners.map((p) => {
-                        const totalNetProfit = 800000 - totalSpent;
-                        const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
-                        const actualPaid = partnerContributions[p.name] || 0;
-                        const receivable = profitShare - actualPaid;
+                  {partners.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-gray-500">
+                      No partner equity profiles configured yet. Configure partner profit sharing in Property Settings.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold">
+                          <th className="pb-3 font-bold">Partner</th>
+                          <th className="pb-3 font-bold">Ownership %</th>
+                          <th className="pb-3 font-bold">Paid Out-Of-Pocket (This Month)</th>
+                          <th className="pb-3 font-bold">Profit Share</th>
+                          <th className="pb-3 font-bold">Receivable / Payable</th>
+                          <th className="pb-3 font-bold text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {partners.map((p) => {
+                          const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
+                          const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
+                          const actualPaid = partnerContributions[p.name] || 0;
+                          const receivable = profitShare - actualPaid;
 
-                        return (
-                          <tr key={p.id}>
-                            <td className="py-4 font-bold flex items-center gap-2 text-gray-900">
-                              <span
-                                className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-bold"
-                                style={{ backgroundColor: p.color || "#c2652a" }}
-                              >
-                                {p.name.charAt(0)}
-                              </span>
-                              {p.name}
-                            </td>
-                            <td className="py-4 text-gray-500 font-sans font-bold tabular-nums">{p.ownershipPercentage}%</td>
-                            <td className="py-4 text-gray-500 font-sans font-semibold tabular-nums">₹{actualPaid.toLocaleString("en-IN")}</td>
-                            <td className="py-4 font-sans font-bold text-gray-900 tabular-nums">₹{profitShare.toLocaleString("en-IN")}</td>
-                            <td className={`py-4 font-sans font-bold tabular-nums ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
-                              {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
-                            </td>
-                            <td className="py-4 text-right">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                receivable >= 0 ? "bg-emerald-100 text-emerald-900" : "bg-red-100 text-red-900"
-                              }`}>
-                                {receivable >= 0 ? "Receivable" : "Payable"}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          return (
+                            <tr key={p.id}>
+                              <td className="py-4 font-bold flex items-center gap-2 text-gray-900">
+                                <span
+                                  className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-bold"
+                                  style={{ backgroundColor: p.color || "#c2652a" }}
+                                >
+                                  {p.name.charAt(0)}
+                                </span>
+                                {p.name}
+                              </td>
+                              <td className="py-4 text-gray-500 font-sans font-bold tabular-nums">{p.ownershipPercentage}%</td>
+                              <td className="py-4 text-gray-500 font-sans font-semibold tabular-nums">₹{actualPaid.toLocaleString("en-IN")}</td>
+                              <td className="py-4 font-sans font-bold text-gray-900 tabular-nums">₹{profitShare.toLocaleString("en-IN")}</td>
+                              <td className={`py-4 font-sans font-bold tabular-nums ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
+                                {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
+                              </td>
+                              <td className="py-4 text-right">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  receivable >= 0 ? "bg-emerald-100 text-emerald-900" : "bg-red-100 text-red-900"
+                                }`}>
+                                  {receivable >= 0 ? "Receivable" : "Payable"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
 
