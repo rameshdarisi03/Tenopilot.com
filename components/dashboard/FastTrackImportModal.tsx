@@ -66,8 +66,14 @@ export function FastTrackImportModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Parsing state
+  // Drag & drop state
+  const [isDraggingSheet, setIsDraggingSheet] = useState(false);
+  const [isDraggingCamera, setIsDraggingCamera] = useState(false);
+
+  // Parsing & Progress state
   const [processingStatus, setProcessingStatus] = useState<string>("Analyzing document structure...");
+  const [processingProgress, setProcessingProgress] = useState<number>(0);
+  const [processingError, setProcessingError] = useState<string | null>(null);
   const [parsedResult, setParsedResult] = useState<FastTrackParseResult | null>(null);
   const [editableRows, setEditableRows] = useState<FastTrackParsedRow[]>([]);
 
@@ -165,52 +171,169 @@ export function FastTrackImportModal({
       setEditableRows([]);
       setIngestResult(null);
       setIsMaximized(false);
+      setProcessingError(null);
+      setProcessingProgress(0);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // 1. Handle File Upload (.xlsx, .csv, .txt)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setPastedText(content);
-    };
-    reader.readAsText(file);
-  };
-
-  // 2. Handle Image Upload / Camera Capture
-  const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file) => {
+  // Helper: Client-side Image Optimizer (prevents huge payloads, zero storage in firebase)
+  const compressImageForAi = async (file: File): Promise<{ name: string; base64: string }> => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        setSelectedImages((prev) => [...prev, { name: file.name, base64 }]);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 1600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve({ name: file.name, base64: e.target?.result as string });
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.88);
+          resolve({
+            name: file.name,
+            base64: compressedBase64,
+          });
+        };
+        img.onerror = () => {
+          resolve({ name: file.name, base64: e.target?.result as string });
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => {
+        resolve({ name: file.name, base64: "" });
       };
       reader.readAsDataURL(file);
     });
   };
 
-  // 3. Run Intelligent Parser (Waterfall Router)
+  // Helper: Native Spreadsheet / CSV / Excel reader
+  const processSpreadsheetFile = async (file: File) => {
+    setFileName(file.name);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    try {
+      if (ext === "xlsx" || ext === "xls") {
+        const arrayBuffer = await file.arrayBuffer();
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const csvText = XLSX.utils.sheet_to_csv(worksheet);
+        setPastedText(csvText);
+      } else {
+        const text = await file.text();
+        setPastedText(text);
+      }
+    } catch (err: any) {
+      console.error("Spreadsheet read error:", err);
+      alert(`Could not read spreadsheet file: ${err.message}`);
+    }
+  };
+
+  // 1. Handle File Upload (.xlsx, .csv, .txt)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processSpreadsheetFile(file);
+  };
+
+  // 2. Handle Image Upload / Camera Capture
+  const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      const optimized = await compressImageForAi(file);
+      if (optimized.base64) {
+        setSelectedImages((prev) => [...prev, optimized]);
+      }
+    }
+  };
+
+  // 3. Drag & Drop Handlers for Sheet & Camera
+  const handleSheetDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingSheet(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    // If dropped an image onto sheet tab, switch to camera tab seamlessly!
+    if (file.type.startsWith("image/")) {
+      setActiveTab("CAMERA");
+      for (const imgFile of Array.from(files)) {
+        const optimized = await compressImageForAi(imgFile);
+        if (optimized.base64) {
+          setSelectedImages((prev) => [...prev, optimized]);
+        }
+      }
+      return;
+    }
+
+    processSpreadsheetFile(file);
+  };
+
+  const handleCameraDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingCamera(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith("image/")) {
+        const optimized = await compressImageForAi(file);
+        if (optimized.base64) {
+          setSelectedImages((prev) => [...prev, optimized]);
+        }
+      } else {
+        // Dropped spreadsheet onto camera tab -> switch to sheet tab!
+        setActiveTab("SHEET");
+        processSpreadsheetFile(file);
+        return;
+      }
+    }
+  };
+
+  // 4. Run Intelligent Parser (Waterfall Router)
   const handleProcessInput = async () => {
     setStep("PROCESSING");
+    setProcessingError(null);
+    setProcessingProgress(15);
 
     if (activeTab === "SHEET") {
       setProcessingStatus("Running Fast Pattern Engine...");
-      await new Promise((r) => setTimeout(r, 400));
+      setProcessingProgress(40);
+      await new Promise((r) => setTimeout(r, 300));
 
       const res = parseRawSpreadsheetText(pastedText, settings.rentalTiers);
 
       // If confidence is good, go straight to review
       if (res.success && res.confidenceScore >= 60) {
+        setProcessingProgress(100);
         setParsedResult(res);
         setEditableRows(res.rows);
         setStep("REVIEW");
@@ -219,6 +342,7 @@ export function FastTrackImportModal({
 
       // If messy, attempt AI escalation via API route
       setProcessingStatus("Engaging Gemini AI for Deep Unstructured Parsing...");
+      setProcessingProgress(70);
       try {
         const apiRes = await fetch("/api/fasttrack/ai-scan", {
           method: "POST",
@@ -231,6 +355,7 @@ export function FastTrackImportModal({
         });
         const apiJson = await apiRes.json();
         if (apiJson.success && apiJson.rows?.length > 0) {
+          setProcessingProgress(100);
           setParsedResult(apiJson);
           setEditableRows(apiJson.rows);
           setStep("REVIEW");
@@ -240,13 +365,25 @@ export function FastTrackImportModal({
         console.warn("AI parse route fallback:", e);
       }
 
-      // Fallback to heuristic result even with warnings
+      // Fallback to heuristic result
+      setProcessingProgress(100);
       setParsedResult(res);
       setEditableRows(res.rows);
       setStep("REVIEW");
     } else {
       // Camera / Ledger photo path: Invoke Gemini Vision AI
+      if (selectedImages.length === 0) {
+        setProcessingError("Please upload or take at least one ledger photo first.");
+        return;
+      }
+
+      setProcessingStatus("Optimizing & preparing ledger images...");
+      setProcessingProgress(25);
+      await new Promise((r) => setTimeout(r, 200));
+
       setProcessingStatus("Transmitting ledger images to Gemini 2.5 Flash Vision AI...");
+      setProcessingProgress(60);
+
       try {
         const apiRes = await fetch("/api/fasttrack/ai-scan", {
           method: "POST",
@@ -261,22 +398,28 @@ export function FastTrackImportModal({
           }),
         });
 
+        setProcessingStatus("Extracting tenant rows, rooms, bed slots & normalizing dates...");
+        setProcessingProgress(85);
+
+        if (!apiRes.ok) {
+          const errData = await apiRes.json().catch(() => ({}));
+          throw new Error(errData.message || `Server responded with status ${apiRes.status}`);
+        }
+
         const apiJson = await apiRes.json();
         if (apiJson.success && apiJson.rows?.length > 0) {
+          setProcessingProgress(100);
           setParsedResult(apiJson);
           setEditableRows(apiJson.rows);
           setStep("REVIEW");
           return;
+        } else {
+          throw new Error("No readable tenant entries could be extracted from this photo. Please ensure the handwriting is legible and well-lit.");
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("AI vision error:", e);
+        setProcessingError(e.message || "Failed to process photo with AI. Please check your internet connection or try again.");
       }
-
-      // Fallback sample if offline
-      const fallbackRes = parseRawSpreadsheetText(SAMPLE_PG_MESSY_SHEET, settings.rentalTiers);
-      setParsedResult({ ...fallbackRes, source: "AI_VISION" });
-      setEditableRows(fallbackRes.rows);
-      setStep("REVIEW");
     }
   };
 
@@ -402,7 +545,29 @@ export function FastTrackImportModal({
             {activeTab === "SHEET" && (
               <div className="space-y-4">
                 {/* File Dropzone & Paste Area */}
-                <div className="border-2 border-dashed border-gray-200 rounded-2xl p-5 hover:border-[#c2652a]/50 transition-all bg-gray-50/50 space-y-3">
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingSheet(true);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingSheet(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingSheet(false);
+                  }}
+                  onDrop={handleSheetDrop}
+                  className={`border-2 border-dashed rounded-2xl p-5 transition-all bg-gray-50/50 space-y-3 ${
+                    isDraggingSheet
+                      ? "border-[#c2652a] bg-orange-50/60 ring-4 ring-orange-500/10 scale-[0.99]"
+                      : "border-gray-200 hover:border-[#c2652a]/50"
+                  }`}
+                >
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
@@ -410,9 +575,9 @@ export function FastTrackImportModal({
                       </div>
                       <div>
                         <p className="text-xs font-bold text-gray-800">
-                          {fileName ? `Selected File: ${fileName}` : "Drag & drop your CSV or Excel file"}
+                          {fileName ? `Selected File: ${fileName}` : "Drag & drop your CSV or Excel file here"}
                         </p>
-                        <p className="text-[11px] text-gray-500">Or paste your copied table from Google Sheets below</p>
+                        <p className="text-[11px] text-gray-500">Supports .xlsx, .xls, .csv, or paste your copied table below</p>
                       </div>
                     </div>
 
@@ -469,14 +634,36 @@ Priya Verma    9855667788   Room 201   22000"
             {/* TAB B: AI LEDGER & NOTEBOOK PHOTO SCAN */}
             {activeTab === "CAMERA" && (
               <div className="space-y-4">
-                <div className="border-2 border-dashed border-purple-200 rounded-2xl p-6 bg-purple-50/30 text-center space-y-4">
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingCamera(true);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingCamera(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingCamera(false);
+                  }}
+                  onDrop={handleCameraDrop}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center space-y-4 transition-all ${
+                    isDraggingCamera
+                      ? "border-purple-600 bg-purple-100/60 ring-4 ring-purple-500/10 scale-[0.99]"
+                      : "border-purple-200 bg-purple-50/30"
+                  }`}
+                >
                   <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                     <Camera className="w-7 h-7" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">Snap Photos of Your Notebook or Ledger Book</h3>
+                    <h3 className="font-bold text-sm text-gray-900">Drag & Drop or Snap Photos of Your Register</h3>
                     <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
-                      Our Gemini 2.5 Vision AI reads handwritten tenant rows, room numbers, and advance deposits directly from physical registers.
+                      Our Gemini 2.5 Vision AI reads handwritten tenant rows, room numbers, and advance deposits directly from physical registers. (Images are processed ephemerally in RAM and never stored in Firebase).
                     </p>
                   </div>
 
@@ -497,7 +684,7 @@ Priya Verma    9855667788   Room 201   22000"
                       className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer"
                     >
                       <Camera className="w-4 h-4" />
-                      Take Photo with Camera
+                      Take / Choose Photo
                     </button>
                     <button
                       type="button"
@@ -544,18 +731,64 @@ Priya Verma    9855667788   Room 201   22000"
           </div>
         )}
 
-        {/* STEP 2: PROCESSING RADAR */}
+        {/* STEP 2: PROCESSING RADAR WITH LIVE PROGRESS BAR & ERROR RETRY */}
         {step === "PROCESSING" && (
-          <div className="p-12 flex flex-col items-center justify-center space-y-6 text-center flex-1">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full border-4 border-[#c2652a]/20 border-t-[#c2652a] animate-spin flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-[#c2652a] animate-pulse" />
+          <div className="p-8 sm:p-12 flex flex-col items-center justify-center space-y-6 text-center flex-1 max-w-lg mx-auto w-full">
+            {!processingError ? (
+              <>
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full border-4 border-[#c2652a]/20 border-t-[#c2652a] animate-spin flex items-center justify-center">
+                    <Sparkles className="w-8 h-8 text-[#c2652a] animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-2 w-full">
+                  <h3 className="font-serif font-bold text-lg text-gray-900">Ingesting & Structuring Roster</h3>
+                  <p className="text-xs text-gray-500 font-mono min-h-[1.5rem]">{processingStatus}</p>
+
+                  {/* Dynamic Live Progress Bar */}
+                  <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200 mt-4 shadow-inner">
+                    <div
+                      className="bg-gradient-to-r from-[#c2652a] via-amber-500 to-purple-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${Math.max(processingProgress, 10)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] text-gray-400 font-mono pt-1">
+                    <span>Zero Storage (RAM Only)</span>
+                    <span className="font-bold text-[#c2652a]">{processingProgress}%</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="p-6 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-4 w-full animate-in fade-in">
+                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-rose-900">Scan Ingestion Notice</h4>
+                  <p className="text-xs text-rose-700 mt-1">{processingError}</p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("INPUT");
+                      setProcessingError(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                  >
+                    Back to Upload
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProcessInput}
+                    className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 cursor-pointer shadow-md shadow-rose-600/20 flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Retry AI Scan
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-serif font-bold text-lg text-gray-900">Processing Your Roster...</h3>
-              <p className="text-xs text-gray-500 font-mono animate-pulse">{processingStatus}</p>
-            </div>
+            )}
           </div>
         )}
 
