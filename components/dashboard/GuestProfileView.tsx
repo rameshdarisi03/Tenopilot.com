@@ -336,7 +336,7 @@ export function GuestProfileView({
             <div className="space-y-3 divide-y divide-gray-100">
               <div className="flex justify-between pt-1">
                 <span className="text-gray-400">Property</span>
-                <span className="font-bold text-gray-900">Sunshine Heights PG</span>
+                <span className="font-bold text-gray-900">{propertySettings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property")}</span>
               </div>
 
               <div className="flex justify-between pt-2">

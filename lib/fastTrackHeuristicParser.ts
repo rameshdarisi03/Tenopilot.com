@@ -12,10 +12,13 @@ export interface FastTrackParsedRow {
   roomNumber: string;
   bedCode?: string;
   sharingType?: number;
+  sharingLabel?: string;
   rentAmount: number;
   securityDeposit: number;
   joiningDate: string;
   paymentMode: string;
+  blockName?: string;
+  floorName?: string;
   isValid: boolean;
   warnings: string[];
   rawSource?: string;
@@ -37,9 +40,10 @@ export interface FastTrackParseResult {
     depositIndex: number;
     dateIndex: number;
     bedIndex: number;
+    sharingIndex: number;
   };
   inferredFloors: string[];
-  inferredRooms: { roomNumber: string; occupantCount: number }[];
+  inferredRooms: { roomNumber: string; occupantCount: number; sharingCapacity?: number; blockName?: string; floorName?: string }[];
 }
 
 const INDIAN_PHONE_REGEX = /(?:(?:\+|0{0,2})91[\s.-]?)?([6-9]\d{9})\b/;
@@ -142,6 +146,72 @@ export function parseIndianCurrencyAmount(raw: string | number | undefined, defa
 }
 
 /**
+ * Helper to parse sharing capacity (e.g. "Single", "2-Sharing", "Triple", "4", "Double")
+ */
+export function parseSharingType(val: string | undefined): { count: number; label: string } {
+  if (!val) return { count: 2, label: "2-Sharing" };
+  const str = val.trim().toLowerCase();
+  if (/single|1\s*-?\s*shar|private|^1$/i.test(str)) return { count: 1, label: "Single Room" };
+  if (/double|2\s*-?\s*shar|two|^2$/i.test(str)) return { count: 2, label: "2-Sharing" };
+  if (/triple|3\s*-?\s*shar|three|^3$/i.test(str)) return { count: 3, label: "3-Sharing" };
+  if (/four|4\s*-?\s*shar|quad|^4$/i.test(str)) return { count: 4, label: "4-Sharing" };
+  const num = parseInt(str.replace(/\D/g, ""), 10);
+  if (num >= 1 && num <= 6) return { count: num, label: `${num}-Sharing` };
+  return { count: 2, label: "2-Sharing" };
+}
+
+/**
+ * Intelligent Alpha-numeric Room & Floor Inferencer (e.g. A01, A101, B01, B201, G01, 101)
+ */
+export function inferRoomBlockAndFloor(roomStr: string): { blockName: string; floorName: string; cleanRoom: string } {
+  const clean = roomStr.trim().toUpperCase().replace(/^ROOM\s*/i, "");
+
+  // 1. Ground Floor: e.g. G01, GF1, G-1, GROUND-1, G1
+  if (/^(?:G|GF|GROUND)[\-_]?\d+/i.test(clean)) {
+    return {
+      blockName: "Main Building",
+      floorName: "Ground Floor",
+      cleanRoom: clean,
+    };
+  }
+
+  // 2. Check Block Prefix: e.g. A01, A1, A101, B02, B201
+  const blockMatch = clean.match(/^([A-Z])[\-_]?(\d{1,4}[A-Z]?)$/i);
+  if (blockMatch) {
+    const blockLetter = blockMatch[1].toUpperCase();
+    const restNumber = blockMatch[2];
+    let floor = "Floor 01";
+    if (restNumber.length >= 3 && /^[1-9]/.test(restNumber)) {
+      floor = `Floor 0${restNumber.charAt(0)}`;
+    } else if (/^0\d+$/.test(restNumber) || /^0$/.test(restNumber)) {
+      floor = "Ground Floor";
+    }
+    return {
+      blockName: `Block ${blockLetter}`,
+      floorName: floor,
+      cleanRoom: clean,
+    };
+  }
+
+  // 3. Standard Floor Prefix: e.g. 101, 201, 301, 401
+  if (/^[1-9]\d{2}/.test(clean)) {
+    const flNum = clean.charAt(0);
+    return {
+      blockName: "Main Building",
+      floorName: `Floor 0${flNum}`,
+      cleanRoom: clean,
+    };
+  }
+
+  // 4. Default Fallback
+  return {
+    blockName: "Main Building",
+    floorName: "Floor 01",
+    cleanRoom: clean || "101",
+  };
+}
+
+/**
  * Core Heuristic Parser: Ingests raw clipboard text, CSV string, or matrix
  */
 export function parseRawSpreadsheetText(
@@ -160,7 +230,7 @@ export function parseRawSpreadsheetText(
       validCount: 0,
       warningCount: 0,
       confidenceScore: 0,
-      detectedColumns: { nameIndex: -1, phoneIndex: -1, roomIndex: -1, rentIndex: -1, depositIndex: -1, dateIndex: -1, bedIndex: -1 },
+      detectedColumns: { nameIndex: -1, phoneIndex: -1, roomIndex: -1, rentIndex: -1, depositIndex: -1, dateIndex: -1, bedIndex: -1, sharingIndex: -1 },
       inferredFloors: [],
       inferredRooms: [],
     };
@@ -201,7 +271,7 @@ export function parseRawSpreadsheetText(
       validCount: 0,
       warningCount: 0,
       confidenceScore: 0,
-      detectedColumns: { nameIndex: -1, phoneIndex: -1, roomIndex: -1, rentIndex: -1, depositIndex: -1, dateIndex: -1, bedIndex: -1 },
+      detectedColumns: { nameIndex: -1, phoneIndex: -1, roomIndex: -1, rentIndex: -1, depositIndex: -1, dateIndex: -1, bedIndex: -1, sharingIndex: -1 },
       inferredFloors: [],
       inferredRooms: [],
     };
@@ -210,7 +280,7 @@ export function parseRawSpreadsheetText(
   // Determine max columns
   const maxCols = Math.max(...rawRows.map((r) => r.length));
 
-  // Step 1: Identify Header Row (scanning first 8 rows)
+  // Step 1: Detect Header Row
   let headerRowIndex = -1;
   const colScores = {
     name: new Array(maxCols).fill(0),
@@ -220,15 +290,17 @@ export function parseRawSpreadsheetText(
     deposit: new Array(maxCols).fill(0),
     date: new Array(maxCols).fill(0),
     bed: new Array(maxCols).fill(0),
+    sharing: new Array(maxCols).fill(0),
   };
 
   const nameKeywords = /name|tenant|resident|student|candidate|boy|girl|member|cust|person|occupant/i;
   const phoneKeywords = /phone|mobile|contact|cell|ph|wp|whatsapp|mob|tel|calling|num/i;
   const roomKeywords = /room|kholi|flat|unit|rm|r\.no|r\s*no|room\s*no|room\s*#/i;
-  const rentKeywords = /rent|monthly|fee|fees|tariff|amt|amount|price|rate|charge/i;
+  const rentKeywords = /rent|monthly|fee|fees|tariff|amt|amount|price|rate|charge|bhadha/i;
   const depositKeywords = /deposit|advance|security|caution|sec\s*dep|token|adv/i;
-  const dateKeywords = /date|doj|joining|entry|admitted|start|move\s*in|check\s*in/i;
-  const bedKeywords = /bed|slot|sharing|sharing\s*type|capacity/i;
+  const dateKeywords = /^(?:doj|joining|join\s*date|move\s*in|admit|admission|check\s*in|start\s*date|entry\s*date|date)$/i;
+  const sharingKeywords = /^(?:sharing|share|occupancy|room\s*type|capacity|bed\s*type|sharing\s*type|type)$/i;
+  const bedKeywords = /bed|bed\s*no|slot/i;
 
   for (let rIdx = 0; rIdx < Math.min(rawRows.length, 8); rIdx++) {
     const row = rawRows[rIdx];
@@ -243,6 +315,8 @@ export function parseRawSpreadsheetText(
       if (roomKeywords.test(c)) matchedKeywords++;
       if (rentKeywords.test(c)) matchedKeywords++;
       if (depositKeywords.test(c)) matchedKeywords++;
+      if (dateKeywords.test(c)) matchedKeywords++;
+      if (sharingKeywords.test(c)) matchedKeywords++;
     });
 
     if (matchedKeywords >= 2) {
@@ -259,6 +333,7 @@ export function parseRawSpreadsheetText(
   let depositCol = -1;
   let dateCol = -1;
   let bedCol = -1;
+  let sharingCol = -1;
 
   if (headerRowIndex !== -1) {
     const headerRow = rawRows[headerRowIndex];
@@ -269,6 +344,7 @@ export function parseRawSpreadsheetText(
       else if (rentKeywords.test(c)) rentCol = idx;
       else if (phoneKeywords.test(c)) phoneCol = idx;
       else if (roomKeywords.test(c)) roomCol = idx;
+      else if (sharingKeywords.test(c)) sharingCol = idx;
       else if (dateKeywords.test(c)) dateCol = idx;
       else if (bedKeywords.test(c)) bedCol = idx;
     });
@@ -303,9 +379,14 @@ export function parseRawSpreadsheetText(
         colScores.name[colIdx] -= 10;
       }
 
-      // Check room pattern
-      if (/^(?:[1-9]\d{1,3}|[Gg]\d{1,2}|[A-Za-z]\d{1,3}|[1-9][A-Za-z])$/.test(val) || /^Room\s*\d+/i.test(val)) {
+      // Check room pattern (supports A01, B201, G01, 101)
+      if (/^(?:[A-Za-z]?\d{1,4}[A-Za-z]?|[Gg][Ff]?[\-_]?\d{1,2}|[1-9][A-Za-z])$/.test(val) || /^Room\s*[A-Za-z0-9]+/i.test(val)) {
         colScores.room[colIdx] += 3;
+      }
+
+      // Check sharing type pattern
+      if (/^(?:single|double|triple|quad|private|[1-4]\s*-?\s*shar(?:ing)?)$/i.test(val)) {
+        colScores.sharing[colIdx] += 4;
       }
 
       // Check date pattern
@@ -314,19 +395,20 @@ export function parseRawSpreadsheetText(
       }
 
       // Check name pattern (letters, 1 to 4 words, no pure digits)
-      if (/^[A-Za-z\s.'()-]{3,40}$/.test(val) && !/^(room|floor|bed|rent|advance|paid|unpaid|cash|upi|gpay|kholi)$/i.test(val)) {
+      if (/^[A-Za-z\s.'()-]{3,40}$/.test(val) && !/^(room|floor|bed|rent|advance|paid|unpaid|cash|upi|gpay|kholi|single|double|triple)$/i.test(val)) {
         colScores.name[colIdx] += 1;
       }
     });
   });
 
   // Assign columns based on highest score if not already locked by header
-  if (phoneCol === -1) phoneCol = getBestColumnIndex(colScores.phone, [nameCol, roomCol, rentCol, depositCol]);
-  if (roomCol === -1) roomCol = getBestColumnIndex(colScores.room, [phoneCol, nameCol, rentCol, depositCol]);
-  if (nameCol === -1) nameCol = getBestColumnIndex(colScores.name, [phoneCol, roomCol, rentCol, depositCol]);
-  if (rentCol === -1) rentCol = getBestColumnIndex(colScores.rent, [phoneCol, roomCol, nameCol, depositCol]);
-  if (depositCol === -1) depositCol = getBestColumnIndex(colScores.deposit, [phoneCol, roomCol, nameCol, rentCol]);
-  if (dateCol === -1) dateCol = getBestColumnIndex(colScores.date, [phoneCol, roomCol, nameCol, rentCol, depositCol]);
+  if (phoneCol === -1) phoneCol = getBestColumnIndex(colScores.phone, [nameCol, roomCol, rentCol, depositCol, sharingCol]);
+  if (roomCol === -1) roomCol = getBestColumnIndex(colScores.room, [phoneCol, nameCol, rentCol, depositCol, sharingCol]);
+  if (sharingCol === -1) sharingCol = getBestColumnIndex(colScores.sharing, [phoneCol, nameCol, roomCol, rentCol, depositCol]);
+  if (nameCol === -1) nameCol = getBestColumnIndex(colScores.name, [phoneCol, roomCol, rentCol, depositCol, sharingCol]);
+  if (rentCol === -1) rentCol = getBestColumnIndex(colScores.rent, [phoneCol, roomCol, nameCol, depositCol, sharingCol]);
+  if (depositCol === -1) depositCol = getBestColumnIndex(colScores.deposit, [phoneCol, roomCol, nameCol, rentCol, sharingCol]);
+  if (dateCol === -1) dateCol = getBestColumnIndex(colScores.date, [phoneCol, roomCol, nameCol, rentCol, depositCol, sharingCol]);
 
   // Fallback defaults if still unbound
   if (nameCol === -1) nameCol = 0;
@@ -336,12 +418,14 @@ export function parseRawSpreadsheetText(
   // Step 3: Build Structured Occupant Rows
   const parsedOccupants: FastTrackParsedRow[] = [];
   const roomOccupancyMap = new Map<string, number>();
+  const roomSharingMap = new Map<string, number>();
 
   dataRows.forEach((row, rowIdx) => {
     const rawLine = row.join(" | ");
     let rawName = (row[nameCol] || "").trim();
     let rawPhone = (row[phoneCol] || "").trim();
     let rawRoom = (row[roomCol] || "").trim();
+    let rawSharing = sharingCol !== -1 ? (row[sharingCol] || "").trim() : "";
     let rawRent = rentCol !== -1 ? (row[rentCol] || "").trim() : "";
     let rawDeposit = depositCol !== -1 ? (row[depositCol] || "").trim() : "";
     let rawDate = dateCol !== -1 ? (row[dateCol] || "").trim() : "";
@@ -356,7 +440,7 @@ export function parseRawSpreadsheetText(
       }
     }
 
-    // Compound room: e.g. "101-Bed A" or "Room 101 (Double)"
+    // Compound room: e.g. "101-Bed A" or "Room A101 (Double)"
     if (rawRoom) {
       const stripped = rawRoom.replace(/^(?:room|kholi|flat|unit|rm|r\.no|r\s*no)\s*/i, "").trim();
       const roomMatch = stripped.match(/\b([A-Za-z0-9\-_]{1,6})\b/);
@@ -375,10 +459,16 @@ export function parseRawSpreadsheetText(
     // Normalize values
     const cleanName = formatProperCaseName(rawName) || `Resident ${rowIdx + 1}`;
     const cleanPhone = normalizeIndianPhoneNumber(rawPhone);
-    const cleanRoom = (rawRoom || `10${(rowIdx % 4) + 1}`).replace(/^ROOM\s*/i, "").toUpperCase();
+    const inferred = inferRoomBlockAndFloor(rawRoom || `10${(rowIdx % 4) + 1}`);
+    const cleanRoom = inferred.cleanRoom;
+
+    // Sharing type detection
+    const parsedSharing = parseSharingType(rawSharing);
+    if (!roomSharingMap.has(cleanRoom) && parsedSharing.count) {
+      roomSharingMap.set(cleanRoom, parsedSharing.count);
+    }
 
     // 🛏️ Automatic Bed Allocation (Bed A, Bed B, Bed C...)
-    // Automatically assigns without forcing owner to input bed IDs!
     const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
     roomOccupancyMap.set(cleanRoom, currentCountInRoom);
     const bedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C, D...
@@ -411,10 +501,13 @@ export function parseRawSpreadsheetText(
       roomNumber: cleanRoom,
       bedCode: cleanBed,
       sharingType: currentCountInRoom,
+      sharingLabel: parsedSharing.label,
       rentAmount: rentNum,
       securityDeposit: depositNum,
       joiningDate: cleanDate,
       paymentMode: "UPI",
+      blockName: inferred.blockName,
+      floorName: inferred.floorName,
       isValid,
       warnings,
       rawSource: rawLine,
@@ -422,20 +515,25 @@ export function parseRawSpreadsheetText(
   });
 
   // Calculate unique inferred floors and room capacities
-  const uniqueRooms = Array.from(roomOccupancyMap.entries()).map(([roomNumber, occupantCount]) => ({
-    roomNumber,
-    occupantCount,
-  }));
+  const uniqueRooms = Array.from(roomOccupancyMap.entries()).map(([roomNumber, occupantCount]) => {
+    const inferred = inferRoomBlockAndFloor(roomNumber);
+    const explicitSharing = roomSharingMap.get(roomNumber);
+    const sharingCapacity = Math.max(occupantCount, explicitSharing || occupantCount);
+    return {
+      roomNumber,
+      occupantCount,
+      sharingCapacity,
+      blockName: inferred.blockName,
+      floorName: inferred.floorName,
+    };
+  });
 
   const inferredFloorsSet = new Set<string>();
-  uniqueRooms.forEach(({ roomNumber }) => {
-    if (/^[1-9]\d{2}/.test(roomNumber)) {
-      const flNum = roomNumber.charAt(0);
-      inferredFloorsSet.add(`Floor 0${flNum}`);
-    } else if (/^[Gg]/.test(roomNumber)) {
-      inferredFloorsSet.add("Ground Floor");
+  uniqueRooms.forEach(({ floorName, blockName }) => {
+    if (blockName && blockName !== "Main Building") {
+      inferredFloorsSet.add(`${blockName} - ${floorName}`);
     } else {
-      inferredFloorsSet.add("Floor 01");
+      inferredFloorsSet.add(floorName || "Floor 01");
     }
   });
 
@@ -451,8 +549,17 @@ export function parseRawSpreadsheetText(
     validCount,
     warningCount,
     confidenceScore,
-    detectedColumns: { nameIndex: nameCol, phoneIndex: phoneCol, roomIndex: roomCol, rentIndex: rentCol, depositIndex: depositCol, dateIndex: dateCol, bedIndex: bedCol },
-    inferredFloors: Array.from(inferredFloorsSet),
+    detectedColumns: {
+      nameIndex: nameCol,
+      phoneIndex: phoneCol,
+      roomIndex: roomCol,
+      rentIndex: rentCol,
+      depositIndex: depositCol,
+      dateIndex: dateCol,
+      bedIndex: bedCol,
+      sharingIndex: sharingCol,
+    },
+    inferredFloors: Array.from(inferredFloorsSet).sort(),
     inferredRooms: uniqueRooms,
   };
 }

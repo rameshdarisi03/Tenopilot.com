@@ -373,44 +373,7 @@ export default function HomeWorkspacePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 perspective-[1200px] transform-style-3d">
-            {/* Card 1: Consolidated Portfolio Dashboard Card */}
-            <div
-              onMouseMove={handleCardMouseMove}
-              onMouseLeave={handleCardMouseLeave}
-              className="animate-3d-card-1 bg-gradient-to-br from-[#964407] to-[#a8451f] text-white rounded-3xl p-7 flex flex-col justify-between shadow-xl relative overflow-hidden min-h-[300px] sm:min-h-[340px] transition-all duration-300 transform-style-3d cursor-pointer group"
-            >
-            {/* Cursor-Tracked Radial Spotlight Backdrop */}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"
-              style={{
-                background: "radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.22), transparent 60%)",
-              }}
-            />
-
-            <div className="relative z-10 space-y-3">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-white/80 block">
-                Global Overview
-              </span>
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-white">
-                View All Properties
-              </h3>
-              <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal">
-                Manage all active properties and aggregated financial metrics across your entire estate.
-              </p>
-            </div>
-
-            <div className="relative z-10 mt-6">
-              <Link
-                href="/p/sunshine-pg/overview"
-                id="portfolio-dashboard-btn"
-                className="w-full py-3.5 px-5 rounded-full bg-white text-[#a8451f] font-bold text-xs sm:text-sm hover:bg-[#fff8f6] transition-all flex items-center justify-between gap-2 shadow-md active:scale-95 group-hover:translate-x-1"
-              >
-                <span>View Portfolio Dashboard</span> <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Dynamic Active Property Cards */}
+            {/* Dynamic Active Property Cards */}
           {properties.map((prop, idx) => (
             <div
               key={prop.id}

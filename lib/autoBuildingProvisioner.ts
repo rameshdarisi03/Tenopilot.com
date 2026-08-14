@@ -4,7 +4,7 @@
  */
 
 import { FloorConfig, RoomConfig, BedSlotConfig, propertyStore } from "@/constants/propertyLayoutStore";
-import { FastTrackParsedRow } from "./fastTrackHeuristicParser";
+import { FastTrackParsedRow, inferRoomBlockAndFloor } from "./fastTrackHeuristicParser";
 
 export function autoProvisionBuildingFromRoster(
   propertyId: string,
@@ -27,24 +27,20 @@ export function autoProvisionBuildingFromRoster(
     roomOccupantMap.set(rm, list);
   });
 
-  // Group rooms by Floor
+  // Group rooms by Floor & Block
   const floorRoomMap = new Map<string, string[]>();
   Array.from(roomOccupantMap.keys()).forEach((rm) => {
-    let floorName = "Floor 01";
-    if (/^[1-9]\d{2}/.test(rm)) {
-      const flDigit = rm.charAt(0);
-      floorName = `Floor 0${flDigit}`;
-    } else if (/^[Gg]/.test(rm)) {
-      floorName = "Ground Floor";
-    } else if (/^B\d+/i.test(rm)) {
-      floorName = "Basement";
-    }
+    const inferred = inferRoomBlockAndFloor(rm);
+    const floorKey =
+      inferred.blockName && inferred.blockName !== "Main Building"
+        ? `${inferred.blockName} - ${inferred.floorName}`
+        : inferred.floorName;
 
-    const roomsInFloor = floorRoomMap.get(floorName) || [];
+    const roomsInFloor = floorRoomMap.get(floorKey) || [];
     if (!roomsInFloor.includes(rm)) {
       roomsInFloor.push(rm);
     }
-    floorRoomMap.set(floorName, roomsInFloor);
+    floorRoomMap.set(floorKey, roomsInFloor);
   });
 
   // Build FloorConfig objects
@@ -54,8 +50,8 @@ export function autoProvisionBuildingFromRoster(
 
   // Sort floor names logically (Ground Floor, Floor 01, Floor 02, etc.)
   const sortedFloorNames = Array.from(floorRoomMap.keys()).sort((a, b) => {
-    if (a === "Ground Floor") return -1;
-    if (b === "Ground Floor") return 1;
+    if (a.includes("Ground Floor")) return -1;
+    if (b.includes("Ground Floor")) return 1;
     return a.localeCompare(b);
   });
 
@@ -65,7 +61,8 @@ export function autoProvisionBuildingFromRoster(
 
     roomNumbers.sort().forEach((rm, rmIdx) => {
       const occupantsInRoom = roomOccupantMap.get(rm) || [];
-      const capacity = Math.max(occupantsInRoom.length, 2); // Minimum 2 beds or occupant count
+      const explicitSharing = occupantsInRoom.find((o) => o.sharingType && o.sharingType > 0)?.sharingType;
+      const capacity = Math.max(occupantsInRoom.length, explicitSharing || 2); // Minimum 2 beds, explicit sharing, or occupant count
 
       const beds: BedSlotConfig[] = [];
       for (let b = 0; b < capacity; b++) {

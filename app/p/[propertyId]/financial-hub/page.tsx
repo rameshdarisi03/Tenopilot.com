@@ -401,7 +401,7 @@ export default function FinancialHubPage({
       date: todayStr,
       category: recurringModal.category,
       paidFrom: recurringModal.paidFrom,
-      property: "Sunshine Luxury PG",
+      property: propertySettings.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Luxury PG" : "My Property"),
       amount: recurringModal.amount,
       hasReceipt: true,
       notes: recurringModal.notes || `Recurring ${recurringModal.category} bill payment`,
@@ -855,7 +855,7 @@ export default function FinancialHubPage({
                     <h3 className="font-serif font-bold text-lg text-gray-900">
                       Recent Income & Revenue Log
                     </h3>
-                    <p className="text-xs text-gray-500">Verified receipts and incoming payments for Sunshine Heights PG</p>
+                    <p className="text-xs text-gray-500">Verified receipts and incoming payments for {propertySettings.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property")}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1">

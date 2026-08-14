@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Maximize2,
   Minimize2,
+  Plus,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -104,6 +105,32 @@ export function FastTrackImportModal({
         };
       })
     );
+  };
+
+  // Append a brand new manual resident row on the fly
+  const handleAddNewManualRow = () => {
+    const newIdx = editableRows.length;
+    const defaultRent = settings?.rentalTiers?.sharing2 || 12000;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const roomNum = editableRows.length > 0 ? editableRows[editableRows.length - 1].roomNumber : "101";
+
+    const newRow: FastTrackParsedRow = {
+      id: `ft_manual_${Date.now()}_${newIdx}`,
+      fullName: `Resident ${newIdx + 1}`,
+      phone: "",
+      roomNumber: roomNum,
+      bedCode: `Bed A`,
+      sharingType: 2,
+      sharingLabel: "2-Sharing",
+      rentAmount: defaultRent,
+      securityDeposit: defaultRent * 2,
+      joiningDate: todayStr,
+      paymentMode: "UPI",
+      isValid: false,
+      warnings: ["Enter 10-digit mobile number"],
+    };
+
+    setEditableRows((prev) => [...prev, newRow]);
   };
 
   useEffect(() => {
@@ -567,23 +594,34 @@ Priya Verma    9855667788   Room 201   22000"
                 </label>
               </div>
 
-              {editableRows.some((r) => !r.isValid) && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleAutoFixAllPlaceholders}
-                  className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  onClick={handleAddNewManualRow}
+                  className="px-3 py-1.5 rounded-xl bg-[#c2652a] text-white hover:bg-[#a8451f] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Auto-Fill Missing Details</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Resident</span>
                 </button>
-              )}
+
+                {editableRows.some((r) => !r.isValid) && (
+                  <button
+                    type="button"
+                    onClick={handleAutoFixAllPlaceholders}
+                    className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Auto-Fill Missing Details</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Reassuring Bed Allocation Notification */}
             <div className="px-3.5 py-2 rounded-xl bg-purple-50/70 border border-purple-200/60 text-[11px] text-purple-900 font-semibold flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span><strong>Auto-Bed Allocation Active:</strong> Beds (Bed A, Bed B, Bed C...) are assigned automatically based on room sharing. No manual bed input needed!</span>
+                <span><strong>Auto-Bed & Sharing Allocation Active:</strong> Room sharing capacity and beds are assigned automatically. No manual bed input needed!</span>
               </span>
               <span className="text-[10px] text-purple-600 font-bold shrink-0 hidden sm:inline">Zero Friction</span>
             </div>
@@ -595,12 +633,14 @@ Priya Verma    9855667788   Room 201   22000"
                   <thead className="bg-gray-100/90 backdrop-blur-xs sticky top-0 z-10 text-[11px] font-bold text-gray-700 border-b border-gray-200">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3 min-w-[200px]">Tenant Name</th>
-                      <th className="py-2.5 px-3 min-w-[130px]">10-Digit Mobile</th>
+                      <th className="py-2.5 px-3 min-w-[190px]">Tenant Name</th>
+                      <th className="py-2.5 px-3 min-w-[125px]">10-Digit Mobile</th>
                       <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
-                      <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
-                      <th className="py-2.5 px-3 min-w-[110px]">Monthly Rent</th>
-                      <th className="py-2.5 px-3 min-w-[110px]">Deposit</th>
+                      <th className="py-2.5 px-3 min-w-[85px] text-center">Bed Slot</th>
+                      <th className="py-2.5 px-3 min-w-[95px] text-center">Sharing</th>
+                      <th className="py-2.5 px-3 min-w-[125px]">Joining Date</th>
+                      <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
+                      <th className="py-2.5 px-3 min-w-[100px]">Deposit</th>
                       <th className="py-2.5 px-3 text-center">Status</th>
                       <th className="py-2.5 px-3 text-center">Action</th>
                     </tr>
@@ -624,7 +664,7 @@ Priya Verma    9855667788   Room 201   22000"
                             value={row.phone}
                             onChange={(e) => updateRowField(idx, "phone", e.target.value)}
                             placeholder="9876543210"
-                            className={`w-32 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                            className={`w-30 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
                               !row.phone || row.phone.length !== 10
                                 ? "border-amber-400 bg-amber-50 text-amber-900"
                                 : "border-gray-200 text-gray-900"
@@ -636,24 +676,37 @@ Priya Verma    9855667788   Room 201   22000"
                             type="text"
                             value={row.roomNumber}
                             onChange={(e) => updateRowField(idx, "roomNumber", e.target.value)}
-                            className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs text-center focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-18 px-2 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs text-center focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
                           <span
                             title="Auto-allocated bed slot"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-mono text-[11px] font-bold border border-purple-100/80 shadow-2xs"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-50 text-purple-700 font-mono text-[11px] font-bold border border-purple-100/80 shadow-2xs"
                           >
                             <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
                             <span>{row.bedCode || "Bed A"}</span>
                           </span>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100/80 shadow-2xs">
+                            {row.sharingLabel || `${row.sharingType || 2}-Sharing`}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="date"
+                            value={row.joiningDate || new Date().toISOString().split("T")[0]}
+                            onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
+                            className="w-32 px-2 py-1.5 rounded-lg border border-gray-200 font-mono text-[11px] text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                          />
                         </td>
                         <td className="py-2 px-3">
                           <input
                             type="number"
                             value={row.rentAmount}
                             onChange={(e) => updateRowField(idx, "rentAmount", Number(e.target.value))}
-                            className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3">
@@ -661,7 +714,7 @@ Priya Verma    9855667788   Room 201   22000"
                             type="number"
                             value={row.securityDeposit}
                             onChange={(e) => updateRowField(idx, "securityDeposit", Number(e.target.value))}
-                            className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
@@ -690,6 +743,21 @@ Priya Verma    9855667788   Room 201   22000"
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Bottom Quick Append Action */}
+              <div className="p-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleAddNewManualRow}
+                  className="text-xs font-bold text-[#c2652a] hover:text-[#a8451f] flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded-lg hover:bg-orange-50 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Another Resident Manually</span>
+                </button>
+                <span className="text-[11px] text-gray-500 font-medium">
+                  {editableRows.length} Total Residents Queued
+                </span>
               </div>
             </div>
           </div>

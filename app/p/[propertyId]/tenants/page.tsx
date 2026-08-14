@@ -877,7 +877,9 @@ export default function TenantsDirectoryPage({
                           ) : (
                             <>
                               <span className="block font-bold text-gray-900">Room {occ.roomNumber} ({occ.bedCode})</span>
-                              <span className="text-[10px] text-gray-400 block font-normal">Sunshine Heights PG</span>
+                              <span className="text-[10px] text-gray-400 block font-normal">
+                                {propertySettingsStore.getSettings(propertyId)?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property")}
+                              </span>
                             </>
                           )}
                         </td>

@@ -155,7 +155,9 @@ export default function IndividualTenantProfilePage({
   // Payment History State (Starts empty [] for Booked status or newly onboarded profiles!)
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
 
-
+  // Real-time Property Settings
+  const propertySettings = propertySettingsStore.getSettings(propertyId);
+  const displayPropertyName = propertySettings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property");
 
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
@@ -1159,7 +1161,7 @@ export default function IndividualTenantProfilePage({
                 <div className="space-y-3 text-gray-700">
                   <div className="flex justify-between">
                     <span className="text-gray-500 font-medium">Property</span>
-                    <span className="font-bold text-gray-900">Sunshine Heights PG</span>
+                    <span className="font-bold text-gray-900">{displayPropertyName}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 font-medium">Room & Bed</span>
@@ -1963,7 +1965,7 @@ export default function IndividualTenantProfilePage({
                 <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 space-y-1 text-xs">
                   <span className="text-[10px] font-extrabold uppercase text-purple-700 block">Current Guest Allocation</span>
                   <p className="font-bold text-gray-900">
-                    Sunshine Heights PG • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    {displayPropertyName} • Room {occupantState.roomNumber} ({occupantState.bedCode})
                   </p>
                 </div>
 
@@ -2252,7 +2254,7 @@ export default function IndividualTenantProfilePage({
                     RESIDENTIAL LEASE AGREEMENT
                   </h4>
                   <p className="text-[10px] text-gray-500 font-sans mt-0.5">
-                    PROPERTY: SUNSHINE HEIGHTS PG • TENANT: {occupantState.name}
+                    PROPERTY: {displayPropertyName.toUpperCase()} • TENANT: {occupantState.name}
                   </p>
                 </div>
 

@@ -474,7 +474,7 @@ export default function PropertySetupPage({
                 Property Setup & Layout
               </h1>
               <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                Configure physical floors, rooms, and sharing bed capacity for Sunshine Heights PG
+                Configure physical floors, rooms, and sharing bed capacity for {propertySettingsStore.getSettings(propertyId)?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "your property")}
               </p>
             </div>
 
