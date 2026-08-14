@@ -79,7 +79,29 @@ export function FastTrackImportModal({
   // Ingestion final result
   const [ingestResult, setIngestResult] = useState<BatchIngestResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [dateFormatMode, setDateFormatMode] = useState<"DD-MM-YYYY" | "MM-DD-YYYY" | "YYYY-MM-DD">("DD-MM-YYYY");
+
+  // Toggle date interpretation across all loaded rows
+  const handleToggleDateFormat = () => {
+    const nextMode = dateFormatMode === "DD-MM-YYYY" ? "MM-DD-YYYY" : dateFormatMode === "MM-DD-YYYY" ? "YYYY-MM-DD" : "DD-MM-YYYY";
+    setDateFormatMode(nextMode);
+
+    setEditableRows((prev) =>
+      prev.map((row) => {
+        if (!row.joiningDate) return row;
+        const parts = row.joiningDate.split("-");
+        if (parts.length === 3) {
+          const [y, m, d] = parts;
+          // When swapping DD/MM vs MM/DD
+          if (parseInt(d, 10) <= 12 && parseInt(m, 10) <= 12) {
+            return { ...row, joiningDate: `${y}-${d}-${m}` };
+          }
+        }
+        return row;
+      })
+    );
+  };
 
   const settings = propertySettingsStore.getSettings(propertyId);
 
@@ -633,12 +655,24 @@ Priya Verma    9855667788   Room 201   22000"
                   <thead className="bg-gray-100/90 backdrop-blur-xs sticky top-0 z-10 text-[11px] font-bold text-gray-700 border-b border-gray-200">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3 min-w-[190px]">Tenant Name</th>
+                      <th className="py-2.5 px-3 min-w-[180px]">Tenant Name</th>
                       <th className="py-2.5 px-3 min-w-[125px]">10-Digit Mobile</th>
                       <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
-                      <th className="py-2.5 px-3 min-w-[85px] text-center">Bed Slot</th>
-                      <th className="py-2.5 px-3 min-w-[95px] text-center">Sharing</th>
-                      <th className="py-2.5 px-3 min-w-[125px]">Joining Date</th>
+                      <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
+                      <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
+                      <th className="py-2.5 px-3 min-w-[140px]">
+                        <div className="flex items-center gap-1.5">
+                          <span>Joining Date</span>
+                          <button
+                            type="button"
+                            onClick={handleToggleDateFormat}
+                            title="Click to switch date format (DD/MM/YYYY vs MM/DD/YYYY)"
+                            className="px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-[9px] font-mono text-gray-700 cursor-pointer transition-colors"
+                          >
+                            {dateFormatMode} ▾
+                          </button>
+                        </div>
+                      </th>
                       <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
                       <th className="py-2.5 px-3 min-w-[100px]">Deposit</th>
                       <th className="py-2.5 px-3 text-center">Status</th>
@@ -680,18 +714,33 @@ Priya Verma    9855667788   Room 201   22000"
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
-                          <span
-                            title="Auto-allocated bed slot"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-50 text-purple-700 font-mono text-[11px] font-bold border border-purple-100/80 shadow-2xs"
-                          >
-                            <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
-                            <span>{row.bedCode || "Bed A"}</span>
-                          </span>
+                          <input
+                            type="text"
+                            value={row.bedCode || "Bed A"}
+                            onChange={(e) => updateRowField(idx, "bedCode", e.target.value)}
+                            placeholder="Bed A"
+                            title="Bed Slot Identifier (Editable)"
+                            className="w-20 px-2 py-1.5 rounded-lg border border-purple-200/90 bg-purple-50/60 font-mono font-bold text-purple-800 text-xs text-center focus:ring-1 focus:ring-[#c2652a] focus:bg-white"
+                          />
                         </td>
                         <td className="py-2 px-3 text-center">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100/80 shadow-2xs">
-                            {row.sharingLabel || `${row.sharingType || 2}-Sharing`}
-                          </span>
+                          <select
+                            value={row.sharingType || 2}
+                            onChange={(e) => {
+                              const count = Number(e.target.value);
+                              updateRowField(idx, "sharingType", count);
+                              updateRowField(idx, "sharingLabel", count === 1 ? "Single Room" : `${count}-Sharing`);
+                            }}
+                            title="Room Sharing Capacity (Editable)"
+                            className="px-2 py-1.5 rounded-lg border border-blue-200/90 bg-blue-50/60 font-semibold text-blue-800 text-xs focus:ring-1 focus:ring-[#c2652a] focus:bg-white cursor-pointer"
+                          >
+                            <option value={1}>1-Sharing</option>
+                            <option value={2}>2-Sharing</option>
+                            <option value={3}>3-Sharing</option>
+                            <option value={4}>4-Sharing</option>
+                            <option value={5}>5-Sharing</option>
+                            <option value={6}>6-Sharing</option>
+                          </select>
                         </td>
                         <td className="py-2 px-3">
                           <input

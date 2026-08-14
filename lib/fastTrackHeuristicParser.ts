@@ -90,22 +90,77 @@ export function formatProperCaseName(name: string): string {
     .join(" ");
 }
 
+export type DateFormatMode = "AUTO" | "DD-MM-YYYY" | "MM-DD-YYYY" | "YYYY-MM-DD";
+
 /**
- * Parse Date String into YYYY-MM-DD
+ * Cross-Row Anchor Date Heuristic:
+ * Scans all dates across the spreadsheet to unambiguously determine whether the sheet is DD/MM/YYYY or MM/DD/YYYY.
+ * If any date has first segment > 12 (e.g. 21/3/2026), format is mathematically DD/MM/YYYY.
+ * If any date has second segment > 12 (e.g. 3/21/2026), format is MM/DD/YYYY.
  */
-export function normalizeDateToYYYYMMDD(rawDate: string | undefined): string {
+export function detectBatchDateFormat(rawDates: string[]): "DD-MM-YYYY" | "MM-DD-YYYY" | "YYYY-MM-DD" {
+  let hasFirstSegmentOver12 = false; // Indicates DD/MM/YYYY
+  let hasSecondSegmentOver12 = false; // Indicates MM/DD/YYYY
+  let hasIsoYearFirst = false; // Indicates YYYY-MM-DD
+
+  for (const raw of rawDates) {
+    if (!raw) continue;
+    const str = raw.trim();
+    if (/^\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2}/.test(str)) {
+      hasIsoYearFirst = true;
+      continue;
+    }
+    const match = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
+    if (match) {
+      const p1 = parseInt(match[1], 10);
+      const p2 = parseInt(match[2], 10);
+      if (p1 > 12 && p2 <= 12) {
+        hasFirstSegmentOver12 = true;
+      } else if (p2 > 12 && p1 <= 12) {
+        hasSecondSegmentOver12 = true;
+      }
+    }
+  }
+
+  if (hasSecondSegmentOver12) return "MM-DD-YYYY";
+  if (hasFirstSegmentOver12) return "DD-MM-YYYY";
+  if (hasIsoYearFirst) return "YYYY-MM-DD";
+  return "DD-MM-YYYY"; // Default to Indian standard DD-MM-YYYY
+}
+
+/**
+ * Parse Date String into YYYY-MM-DD with Anchor Date Deduction
+ */
+export function normalizeDateToYYYYMMDD(
+  rawDate: string | undefined,
+  formatMode: "AUTO" | "DD-MM-YYYY" | "MM-DD-YYYY" | "YYYY-MM-DD" = "AUTO"
+): string {
   const today = new Date().toISOString().split("T")[0];
   if (!rawDate) return today;
   const str = rawDate.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
 
-  // DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
-  if (dmyMatch) {
-    const day = dmyMatch[1].padStart(2, "0");
-    const month = dmyMatch[2].padStart(2, "0");
-    let year = dmyMatch[3];
+  // DD/MM/YYYY or MM/DD/YYYY
+  const partsMatch = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (partsMatch) {
+    let day = partsMatch[1].padStart(2, "0");
+    let month = partsMatch[2].padStart(2, "0");
+    let year = partsMatch[3];
     if (year.length === 2) year = `20${year}`;
+
+    const p1 = parseInt(partsMatch[1], 10);
+    const p2 = parseInt(partsMatch[2], 10);
+
+    if (formatMode === "MM-DD-YYYY" || (formatMode === "AUTO" && p2 > 12 && p1 <= 12)) {
+      // Month was first
+      month = partsMatch[1].padStart(2, "0");
+      day = partsMatch[2].padStart(2, "0");
+    } else {
+      // Day was first (Standard Indian DD/MM/YYYY)
+      day = partsMatch[1].padStart(2, "0");
+      month = partsMatch[2].padStart(2, "0");
+    }
+
     return `${year}-${month}-${day}`;
   }
 
