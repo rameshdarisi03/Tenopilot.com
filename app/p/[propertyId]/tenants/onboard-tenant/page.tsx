@@ -133,7 +133,9 @@ export default function OnboardTenantPage({
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
 
   // Reactive property structure state subscribed to propertyStore
-  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>([]);
+  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
+    typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
+  );
 
   useEffect(() => {
     propertyStore.initFirebaseListener(propertyId);

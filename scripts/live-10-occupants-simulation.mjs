@@ -203,7 +203,11 @@ async function runLiveMasterSimulation() {
       await allSharingFilter.click();
       await page.waitForTimeout(400);
 
-      const availableBedBtn = page.locator(`button:has-text("${t.bed}"), button:has-text("Available 🟢")`).first();
+      // Target exact room and bed
+      let availableBedBtn = page.locator(`div:has(h3:has-text("Room ${t.room}")) button:has-text("${t.bed}")`).first();
+      if (!await availableBedBtn.isVisible()) {
+        availableBedBtn = page.locator(`button:has-text("${t.bed}")`).first();
+      }
       await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
       await availableBedBtn.click();
       await page.waitForTimeout(600);
@@ -282,7 +286,11 @@ async function runLiveMasterSimulation() {
       await allSharingFilter.click();
       await page.waitForTimeout(500);
 
-      const availableBedBtn = page.locator(`button:has-text("${g.bed}"), button:has-text("Available 🟢")`).first();
+      // Target exact room and bed
+      let availableBedBtn = page.locator(`div:has(h3:has-text("Room ${g.room}")) button:has-text("${g.bed}")`).first();
+      if (!await availableBedBtn.isVisible()) {
+        availableBedBtn = page.locator(`button:has-text("${g.bed}")`).first();
+      }
       await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
       await availableBedBtn.click();
       await page.waitForTimeout(600);

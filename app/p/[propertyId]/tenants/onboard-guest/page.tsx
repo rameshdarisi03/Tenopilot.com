@@ -133,7 +133,9 @@ export default function OnboardGuestPage({
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
 
   // Reactive property structure state subscribed to propertyStore
-  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>([]);
+  const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
+    typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
+  );
 
   // Dynamic Stay Duration Calculation (Check-in vs Check-out)
   const stayDays = useMemo(() => {
