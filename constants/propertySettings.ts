@@ -25,30 +25,12 @@ export interface PropertySettingsData {
   managerPhone: string;
   qrProfiles: PaymentQRProfile[];
   rentalTiers: {
-    sharing1: number; // 1-Sharing Private Room (e.g. ₹18,000)
-    sharing2: number; // 2-Sharing Double Room (e.g. ₹14,500)
-    sharing3: number; // 3-Sharing Triple Room (e.g. ₹11,000)
-    sharing4: number; // 4-Sharing Four Room (e.g. ₹8,500)
+    sharing1: number; // 1-Sharing Private Room
+    sharing2: number; // 2-Sharing Double Room
+    sharing3: number; // 3-Sharing Triple Room
+    sharing4: number; // 4-Sharing Four Room
   };
 }
-
-export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
-  billingCycleDates: "1st to End of Month",
-  desiredDueDate: 5,
-  gracePeriodDays: 5,
-  defaultSecurityDeposit: 25000,
-  upiPaymentId: "tenopilot.sunshine@okicici",
-  propertyName: "Sunshine Heights PG",
-  propertyAddress: "Hitech City, Hyderabad",
-  managerPhone: "+91 98765 43210",
-  qrProfiles: DEFAULT_QR_PROFILES,
-  rentalTiers: {
-    sharing1: 18000,
-    sharing2: 14500,
-    sharing3: 11000,
-    sharing4: 8500,
-  },
-};
 
 export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   billingCycleDates: "1st to End of Month",
@@ -68,7 +50,9 @@ export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   },
 };
 
-let currentSettings: PropertySettingsData = { ...DEFAULT_PROPERTY_SETTINGS };
+export const DEFAULT_PROPERTY_SETTINGS = CLEAN_ZERO_PROPERTY_SETTINGS;
+
+let currentSettings: PropertySettingsData = { ...CLEAN_ZERO_PROPERTY_SETTINGS };
 let activeUnsubscribe: (() => void) | null = null;
 let activePropertyId: string | null = null;
 
@@ -92,8 +76,8 @@ export const propertySettingsStore = {
     });
   },
 
-  initFirebaseListener(propertyId = "sunshine-pg") {
-    if (typeof window === "undefined" || !db) return;
+  initFirebaseListener(propertyId?: string) {
+    if (!propertyId || typeof window === "undefined" || !db) return;
     if (activePropertyId === propertyId && activeUnsubscribe) return;
 
     if (activeUnsubscribe) {
@@ -102,7 +86,6 @@ export const propertySettingsStore = {
     }
 
     activePropertyId = propertyId;
-    const baseDefault = propertyId === "sunshine-pg" ? DEFAULT_PROPERTY_SETTINGS : CLEAN_ZERO_PROPERTY_SETTINGS;
 
     try {
       const docRef = doc(db, `properties/${propertyId}/settings/config`);
@@ -111,13 +94,13 @@ export const propertySettingsStore = {
         (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.data() as PropertySettingsData;
-            currentSettings = { ...baseDefault, ...data };
+            currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS, ...data };
             if (typeof window !== "undefined") {
               localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
             }
             this.notify();
           } else {
-            currentSettings = { ...baseDefault };
+            currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS };
             this.notify();
           }
         },
@@ -130,31 +113,31 @@ export const propertySettingsStore = {
     }
   },
 
-  getSettings(propertyId = "sunshine-pg"): PropertySettingsData {
+  getSettings(propertyId?: string): PropertySettingsData {
+    if (!propertyId) return CLEAN_ZERO_PROPERTY_SETTINGS;
     this.initFirebaseListener(propertyId);
-    const baseDefault = propertyId === "sunshine-pg" ? DEFAULT_PROPERTY_SETTINGS : CLEAN_ZERO_PROPERTY_SETTINGS;
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(`tenopilot_settings_${propertyId}`);
       if (saved) {
         try {
-          currentSettings = { ...baseDefault, ...JSON.parse(saved) };
+          currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS, ...JSON.parse(saved) };
           return currentSettings;
         } catch {
           // fallback
         }
       }
     }
-    currentSettings = { ...baseDefault };
+    currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS };
     return currentSettings;
   },
 
-  async updateSettings(newSettings: Partial<PropertySettingsData>, propertyId = "sunshine-pg"): Promise<PropertySettingsData> {
+  async updateSettings(newSettings: Partial<PropertySettingsData>, propertyId?: string): Promise<PropertySettingsData> {
+    if (!propertyId) return CLEAN_ZERO_PROPERTY_SETTINGS;
     currentSettings = { ...currentSettings, ...newSettings };
     if (typeof window !== "undefined") {
-      localStorage.setItem("tenopilot_property_settings", JSON.stringify(currentSettings));
+      localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
     }
 
-    // Trigger reactive dynamic cascade across all subscribed UI components locally
     this.notify();
 
     try {
@@ -169,7 +152,8 @@ export const propertySettingsStore = {
     return currentSettings;
   },
 
-  async fetchSettingsFromFirestore(propertyId = "sunshine-pg"): Promise<PropertySettingsData> {
+  async fetchSettingsFromFirestore(propertyId?: string): Promise<PropertySettingsData> {
+    if (!propertyId) return CLEAN_ZERO_PROPERTY_SETTINGS;
     this.initFirebaseListener(propertyId);
     try {
       if (db) {
@@ -177,9 +161,9 @@ export const propertySettingsStore = {
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data() as PropertySettingsData;
-          currentSettings = { ...DEFAULT_PROPERTY_SETTINGS, ...data };
+          currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS, ...data };
           if (typeof window !== "undefined") {
-            localStorage.setItem("tenopilot_property_settings", JSON.stringify(currentSettings));
+            localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
           }
         }
       }

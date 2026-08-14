@@ -28,73 +28,7 @@ export interface CategoryWeightage {
   percentage: number;
 }
 
-const INITIAL_EXPENSES: ExpenseRecord[] = [
-  {
-    id: "exp-1",
-    propertyId: "sunshine-pg",
-    date: "12 Oct 2024",
-    category: "Electricity",
-    paidFrom: "Ramesh",
-    property: "Sunshine Luxury PG",
-    amount: 12400,
-    hasReceipt: true,
-    vendorName: "TSSPDCL Electricity",
-    paymentMethod: "UPI",
-    notes: "October Main Meter Bill",
-  },
-  {
-    id: "exp-2",
-    propertyId: "sunshine-pg",
-    date: "11 Oct 2024",
-    category: "Water Supply",
-    paidFrom: "Business Account",
-    property: "Sunshine Luxury PG",
-    amount: 3200,
-    hasReceipt: true,
-    vendorName: "Metro Water Tanker",
-    paymentMethod: "Bank Transfer",
-    notes: "2 Tanker Deliveries",
-  },
-  {
-    id: "exp-3",
-    propertyId: "sunshine-pg",
-    date: "10 Oct 2024",
-    category: "Staff Salary",
-    paidFrom: "Suresh",
-    property: "Sunshine Luxury PG",
-    amount: 18000,
-    hasReceipt: false,
-    vendorName: "Housekeeping Staff",
-    paymentMethod: "Cash",
-    notes: "Advance Salary Distribution",
-  },
-  {
-    id: "exp-4",
-    propertyId: "sunshine-pg",
-    date: "09 Oct 2024",
-    category: "Internet / Wi-Fi",
-    paidFrom: "Mahesh",
-    property: "Sunshine Luxury PG",
-    amount: 1200,
-    hasReceipt: false,
-    vendorName: "Airtel Broadband",
-    paymentMethod: "UPI",
-    notes: "Fiber 300Mbps Plan",
-  },
-  {
-    id: "exp-5",
-    propertyId: "sunshine-pg",
-    date: "08 Oct 2024",
-    category: "Property Maintenance",
-    paidFrom: "Business Account",
-    property: "Sunshine Luxury PG",
-    amount: 6500,
-    hasReceipt: true,
-    vendorName: "City Plumbing & Electricals",
-    paymentMethod: "UPI",
-    notes: "Plumbing repair floor 2 & 3",
-  },
-];
+const INITIAL_EXPENSES: ExpenseRecord[] = [];
 
 class ExpenseStore {
   private expenses: ExpenseRecord[] = INITIAL_EXPENSES;
@@ -133,14 +67,6 @@ class ExpenseStore {
         );
         this.expenses = [...otherPropExpenses, ...(cloudData as ExpenseRecord[])];
         this.notify();
-      } else if (propertyId === "sunshine-pg") {
-        // Seed initial mock records to Cloud Firestore for sunshine-pg demo benchmark only
-        const initialForProp = INITIAL_EXPENSES.filter(
-          (e) => e.propertyId === propertyId
-        );
-        initialForProp.forEach((exp) => {
-          saveExpenseToFirestore(propertyId, exp);
-        });
       }
     });
 

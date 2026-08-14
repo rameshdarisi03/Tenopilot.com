@@ -26,32 +26,7 @@ export interface PaymentAccountConfig {
   isDefault?: boolean;
 }
 
-export const DEFAULT_PARTNERS: PartnerConfig[] = [
-  {
-    id: "p1",
-    name: "Ramesh",
-    ownershipPercentage: 40,
-    color: "#964407",
-    accountType: "Personal Account",
-    phone: "+91 98765 43210",
-  },
-  {
-    id: "p2",
-    name: "Suresh",
-    ownershipPercentage: 40,
-    color: "#059669",
-    accountType: "Personal Account",
-    phone: "+91 98765 43211",
-  },
-  {
-    id: "p3",
-    name: "Mahesh",
-    ownershipPercentage: 20,
-    color: "#7e22ce",
-    accountType: "Personal Account",
-    phone: "+91 98765 43212",
-  },
-];
+export const DEFAULT_PARTNERS: PartnerConfig[] = [];
 
 export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-1", name: "Electricity", icon: "Zap", color: "#d97706" },
@@ -64,14 +39,7 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-[#4338ca]", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
 ];
 
-export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [
-  { id: "acc-1", name: "Main Business Account", type: "Business Account", isDefault: true },
-  { id: "acc-2", name: "Reception Petty Cash", type: "Petty Cash" },
-  { id: "acc-3", name: "HDFC Operating Bank", type: "Bank Account" },
-  { id: "acc-partner-p1", name: "Ramesh", type: "Partner Account" },
-  { id: "acc-partner-p2", name: "Suresh", type: "Partner Account" },
-  { id: "acc-partner-p3", name: "Mahesh", type: "Partner Account" },
-];
+export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [];
 
 let partnerState: PartnerConfig[] = [...DEFAULT_PARTNERS];
 let categoryState: ExpenseCategoryConfig[] = [...DEFAULT_EXPENSE_CATEGORIES];
@@ -153,11 +121,9 @@ export const partnerStore = {
     }
   },
 
-  getPartners(propertyId = "sunshine-pg"): PartnerConfig[] {
+  getPartners(propertyId?: string): PartnerConfig[] {
+    if (!propertyId) return [];
     this.initFirebaseListener(propertyId);
-    if (propertyId === "sunshine-pg") {
-      return partnerState;
-    }
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem(`tenopilot_partners_${propertyId}`);
@@ -166,10 +132,11 @@ export const partnerStore = {
         console.warn(`Failed to read partners for ${propertyId}:`, e);
       }
     }
-    return [];
+    return partnerState;
   },
 
-  async syncToFirestore(propertyId = "sunshine-pg") {
+  async syncToFirestore(propertyId?: string) {
+    if (!propertyId) return;
     try {
       if (db) {
         const docRef = doc(db, `properties/${propertyId}/partners/config`);
@@ -189,7 +156,7 @@ export const partnerStore = {
     }
   },
 
-  updatePartners(newPartners: PartnerConfig[], propertyId = "sunshine-pg") {
+  updatePartners(newPartners: PartnerConfig[], propertyId?: string) {
     partnerState = newPartners;
     // Auto sync partner accounts into payment accounts
     const partnerAccs: PartnerConfig[] = newPartners;
@@ -204,7 +171,7 @@ export const partnerStore = {
     );
     paymentAccountState = [...nonPartnerAccs, ...partnerAccountConfigs];
 
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && propertyId) {
       try {
         localStorage.setItem(`tenopilot_partners_${propertyId}`, JSON.stringify(newPartners));
         localStorage.setItem(`tenopilot_payment_accounts_${propertyId}`, JSON.stringify(paymentAccountState));
@@ -216,10 +183,8 @@ export const partnerStore = {
     this.syncToFirestore(propertyId);
   },
 
-  getPaymentAccounts(propertyId = "sunshine-pg"): PaymentAccountConfig[] {
-    if (propertyId === "sunshine-pg") {
-      return paymentAccountState;
-    }
+  getPaymentAccounts(propertyId?: string): PaymentAccountConfig[] {
+    if (!propertyId) return [];
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem(`tenopilot_payment_accounts_${propertyId}`);
@@ -228,7 +193,7 @@ export const partnerStore = {
         console.warn(`Failed to read payment accounts for ${propertyId}:`, e);
       }
     }
-    return [];
+    return paymentAccountState;
   },
 
   addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account") {

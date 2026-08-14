@@ -322,12 +322,8 @@ function loadOccupants(): Occupant[] {
 }
 
 export const occupantStore = {
-  getOccupants(propertyId: string = "sunshine-pg"): Occupant[] {
-    const isMasterDemo = !propertyId || propertyId === "sunshine-pg";
-    if (isMasterDemo) {
-      return loadOccupants();
-    }
-
+  getOccupants(propertyId?: string): Occupant[] {
+    if (!propertyId) return [];
     if (typeof window !== "undefined") {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;

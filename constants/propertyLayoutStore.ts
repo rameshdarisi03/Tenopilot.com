@@ -151,12 +151,8 @@ function loadStructure(): FloorConfig[] {
 }
 
 export const propertyStore = {
-  getStructure(propertyId: string = "sunshine-pg"): FloorConfig[] {
-    const isMasterDemo = !propertyId || propertyId === "sunshine-pg";
-    if (isMasterDemo) {
-      return loadStructure();
-    }
-
+  getStructure(propertyId?: string): FloorConfig[] {
+    if (!propertyId) return [];
     if (typeof window !== "undefined") {
       try {
         const savedKey = `tenopilot_layout_${propertyId}`;
@@ -168,7 +164,6 @@ export const propertyStore = {
         console.warn(`Failed to load structure for property ${propertyId}:`, e);
       }
     }
-    // Default clean 0-floor layout for new property (0 demo occupants)
     return [];
   },
 
