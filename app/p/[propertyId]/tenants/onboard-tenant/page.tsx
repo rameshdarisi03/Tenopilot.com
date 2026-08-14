@@ -227,6 +227,22 @@ export default function OnboardTenantPage({
       return;
     }
 
+    // Rule 3: Check if active resident with this phone already exists in this property
+    if (existingOccupantMatch && existingOccupantMatch.lifecycleStatus !== "Past") {
+      alert(`Cannot onboard: A resident with mobile number ${cleanPrimaryPhone} ("${existingOccupantMatch.name}" in Room ${existingOccupantMatch.roomNumber}) is already active in your property. Duplicate active resident mobile numbers are not permitted.`);
+      return;
+    }
+
+    // Rule 4: Check if active resident with this name already exists in this property
+    const allOccupants = occupantStore.getOccupants(propertyId) || [];
+    const activeNameMatch = allOccupants.find(
+      (o) => o.lifecycleStatus !== "Past" && o.name.toLowerCase().trim() === fullName.toLowerCase().trim()
+    );
+    if (activeNameMatch) {
+      alert(`Cannot onboard: A resident with name "${fullName}" is already registered in Room ${activeNameMatch.roomNumber}. Duplicate active tenant names are not permitted.`);
+      return;
+    }
+
     setCurrentStep(2);
   };
 

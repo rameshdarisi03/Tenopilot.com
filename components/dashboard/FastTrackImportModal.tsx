@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   X,
   Upload,
@@ -25,10 +25,12 @@ import {
   Minimize2,
   Plus,
   Save,
+  Filter,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 
 interface FastTrackImportModalProps {
@@ -109,7 +111,147 @@ export function FastTrackImportModal({
   const appendCameraInputRef = useRef<HTMLInputElement>(null);
   const appendSheetInputRef = useRef<HTMLInputElement>(null);
 
+  // Duplicate Conflict Interceptor Modal state
+  const [duplicateConflictModal, setDuplicateConflictModal] = useState<{
+    conflicts: { incomingRow: FastTrackParsedRow; matchedTarget: string; reason: string }[];
+    uniqueIncoming: FastTrackParsedRow[];
+    mode: "INITIAL_INPUT" | "APPEND";
+  } | null>(null);
+
   const DRAFT_STORAGE_KEY = `tenopilot_fasttrack_draft_${propertyId}`;
+
+  // Helper to detect duplicates & overlaps against current table and existing DB occupants
+  const detectDuplicates = (
+    incoming: FastTrackParsedRow[],
+    currentTable: FastTrackParsedRow[]
+  ): {
+    conflicts: { incomingRow: FastTrackParsedRow; matchedTarget: string; reason: string }[];
+    uniqueIncoming: FastTrackParsedRow[];
+  } => {
+    const existingDbOccupants = occupantStore.getOccupants(propertyId) || [];
+    const activeDbOccupants = existingDbOccupants.filter((o) => o.lifecycleStatus !== "Past");
+
+    const conflicts: { incomingRow: FastTrackParsedRow; matchedTarget: string; reason: string }[] = [];
+    const uniqueIncoming: FastTrackParsedRow[] = [];
+
+    const seenPhones = new Set<string>();
+    const seenNames = new Set<string>();
+
+    currentTable.forEach((r) => {
+      const cleanP = r.phone?.replace(/\D/g, "").slice(-10);
+      const cleanN = r.fullName?.toLowerCase().trim();
+      if (cleanP && cleanP.length === 10) seenPhones.add(cleanP);
+      if (cleanN && cleanN.length > 1) seenNames.add(cleanN);
+    });
+
+    incoming.forEach((row) => {
+      const cleanP = row.phone?.replace(/\D/g, "").slice(-10);
+      const cleanN = row.fullName?.toLowerCase().trim();
+
+      let isDuplicate = false;
+      let matchedTarget = "";
+      let reason = "";
+
+      // 1. Check against Current Table Rows
+      if (cleanP && cleanP.length === 10 && seenPhones.has(cleanP)) {
+        isDuplicate = true;
+        const match = currentTable.find((r) => r.phone?.replace(/\D/g, "").slice(-10) === cleanP);
+        matchedTarget = match ? `Queued Table Row "${match.fullName}" (Room ${match.roomNumber})` : "Already Queued in Table";
+        reason = `Same 10-Digit Mobile (${cleanP})`;
+      } else if (cleanN && cleanN.length > 2 && seenNames.has(cleanN)) {
+        isDuplicate = true;
+        const match = currentTable.find((r) => r.fullName?.toLowerCase().trim() === cleanN);
+        matchedTarget = match ? `Queued Table Row "${match.fullName}" (Room ${match.roomNumber})` : "Already Queued in Table";
+        reason = `Same Tenant Name ("${row.fullName}")`;
+      }
+
+      // 2. Check against Existing Database Occupants
+      if (!isDuplicate && cleanP && cleanP.length === 10) {
+        const dbMatch = activeDbOccupants.find((o) => o.phone?.replace(/\D/g, "").slice(-10) === cleanP);
+        if (dbMatch) {
+          isDuplicate = true;
+          matchedTarget = `Enrolled Resident "${dbMatch.name}" (Room ${dbMatch.roomNumber})`;
+          reason = `Same 10-Digit Mobile (${cleanP})`;
+        }
+      }
+      if (!isDuplicate && cleanN && cleanN.length > 2) {
+        const dbMatch = activeDbOccupants.find((o) => o.name?.toLowerCase().trim() === cleanN);
+        if (dbMatch) {
+          isDuplicate = true;
+          matchedTarget = `Enrolled Resident "${dbMatch.name}" (Room ${dbMatch.roomNumber})`;
+          reason = `Same Tenant Name ("${row.fullName}")`;
+        }
+      }
+
+      if (isDuplicate) {
+        conflicts.push({
+          incomingRow: row,
+          matchedTarget,
+          reason,
+        });
+      } else {
+        if (cleanP && cleanP.length === 10) seenPhones.add(cleanP);
+        if (cleanN && cleanN.length > 1) seenNames.add(cleanN);
+        uniqueIncoming.push(row);
+      }
+    });
+
+    return { conflicts, uniqueIncoming };
+  };
+
+  // Real-time intra-table duplicate detector
+  const tableDuplicateIndices = useMemo(() => {
+    const dupeSet = new Set<number>();
+    const phoneMap = new Map<string, number>();
+    const nameMap = new Map<string, number>();
+
+    editableRows.forEach((r, i) => {
+      const p = r.phone?.replace(/\D/g, "").slice(-10);
+      const n = r.fullName?.toLowerCase().trim();
+      if (p && p.length === 10) {
+        if (phoneMap.has(p)) {
+          dupeSet.add(i);
+          dupeSet.add(phoneMap.get(p)!);
+        } else {
+          phoneMap.set(p, i);
+        }
+      }
+      if (n && n.length > 2) {
+        if (nameMap.has(n)) {
+          dupeSet.add(i);
+          dupeSet.add(nameMap.get(n)!);
+        } else {
+          nameMap.set(n, i);
+        }
+      }
+    });
+    return dupeSet;
+  }, [editableRows]);
+
+  // 1-click Auto-Deduplicate table
+  const handleAutoDeduplicateTable = () => {
+    const seenP = new Set<string>();
+    const seenN = new Set<string>();
+    const unique: FastTrackParsedRow[] = [];
+
+    editableRows.forEach((r) => {
+      const p = r.phone?.replace(/\D/g, "").slice(-10);
+      const n = r.fullName?.toLowerCase().trim();
+      const pDup = p && p.length === 10 && seenP.has(p);
+      const nDup = n && n.length > 2 && seenN.has(n);
+      if (!pDup && !nDup) {
+        if (p && p.length === 10) seenP.add(p);
+        if (n && n.length > 2) seenN.add(n);
+        unique.push(r);
+      }
+    });
+
+    const removedCount = editableRows.length - unique.length;
+    setEditableRows(unique);
+    handleSaveDraft(unique);
+    setAppendSuccessNotice(`Removed ${removedCount} duplicate row(s)! Roster is now clean.`);
+    setTimeout(() => setAppendSuccessNotice(null), 4000);
+  };
 
   // Helper to format ISO date (YYYY-MM-DD) into user's chosen display format
   const formatDisplayDate = (isoDate: string | undefined): string => {
@@ -293,6 +435,24 @@ export function FastTrackImportModal({
         newRows = parsed.rows;
       }
 
+      // Check for duplicates / overlaps before appending
+      const { conflicts, uniqueIncoming } = detectDuplicates(newRows, editableRows);
+      if (conflicts.length > 0) {
+        setDuplicateConflictModal({
+          conflicts,
+          uniqueIncoming,
+          mode: "APPEND",
+        });
+        setIsAppending(false);
+        return;
+      }
+
+      if (uniqueIncoming.length === 0) {
+        alert("All scanned residents already exist in your list/database. Nothing new to append.");
+        setIsAppending(false);
+        return;
+      }
+
       // Room-scoped bed allocation across existing + newly appended rows:
       const roomOccupancy = new Map<string, number>();
       editableRows.forEach((r) => {
@@ -300,7 +460,7 @@ export function FastTrackImportModal({
         roomOccupancy.set(rm, (roomOccupancy.get(rm) || 0) + 1);
       });
 
-      const normalizedNewRows = newRows.map((nr, idx) => {
+      const normalizedNewRows = uniqueIncoming.map((nr, idx) => {
         const rm = nr.roomNumber.toUpperCase().trim();
         const currentCount = (roomOccupancy.get(rm) || 0) + 1;
         roomOccupancy.set(rm, currentCount);
@@ -591,6 +751,23 @@ export function FastTrackImportModal({
     setProcessingError(null);
     setProcessingProgress(15);
 
+    const applyParsedRows = (rows: FastTrackParsedRow[], resultMeta: any) => {
+      setProcessingProgress(100);
+      setParsedResult(resultMeta);
+      const { conflicts, uniqueIncoming } = detectDuplicates(rows, []);
+      if (conflicts.length > 0) {
+        setDuplicateConflictModal({
+          conflicts,
+          uniqueIncoming,
+          mode: "INITIAL_INPUT",
+        });
+        setStep("INPUT");
+      } else {
+        setEditableRows(rows);
+        setStep("REVIEW");
+      }
+    };
+
     if (activeTab === "SHEET") {
       setProcessingStatus("Running Fast Pattern Engine...");
       setProcessingProgress(40);
@@ -600,10 +777,7 @@ export function FastTrackImportModal({
 
       // If confidence is good, go straight to review
       if (res.success && res.confidenceScore >= 60) {
-        setProcessingProgress(100);
-        setParsedResult(res);
-        setEditableRows(res.rows);
-        setStep("REVIEW");
+        applyParsedRows(res.rows, res);
         return;
       }
 
@@ -622,10 +796,7 @@ export function FastTrackImportModal({
         });
         const apiJson = await apiRes.json();
         if (apiJson.success && apiJson.rows?.length > 0) {
-          setProcessingProgress(100);
-          setParsedResult(apiJson);
-          setEditableRows(apiJson.rows);
-          setStep("REVIEW");
+          applyParsedRows(apiJson.rows, apiJson);
           return;
         }
       } catch (e) {
@@ -633,10 +804,7 @@ export function FastTrackImportModal({
       }
 
       // Fallback to heuristic result
-      setProcessingProgress(100);
-      setParsedResult(res);
-      setEditableRows(res.rows);
-      setStep("REVIEW");
+      applyParsedRows(res.rows, res);
     } else {
       // Camera / Ledger photo path: Invoke Gemini Vision AI
       if (selectedImages.length === 0) {
@@ -675,10 +843,7 @@ export function FastTrackImportModal({
 
         const apiJson = await apiRes.json();
         if (apiJson.success && apiJson.rows?.length > 0) {
-          setProcessingProgress(100);
-          setParsedResult(apiJson);
-          setEditableRows(apiJson.rows);
-          setStep("REVIEW");
+          applyParsedRows(apiJson.rows, apiJson);
           return;
         } else {
           throw new Error("No readable tenant entries could be extracted from this photo. Please ensure the handwriting is legible and well-lit.");
@@ -1213,6 +1378,31 @@ Priya Verma    9855667788   Room 201   22000"
               </div>
             </div>
 
+            {/* Intra-Table Duplicate Alert Banner */}
+            {tableDuplicateIndices.size > 0 && (
+              <div className="px-4 py-3 rounded-2xl bg-rose-50 border border-rose-300 text-xs font-semibold text-rose-950 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-rose-950">
+                      Duplicate Resident Names or Mobile Numbers Detected ({tableDuplicateIndices.size} rows affected)
+                    </p>
+                    <p className="text-[11px] text-rose-800">
+                      Rows with identical 10-digit mobile numbers or matching full names cannot be enrolled. Please remove or fix them.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoDeduplicateTable}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>✨ Auto-Discard Duplicate Rows</span>
+                </button>
+              </div>
+            )}
+
             {/* Append Success Notification */}
             {appendSuccessNotice && (
               <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in">
@@ -1504,31 +1694,55 @@ Anil Verma   9812345678   Room 103   12000"
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {editableRows.map((row, idx) => (
-                      <tr key={row.id} className={!row.isValid ? "bg-amber-50/40" : "hover:bg-gray-50/50"}>
-                        <td className="py-2 px-3 font-mono text-gray-400">{idx + 1}</td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="text"
-                            value={row.fullName}
-                            onChange={(e) => updateRowField(idx, "fullName", e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 font-semibold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
-                          />
-                        </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="tel"
-                            maxLength={10}
-                            value={row.phone}
-                            onChange={(e) => updateRowField(idx, "phone", e.target.value)}
-                            placeholder="9876543210"
-                            className={`w-30 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
-                              !row.phone || row.phone.length !== 10
-                                ? "border-amber-400 bg-amber-50 text-amber-900"
-                                : "border-gray-200 text-gray-900"
-                            }`}
-                          />
-                        </td>
+                    {editableRows.map((row, idx) => {
+                      const isDuplicateInTable = tableDuplicateIndices.has(idx);
+                      return (
+                        <tr
+                          key={row.id}
+                          className={
+                            isDuplicateInTable
+                              ? "bg-rose-50/80 border-l-4 border-l-rose-500"
+                              : !row.isValid
+                              ? "bg-amber-50/40"
+                              : "hover:bg-gray-50/50"
+                          }
+                        >
+                          <td className="py-2 px-3 font-mono text-gray-400">{idx + 1}</td>
+                          <td className="py-2 px-3">
+                            <div className="space-y-1">
+                              <input
+                                type="text"
+                                value={row.fullName}
+                                onChange={(e) => updateRowField(idx, "fullName", e.target.value)}
+                                className={`w-full px-2.5 py-1.5 rounded-lg border font-semibold text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                                  isDuplicateInTable
+                                    ? "border-rose-400 bg-rose-50 text-rose-950 font-bold"
+                                    : "border-gray-200 text-gray-900"
+                                }`}
+                              />
+                              {isDuplicateInTable && (
+                                <span className="inline-flex items-center gap-1 text-[10px] bg-rose-200 text-rose-900 font-extrabold px-1.5 py-0.5 rounded">
+                                  ⚠️ Duplicate Name / Phone
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="tel"
+                              maxLength={10}
+                              value={row.phone}
+                              onChange={(e) => updateRowField(idx, "phone", e.target.value)}
+                              placeholder="9876543210"
+                              className={`w-30 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                                isDuplicateInTable
+                                  ? "border-rose-400 bg-rose-50 text-rose-950 font-bold"
+                                  : !row.phone || row.phone.length !== 10
+                                  ? "border-amber-400 bg-amber-50 text-amber-900"
+                                  : "border-gray-200 text-gray-900"
+                              }`}
+                            />
+                          </td>
                         <td className="py-2 px-3 text-center">
                           <input
                             type="text"
@@ -1645,7 +1859,8 @@ Anil Verma   9812345678   Room 103   12000"
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
@@ -1772,7 +1987,7 @@ Anil Verma   9812345678   Room 103   12000"
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitting || editableRows.length === 0}
+                  disabled={isSubmitting || editableRows.length === 0 || tableDuplicateIndices.size > 0}
                   onClick={handleCommitIngest}
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer"
                 >
@@ -1780,6 +1995,11 @@ Anil Verma   9812345678   Room 103   12000"
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>Enrolling {totalTenantsCount} Tenants...</span>
+                    </>
+                  ) : tableDuplicateIndices.size > 0 ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4 text-amber-200" />
+                      <span>Resolve {tableDuplicateIndices.size} Duplicates to Enroll</span>
                     </>
                   ) : (
                     <>
@@ -1804,6 +2024,116 @@ Anil Verma   9812345678   Room 103   12000"
             </div>
           )}
         </div>
+
+        {/* ⚠️ DUPLICATE & OVERLAP CONFLICT RESOLUTION MODAL */}
+        {duplicateConflictModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-amber-200 space-y-4 animate-in zoom-in-95">
+              <div className="flex items-center gap-3 pb-3 border-b border-amber-100">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-base text-gray-900">
+                    Duplicate / Overlapping Tenants Detected ({duplicateConflictModal.conflicts.length})
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    We found residents that already exist in your table or building database.
+                  </p>
+                </div>
+              </div>
+
+              {/* Conflict list */}
+              <div className="max-h-56 overflow-y-auto space-y-2 pr-1 divide-y divide-gray-100">
+                {duplicateConflictModal.conflicts.map((c, i) => (
+                  <div key={i} className="pt-2 flex items-start justify-between gap-3 text-xs">
+                    <div>
+                      <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                        <span>{c.incomingRow.fullName}</span>
+                        <span className="font-mono text-gray-500 text-[11px]">({c.incomingRow.phone || "No phone"})</span>
+                        <span className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.5 rounded font-bold">Room {c.incomingRow.roomNumber}</span>
+                      </p>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        ⚠️ Overlaps with: <strong>{c.matchedTarget}</strong> ({c.reason})
+                      </p>
+                    </div>
+                    <span className="text-[10px] bg-rose-100 text-rose-800 font-extrabold px-2 py-0.5 rounded-full shrink-0">
+                      Duplicate
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 font-medium">
+                💡 <strong>Recommended:</strong> Discarding duplicates will automatically ignore the {duplicateConflictModal.conflicts.length} repeated entries and safely import only the <strong>{duplicateConflictModal.uniqueIncoming.length} unique resident(s)</strong>.
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setDuplicateConflictModal(null)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { uniqueIncoming, mode, conflicts } = duplicateConflictModal;
+                    if (mode === "INITIAL_INPUT") {
+                      if (uniqueIncoming.length > 0) {
+                        setEditableRows(uniqueIncoming);
+                        setStep("REVIEW");
+                      } else {
+                        alert("All scanned residents are already in your database. No new records to import.");
+                      }
+                    } else {
+                      if (uniqueIncoming.length > 0) {
+                        const roomOccupancy = new Map<string, number>();
+                        editableRows.forEach((r) => {
+                          const rm = r.roomNumber.toUpperCase().trim();
+                          roomOccupancy.set(rm, (roomOccupancy.get(rm) || 0) + 1);
+                        });
+
+                        const normalizedNewRows = uniqueIncoming.map((nr, idx) => {
+                          const rm = nr.roomNumber.toUpperCase().trim();
+                          const currentCount = (roomOccupancy.get(rm) || 0) + 1;
+                          roomOccupancy.set(rm, currentCount);
+
+                          const autoBedLetter = String.fromCharCode(64 + Math.min(currentCount, 26));
+                          const finalBedCode = nr.bedCode && nr.bedCode.trim() ? nr.bedCode.trim() : `Bed ${autoBedLetter}`;
+
+                          return {
+                            ...nr,
+                            id: `ft_appended_${Date.now()}_${idx}`,
+                            bedCode: finalBedCode,
+                          };
+                        });
+
+                        const combined = [...editableRows, ...normalizedNewRows];
+                        setEditableRows(combined);
+                        handleSaveDraft(combined);
+                        setAppendImages([]);
+                        setAppendText("");
+                        setShowAppendDrawer(false);
+                        setAppendSuccessNotice(`Appended ${normalizedNewRows.length} unique residents (skipped ${conflicts.length} duplicates)!`);
+                        setTimeout(() => setAppendSuccessNotice(null), 4500);
+                      } else {
+                        alert("All scanned residents on this page already exist in your current list/database. No new records to append.");
+                      }
+                    }
+                    setDuplicateConflictModal(null);
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white text-xs font-bold transition-all shadow-md shadow-orange-500/20 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Discard Duplicates & Proceed ({duplicateConflictModal.uniqueIncoming.length} Unique)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

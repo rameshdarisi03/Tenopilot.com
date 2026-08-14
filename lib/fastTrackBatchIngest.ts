@@ -184,7 +184,7 @@ export async function executeFastTrackBatchIngest(
       rentAmount: rent,
       paymentStatus: rowPaymentStatus,
       lifecycleStatus: "Active",
-      aadhaarNumber: `XXXX-XXXX-${Math.floor(1000 + Math.random() * 9000)}`,
+      aadhaarNumber: "",
       emergencyContact: {
         name: "Family Contact",
         phone: row.phone || "9876543210",
@@ -192,6 +192,7 @@ export async function executeFastTrackBatchIngest(
       },
       kycVerified: false,
       hasPdfAgreement: false,
+      kycDocs: undefined,
       securityDeposit: deposit,
       depositStatus: isDepositPaid ? "PAID" : "PENDING",
       arrearsBalance: priorArrears,
