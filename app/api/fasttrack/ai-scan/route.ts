@@ -117,8 +117,8 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       }
 
       const modelsToTry = [
-        "gemini-3.7-flash",
         "gemini-3.5-flash",
+        "gemini-3.7-flash",
         "gemini-flash-latest"
       ];
 
@@ -134,6 +134,9 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
               generationConfig: {
                 responseMimeType: "application/json",
                 temperature: 0.1,
+                thinkingConfig: {
+                  thinkingBudget: 0,
+                },
               },
             }),
           });
