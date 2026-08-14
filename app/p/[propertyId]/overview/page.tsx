@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
@@ -19,12 +19,23 @@ import {
   AlertCircle,
   ChevronRight,
   TrendingUp,
+  Clock,
+  Send,
+  UserPlus,
+  Bell,
+  Settings,
+  ExternalLink,
+  Receipt,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
+import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
 import { useAuth } from "@/providers/AuthProvider";
+import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 
 function getTimeAwareGreeting(): string {
   const hour = new Date().getHours();
@@ -47,13 +58,22 @@ export default function PropertyOverviewPage({
     propertySettingsStore.getSettings(propertyId)
   );
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { profile } = useAuth();
+  const userName = profile?.displayName || "Property Owner";
+  const greetingText = `${getTimeAwareGreeting()}, ${userName}!`;
+
+  const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
+  const [structure, setStructure] = useState<FloorConfig[]>(() => propertyStore.getStructure(propertyId));
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+
   useEffect(() => {
     propertySettingsStore.initFirebaseListener(propertyId);
     setPropertySettings(propertySettingsStore.getSettings(propertyId));
-    const unsubscribe = propertySettingsStore.subscribe(() => {
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
       setPropertySettings(propertySettingsStore.getSettings(propertyId));
     });
-    return unsubscribe;
+    return unsubscribeSettings;
   }, [propertyId]);
 
   useEffect(() => {
@@ -62,51 +82,133 @@ export default function PropertyOverviewPage({
     }
   }, [propertyId]);
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const { profile } = useAuth();
-  const userName = profile?.displayName || "Ishara Pandey";
-  const greetingText = `${getTimeAwareGreeting()}, ${userName}!`;
-
-  const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
-  const [structure, setStructure] = useState<FloorConfig[]>(() => propertyStore.getStructure(propertyId));
-
   useEffect(() => {
     setOccupants(occupantStore.getOccupants(propertyId));
     setStructure(propertyStore.getStructure(propertyId));
+
     const unsubOcc = occupantStore.subscribe(() => setOccupants(occupantStore.getOccupants(propertyId)));
     const unsubProp = propertyStore.subscribe(() => setStructure(propertyStore.getStructure(propertyId)));
+    const unsubComp = subscribeToComplaints(propertyId, (list) => setComplaints(list));
+
     return () => {
       unsubOcc();
       unsubProp();
+      unsubComp();
     };
   }, [propertyId]);
 
-  const isDemo = propertyId === "sunshine-pg";
-  const realTenants = occupants.filter((o) => o.stayType === "Tenant" && o.lifecycleStatus === "Active").length;
-  const realGuests = occupants.filter((o) => o.stayType === "Guest" && o.lifecycleStatus === "Active").length;
-
-  let realTotalBeds = 0;
-  let realAvailBeds = 0;
+  // Dynamic Property Layout & Occupancy Metrics
+  let totalBeds = 0;
+  let occupiedBeds = 0;
   structure.forEach((fl) => {
     fl.rooms.forEach((rm) => {
       rm.beds.forEach((bd) => {
-        realTotalBeds++;
-        if (bd.status === "Available") realAvailBeds++;
+        totalBeds++;
+        if (bd.status === "Occupied" || bd.status === "Vacating" || bd.status === "Guest" || bd.occupant) {
+          occupiedBeds++;
+        }
       });
     });
   });
 
-  const displayTotalBeds = isDemo ? 78 : realTotalBeds;
-  const displayActiveTenants = isDemo ? 38 : realTenants;
-  const displayActiveGuests = isDemo ? 6 : realGuests;
-  const displayAvailableBeds = isDemo ? 4 : realAvailBeds;
-  const displayOpenComplaints = isDemo ? 2 : 0;
-  const displayOccRate = displayTotalBeds > 0 ? Math.round(((displayTotalBeds - displayAvailableBeds) / displayTotalBeds) * 100) + "%" : "0%";
+  const occRatePct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) : "0.0";
+
+  // Financial Metrics Calculation
+  let totalCollectedThisMonth = 0;
+  let totalPendingDue = 0;
+  let overdueCount = 0;
+  let pendingCount = 0;
+
+  occupants.forEach((occ) => {
+    if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
+      const stmt = calculateOccupantFinancialStatement(occ);
+      totalCollectedThisMonth += stmt.totalPaid;
+      totalPendingDue += stmt.netOutstandingBalance;
+      if (stmt.netOutstandingBalance > 0) {
+        pendingCount++;
+        if (occ.paymentStatus === "Overdue") overdueCount++;
+      }
+    }
+  });
+
+  const openComplaintsCount = complaints.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS").length;
+
+  // Format Large Currency (e.g. ₹4.25L or ₹75K)
+  const formatCompactCurrency = (val: number) => {
+    if (val >= 100000) return `₹${(val / 100000).toFixed(2)}L`;
+    if (val >= 1000) return `₹${(val / 1000).toFixed(0)}K`;
+    return `₹${val.toLocaleString("en-IN")}`;
+  };
+
+  // Recent Activity Feed Generation (Real-Time Property Events)
+  const recentActivities = useMemo(() => {
+    const list: { id: string; type: "PAYMENT" | "ONBOARDING" | "COMPLAINT" | "NOTICE"; title: string; subtitle: string; time: string; color: string }[] = [];
+
+    // Recent payments
+    occupants.forEach((occ) => {
+      (occ.paymentHistory || []).forEach((pm, idx) => {
+        list.push({
+          id: `pm-${occ.id}-${idx}`,
+          type: "PAYMENT",
+          title: "Payment Received",
+          subtitle: `${occ.name} (Room ${occ.roomNumber || "N/A"}) paid ₹${pm.amount.toLocaleString("en-IN")} via ${pm.mode || "UPI"}.`,
+          time: pm.date || "Recently",
+          color: "bg-emerald-50 text-emerald-600 border-emerald-200",
+        });
+      });
+
+      if (occ.lifecycleStatus === "Active" && occ.joiningDate) {
+        list.push({
+          id: `onb-${occ.id}`,
+          type: "ONBOARDING",
+          title: "Resident Onboarded",
+          subtitle: `${occ.name} completed digital onboarding for Room ${occ.roomNumber || "N/A"}.`,
+          time: occ.joiningDate,
+          color: "bg-blue-50 text-blue-600 border-blue-200",
+        });
+      }
+
+      if (occ.lifecycleStatus === "Notice") {
+        list.push({
+          id: `not-${occ.id}`,
+          type: "NOTICE",
+          title: "Notice Period Marked",
+          subtitle: `${occ.name} marked vacating for Room ${occ.roomNumber || "N/A"}.`,
+          time: "Active Notice",
+          color: "bg-amber-50 text-amber-600 border-amber-200",
+        });
+      }
+    });
+
+    // Recent complaints
+    complaints.forEach((c) => {
+      list.push({
+        id: `cmp-${c.id}`,
+        type: "COMPLAINT",
+        title: "New Ticket Logged",
+        subtitle: `${c.title} reported by ${c.tenantName} (${c.roomNumber}).`,
+        time: c.createdAt || "Recently",
+        color: "bg-rose-50 text-rose-600 border-rose-200",
+      });
+    });
+
+    return list.slice(0, 5);
+  }, [occupants, complaints]);
+
+  const handleSendWhatsAppReminders = () => {
+    const overdueOccupants = occupants.filter((o) => o.paymentStatus === "Overdue" || o.daysDiff < 0);
+    if (overdueOccupants.length === 0) {
+      alert("🟢 All residents are up-to-date! No pending overdue rent reminders needed.");
+      return;
+    }
+    const target = overdueOccupants[0];
+    const text = encodeURIComponent(`Hello ${target.name}, this is a gentle reminder regarding your monthly rent payment of ₹${target.rentAmount} for ${propertySettings.propertyName}. Please clear your dues at your earliest convenience. Thank you!`);
+    window.open(`https://wa.me/91${target.phone}?text=${text}`, "_blank");
+  };
 
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
-      {/* 256px Left Sidebar with 8 clean primary menus */}
+      {/* 256px Left Sidebar */}
       <PropertySidebar
         propertyId={propertyId}
         mobileOpen={mobileMenuOpen}
@@ -115,159 +217,293 @@ export default function PropertyOverviewPage({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Top Header */}
         <PropertyHeader
           title="Overview"
           showSearch={false}
           propertyId={propertyId}
-          sectionTabs={["Metrics", "Recent Activity"]}
-          activeTab="Metrics"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
         {/* Workspace Body */}
-        <div className="p-6 md:p-8 space-y-8 flex-1">
-          {/* Header */}
+        <div className="p-4 md:p-8 space-y-6 flex-1 max-w-[1240px] mx-auto w-full pb-24">
+          {/* Greeting Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <span className="badge-available px-3 py-1 rounded-full text-[10px] font-bold">
-                OPERATIONAL HEALTHY 🟢
-              </span>
-              <h2 className="font-serif font-bold text-2xl md:text-3xl text-[#201a17] mt-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3 py-1 rounded-full border border-[#d7c2b9]">
+                  10-DAY FREE TRIAL ACTIVE
+                </span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  OPERATIONAL HEALTHY 🟢
+                </span>
+              </div>
+              <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] mt-2 tracking-tight">
                 {greetingText}
-              </h2>
-              <p className="text-xs text-[#554339] mt-0.5">
-                {propertySettings.propertyName} • {propertySettings.propertyAddress} • {displayTotalBeds} Total Beds • {displayOccRate} Occupancy
+              </h1>
+              <p className="text-xs sm:text-sm text-[#554339] mt-1 font-medium">
+                {propertySettings.propertyName} • {propertySettings.propertyAddress} • {totalBeds} Total Beds • {occRatePct}% Occupancy
               </p>
             </div>
 
+            <Link
+              href={`/p/${propertyId}/financial-hub`}
+              className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer shrink-0"
+            >
+              <span>Go to Financial Hub</span>
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {/* Urgent Attention Alert Banner */}
+          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Link
-                href={`/p/${propertyId}/financial-hub`}
-                className="px-4 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2"
-              >
-                Go to Financial Hub <ChevronRight className="w-4 h-4" />
-              </Link>
+              <div className="p-2 rounded-xl bg-amber-100 text-amber-900 shrink-0">
+                <AlertCircle className="w-5 h-5 text-amber-800" />
+              </div>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
+                  URGENT ATTENTION NEEDED
+                </span>
+                <p className="text-xs sm:text-sm font-bold text-[#201a17]">
+                  {overdueCount > 0 ? `${overdueCount} Overdue Rent Payments Pending` : "No Overdue Rent Payments"} • {occupants.filter(o => o.lifecycleStatus === "Notice").length} Rooms Vacating Soon
+                </p>
+              </div>
             </div>
+
+            <button
+              onClick={handleSendWhatsAppReminders}
+              className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Send WhatsApp Reminders</span>
+            </button>
           </div>
 
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                Active Tenants
-              </span>
-              <p className="font-serif font-bold text-2xl text-[#964407] mt-1">
-                <AnimatedNumberCounter value={displayActiveTenants} />
-              </p>
-              <p className="text-[11px] text-[#059669] font-bold mt-1">Monthly Billing</p>
-            </MagneticGlowCard>
-            <MagneticGlowCard glowColor="rgba(126, 34, 206, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                Active Guests
-              </span>
-              <p className="font-serif font-bold text-2xl text-purple-700 mt-1">
-                <AnimatedNumberCounter value={displayActiveGuests} />
-              </p>
-              <p className="text-[11px] text-purple-700 font-bold mt-1">Purple Badge</p>
-            </MagneticGlowCard>
-            <MagneticGlowCard glowColor="rgba(5, 150, 105, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                Available Beds
-              </span>
-              <p className="font-serif font-bold text-2xl text-[#059669] mt-1">
-                <AnimatedNumberCounter value={displayAvailableBeds} />
-              </p>
-              <p className="text-[11px] text-[#059669] font-bold mt-1">Ready for Allocation</p>
-            </MagneticGlowCard>
-            <MagneticGlowCard glowColor="rgba(180, 83, 9, 0.15)" className="p-5 rounded-2xl bg-white border border-[#d7c2b9] shadow-xs">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                Open Complaints
-              </span>
-              <p className="font-serif font-bold text-2xl text-amber-700 mt-1">
-                <AnimatedNumberCounter value={displayOpenComplaints} />
-              </p>
-              <p className="text-[11px] text-amber-700 font-bold mt-1">In Progress</p>
-            </MagneticGlowCard>
-          </div>
-
-          {/* Bottom Section: Resident Complaint QR Code Card & Maintenance Operations Link */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-4 border-t border-gray-200">
-            {/* Bottom-Left: PG Resident Complaint QR Code Card */}
-            <div className="md:col-span-6 lg:col-span-5 bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4 relative overflow-hidden">
+          {/* 4 Core Real-Time KPI Bento Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Occupancy */}
+            <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                  OCCUPANCY
+                </span>
+                <div className="p-2 rounded-xl bg-[#f8ede3] text-[#964407]">
+                  <Building2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <p className="font-serif font-bold text-3xl text-[#964407] tracking-tight">
+                  {occRatePct}%
+                </p>
+                <p className="text-xs font-bold text-[#554339] mt-0.5">
+                  {occupiedBeds} / {totalBeds} Beds Occupied
+                </p>
+              </div>
+            </MagneticGlowCard>
+
+            {/* Card 2: Rent Collected */}
+            <MagneticGlowCard glowColor="rgba(16, 185, 129, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                  RENT COLLECTED
+                </span>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <Wallet className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <p className="font-serif font-bold text-3xl text-emerald-600 tracking-tight">
+                  {formatCompactCurrency(totalCollectedThisMonth)}
+                </p>
+                <p className="text-xs font-bold text-emerald-700 mt-0.5">
+                  Collected this month
+                </p>
+              </div>
+            </MagneticGlowCard>
+
+            {/* Card 3: Pending Due */}
+            <MagneticGlowCard glowColor="rgba(217, 119, 6, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                  PENDING DUE
+                </span>
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <p className="font-serif font-bold text-3xl text-amber-600 tracking-tight">
+                  {formatCompactCurrency(totalPendingDue)}
+                </p>
+                <p className="text-xs font-bold text-[#554339] mt-0.5">
+                  Across {pendingCount} residents
+                </p>
+              </div>
+            </MagneticGlowCard>
+
+            {/* Card 4: Maintenance */}
+            <MagneticGlowCard glowColor="rgba(190, 18, 60, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                  MAINTENANCE
+                </span>
+                <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
+                  <Wrench className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline justify-between">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
-                    RESIDENT COMPLAINT PORTAL
-                  </span>
-                  <h3 className="font-serif font-bold text-lg text-gray-900 mt-2">
-                    Resident QR Scan Code
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Display in PG corridors & reception desk for 24/7 resident complaint lodging.
+                  <p className="font-serif font-bold text-3xl text-rose-600 tracking-tight">
+                    {openComplaintsCount}
                   </p>
+                  <p className="text-xs font-bold text-rose-700 mt-0.5">
+                    Open Complaints
+                  </p>
+                </div>
+                <Link
+                  href={`/p/${propertyId}/complaints`}
+                  className="text-xs font-extrabold text-[#964407] hover:underline flex items-center gap-0.5"
+                >
+                  <span>View Tickets</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </MagneticGlowCard>
+          </div>
+
+          {/* Main 2-Column Split View */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column (60%): Recent Activity Audit Timeline Feed */}
+            <div className="lg:col-span-7 bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-6">
+              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-4">
+                <h3 className="font-serif font-bold text-2xl text-[#201a17]">
+                  Recent Activity
+                </h3>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407] bg-[#f8ede3] px-2.5 py-1 rounded-full border border-[#d7c2b9]">
+                  REAL-TIME FEED
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {recentActivities.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-[#554339] space-y-2">
+                    <p className="font-bold text-sm text-[#201a17]">No Activity Logged Yet</p>
+                    <p>Onboard your first resident or configure property setup to get started.</p>
+                  </div>
+                ) : (
+                  recentActivities.map((act) => (
+                    <div key={act.id} className="flex items-start gap-4 p-3.5 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9]/40 hover:border-[#964407]/40 transition-all">
+                      <div className={`p-2.5 rounded-xl border ${act.color} shrink-0 mt-0.5`}>
+                        {act.type === "PAYMENT" && <Wallet className="w-4 h-4" />}
+                        {act.type === "ONBOARDING" && <UserPlus className="w-4 h-4" />}
+                        {act.type === "COMPLAINT" && <Wrench className="w-4 h-4" />}
+                        {act.type === "NOTICE" && <Clock className="w-4 h-4" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-xs text-[#201a17]">{act.title}</p>
+                          <span className="text-[10px] text-[#554339] font-medium">{act.time}</span>
+                        </div>
+                        <p className="text-xs text-[#554339] mt-0.5 leading-snug">{act.subtitle}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-[#f8ede3]">
+                <Link
+                  href={`/p/${propertyId}/tenants`}
+                  className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1"
+                >
+                  <span>View Full Directory & Log</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Right Column (40%): Quick Actions & Resident Portal */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Quick Actions Card */}
+              <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-4">
+                <h3 className="font-serif font-bold text-2xl text-[#201a17]">
+                  Quick Actions
+                </h3>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Link
+                    href={`/p/${propertyId}/tenants/onboard-tenant`}
+                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+                  >
+                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                      <UserPlus className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-[#201a17]">Onboard</span>
+                  </Link>
+
+                  <button
+                    onClick={handleSendWhatsAppReminders}
+                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs cursor-pointer"
+                  >
+                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                      <Bell className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-[#201a17]">Reminders</span>
+                  </button>
+
+                  <Link
+                    href={`/p/${propertyId}/complaints`}
+                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+                  >
+                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                      <Wrench className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-[#201a17]">Log Ticket</span>
+                  </Link>
+
+                  <Link
+                    href={`/p/${propertyId}/property-setup`}
+                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+                  >
+                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                      <Settings className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-[#201a17]">Setup</span>
+                  </Link>
                 </div>
               </div>
 
-              {/* QR Canvas Container */}
-              <div className="p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60 flex items-center gap-4">
-                <div className="w-24 h-24 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center">
+              {/* Resident Complaint Portal QR Code Card (Pure White Background like Financial Hub!) */}
+              <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-4 text-center">
+                <h3 className="font-serif font-bold text-2xl text-[#201a17]">
+                  Resident Portal
+                </h3>
+                <p className="text-xs text-[#554339] max-w-xs mx-auto font-medium">
+                  Print or share this code for residents to access their hub and lodge 24/7 maintenance complaints.
+                </p>
+
+                <div className="w-40 h-40 bg-white p-3 rounded-2xl border border-[#d7c2b9] shadow-sm mx-auto flex items-center justify-center">
                   <QRCodeSVG
                     value={portalUrl}
-                    size={80}
+                    size={140}
                     fgColor="#201a17"
                     bgColor="#ffffff"
                     level="H"
                   />
                 </div>
 
-                <div className="space-y-1.5 min-w-0">
-                  <span className="font-bold text-xs text-gray-900 block">
-                    Real-Time Room Sync Enabled
-                  </span>
-                  <p className="text-[11px] text-gray-500 leading-snug">
-                    Residents enter Name, Mobile & select their room synced live from Property Map.
-                  </p>
-                  <a
-                    href={`/p/${propertyId}/public-complaint`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#c2652a] hover:underline pt-1"
-                  >
-                    Open Resident Portal →
-                  </a>
-                </div>
+                <a
+                  href={`/p/${propertyId}/public-complaint`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-3 px-4 rounded-xl bg-white border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#fff8f6] text-[#201a17] font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-2xs"
+                >
+                  <ExternalLink className="w-4 h-4 text-[#964407]" />
+                  <span>Open Resident Portal</span>
+                </a>
               </div>
             </div>
-
-            {/* Bottom-Right: Maintenance Operations Link Card */}
-            <Link
-              href={`/p/${propertyId}/complaints`}
-              className="md:col-span-6 lg:col-span-7 bg-white rounded-3xl border border-gray-200 p-6 shadow-xs hover:border-[#c2652a] transition-all group flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-3 rounded-2xl bg-orange-50 text-[#c2652a] group-hover:scale-110 transition-transform">
-                    <Wrench className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                    REAL-TIME FIREBASE SYNCED 🟢
-                  </span>
-                </div>
-                <h3 className="font-serif font-bold text-xl text-gray-900">
-                  Complaints & Maintenance Operations Desk
-                </h3>
-                <p className="text-xs text-gray-500 mt-1 max-w-lg">
-                  View, filter, update ticket statuses, log walk-in issues, and export monthly maintenance reports for TenoPilot.com properties.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-[#c2652a] group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                  Open Maintenance Desk →
-                </span>
-              </div>
-            </Link>
           </div>
         </div>
       </div>
