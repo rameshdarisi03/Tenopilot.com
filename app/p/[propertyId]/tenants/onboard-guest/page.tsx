@@ -161,7 +161,7 @@ export default function OnboardGuestPage({
         rooms: fl.rooms
           .filter((rm) => {
             if (desiredSharingFilter === "ALL") return true;
-            return rm.sharingType === desiredSharingFilter;
+            return Number(rm.sharingType) === Number(desiredSharingFilter);
           })
           .map((rm) => ({
             ...rm,
