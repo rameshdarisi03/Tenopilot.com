@@ -136,6 +136,7 @@ export default function OnboardTenantPage({
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>([]);
 
   useEffect(() => {
+    propertyStore.initFirebaseListener(propertyId);
     setPropertyStructure(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
       setPropertyStructure(propertyStore.getStructure(propertyId));

@@ -145,6 +145,7 @@ export default function OnboardGuestPage({
   }, [checkInDate, checkOutDate]);
 
   useEffect(() => {
+    propertyStore.initFirebaseListener(propertyId);
     setPropertyStructure(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
       setPropertyStructure(propertyStore.getStructure(propertyId));
