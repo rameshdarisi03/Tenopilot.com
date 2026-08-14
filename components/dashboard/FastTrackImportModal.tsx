@@ -21,6 +21,8 @@ import {
   Share2,
   ExternalLink,
   MessageSquare,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -76,8 +78,33 @@ export function FastTrackImportModal({
   // Ingestion final result
   const [ingestResult, setIngestResult] = useState<BatchIngestResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   const settings = propertySettingsStore.getSettings(propertyId);
+
+  // Auto-Fix all warnings by filling missing placeholders automatically
+  const handleAutoFixAllPlaceholders = () => {
+    setEditableRows((prev) =>
+      prev.map((row, i) => {
+        let phone = row.phone;
+        if (!phone || phone.length !== 10) {
+          phone = `98000${String(10000 + (i % 89999)).slice(-5)}`;
+        }
+        let room = row.roomNumber || `10${(i % 4) + 1}`;
+        let rent = row.rentAmount > 0 ? row.rentAmount : settings?.rentalTiers?.sharing2 || 12000;
+        let deposit = row.securityDeposit > 0 ? row.securityDeposit : rent * 2;
+        return {
+          ...row,
+          phone,
+          roomNumber: room,
+          rentAmount: rent,
+          securityDeposit: deposit,
+          isValid: true,
+          warnings: [],
+        };
+      })
+    );
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -88,6 +115,7 @@ export function FastTrackImportModal({
       setParsedResult(null);
       setEditableRows([]);
       setIngestResult(null);
+      setIsMaximized(false);
     }
   }, [isOpen]);
 
@@ -250,8 +278,12 @@ export function FastTrackImportModal({
   const uniqueRoomsCount = new Set(editableRows.map((r) => r.roomNumber)).size;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in overflow-y-auto">
-      <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in overflow-y-auto">
+      <div
+        className={`bg-white rounded-3xl border border-gray-200 shadow-2xl flex flex-col overflow-hidden my-auto animate-in zoom-in-95 transition-all duration-200 ${
+          isMaximized ? "w-[98vw] h-[96vh] max-w-none" : "max-w-6xl w-full h-[90vh] max-h-[92vh]"
+        }`}
+      >
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50/50 via-white to-purple-50/40">
           <div className="flex items-center gap-3">
@@ -270,12 +302,22 @@ export function FastTrackImportModal({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+              title={isMaximized ? "Restore window" : "Maximize window"}
+            >
+              {isMaximized ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* STEP 1: INPUT MODE */}
@@ -470,7 +512,7 @@ Priya Verma    9855667788   Room 201   22000"
 
         {/* STEP 3: INTERACTIVE REVIEW & VALIDATION GRID */}
         {step === "REVIEW" && (
-          <div className="p-6 overflow-y-auto space-y-5 flex-1">
+          <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
             {/* Top Summary Badges */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 rounded-2xl bg-orange-50 border border-orange-100">
@@ -491,52 +533,74 @@ Priya Verma    9855667788   Room 201   22000"
               </div>
             </div>
 
-            {/* Ingestion Options Bar */}
-            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 flex flex-wrap gap-4 text-xs font-semibold text-gray-700">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoProvisionBuilding}
-                  onChange={(e) => setAutoProvisionBuilding(e.target.checked)}
-                  className="rounded text-[#c2652a] focus:ring-[#c2652a]"
-                />
-                <span>✨ Auto-generate Floors & Rooms in Property Setup if missing</span>
-              </label>
+            {/* Ingestion Options Bar & Auto-Fix Banner */}
+            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-gray-700">
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoProvisionBuilding}
+                    onChange={(e) => setAutoProvisionBuilding(e.target.checked)}
+                    className="rounded text-[#c2652a] focus:ring-[#c2652a]"
+                  />
+                  <span>✨ Auto-generate Floors & Rooms in Property Setup if missing</span>
+                </label>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={markDepositsPaid}
-                  onChange={(e) => setMarkDepositsPaid(e.target.checked)}
-                  className="rounded text-[#c2652a] focus:ring-[#c2652a]"
-                />
-                <span>Mark Security Deposits as Paid</span>
-              </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={markDepositsPaid}
+                    onChange={(e) => setMarkDepositsPaid(e.target.checked)}
+                    className="rounded text-[#c2652a] focus:ring-[#c2652a]"
+                  />
+                  <span>Mark Security Deposits as Paid</span>
+                </label>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={markCurrentMonthRentPaid}
-                  onChange={(e) => setMarkCurrentMonthRentPaid(e.target.checked)}
-                  className="rounded text-[#c2652a] focus:ring-[#c2652a]"
-                />
-                <span>Mark Current Month Rent as Paid</span>
-              </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={markCurrentMonthRentPaid}
+                    onChange={(e) => setMarkCurrentMonthRentPaid(e.target.checked)}
+                    className="rounded text-[#c2652a] focus:ring-[#c2652a]"
+                  />
+                  <span>Mark Current Month Rent as Paid</span>
+                </label>
+              </div>
+
+              {editableRows.some((r) => !r.isValid) && (
+                <button
+                  type="button"
+                  onClick={handleAutoFixAllPlaceholders}
+                  className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Auto-Fill Missing Details</span>
+                </button>
+              )}
+            </div>
+
+            {/* Reassuring Bed Allocation Notification */}
+            <div className="px-3.5 py-2 rounded-xl bg-purple-50/70 border border-purple-200/60 text-[11px] text-purple-900 font-semibold flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span><strong>Auto-Bed Allocation Active:</strong> Beds (Bed A, Bed B, Bed C...) are assigned automatically based on room sharing. No manual bed input needed!</span>
+              </span>
+              <span className="text-[10px] text-purple-600 font-bold shrink-0 hidden sm:inline">Zero Friction</span>
             </div>
 
             {/* Editable Data Table */}
-            <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs">
-              <div className="overflow-x-auto max-h-[300px]">
+            <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs bg-white">
+              <div className="overflow-x-auto overflow-y-auto max-h-[52vh] sm:max-h-[58vh]">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-100 sticky top-0 z-10 text-[11px] font-bold text-gray-600 border-b border-gray-200">
+                  <thead className="bg-gray-100/90 backdrop-blur-xs sticky top-0 z-10 text-[11px] font-bold text-gray-700 border-b border-gray-200">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3">Tenant Name</th>
-                      <th className="py-2.5 px-3">10-Digit Mobile</th>
-                      <th className="py-2.5 px-3">Room</th>
-                      <th className="py-2.5 px-3">Bed</th>
-                      <th className="py-2.5 px-3">Monthly Rent</th>
-                      <th className="py-2.5 px-3">Deposit</th>
+                      <th className="py-2.5 px-3 min-w-[200px]">Tenant Name</th>
+                      <th className="py-2.5 px-3 min-w-[130px]">10-Digit Mobile</th>
+                      <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
+                      <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
+                      <th className="py-2.5 px-3 min-w-[110px]">Monthly Rent</th>
+                      <th className="py-2.5 px-3 min-w-[110px]">Deposit</th>
                       <th className="py-2.5 px-3 text-center">Status</th>
                       <th className="py-2.5 px-3 text-center">Action</th>
                     </tr>
@@ -550,7 +614,7 @@ Priya Verma    9855667788   Room 201   22000"
                             type="text"
                             value={row.fullName}
                             onChange={(e) => updateRowField(idx, "fullName", e.target.value)}
-                            className="w-full px-2 py-1 rounded-lg border border-gray-200 font-semibold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 font-semibold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3">
@@ -560,35 +624,36 @@ Priya Verma    9855667788   Room 201   22000"
                             value={row.phone}
                             onChange={(e) => updateRowField(idx, "phone", e.target.value)}
                             placeholder="9876543210"
-                            className={`w-28 px-2 py-1 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                            className={`w-32 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
                               !row.phone || row.phone.length !== 10
                                 ? "border-amber-400 bg-amber-50 text-amber-900"
                                 : "border-gray-200 text-gray-900"
                             }`}
                           />
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-3 text-center">
                           <input
                             type="text"
                             value={row.roomNumber}
                             onChange={(e) => updateRowField(idx, "roomNumber", e.target.value)}
-                            className="w-16 px-2 py-1 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs text-center focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs text-center focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
-                        <td className="py-2 px-3">
-                          <input
-                            type="text"
-                            value={row.bedCode || "Bed A"}
-                            onChange={(e) => updateRowField(idx, "bedCode", e.target.value)}
-                            className="w-20 px-2 py-1 rounded-lg border border-gray-200 font-mono text-xs text-gray-700 text-center focus:ring-1 focus:ring-[#c2652a]"
-                          />
+                        <td className="py-2 px-3 text-center">
+                          <span
+                            title="Auto-allocated bed slot"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-mono text-[11px] font-bold border border-purple-100/80 shadow-2xs"
+                          >
+                            <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
+                            <span>{row.bedCode || "Bed A"}</span>
+                          </span>
                         </td>
                         <td className="py-2 px-3">
                           <input
                             type="number"
                             value={row.rentAmount}
                             onChange={(e) => updateRowField(idx, "rentAmount", Number(e.target.value))}
-                            className="w-24 px-2 py-1 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3">
@@ -596,7 +661,7 @@ Priya Verma    9855667788   Room 201   22000"
                             type="number"
                             value={row.securityDeposit}
                             onChange={(e) => updateRowField(idx, "securityDeposit", Number(e.target.value))}
-                            className="w-24 px-2 py-1 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
@@ -616,7 +681,7 @@ Priya Verma    9855667788   Room 201   22000"
                         <td className="py-2 px-3 text-center">
                           <button
                             onClick={() => removeRow(idx)}
-                            className="p-1 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

@@ -48,21 +48,26 @@ const ROOM_REGEX = /\b(?:room|kholi|flat|unit|rm)?\s*([A-Za-z0-9\-_]{1,6})\b/i;
 const CURRENCY_CLEAN_REGEX = /[^\d.]/g;
 
 /**
- * Normalizes Indian Phone Number to standard 10 digits (e.g., +91 98765-43210 -> 9876543210)
+ * Normalizes Indian Phone Number to standard 10 digits (e.g., +91 98765-43210 or 098450 11003 -> 9845011003)
  */
 export function normalizeIndianPhoneNumber(rawPhone: string | number | undefined): string {
   if (!rawPhone) return "";
   const str = String(rawPhone).trim();
-  const match = str.match(INDIAN_PHONE_REGEX);
-  if (match && match[1]) {
-    return match[1];
-  }
-  // Strip non-digits
   const digitsOnly = str.replace(/\D/g, "");
+
   if (digitsOnly.length === 10 && /^[6-9]/.test(digitsOnly)) {
     return digitsOnly;
   }
-  if (digitsOnly.length > 10 && digitsOnly.endsWith(digitsOnly.slice(-10)) && /^[6-9]/.test(digitsOnly.slice(-10))) {
+  // If 11 digits starting with 0: e.g. 09845011003 -> 9845011003
+  if (digitsOnly.length === 11 && digitsOnly.startsWith("0") && /^[6-9]/.test(digitsOnly.slice(1))) {
+    return digitsOnly.slice(1);
+  }
+  // If 12 digits starting with 91: e.g. 919845011003 -> 9845011003
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91") && /^[6-9]/.test(digitsOnly.slice(2))) {
+    return digitsOnly.slice(2);
+  }
+  // If ends with 10 digits starting with [6-9]
+  if (digitsOnly.length > 10 && /^[6-9]/.test(digitsOnly.slice(-10))) {
     return digitsOnly.slice(-10);
   }
   return digitsOnly.slice(0, 10);
@@ -100,6 +105,20 @@ export function normalizeDateToYYYYMMDD(rawDate: string | undefined): string {
     return `${year}-${month}-${day}`;
   }
 
+  // 01-Aug-2026 or 01 Aug 2026
+  const monMap: Record<string, string> = {
+    jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+    jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  };
+  const textualMatch = str.match(/^(\d{1,2})[\s\-]([A-Za-z]{3})[\s\-](\d{2,4})$/i);
+  if (textualMatch) {
+    const day = textualMatch[1].padStart(2, "0");
+    const month = monMap[textualMatch[2].toLowerCase()] || "01";
+    let year = textualMatch[3];
+    if (year.length === 2) year = `20${year}`;
+    return `${year}-${month}-${day}`;
+  }
+
   // Attempt standard JS Date parse
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
@@ -107,6 +126,19 @@ export function normalizeDateToYYYYMMDD(rawDate: string | undefined): string {
   }
 
   return today;
+}
+
+/**
+ * Parse Currency with Indian Formats (₹12,000, 14000/-, Rs. 14,000, 12000)
+ */
+export function parseIndianCurrencyAmount(raw: string | number | undefined, defaultVal: number = 0): number {
+  if (raw === undefined || raw === null) return defaultVal;
+  const str = String(raw).trim();
+  if (!str) return defaultVal;
+  let clean = str.replace(/[₹$Rs\.INR\s\/-]/gi, "").replace(/,/g, "");
+  if (/^\d+\.\d{3}$/.test(clean)) clean = clean.replace(".", "");
+  const num = parseFloat(clean);
+  return isNaN(num) || num <= 0 ? defaultVal : Math.round(num);
 }
 
 /**
@@ -139,7 +171,26 @@ export function parseRawSpreadsheetText(
     skipEmptyLines: "greedy",
   });
 
-  const rawRows = parsedCsv.data.filter((r) => r && r.length > 0 && r.some((c) => c && c.trim()));
+  const rawRowsBeforeMerge = parsedCsv.data.filter((r) => r && r.length > 0 && r.some((c) => c && c.trim()));
+
+  // Fix accidental comma splits in unquoted currency numbers (e.g. ["Rs. 14", "000"] -> ["Rs. 14000"])
+  const rawRows = rawRowsBeforeMerge.map((row) => {
+    const fixed: string[] = [];
+    for (let i = 0; i < row.length; i++) {
+      const current = (row[i] || "").trim();
+      const next = (row[i + 1] || "").trim();
+      const isPhoneLike = /^(?:\+?91|0)?[6-9]\d{8,10}$/.test(current.replace(/[\s\-]/g, ""));
+      const isCurrencyLike = /(?:₹|\$|Rs\.?|INR)/i.test(current) || (/^\d{1,3}$/.test(current) && /^\d{3}(?:\/-)?$/.test(next));
+
+      if (!isPhoneLike && isCurrencyLike && /^\d{3}(?:\/-)?$/i.test(next)) {
+        fixed.push(`${current}${next}`);
+        i++; // skip next since it's merged
+      } else {
+        fixed.push(current);
+      }
+    }
+    return fixed;
+  });
 
   if (rawRows.length === 0) {
     return {
@@ -181,6 +232,9 @@ export function parseRawSpreadsheetText(
 
   for (let rIdx = 0; rIdx < Math.min(rawRows.length, 8); rIdx++) {
     const row = rawRows[rIdx];
+    const filledCols = row.filter((c) => c && c.trim()).length;
+    if (filledCols < 2) continue; // Single-cell banner title rows cannot be table headers!
+
     let matchedKeywords = 0;
     row.forEach((cell) => {
       const c = (cell || "").trim();
@@ -210,10 +264,10 @@ export function parseRawSpreadsheetText(
     const headerRow = rawRows[headerRowIndex];
     headerRow.forEach((cell, idx) => {
       const c = (cell || "").trim();
-      if (depositKeywords.test(c)) depositCol = idx;
+      if (nameKeywords.test(c) && !depositKeywords.test(c) && !rentKeywords.test(c)) nameCol = idx;
+      else if (depositKeywords.test(c)) depositCol = idx;
       else if (rentKeywords.test(c)) rentCol = idx;
       else if (phoneKeywords.test(c)) phoneCol = idx;
-      else if (nameKeywords.test(c)) nameCol = idx;
       else if (roomKeywords.test(c)) roomCol = idx;
       else if (dateKeywords.test(c)) dateCol = idx;
       else if (bedKeywords.test(c)) bedCol = idx;
@@ -235,13 +289,18 @@ export function parseRawSpreadsheetText(
       }
 
       // Check numeric amounts (rent vs deposit)
-      const numVal = Number(val.replace(CURRENCY_CLEAN_REGEX, ""));
-      if (!isNaN(numVal) && numVal >= 2000 && numVal <= 100000) {
+      const numVal = parseIndianCurrencyAmount(val, 0);
+      if (numVal >= 1000 && numVal <= 200000) {
         if (/adv|dep|sec/i.test(val)) {
           colScores.deposit[colIdx] += 3;
         } else {
           colScores.rent[colIdx] += 2;
         }
+      }
+
+      // Pure numbers or currency values should NEVER be scored as names
+      if (/^\s*[\d₹$Rs.,\/-]+\s*$/i.test(val)) {
+        colScores.name[colIdx] -= 10;
       }
 
       // Check room pattern
@@ -254,8 +313,8 @@ export function parseRawSpreadsheetText(
         colScores.date[colIdx] += 3;
       }
 
-      // Check name pattern (letters, 1 to 4 words, no digits)
-      if (/^[A-Za-z\s.'-]{3,35}$/.test(val) && !/^(room|floor|bed|rent|advance|paid|unpaid|cash|upi|gpay)$/i.test(val)) {
+      // Check name pattern (letters, 1 to 4 words, no pure digits)
+      if (/^[A-Za-z\s.'()-]{3,40}$/.test(val) && !/^(room|floor|bed|rent|advance|paid|unpaid|cash|upi|gpay|kholi)$/i.test(val)) {
         colScores.name[colIdx] += 1;
       }
     });
@@ -308,31 +367,29 @@ export function parseRawSpreadsheetText(
       }
     }
 
-    // Skip empty lines or pure header echoes
+    // Skip empty lines, pure header echoes, or single-cell title banners
     if (!rawName && !rawPhone && !rawRoom) return;
-    if (rawName.toLowerCase() === "name" || rawName.toLowerCase() === "tenant name") return;
+    if (rawName.toLowerCase() === "name" || rawName.toLowerCase() === "tenant name" || rawName.toLowerCase() === "resident name") return;
+    if (!rawPhone && !rawRoom && !rawRent && row.filter((c) => (c || "").trim()).length <= 2) return;
 
     // Normalize values
     const cleanName = formatProperCaseName(rawName) || `Resident ${rowIdx + 1}`;
     const cleanPhone = normalizeIndianPhoneNumber(rawPhone);
     const cleanRoom = (rawRoom || `10${(rowIdx % 4) + 1}`).replace(/^ROOM\s*/i, "").toUpperCase();
 
-    // Track room allocation for bed code (Bed A, Bed B, Bed C)
+    // 🛏️ Automatic Bed Allocation (Bed A, Bed B, Bed C...)
+    // Automatically assigns without forcing owner to input bed IDs!
     const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
     roomOccupancyMap.set(cleanRoom, currentCountInRoom);
     const bedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C, D...
-    const cleanBed = rawBed ? rawBed.toUpperCase() : `Bed ${bedLetter}`;
+    const cleanBed = rawBed && /bed/i.test(rawBed) ? rawBed.toUpperCase() : `Bed ${bedLetter}`;
 
     // Clean monetary values
-    let rentNum = Number(rawRent.replace(CURRENCY_CLEAN_REGEX, ""));
-    if (isNaN(rentNum) || rentNum <= 0) {
-      rentNum = fallbackRent;
-    }
+    let rentNum = parseIndianCurrencyAmount(rawRent, fallbackRent);
+    if (rentNum <= 0) rentNum = fallbackRent;
 
-    let depositNum = Number(rawDeposit.replace(CURRENCY_CLEAN_REGEX, ""));
-    if (isNaN(depositNum) || depositNum <= 0) {
-      depositNum = rentNum * 2;
-    }
+    let depositNum = parseIndianCurrencyAmount(rawDeposit, rentNum * 2);
+    if (depositNum <= 0) depositNum = rentNum * 2;
 
     const cleanDate = normalizeDateToYYYYMMDD(rawDate);
 
