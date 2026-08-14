@@ -75,8 +75,8 @@ export default function PropertyMapPage({
   }, [propertyId]);
 
   // Dynamic Room Filter options derived from propertyStore
-  const availableRooms = useMemo(() => propertyStore.getRoomNumbers(), [propertyGrid]);
-  const availableFloors = useMemo(() => propertyStore.getFloorNames(), [propertyGrid]);
+  const availableRooms = useMemo(() => propertyStore.getRoomNumbers(propertyId), [propertyGrid, propertyId]);
+  const availableFloors = useMemo(() => propertyStore.getFloorNames(propertyId), [propertyGrid, propertyId]);
 
   // Filters state
   const [selectedFloor, setSelectedFloor] = useState<string>("ALL FLOORS");

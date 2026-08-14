@@ -73,10 +73,10 @@ export default function PublicTenantComplaintPage({
 
   useEffect(() => {
     setIsMounted(true);
-    setOccupants(occupantStore.getOccupants());
+    setOccupants(occupantStore.getOccupants(propertyId));
 
     const unsubscribeLocal = propertyStore.subscribe(() => {
-      setOccupants(occupantStore.getOccupants());
+      setOccupants(occupantStore.getOccupants(propertyId));
     });
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {

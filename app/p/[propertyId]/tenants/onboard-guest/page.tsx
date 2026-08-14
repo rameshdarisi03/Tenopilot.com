@@ -145,12 +145,12 @@ export default function OnboardGuestPage({
   }, [checkInDate, checkOutDate]);
 
   useEffect(() => {
-    setPropertyStructure(propertyStore.getStructure());
+    setPropertyStructure(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
-      setPropertyStructure(propertyStore.getStructure());
+      setPropertyStructure(propertyStore.getStructure(propertyId));
     });
     return unsubscribe;
-  }, []);
+  }, [propertyId]);
 
   // Intelligent Floor Navigation Filter for Guest Onboarding:
   const onboardingFloorNavigation = useMemo(() => {
@@ -329,7 +329,7 @@ export default function OnboardGuestPage({
 
     // Direct Cloud Firestore write & sync across all pages
     saveOccupantToFirestore(propertyId, newGuest);
-    occupantStore.updateOccupants([newGuest, ...occupantStore.getOccupants()], propertyId);
+    occupantStore.updateOccupants([newGuest, ...occupantStore.getOccupants(propertyId)], propertyId);
 
     // Update bed status in propertyStore
     if (selectedBed) {
@@ -355,7 +355,7 @@ export default function OnboardGuestPage({
         };
       });
 
-      propertyStore.updateStructure(updatedStructure);
+      propertyStore.updateStructure(updatedStructure, propertyId);
     }
 
     setCreatedGuest(newGuest);

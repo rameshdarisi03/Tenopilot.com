@@ -161,10 +161,18 @@ export default function HomeWorkspacePage() {
             .filter((p: PortfolioProperty) => p.id !== "sunshine-pg")
             .map((p: PortfolioProperty) => {
               const setting = propertySettingsStore.getSettings(p.id);
+              const struct = propertyStore.getStructure(p.id);
+              const occs = occupantStore.getOccupants(p.id).filter((o) => o.lifecycleStatus !== "Past");
+              const totalBeds = struct.reduce((acc, fl) => acc + fl.rooms.reduce((rAcc, rm) => rAcc + rm.beds.length, 0), 0);
+              const occupiedBeds = occs.length;
+              const occPct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) + "%" : "0.0%";
+
               return {
                 ...p,
                 name: setting?.propertyName || p.name,
                 location: setting?.propertyAddress || p.location,
+                bedsCount: totalBeds || p.bedsCount || 0,
+                occupancyRate: occPct,
               };
             });
         }

@@ -92,7 +92,7 @@ export default function AdminComplaintsPage({
 
   useEffect(() => {
     setIsMounted(true);
-    setFloors(propertyStore.getStructure());
+    setFloors(propertyStore.getStructure(propertyId));
 
     if (typeof window !== "undefined") {
       setPublicPortalUrl(`${window.location.origin}/p/${propertyId}/public-complaint`);

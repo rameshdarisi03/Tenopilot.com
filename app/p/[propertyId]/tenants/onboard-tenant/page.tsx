@@ -136,12 +136,12 @@ export default function OnboardTenantPage({
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>([]);
 
   useEffect(() => {
-    setPropertyStructure(propertyStore.getStructure());
+    setPropertyStructure(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
-      setPropertyStructure(propertyStore.getStructure());
+      setPropertyStructure(propertyStore.getStructure(propertyId));
     });
     return unsubscribe;
-  }, []);
+  }, [propertyId]);
 
   // Intelligent Floor Navigation Filter for Onboarding:
   // 1. Shows Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
@@ -323,7 +323,7 @@ export default function OnboardTenantPage({
 
     // Direct Cloud Firestore write & sync across all pages
     saveOccupantToFirestore(propertyId, newTenant);
-    occupantStore.updateOccupants([newTenant, ...occupantStore.getOccupants()], propertyId);
+    occupantStore.updateOccupants([newTenant, ...occupantStore.getOccupants(propertyId)], propertyId);
 
     // Update bed status in propertyStore
     if (selectedBed) {
@@ -348,7 +348,7 @@ export default function OnboardTenantPage({
         };
       });
 
-      propertyStore.updateStructure(updatedStructure);
+      propertyStore.updateStructure(updatedStructure, propertyId);
     }
 
     setCreatedTenant(newTenant);

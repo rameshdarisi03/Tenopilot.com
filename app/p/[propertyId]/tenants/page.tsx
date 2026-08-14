@@ -77,7 +77,7 @@ export default function TenantsDirectoryPage({
       if (fsOccupants && fsOccupants.length > 0) {
         occupantStore.setOccupantsFromFirestore(fsOccupants);
         setOccupantsList(occupantStore.getOccupants(propertyId));
-      } else if (propertyId !== "sunshine-pg") {
+      } else {
         occupantStore.setOccupantsFromFirestore([]);
         setOccupantsList([]);
       }

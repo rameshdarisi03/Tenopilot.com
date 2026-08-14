@@ -83,12 +83,10 @@ export default function IndividualTenantProfilePage({
     setIsMounted(true);
   }, []);
 
-  // Find occupant in MOCK_OCCUPANTS_200 dataset or occupantStore
+  // Find occupant in occupantStore
   const occupant = useMemo(() => {
-    const allOccupants = typeof window !== "undefined" ? occupantStore.getOccupants() : MOCK_OCCUPANTS_200;
-    const match =
-      allOccupants.find((o) => o.id === tenantId) ||
-      MOCK_OCCUPANTS_200.find((o) => o.id === tenantId);
+    const allOccupants = typeof window !== "undefined" ? occupantStore.getOccupants(propertyId) : [];
+    const match = allOccupants.find((o) => o.id === tenantId);
 
     if (match) return match;
 
@@ -434,11 +432,11 @@ export default function IndividualTenantProfilePage({
     }
 
     setOccupantState(updatedOccupant);
-    occupantStore.updateOccupant(updatedOccupant);
+    occupantStore.updateOccupant(updatedOccupant, propertyId);
 
     // 4. DDS-13 Dynamic Cascading Mutation across Property Store!
     // Vacates OLD bed slot (Available 🟢) and occupies TARGET bed slot (Occupied 🟤 / Guest 🟣)
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -475,10 +473,10 @@ export default function IndividualTenantProfilePage({
       }),
     }));
 
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     // 5. Sync occupantStore
-    occupantStore.updateOccupant(updatedOccupant);
+    occupantStore.updateOccupant(updatedOccupant, propertyId);
     setConflictModalData(null);
 
     const netDiff = isGuest ? (newGuestDailyRate || suggestedDaily) : (isGuest ? 0 : 0);
@@ -497,7 +495,7 @@ export default function IndividualTenantProfilePage({
       avatar: kycInputPhotoUrl || occupantState.avatar,
     };
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
     setShowUploadKycModal(false);
     triggerToast(`✓ KYC verification completed successfully for ${occupantState.name}! 🟢`);
   };
@@ -557,10 +555,10 @@ export default function IndividualTenantProfilePage({
     };
 
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant payment status in propertyStore!
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -577,7 +575,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     // Prepend to payment history
     setPaymentHistory([newReceipt, ...paymentHistory]);
@@ -605,10 +603,10 @@ export default function IndividualTenantProfilePage({
     };
 
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed status to Vacating in propertyStore!
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -626,7 +624,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     triggerToast(
       `✓ Notice period logged for ${occupantState.name}. Vacating Date: ${formattedVacatingDate}`
@@ -664,10 +662,10 @@ export default function IndividualTenantProfilePage({
       vacatingDate: formattedVacatingDate,
     };
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant vacatingDate in propertyStore for real-time Property Map sync!
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -685,7 +683,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     setShowExtendNoticeModal(false);
     setShowManageNoticeModal(false);
@@ -718,10 +716,10 @@ export default function IndividualTenantProfilePage({
       vacatingDate: undefined,
     };
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // Sync bed status in propertyStore back to Occupied 🟤
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -739,7 +737,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     setShowCancelNoticeModal(false);
     setShowManageNoticeModal(false);
@@ -776,10 +774,10 @@ export default function IndividualTenantProfilePage({
       dueDate: formattedCheckoutDate,
     };
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant checkout date in propertyStore for real-time Property Map sync!
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -796,7 +794,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     setShowExtendGuestStayModal(false);
     triggerToast(`⏳ Guest stay extended until ${formattedCheckoutDate} for ${occupantState.name}!`);
@@ -813,10 +811,10 @@ export default function IndividualTenantProfilePage({
     };
 
     setOccupantState(updatedGuest);
-    occupantStore.updateOccupant(updatedGuest);
+    occupantStore.updateOccupant(updatedGuest, propertyId);
 
     // Vacate bed slot in propertyStore singleton (DDS-13 Compliance: Bed returns to Available 🟢)
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -834,7 +832,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     triggerToast(
       `🏁 Guest Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & available 🟢`
@@ -855,10 +853,10 @@ export default function IndividualTenantProfilePage({
     };
 
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant details in propertyStore!
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -875,7 +873,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     triggerToast(`✓ Profile details updated successfully for ${editName}`);
     setShowEditProfileModal(false);
@@ -895,10 +893,10 @@ export default function IndividualTenantProfilePage({
     };
 
     setOccupantState(updated);
-    occupantStore.updateOccupant(updated);
+    occupantStore.updateOccupant(updated, propertyId);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed status from Guest 🟣 to Occupied 🟤 in propertyStore!
-    const currentStructure = propertyStore.getStructure();
+    const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
       rooms: floor.rooms.map((room) => {
@@ -916,7 +914,7 @@ export default function IndividualTenantProfilePage({
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure);
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     triggerToast(`🎉 Successfully promoted ${occupantState.name} to Long-Term Active Tenant!`);
     setShowPromoteModal(false);
@@ -2798,7 +2796,7 @@ export default function IndividualTenantProfilePage({
 
                   {/* Scrollable Visual Floor Grid Container with Collapsible Floor Accordions */}
                   <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-2xl p-3 space-y-3 bg-gray-50/70 text-xs">
-                    {propertyStore.getStructure().map((floor) => {
+                    {propertyStore.getStructure(propertyId).map((floor) => {
                       const roomsWithVacantBeds = floor.rooms.filter((rm) =>
                         rm.beds.some((b) => b.status === "Available" || b.status === "Vacating")
                       );
