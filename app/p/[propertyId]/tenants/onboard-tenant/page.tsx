@@ -14,6 +14,11 @@ import {
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
 import {
+  propertySettingsStore,
+  PropertySettingsData,
+  CLEAN_ZERO_PROPERTY_SETTINGS,
+} from "@/constants/propertySettings";
+import {
   ChevronLeft,
   ChevronRight,
   User,
@@ -137,13 +142,37 @@ export default function OnboardTenantPage({
     typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
   );
 
+  // Reactive property settings state subscribed to propertySettingsStore
+  const [settings, setSettings] = useState<PropertySettingsData>(() =>
+    typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : CLEAN_ZERO_PROPERTY_SETTINGS
+  );
+
+  const getSharingRent = (sharingType: number): number => {
+    const tiers = settings?.rentalTiers;
+    if (sharingType === 1) return tiers?.sharing1 || 20000;
+    if (sharingType === 2) return tiers?.sharing2 || 12000;
+    if (sharingType === 3) return tiers?.sharing3 || 8500;
+    if (sharingType === 4) return tiers?.sharing4 || 6000;
+    return tiers?.sharing2 || 12000;
+  };
+
   useEffect(() => {
     propertyStore.initFirebaseListener(propertyId);
+    propertySettingsStore.initFirebaseListener(propertyId);
     setPropertyStructure(propertyStore.getStructure(propertyId));
-    const unsubscribe = propertyStore.subscribe(() => {
+    setSettings(propertySettingsStore.getSettings(propertyId));
+
+    const unsubscribeProperty = propertyStore.subscribe(() => {
       setPropertyStructure(propertyStore.getStructure(propertyId));
     });
-    return unsubscribe;
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
+      setSettings(propertySettingsStore.getSettings(propertyId));
+    });
+
+    return () => {
+      unsubscribeProperty();
+      unsubscribeSettings();
+    };
   }, [propertyId]);
 
   // Intelligent Floor Navigation Filter for Onboarding:
@@ -774,8 +803,9 @@ export default function OnboardTenantPage({
                                         roomNumber: room.roomNumber,
                                         floorName: floor.floorName,
                                       });
-                                      const autoRent = room.customRentAmount || (room.sharingType === 1 ? 18000 : room.sharingType === 3 ? 11000 : 14500);
+                                      const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
                                       setMonthlyRent(autoRent);
+                                      setDepositAmount(settings.defaultSecurityDeposit || autoRent * 2);
                                     }}
                                     className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
                                       isSelected

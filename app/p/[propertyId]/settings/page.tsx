@@ -813,12 +813,12 @@ export default function PropertySettingsPage({
                         <input
                           type="number"
                           required
-                          value={settings.rentalTiers?.sharing1 || 18000}
+                          value={settings.rentalTiers?.sharing1 ?? 20000}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
                               rentalTiers: {
-                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
                                 sharing1: Number(e.target.value),
                               },
                             })
@@ -836,12 +836,12 @@ export default function PropertySettingsPage({
                         <input
                           type="number"
                           required
-                          value={settings.rentalTiers?.sharing2 || 14500}
+                          value={settings.rentalTiers?.sharing2 ?? 12000}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
                               rentalTiers: {
-                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
                                 sharing2: Number(e.target.value),
                               },
                             })
@@ -859,12 +859,12 @@ export default function PropertySettingsPage({
                         <input
                           type="number"
                           required
-                          value={settings.rentalTiers?.sharing3 || 11000}
+                          value={settings.rentalTiers?.sharing3 ?? 8500}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
                               rentalTiers: {
-                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
                                 sharing3: Number(e.target.value),
                               },
                             })
@@ -882,12 +882,12 @@ export default function PropertySettingsPage({
                         <input
                           type="number"
                           required
-                          value={settings.rentalTiers?.sharing4 || 8500}
+                          value={settings.rentalTiers?.sharing4 ?? 6000}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
                               rentalTiers: {
-                                ...(settings.rentalTiers || { sharing1: 18000, sharing2: 14500, sharing3: 11000, sharing4: 8500 }),
+                                ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
                                 sharing4: Number(e.target.value),
                               },
                             })

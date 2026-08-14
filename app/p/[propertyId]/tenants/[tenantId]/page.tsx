@@ -14,7 +14,13 @@ import {
   calculateRoomTransferProRata,
   calculateGuestRoomTransferAdjustment,
 } from "@/utils/financialEngine";
-import { calculateProRataRent, calculateOccupantFinancialStatement, formatIsoToDisplayDate } from "@/utils/domainSSOT";
+import {
+  calculateProRataRent,
+  calculateOccupantFinancialStatement,
+  formatIsoToDisplayDate,
+  getRoomTariff,
+} from "@/utils/domainSSOT";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import {
   ChevronLeft,
   ChevronDown,
@@ -250,17 +256,13 @@ export default function IndividualTenantProfilePage({
 
     // 1. Query target room's price from propertyStore
     const selectedTargetRoomObj = propertyStore
-      .getStructure()
+      .getStructure(propertyId)
       .flatMap((f) => f.rooms)
       .find((r) => r.roomNumber === transferRoomNumber);
 
-    const targetRent =
-      selectedTargetRoomObj?.customRentAmount ||
-      (selectedTargetRoomObj?.sharingType === 1
-        ? 18000
-        : selectedTargetRoomObj?.sharingType === 3
-        ? 11000
-        : 14500);
+    const targetRent = selectedTargetRoomObj
+      ? getRoomTariff(selectedTargetRoomObj, propertyId)
+      : 12000;
 
     // 2. Perform financial calculation & state mutation based on stayType (Guest vs Tenant)
     const suggestedDaily = Math.round(targetRent / 30) || 750;
@@ -2745,9 +2747,7 @@ export default function IndividualTenantProfilePage({
                           {isExpanded && (
                             <div className="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
                             {roomsWithVacantBeds.map((room) => {
-                              const roomTariff =
-                                room.customRentAmount ||
-                                (room.sharingType === 1 ? 18000 : room.sharingType === 3 ? 11000 : 14500);
+                              const roomTariff = getRoomTariff(room, propertyId);
 
                               return (
                                 <div key={room.id} className="p-2.5 rounded-xl border border-gray-200 bg-white space-y-2 text-xs shadow-2xs">
@@ -2823,17 +2823,13 @@ export default function IndividualTenantProfilePage({
                 {(() => {
                   const isGuest = occupantState.stayType === "Guest";
                   const selectedTargetRoomObj = propertyStore
-                    .getStructure()
+                    .getStructure(propertyId)
                     .flatMap((f) => f.rooms)
                     .find((r) => r.roomNumber === transferRoomNumber);
 
-                  const targetRent =
-                    selectedTargetRoomObj?.customRentAmount ||
-                    (selectedTargetRoomObj?.sharingType === 1
-                      ? 18000
-                      : selectedTargetRoomObj?.sharingType === 3
-                      ? 11000
-                      : 14500);
+                  const targetRent = selectedTargetRoomObj
+                    ? getRoomTariff(selectedTargetRoomObj, propertyId)
+                    : 12000;
 
                   const suggestedDaily = Math.round(targetRent / 30) || 750;
 

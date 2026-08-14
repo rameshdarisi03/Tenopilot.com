@@ -3,6 +3,7 @@
 
 import { Occupant, occupantStore, MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
 import { BedSlotConfig, RoomConfig } from "@/constants/propertyLayoutStore";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import { parseOccupantDate } from "./autoCheckInEngine";
 
 /**
@@ -193,14 +194,17 @@ export function getGuestStayTimeline(
 /**
  * 5. SSOT Room Sharing Tariff Resolver
  */
-export function getRoomTariff(room: Partial<RoomConfig>): number {
+export function getRoomTariff(room: Partial<RoomConfig>, propertyId?: string): number {
   if (room.customRentAmount && room.customRentAmount > 0) {
     return room.customRentAmount;
   }
-  if (room.sharingType === 1) return 18000;
-  if (room.sharingType === 3) return 11000;
-  if (room.sharingType === 4) return 9500;
-  return 14500; // Default 2-sharing tariff
+  const settings = propertySettingsStore.getSettings(propertyId);
+  const tiers = settings?.rentalTiers;
+  if (room.sharingType === 1) return tiers?.sharing1 || 20000;
+  if (room.sharingType === 2) return tiers?.sharing2 || 12000;
+  if (room.sharingType === 3) return tiers?.sharing3 || 8500;
+  if (room.sharingType === 4) return tiers?.sharing4 || 6000;
+  return tiers?.sharing2 || 12000; // Default 2-sharing tariff
 }
 
 /**

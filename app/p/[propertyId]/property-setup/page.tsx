@@ -11,6 +11,7 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import {
   ChevronLeft,
   Plus,
@@ -43,8 +44,32 @@ export default function PropertySetupPage({
 
   // Reactive Property Layout Structure State
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
-    propertyStore.getStructure(propertyId)
+    typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
   );
+
+  // Reactive Property Settings State
+  const [settings, setSettings] = useState(() =>
+    typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
+  );
+
+  useEffect(() => {
+    propertyStore.initFirebaseListener(propertyId);
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertyStructure(propertyStore.getStructure(propertyId));
+    setSettings(propertySettingsStore.getSettings(propertyId));
+
+    const unsubscribeProperty = propertyStore.subscribe(() => {
+      setPropertyStructure(propertyStore.getStructure(propertyId));
+    });
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
+      setSettings(propertySettingsStore.getSettings(propertyId));
+    });
+
+    return () => {
+      unsubscribeProperty();
+      unsubscribeSettings();
+    };
+  }, [propertyId]);
 
   // Subscribe to propertyStore updates & auto-expand floor accordions
   useEffect(() => {
@@ -893,13 +918,13 @@ export default function PropertySetupPage({
                   </label>
                   <input
                     type="number"
-                    placeholder="e.g. 16000 (Leave blank for default sharing rate)"
+                    placeholder={`e.g. 16000 (Default ${newSharingCapacity}-sharing: ₹${((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")})`}
                     value={newRoomCustomRent}
                     onChange={(e) => setNewRoomCustomRent(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">
-                    Overrides property default rent for premium rooms (e.g. Rooms with Balcony/AC).
+                    Overrides property default rent (Default is ₹{((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")}/mo per bed).
                   </p>
                 </div>
 
@@ -1070,11 +1095,14 @@ export default function PropertySetupPage({
                   </label>
                   <input
                     type="number"
-                    placeholder="e.g. 16000 (Leave blank for default sharing rate)"
+                    placeholder={`e.g. 16000 (Default ${newSharingCapacity}-sharing: ₹${((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")})`}
                     value={newRoomCustomRent}
                     onChange={(e) => setNewRoomCustomRent(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Overrides property default rent (Default is ₹{((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")}/mo per bed).
+                  </p>
                 </div>
 
                 {/* 📷 Room Photos Uploader */}

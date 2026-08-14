@@ -32,29 +32,42 @@ export interface PropertySettingsData {
   };
 }
 
+export const DEFAULT_PROPERTY_RENTAL_TIERS = {
+  sharing1: 20000,
+  sharing2: 12000,
+  sharing3: 8500,
+  sharing4: 6000,
+};
+
 export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   billingCycleDates: "1st to End of Month",
   desiredDueDate: 5,
   gracePeriodDays: 5,
-  defaultSecurityDeposit: 0,
+  defaultSecurityDeposit: 24000,
   upiPaymentId: "",
   propertyName: "New Property Estate",
   propertyAddress: "",
   managerPhone: "",
   qrProfiles: DEFAULT_QR_PROFILES,
-  rentalTiers: {
-    sharing1: 0,
-    sharing2: 0,
-    sharing3: 0,
-    sharing4: 0,
-  },
+  rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
 };
 
-export const DEFAULT_PROPERTY_SETTINGS = CLEAN_ZERO_PROPERTY_SETTINGS;
+export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
+  billingCycleDates: "1st to End of Month",
+  desiredDueDate: 5,
+  gracePeriodDays: 5,
+  defaultSecurityDeposit: 24000,
+  upiPaymentId: "tenopilot@ybl",
+  propertyName: "Sunshine Heights PG",
+  propertyAddress: "Plot 42, Silicon Valley, Hitech City, Hyderabad",
+  managerPhone: "+91 98765 43210",
+  qrProfiles: DEFAULT_QR_PROFILES,
+  rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
+};
 
-let currentSettings: PropertySettingsData = { ...CLEAN_ZERO_PROPERTY_SETTINGS };
-let activeUnsubscribe: (() => void) | null = null;
-let activePropertyId: string | null = null;
+// In-Memory Multi-Tenant Cache & Active Listeners Map
+const PROPERTY_SETTINGS_MAP = new Map<string, PropertySettingsData>();
+const ACTIVE_SETTINGS_UNSUBSCRIBES = new Map<string, () => void>();
 
 export const propertySettingsStore = {
   listeners: new Set<() => void>(),
@@ -76,100 +89,162 @@ export const propertySettingsStore = {
     });
   },
 
+  /**
+   * Initialize Real-time Cloud Firestore listener for properties/{propertyId}/settings/config
+   */
   initFirebaseListener(propertyId?: string) {
     if (!propertyId || typeof window === "undefined" || !db) return;
-    if (activePropertyId === propertyId && activeUnsubscribe) return;
-
-    if (activeUnsubscribe) {
-      activeUnsubscribe();
-      activeUnsubscribe = null;
-    }
-
-    activePropertyId = propertyId;
+    if (ACTIVE_SETTINGS_UNSUBSCRIBES.has(propertyId)) return;
 
     try {
       const docRef = doc(db, `properties/${propertyId}/settings/config`);
-      activeUnsubscribe = onSnapshot(
+      const unsub = onSnapshot(
         docRef,
         (snapshot) => {
           if (snapshot.exists()) {
-            const data = snapshot.data() as PropertySettingsData;
-            currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS, ...data };
+            const data = snapshot.data() as Partial<PropertySettingsData>;
+            const existing = PROPERTY_SETTINGS_MAP.get(propertyId) || { ...CLEAN_ZERO_PROPERTY_SETTINGS };
+            const merged: PropertySettingsData = {
+              ...CLEAN_ZERO_PROPERTY_SETTINGS,
+              ...existing,
+              ...data,
+              rentalTiers: {
+                ...DEFAULT_PROPERTY_RENTAL_TIERS,
+                ...(existing.rentalTiers || {}),
+                ...(data.rentalTiers || {}),
+              },
+            };
+            PROPERTY_SETTINGS_MAP.set(propertyId, merged);
             if (typeof window !== "undefined") {
-              localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
+              try {
+                localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(merged));
+              } catch {}
             }
-            this.notify();
-          } else {
-            currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS };
             this.notify();
           }
         },
         (err) => {
-          console.warn("Realtime settings snapshot notice:", err);
+          console.warn(`Realtime settings snapshot notice for ${propertyId}:`, err);
         }
       );
+
+      ACTIVE_SETTINGS_UNSUBSCRIBES.set(propertyId, unsub);
     } catch (e) {
-      console.warn("Failed to attach onSnapshot listener", e);
+      console.warn("Failed to attach settings onSnapshot listener", e);
     }
   },
 
+  /**
+   * Get Settings synchronously from in-memory cache or localStorage
+   */
   getSettings(propertyId?: string): PropertySettingsData {
-    if (!propertyId) return CLEAN_ZERO_PROPERTY_SETTINGS;
+    if (!propertyId) return { ...CLEAN_ZERO_PROPERTY_SETTINGS };
+
     this.initFirebaseListener(propertyId);
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(`tenopilot_settings_${propertyId}`);
-      if (saved) {
-        try {
-          currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS, ...JSON.parse(saved) };
-          return currentSettings;
-        } catch {
-          // fallback
-        }
-      }
+
+    if (PROPERTY_SETTINGS_MAP.has(propertyId)) {
+      return PROPERTY_SETTINGS_MAP.get(propertyId)!;
     }
-    currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS };
-    return currentSettings;
+
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`tenopilot_settings_${propertyId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const merged: PropertySettingsData = {
+            ...CLEAN_ZERO_PROPERTY_SETTINGS,
+            ...parsed,
+            rentalTiers: {
+              ...DEFAULT_PROPERTY_RENTAL_TIERS,
+              ...(parsed.rentalTiers || {}),
+            },
+          };
+          PROPERTY_SETTINGS_MAP.set(propertyId, merged);
+          return merged;
+        }
+      } catch {}
+    }
+
+    const initial = propertyId === "sunshine-pg"
+      ? { ...DEFAULT_PROPERTY_SETTINGS }
+      : { ...CLEAN_ZERO_PROPERTY_SETTINGS };
+    PROPERTY_SETTINGS_MAP.set(propertyId, initial);
+    return initial;
   },
 
+  /**
+   * Update Settings in memory, localStorage, and Cloud Firestore
+   */
   async updateSettings(newSettings: Partial<PropertySettingsData>, propertyId?: string): Promise<PropertySettingsData> {
-    if (!propertyId) return CLEAN_ZERO_PROPERTY_SETTINGS;
-    currentSettings = { ...currentSettings, ...newSettings };
+    if (!propertyId) return { ...CLEAN_ZERO_PROPERTY_SETTINGS };
+
+    const current = this.getSettings(propertyId);
+    const updated: PropertySettingsData = {
+      ...current,
+      ...newSettings,
+      rentalTiers: {
+        ...DEFAULT_PROPERTY_RENTAL_TIERS,
+        ...(current.rentalTiers || {}),
+        ...(newSettings.rentalTiers || {}),
+      },
+    };
+
+    PROPERTY_SETTINGS_MAP.set(propertyId, updated);
     if (typeof window !== "undefined") {
-      localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
+      try {
+        localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(updated));
+      } catch {}
     }
 
     this.notify();
 
-    try {
-      if (db) {
+    if (typeof window !== "undefined" && db) {
+      try {
         const docRef = doc(db, `properties/${propertyId}/settings/config`);
-        await setDoc(docRef, currentSettings, { merge: true });
+        await setDoc(docRef, updated, { merge: true });
+      } catch (e) {
+        console.warn(`Firestore settings update notice for ${propertyId}:`, e);
       }
-    } catch (e) {
-      console.warn("Firestore settings update notice:", e);
     }
 
-    return currentSettings;
+    return updated;
   },
 
+  /**
+   * Direct fetch from Firestore
+   */
   async fetchSettingsFromFirestore(propertyId?: string): Promise<PropertySettingsData> {
-    if (!propertyId) return CLEAN_ZERO_PROPERTY_SETTINGS;
+    if (!propertyId) return { ...CLEAN_ZERO_PROPERTY_SETTINGS };
     this.initFirebaseListener(propertyId);
-    try {
-      if (db) {
+
+    if (typeof window !== "undefined" && db) {
+      try {
         const docRef = doc(db, `properties/${propertyId}/settings/config`);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-          const data = snap.data() as PropertySettingsData;
-          currentSettings = { ...CLEAN_ZERO_PROPERTY_SETTINGS, ...data };
-          if (typeof window !== "undefined") {
-            localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
-          }
+          const data = snap.data() as Partial<PropertySettingsData>;
+          const current = this.getSettings(propertyId);
+          const merged: PropertySettingsData = {
+            ...current,
+            ...data,
+            rentalTiers: {
+              ...DEFAULT_PROPERTY_RENTAL_TIERS,
+              ...(current.rentalTiers || {}),
+              ...(data.rentalTiers || {}),
+            },
+          };
+          PROPERTY_SETTINGS_MAP.set(propertyId, merged);
+          try {
+            localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(merged));
+          } catch {}
+          this.notify();
+          return merged;
         }
+      } catch (e) {
+        console.warn(`Firestore settings fetch notice for ${propertyId}:`, e);
       }
-    } catch (e) {
-      console.warn("Firestore settings fetch notice:", e);
     }
-    return currentSettings;
+
+    return this.getSettings(propertyId);
   },
 };

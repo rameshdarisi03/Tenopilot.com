@@ -11,7 +11,7 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
-import { getBedOccupantsTimeline, BedOccupantsTimeline } from "@/utils/domainSSOT";
+import { getBedOccupantsTimeline, BedOccupantsTimeline, getRoomTariff } from "@/utils/domainSSOT";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
   ChevronLeft,
@@ -695,10 +695,7 @@ export default function PropertyMapPage({
                             <span className="font-mono font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/60">
                               {isPrivacyMode
                                 ? "₹ ••••• / mo"
-                                : `₹${(
-                                    room.customRentAmount ||
-                                    (room.sharingType === 1 ? 18000 : room.sharingType === 3 ? 11000 : 14500)
-                                  ).toLocaleString("en-IN")} / mo`}
+                                : `₹${getRoomTariff(room, propertyId).toLocaleString("en-IN")} / mo`}
                             </span>
 
                             {/* 📷 Room Photos Lightbox Trigger Button */}
