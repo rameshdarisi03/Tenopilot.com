@@ -381,7 +381,7 @@ export function FastTrackImportModal({
       setProcessingProgress(25);
       await new Promise((r) => setTimeout(r, 200));
 
-      setProcessingStatus("Transmitting ledger images to Gemini 2.5 Flash Vision AI...");
+      setProcessingStatus("Transmitting ledger images to Gemini 3.7 Flash Vision AI...");
       setProcessingProgress(60);
 
       try {
@@ -403,7 +403,7 @@ export function FastTrackImportModal({
 
         if (!apiRes.ok) {
           const errData = await apiRes.json().catch(() => ({}));
-          throw new Error(errData.message || `Server responded with status ${apiRes.status}`);
+          throw new Error(errData.details || errData.error || errData.message || `Server responded with status ${apiRes.status}`);
         }
 
         const apiJson = await apiRes.json();

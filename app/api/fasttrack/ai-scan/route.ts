@@ -116,87 +116,111 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
         });
       }
 
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      const geminiRes = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: contentsParts }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-          },
-        }),
-      });
+      const modelsToTry = [
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+        "gemini-flash-latest"
+      ];
 
-      if (geminiRes.ok) {
-        const geminiJson = await geminiRes.json();
-        const rawContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawContent) {
-          try {
-            const parsed = JSON.parse(rawContent);
-            const rawList = parsed.occupants || parsed.tenants || parsed;
-            if (Array.isArray(rawList) && rawList.length > 0) {
-              // Room-scoped bed allocation tracking: ensures Bed A, Bed B, Bed C per room
-              const roomOccupancyMap = new Map<string, number>();
+      let lastError = "";
+      for (const model of modelsToTry) {
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const geminiRes = await fetch(geminiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: contentsParts }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+              },
+            }),
+          });
 
-              const rows: FastTrackParsedRow[] = rawList.map((item: any, idx: number) => {
-                const phone = String(item.phone || "").replace(/\D/g, "").slice(-10);
-                const warnings: string[] = [];
-                if (!phone || phone.length !== 10) warnings.push("Missing or incomplete phone number");
-                if (!item.roomNumber) warnings.push("Missing room number");
+          if (geminiRes.ok) {
+            const geminiJson = await geminiRes.json();
+            const rawContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawContent) {
+              const parsed = JSON.parse(rawContent);
+              const rawList = parsed.occupants || parsed.tenants || parsed;
+              if (Array.isArray(rawList) && rawList.length > 0) {
+                // Room-scoped bed allocation tracking: ensures Bed A, Bed B, Bed C per room
+                const roomOccupancyMap = new Map<string, number>();
 
-                const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
+                const rows: FastTrackParsedRow[] = rawList.map((item: any, idx: number) => {
+                  const phone = String(item.phone || "").replace(/\D/g, "").slice(-10);
+                  const warnings: string[] = [];
+                  if (!phone || phone.length !== 10) warnings.push("Missing or incomplete phone number");
+                  if (!item.roomNumber) warnings.push("Missing room number");
 
-                // Room-scoped bed slot calculation:
-                // Rule: If explicit bedCode provided in image, use it! Only auto-allocate Bed A, Bed B if omitted!
-                const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
-                roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+                  const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
 
-                const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
-                const finalBedCode = (item.bedCode && item.bedCode.trim()) ? item.bedCode.trim() : `Bed ${autoBedLetter}`;
+                  // Room-scoped bed slot calculation:
+                  const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
+                  roomOccupancyMap.set(cleanRoom, currentCountInRoom);
 
-                const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-                const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
+                  const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
+                  const finalBedCode = (item.bedCode && item.bedCode.trim()) ? item.bedCode.trim() : `Bed ${autoBedLetter}`;
 
-                // Sharing type calculation
-                const explicitSharing = Number(item.sharingType);
-                const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
-                const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
+                  const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
+                  const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
 
-                return {
-                  id: `ft_ai_${Date.now()}_${idx}`,
-                  fullName: item.fullName || `Resident ${idx + 1}`,
-                  phone: phone || "",
-                  roomNumber: cleanRoom,
-                  bedCode: finalBedCode,
-                  sharingType: sharingCount,
-                  sharingLabel,
-                  rentAmount: rent,
-                  securityDeposit: deposit,
-                  joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
-                  paymentMode: item.paymentMode || "UPI",
-                  isValid: warnings.length === 0,
-                  warnings,
-                  rawSource: item.notes || "Extracted via Gemini Vision AI",
-                };
-              });
+                  // Sharing type calculation
+                  const explicitSharing = Number(item.sharingType);
+                  const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
+                  const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
 
-              return NextResponse.json({
-                success: true,
-                source: "AI_VISION",
-                rows,
-                totalDetected: rows.length,
-                validCount: rows.filter((r) => r.isValid).length,
-                warningCount: rows.filter((r) => !r.isValid).length,
-                confidenceScore: 98,
-              });
+                  return {
+                    id: `ft_ai_${Date.now()}_${idx}`,
+                    fullName: item.fullName || `Resident ${idx + 1}`,
+                    phone: phone || "",
+                    roomNumber: cleanRoom,
+                    bedCode: finalBedCode,
+                    sharingType: sharingCount,
+                    sharingLabel,
+                    rentAmount: rent,
+                    securityDeposit: deposit,
+                    joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
+                    paymentMode: item.paymentMode || "UPI",
+                    isValid: warnings.length === 0,
+                    warnings,
+                    rawSource: item.notes || "Extracted via Gemini 3.7 Flash Vision AI",
+                  };
+                });
+
+                return NextResponse.json({
+                  success: true,
+                  source: "AI_VISION",
+                  modelUsed: model,
+                  rows,
+                  totalDetected: rows.length,
+                  validCount: rows.filter((r) => r.isValid).length,
+                  warningCount: rows.filter((r) => !r.isValid).length,
+                  confidenceScore: 98,
+                });
+              }
             }
-          } catch (jsonErr) {
-            console.error("AI JSON Parse Error:", jsonErr);
+          } else {
+            const errJson = await geminiRes.json().catch(() => ({}));
+            lastError = `Google API Error (${geminiRes.status} on ${model}): ${errJson.error?.message || geminiRes.statusText}`;
+            console.warn(`Gemini model ${model} failed:`, lastError);
           }
+        } catch (modelErr: any) {
+          lastError = `Model ${model} network error: ${modelErr.message}`;
+          console.warn(`Gemini model ${model} exception:`, modelErr);
         }
       }
+
+      // If all models failed or returned non-200, return explicit error
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI Vision scanning could not extract valid rows.",
+          details: lastError || "Unknown Google API error",
+        },
+        { status: 502 }
+      );
     }
 
     // Fallback: If raw text is provided or image without API key, run Engine A Heuristic Parser
