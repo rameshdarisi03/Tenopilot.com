@@ -305,20 +305,31 @@ export function calculateOccupantFinancialStatement(
   // 3. Prior Arrears
   const priorArrears = occupant.arrearsBalance || 0;
 
-  // 4. Total Gross Amount Required for this stay/cycle
-  const totalGrossDue = proRataRent + securityDepositRequired + priorArrears;
+  // 4. Deposit Clearance
+  const isDepositCleared = occupant.depositStatus === "PAID";
+  const depositDue = isDepositCleared ? 0 : securityDepositRequired;
 
-  // 5. Total Payments Collected (Sum of receipts in paymentHistory)
+  // 5. Rent Clearance
+  const isRentCleared = occupant.paymentStatus === "Paid";
+  const rentDue = isRentCleared ? 0 : proRataRent;
+
+  // 6. Total Gross Amount Required for this stay/cycle
+  const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears;
+
+  // 7. Total Payments Collected (Sum of receipts in paymentHistory)
   const history = occupant.paymentHistory || [];
   const totalPaid = history.reduce((sum, item) => sum + (item.amount || 0), 0);
 
-  // 6. Net Outstanding Balance
-  const netOutstandingBalance = Math.max(0, totalGrossDue - totalPaid);
+  // 8. Net Outstanding Balance
+  let netOutstandingBalance = 0;
+  if (isDepositCleared && isRentCleared && priorArrears === 0) {
+    netOutstandingBalance = 0;
+  } else {
+    netOutstandingBalance = Math.max(0, rentDue + depositDue + priorArrears);
+  }
 
-  const isFullyPaid = totalPaid >= totalGrossDue && totalGrossDue > 0;
-  const isPartialPaid = totalPaid > 0 && totalPaid < totalGrossDue;
-  const isDepositCleared =
-    occupant.depositStatus === "PAID" || totalPaid >= securityDepositRequired;
+  const isFullyPaid = netOutstandingBalance === 0;
+  const isPartialPaid = !isFullyPaid && totalPaid > 0 && totalPaid < totalGrossDue;
 
   const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
     ? "Paid"
@@ -328,7 +339,7 @@ export function calculateOccupantFinancialStatement(
 
   const depositStatusLabel: "PAID" | "PENDING" | "PARTIAL" = isDepositCleared
     ? "PAID"
-    : totalPaid > 0
+    : occupant.depositStatus === "PARTIAL"
     ? "PARTIAL"
     : "PENDING";
 

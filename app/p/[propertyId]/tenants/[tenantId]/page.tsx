@@ -1332,15 +1332,20 @@ export default function IndividualTenantProfilePage({
               {/* 🪪 Granular Real-Time KYC Verification Card for Tenants */}
               {(() => {
                 const hasPhoto = Boolean(
-                  occupantState.avatar &&
-                  occupantState.avatar.length > 0 &&
-                  !occupantState.avatar.includes("dicebear")
+                  occupantState.kycDocs?.photoUrl ||
+                  (occupantState.avatar &&
+                    occupantState.avatar.length > 0 &&
+                    !occupantState.avatar.includes("dicebear") &&
+                    !occupantState.avatar.includes("api.dicebear.com"))
                 );
                 const hasAadhaar = Boolean(
-                  occupantState.aadhaarNumber &&
-                  occupantState.aadhaarNumber !== "Skipped" &&
-                  occupantState.aadhaarNumber !== "XXXX-XXXX-8811" &&
-                  occupantState.aadhaarNumber !== ""
+                  occupantState.kycDocs?.aadhaarFrontUrl ||
+                  occupantState.kycDocs?.aadhaarPdfUrl ||
+                  (occupantState.aadhaarNumber &&
+                    occupantState.aadhaarNumber.trim().length === 12 &&
+                    !occupantState.aadhaarNumber.startsWith("XXXX") &&
+                    occupantState.aadhaarNumber !== "Skipped" &&
+                    occupantState.aadhaarNumber !== "XXXX-XXXX-8811")
                 );
                 const isKycVerified = occupantState.kycVerified === true || (hasPhoto && hasAadhaar);
 
@@ -1406,7 +1411,7 @@ export default function IndividualTenantProfilePage({
                               <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Aadhaar / Govt ID Proof
                             </span>
                             <p className="text-[10px] text-gray-500 font-mono">
-                              {hasAadhaar ? occupantState.aadhaarNumber : "Skipped at Onboarding"}
+                              {hasAadhaar ? occupantState.aadhaarNumber : "Pending Upload / Not Uploaded"}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1415,32 +1420,36 @@ export default function IndividualTenantProfilePage({
                             </span>
                             {hasAadhaar && (
                               <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setViewKycModal({
-                                      open: true,
-                                      title: "Aadhaar Card — Front Photo",
-                                      docType: "front",
-                                    })
-                                  }
-                                  className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Eye className="w-3 h-3 text-blue-600" /> Front ID
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setViewKycModal({
-                                      open: true,
-                                      title: "Aadhaar Card — Back Photo",
-                                      docType: "back",
-                                    })
-                                  }
-                                  className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Eye className="w-3 h-3 text-blue-600" /> Back ID
-                                </button>
+                                {occupantState.kycDocs?.aadhaarFrontUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewKycModal({
+                                        open: true,
+                                        title: "Aadhaar Card — Front Photo",
+                                        docType: "front",
+                                      })
+                                    }
+                                    className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3 text-blue-600" /> Front ID
+                                  </button>
+                                )}
+                                {occupantState.kycDocs?.aadhaarBackUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewKycModal({
+                                        open: true,
+                                        title: "Aadhaar Card — Back Photo",
+                                        docType: "back",
+                                      })
+                                    }
+                                    className="px-2 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3 text-blue-600" /> Back ID
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -2180,23 +2189,47 @@ export default function IndividualTenantProfilePage({
                 className="bg-gray-900 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden border border-gray-800"
               >
                 {viewKycModal.docType === "photo" ? (
-                  <img
-                    src={occupantState.kycDocs?.photoUrl || occupantState.avatar}
-                    alt={occupantState.name}
-                    className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
-                  />
+                  occupantState.kycDocs?.photoUrl || (!occupantState.avatar?.includes("dicebear") && !occupantState.avatar?.includes("api.dicebear.com")) ? (
+                    <img
+                      src={occupantState.kycDocs?.photoUrl || occupantState.avatar}
+                      alt={occupantState.name}
+                      className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    />
+                  ) : (
+                    <div className="text-center p-6 space-y-2 text-gray-300">
+                      <Camera className="w-12 h-12 text-gray-500 mx-auto" />
+                      <p className="font-bold text-sm text-white">No Profile Photo Uploaded</p>
+                      <p className="text-xs text-gray-400">This resident has not uploaded a photo yet.</p>
+                    </div>
+                  )
                 ) : viewKycModal.docType === "front" ? (
-                  <img
-                    src={occupantState.kycDocs?.aadhaarFrontUrl || occupantState.avatar}
-                    alt="Aadhaar Front"
-                    className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
-                  />
+                  occupantState.kycDocs?.aadhaarFrontUrl ? (
+                    <img
+                      src={occupantState.kycDocs.aadhaarFrontUrl}
+                      alt="Aadhaar Front"
+                      className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    />
+                  ) : (
+                    <div className="text-center p-6 space-y-2 text-gray-300">
+                      <ShieldCheck className="w-12 h-12 text-gray-500 mx-auto" />
+                      <p className="font-bold text-sm text-white">No Front ID Uploaded</p>
+                      <p className="text-xs text-gray-400">Front ID image is pending upload.</p>
+                    </div>
+                  )
                 ) : viewKycModal.docType === "back" ? (
-                  <img
-                    src={occupantState.kycDocs?.aadhaarBackUrl || occupantState.avatar}
-                    alt="Aadhaar Back"
-                    className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
-                  />
+                  occupantState.kycDocs?.aadhaarBackUrl ? (
+                    <img
+                      src={occupantState.kycDocs.aadhaarBackUrl}
+                      alt="Aadhaar Back"
+                      className="max-h-[300px] w-auto max-w-full rounded-2xl object-contain border-2 border-white/20 shadow-lg pointer-events-none select-none"
+                    />
+                  ) : (
+                    <div className="text-center p-6 space-y-2 text-gray-300">
+                      <ShieldCheck className="w-12 h-12 text-gray-500 mx-auto" />
+                      <p className="font-bold text-sm text-white">No Back ID Uploaded</p>
+                      <p className="text-xs text-gray-400">Back ID image is pending upload.</p>
+                    </div>
+                  )
                 ) : (
                   /* PDF Document View */
                   <div className="w-full bg-white/95 rounded-xl p-6 text-center space-y-3 pointer-events-none select-none text-gray-900 font-mono text-xs">
@@ -2205,7 +2238,7 @@ export default function IndividualTenantProfilePage({
                       {occupantState.name} — AADHAAR GOVT ID (PDF)
                     </div>
                     <div className="text-[11px] text-gray-500 font-sans">
-                      DOCUMENT NUMBER: XXXX-XXXX-4819 • CAPPED TO 1MB
+                      DOCUMENT NUMBER: {occupantState.aadhaarNumber || "PENDING"} • CAPPED TO 1MB
                     </div>
                     <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] p-2 rounded-lg font-sans font-bold">
                       ✓ ENCRYPTED & VERIFIED IN FIREBASE CLOUD STORAGE BUCKET

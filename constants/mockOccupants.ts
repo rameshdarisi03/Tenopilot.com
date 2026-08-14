@@ -329,7 +329,35 @@ export const occupantStore = {
         const savedKey = `tenopilot_occupants_${propertyId}`;
         const saved = localStorage.getItem(savedKey);
         if (saved) {
-          return JSON.parse(saved);
+          const list: Occupant[] = JSON.parse(saved);
+          let mutated = false;
+          const cleaned = list.map((o) => {
+            let updated = { ...o };
+            // Fix dummy aadhaar placeholder for migrated users without real KYC docs
+            if (
+              updated.aadhaarNumber &&
+              (updated.aadhaarNumber.startsWith("XXXX-XXXX-") || updated.aadhaarNumber === "XXXX-XXXX-8811") &&
+              (!updated.kycDocs || (!updated.kycDocs.aadhaarFrontUrl && !updated.kycDocs.aadhaarPdfUrl))
+            ) {
+              updated.aadhaarNumber = "";
+              updated.kycVerified = false;
+              mutated = true;
+            }
+            // Fix legacy erroneous arrearsBalance == rentAmount from earlier script runs
+            if (
+              (updated.id.startsWith("occ_ft_") || updated.email?.includes("@gmail.com")) &&
+              updated.arrearsBalance === updated.rentAmount &&
+              (!updated.paymentHistory || updated.paymentHistory.length === 0)
+            ) {
+              updated.arrearsBalance = 0;
+              mutated = true;
+            }
+            return updated;
+          });
+          if (mutated) {
+            localStorage.setItem(savedKey, JSON.stringify(cleaned));
+          }
+          return cleaned;
         }
       } catch (e) {
         console.warn(`Failed to load occupants for property ${propertyId}:`, e);
