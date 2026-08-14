@@ -29,7 +29,7 @@ async function runLiveMasterSimulation() {
   console.log(`👤 User Account: ${EMAIL}`);
   console.log(`======================================================\n`);
 
-  // Launch visible desktop browser window with smooth, observable pacing
+  // Launch visible desktop browser window with comfortable slowMo pacing
   const browser = await chromium.launch({
     headless: false,
     slowMo: 180,
@@ -86,7 +86,8 @@ async function runLiveMasterSimulation() {
     console.log(`  ✓ Created Property: "${propertyName}"`);
 
     // Navigate to dashboard
-    const dashboardLink = page.locator('a:has-text("View Dashboard")').last();
+    const dashboardLink = page.locator('a:has-text("View Dashboard"), a:has-text("Manage Property")').last();
+    await dashboardLink.waitFor({ state: "visible", timeout: 15000 });
     const href = await dashboardLink.getAttribute("href");
     if (href) {
       await page.goto(`${BASE_URL}${href}`, { waitUntil: "domcontentloaded" });
@@ -198,10 +199,9 @@ async function runLiveMasterSimulation() {
 
       // Step 2: Bed Allocation
       const allSharingFilter = page.locator('button:has-text("ALL SHARING")').first();
-      if (await allSharingFilter.isVisible()) {
-        await allSharingFilter.click();
-        await page.waitForTimeout(400);
-      }
+      await allSharingFilter.waitFor({ state: "visible", timeout: 10000 });
+      await allSharingFilter.click();
+      await page.waitForTimeout(400);
 
       const availableBedBtn = page.locator(`button:has-text("${t.bed}"), button:has-text("Available 🟢")`).first();
       await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
@@ -272,14 +272,15 @@ async function runLiveMasterSimulation() {
       // Click Proceed to Bed Allocation
       const proceedBtn = page.locator('button:has-text("Proceed to Bed Allocation")').first();
       await proceedBtn.click();
-      await page.waitForTimeout(1000);
-
+      
       // Step 2: Bed Allocation
+      await page.waitForSelector('h2:has-text("Select Bed")', { timeout: 15000 });
+      await page.waitForTimeout(400);
+
       const allSharingFilter = page.locator('button:has-text("ALL SHARING")').first();
-      if (await allSharingFilter.isVisible()) {
-        await allSharingFilter.click();
-        await page.waitForTimeout(400);
-      }
+      await allSharingFilter.waitFor({ state: "visible", timeout: 10000 });
+      await allSharingFilter.click();
+      await page.waitForTimeout(500);
 
       const availableBedBtn = page.locator(`button:has-text("${g.bed}"), button:has-text("Available 🟢")`).first();
       await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
