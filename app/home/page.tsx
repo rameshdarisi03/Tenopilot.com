@@ -221,9 +221,9 @@ export default function HomeWorkspacePage() {
       id: slugId || `prop-${Date.now()}`,
       name: newPropName.trim(),
       location: newPropLocation.trim() || "Hyderabad, Telangana",
-      bedsCount: Number(newPropBeds) || 30,
-      occupancyRate: "100%",
-      collectionRate: "100%",
+      bedsCount: Number(newPropBeds) || 0,
+      occupancyRate: "0.0%",
+      collectionRate: "0%",
       status: "HEALTHY",
     };
 
@@ -269,13 +269,6 @@ export default function HomeWorkspacePage() {
 
   return (
     <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white pb-12">
-      {/* Split-Flap Flight Board Instrument Logo Intro Overlay */}
-      {showWelcomeOverlay && (
-        <InstrumentIntroOverlay
-          onComplete={() => setShowWelcomeOverlay(false)}
-        />
-      )}
-
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#201a17] text-white px-5 py-3 rounded-2xl shadow-2xl border border-[#964407]/40 text-xs font-bold flex items-center gap-2.5 animate-in slide-in-from-bottom-5">
@@ -289,23 +282,10 @@ export default function HomeWorkspacePage() {
         <div className="max-w-[1240px] mx-auto flex items-center justify-between">
           <Link href="/home" className="flex items-center gap-3 group">
             <TenoPilotLogo size="sm" />
-            <div className="hidden sm:flex flex-col">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407]">
-                Master Admin Console
-              </span>
-            </div>
           </Link>
 
           {/* User Profile & Actions */}
           <div className="flex items-center gap-3 sm:gap-5">
-            <button
-              onClick={() => setShowWelcomeOverlay(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 text-[#964407] text-xs font-bold hover:bg-amber-500/20 transition-all active:scale-95 cursor-pointer shadow-2xs"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#964407]" />
-              <span>Replay Intro 🎬</span>
-            </button>
-
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -317,7 +297,7 @@ export default function HomeWorkspacePage() {
                 <div className="hidden lg:flex flex-col text-left">
                   <span className="text-xs font-bold text-[#201a17]">{userDisplayName}</span>
                   <span className="text-[10px] text-[#554339] uppercase font-bold tracking-wider">
-                    Master Admin
+                    Property Owner
                   </span>
                 </div>
               </button>
@@ -327,7 +307,7 @@ export default function HomeWorkspacePage() {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#d7c2b9] shadow-xl py-2 z-50 text-xs font-medium text-[#201a17]">
                   <div className="px-4 py-2 border-b border-[#f8ede3]">
                     <p className="font-bold text-sm">{userDisplayName}</p>
-                    <p className="text-xs text-[#554339]">{profile?.email || "Master Admin"}</p>
+                    <p className="text-xs text-[#554339]">{profile?.email || "Property Owner"}</p>
                   </div>
                   <button
                     onClick={() => logout()}
@@ -345,10 +325,7 @@ export default function HomeWorkspacePage() {
       {/* Main Mobile-Optimized Body */}
       <main className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 space-y-6 sm:space-y-10 w-full">
         {/* Welcome Greeting */}
-        <section className="max-w-3xl">
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3.5 py-1 rounded-full border border-[#d7c2b9] inline-block mb-3 shadow-2xs">
-            MASTER ADMIN CONSOLE • 10-DAY FREE TRIAL ACTIVE
-          </span>
+        <section className="max-w-3xl animate-fadeIn">
           <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl font-bold text-[#201a17] leading-[1.1] tracking-tight">
             <span className="block">{greetingText}, {userDisplayName}.</span>
             <span className="text-[#a69a8e] font-normal italic block mt-1">Your organization portfolio is calling.</span>

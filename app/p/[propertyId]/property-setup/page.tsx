@@ -468,7 +468,29 @@ export default function PropertySetupPage({
           )}
 
           {/* Floor Accordion List */}
-          <div className="space-y-6">
+          {propertyStructure.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-dashed border-[#d7c2b9] p-10 text-center max-w-lg mx-auto my-12 space-y-4 shadow-sm animate-fadeIn">
+              <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto border border-[#d7c2b9]">
+                <Building2 className="w-8 h-8" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                  Start Building Your Estate Layout
+                </h3>
+                <p className="text-xs text-[#554339] leading-relaxed">
+                  Add your first floor to begin configuring physical rooms, sharing types, and monthly bed tariffs.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddFloorModal(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer mt-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Floor 1 Now</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
             {propertyStructure.map((floor) => {
               const isOpen = openFloorIds.includes(floor.id);
               const totalFloorBeds = floor.rooms.reduce(
@@ -649,6 +671,7 @@ export default function PropertySetupPage({
               );
             })}
           </div>
+          )}
         </div>
 
         {/* ⚠️ OCCUPIED DELETION PROTECTION MODAL */}

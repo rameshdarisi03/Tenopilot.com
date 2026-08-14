@@ -441,20 +441,6 @@ export default function TenantsDirectoryPage({
 
             {/* Top Action Controls */}
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm("Are you sure you want to erase all mock occupant data and reset all property beds to Available 🟢? This will clear test entries so you can onboard manually without clashes.")) {
-                    occupantStore.resetOccupantsStore();
-                    propertyStore.resetPropertyStore();
-                    window.location.reload();
-                  }
-                }}
-                className="px-3.5 py-2.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4 text-red-600" /> Erase Mock Data & Reset Beds
-              </button>
-
               <div className="relative">
                 <button
                   onClick={() => setShowAddMenu(!showAddMenu)}
@@ -518,54 +504,54 @@ export default function TenantsDirectoryPage({
           </div>
 
           {/* Operational Metrics Row */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <MagneticGlowCard glowColor="rgba(239, 68, 68, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-red-50 text-red-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <Calendar className="w-5 h-5" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-orange-50 text-[#964407] p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
+                <Users className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-red-500 tracking-wider">
-                  Due Today
+                <p className="text-[10px] uppercase font-bold text-[#964407] tracking-wider">
+                  Active Members
                 </p>
                 <p className="text-xl font-bold font-sans text-gray-900">
-                  <AnimatedNumberCounter value={rentMetrics.dueTodayCount} />
+                  <AnimatedNumberCounter value={counts.Active + counts.Guests} />
                 </p>
-                <p className="text-xs text-gray-500">
-                  <AnimatedNumberCounter value={rentMetrics.dueTodaySum} prefix="₹" />
+                <p className="text-xs text-gray-500 font-medium">
+                  {counts.Active} Tenants • {counts.Guests} Guests
                 </p>
               </div>
             </MagneticGlowCard>
 
-            <MagneticGlowCard glowColor="rgba(249, 115, 22, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <Clock className="w-5 h-5" />
+            <MagneticGlowCard glowColor="rgba(16, 185, 129, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
+              <div className="bg-emerald-50 text-emerald-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
-                  Due Tomorrow
+                <p className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">
+                  Collected This Month
                 </p>
                 <p className="text-xl font-bold font-sans text-gray-900">
-                  <AnimatedNumberCounter value={rentMetrics.dueTomorrowCount} />
+                  <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />
                 </p>
-                <p className="text-xs text-gray-500">
-                  <AnimatedNumberCounter value={rentMetrics.dueTomorrowSum} prefix="₹" />
+                <p className="text-xs text-gray-500 font-medium">
+                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} /> of Total Expected
                 </p>
               </div>
             </MagneticGlowCard>
 
             <MagneticGlowCard glowColor="rgba(245, 158, 11, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-orange-50 text-orange-500 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <Calendar className="w-5 h-5" />
+              <div className="bg-amber-50 text-amber-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
+                <Clock className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-orange-500 tracking-wider">
-                  Due Next 2 Days
+                <p className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">
+                  Rent Pending Due
                 </p>
                 <p className="text-xl font-bold font-sans text-gray-900">
-                  <AnimatedNumberCounter value={rentMetrics.dueNext2DaysCount} />
+                  <AnimatedNumberCounter value={rentMetrics.dueTodaySum + rentMetrics.dueTomorrowSum + rentMetrics.dueNext2DaysSum} prefix="₹" />
                 </p>
-                <p className="text-xs text-gray-500">
-                  <AnimatedNumberCounter value={rentMetrics.dueNext2DaysSum} prefix="₹" />
+                <p className="text-xs text-gray-500 font-medium">
+                  {rentMetrics.dueTodayCount + rentMetrics.dueTomorrowCount + rentMetrics.dueNext2DaysCount} Pending Bills
                 </p>
               </div>
             </MagneticGlowCard>
@@ -576,30 +562,13 @@ export default function TenantsDirectoryPage({
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-red-600 tracking-wider">
-                  Overdue
+                  Overdue Rent
                 </p>
                 <p className="text-xl font-bold font-sans text-gray-900">
-                  <AnimatedNumberCounter value={rentMetrics.overdueCount} />
-                </p>
-                <p className="text-xs text-gray-500">
                   <AnimatedNumberCounter value={rentMetrics.overdueSum} prefix="₹" />
                 </p>
-              </div>
-            </MagneticGlowCard>
-
-            <MagneticGlowCard glowColor="rgba(16, 185, 129, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-green-50 text-green-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-green-600 tracking-wider">
-                  Collected Month
-                </p>
-                <p className="text-xl font-bold font-sans text-gray-900">
-                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} />
-                </p>
-                <p className="text-xs text-gray-500">
-                  ₹{(rentMetrics.sumCollected / 100000).toFixed(2)}L / ₹{(rentMetrics.totalExpected / 100000).toFixed(2)}L
+                <p className="text-xs text-gray-500 font-medium">
+                  <AnimatedNumberCounter value={rentMetrics.overdueCount} /> Overdue Accounts
                 </p>
               </div>
             </MagneticGlowCard>

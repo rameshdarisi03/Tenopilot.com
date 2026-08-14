@@ -254,7 +254,9 @@ export default function PropertyMapPage({
 
             <Link
               href={`/p/${propertyId}/property-setup`}
-              className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all"
+              className={`px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all ${
+                propertyGrid.length === 0 ? "ring-4 ring-[#964407]/40 animate-pulse shadow-xl" : ""
+              }`}
             >
               <Settings className="w-4 h-4" /> Property Setup
             </Link>
@@ -730,6 +732,27 @@ export default function PropertyMapPage({
                   </div>
                 </div>
               ))
+            ) : propertyGrid.length === 0 ? (
+              <div className="bg-white rounded-3xl border border-dashed border-[#d7c2b9] p-10 text-center max-w-lg mx-auto my-12 space-y-4 shadow-sm animate-fadeIn">
+                <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto border border-[#d7c2b9]">
+                  <Building2 className="w-8 h-8" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                    Building Layout Not Configured Yet
+                  </h3>
+                  <p className="text-xs text-[#554339] leading-relaxed">
+                    Start by configuring your building floors, room sharing types, and bed capacities using <strong>Property Setup</strong>.
+                  </p>
+                </div>
+                <Link
+                  href={`/p/${propertyId}/property-setup`}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer mt-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Configure Building Layout Now</span>
+                </Link>
+              </div>
             ) : (
               <div className="py-16 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
                 No matching beds or rooms found for the selected filter.

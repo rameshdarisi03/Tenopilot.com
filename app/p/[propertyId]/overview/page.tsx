@@ -191,39 +191,6 @@ export default function PropertyOverviewPage({
             </MagneticGlowCard>
           </div>
 
-          {/* Quick Actions Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link href={`/p/${propertyId}/financial-hub`}>
-              <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group h-full">
-                <Wallet className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
-                <h3 className="font-serif font-bold text-lg text-[#201a17]">Financial Hub</h3>
-                <p className="text-xs text-[#554339] mt-1">
-                  View Partner Settlements, log expenses, and inspect monthly net profits.
-                </p>
-              </MagneticGlowCard>
-            </Link>
-
-            <Link href={`/p/${propertyId}/tenants`}>
-              <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group h-full">
-                <Users className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
-                <h3 className="font-serif font-bold text-lg text-[#201a17]">Tenants & Guests Directory</h3>
-                <p className="text-xs text-[#554339] mt-1">
-                  Onboard new occupants with date-aware bed allocation and legal agreements.
-                </p>
-              </MagneticGlowCard>
-            </Link>
-
-            <Link href={`/p/${propertyId}/property-map`}>
-              <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-6 rounded-2xl bg-white border border-[#d7c2b9] hover:border-[#964407] shadow-xs hover:shadow-md transition-all group h-full">
-                <Building2 className="w-8 h-8 text-[#964407] mb-3 group-hover:scale-110 transition-transform" />
-                <h3 className="font-serif font-bold text-lg text-[#201a17]">Property Map</h3>
-                <p className="text-xs text-[#554339] mt-1">
-                  Visual floor, room, and bed map with real-time occupancy status indicators.
-                </p>
-              </MagneticGlowCard>
-            </Link>
-          </div>
-
           {/* Bottom Section: Resident Complaint QR Code Card & Maintenance Operations Link */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-4 border-t border-gray-200">
             {/* Bottom-Left: PG Resident Complaint QR Code Card */}
