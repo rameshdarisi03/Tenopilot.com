@@ -24,6 +24,7 @@ import {
   Maximize2,
   Minimize2,
   Plus,
+  Save,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -88,6 +89,25 @@ export function FastTrackImportModal({
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
   const [dateFormatMode, setDateFormatMode] = useState<"DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD">("DD-MMM-YYYY");
 
+  // Draft & Multi-Page Append State
+  const [savedDraft, setSavedDraft] = useState<{
+    rows: FastTrackParsedRow[];
+    updatedAt: string;
+    dateFormatMode: "DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD";
+  } | null>(null);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<string | null>(null);
+
+  // Append Drawer state
+  const [showAppendDrawer, setShowAppendDrawer] = useState<boolean>(false);
+  const [appendMode, setAppendMode] = useState<"CAMERA" | "SHEET">("CAMERA");
+  const [appendImages, setAppendImages] = useState<{ name: string; base64: string }[]>([]);
+  const [appendText, setAppendText] = useState<string>("");
+  const [isAppending, setIsAppending] = useState<boolean>(false);
+  const [appendSuccessNotice, setAppendSuccessNotice] = useState<string | null>(null);
+  const appendCameraInputRef = useRef<HTMLInputElement>(null);
+
+  const DRAFT_STORAGE_KEY = `tenopilot_fasttrack_draft_${propertyId}`;
+
   // Helper to format ISO date (YYYY-MM-DD) into user's chosen display format
   const formatDisplayDate = (isoDate: string | undefined): string => {
     if (!isoDate) return "";
@@ -129,10 +149,48 @@ export function FastTrackImportModal({
 
   const settings = propertySettingsStore.getSettings(propertyId);
 
+  // Save draft to localStorage
+  const handleSaveDraft = (rowsToSave?: FastTrackParsedRow[]) => {
+    const targetRows = rowsToSave || editableRows;
+    if (targetRows.length === 0) return;
+    try {
+      const draftData = {
+        rows: targetRows,
+        updatedAt: new Date().toISOString(),
+        dateFormatMode,
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+      setSavedDraft(draftData);
+      setDraftSaveStatus(`Draft saved at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+      setTimeout(() => setDraftSaveStatus(null), 3000);
+    } catch (e) {
+      console.warn("Could not save draft:", e);
+    }
+  };
+
+  // Resume saved draft
+  const handleResumeDraft = () => {
+    if (savedDraft && savedDraft.rows.length > 0) {
+      setEditableRows(savedDraft.rows);
+      if (savedDraft.dateFormatMode) setDateFormatMode(savedDraft.dateFormatMode);
+      setStep("REVIEW");
+    }
+  };
+
+  // Discard saved draft
+  const handleClearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setSavedDraft(null);
+    } catch (e) {
+      console.warn("Could not clear draft:", e);
+    }
+  };
+
   // Auto-Fix all warnings by filling missing placeholders automatically
   const handleAutoFixAllPlaceholders = () => {
-    setEditableRows((prev) =>
-      prev.map((row, i) => {
+    setEditableRows((prev) => {
+      const updated = prev.map((row, i) => {
         let phone = row.phone;
         if (!phone || phone.length !== 10) {
           phone = `98000${String(10000 + (i % 89999)).slice(-5)}`;
@@ -149,8 +207,10 @@ export function FastTrackImportModal({
           isValid: true,
           warnings: [],
         };
-      })
-    );
+      });
+      handleSaveDraft(updated);
+      return updated;
+    });
   };
 
   // Append a brand new manual resident row on the fly
@@ -176,11 +236,114 @@ export function FastTrackImportModal({
       warnings: ["Enter 10-digit mobile number"],
     };
 
-    setEditableRows((prev) => [...prev, newRow]);
+    setEditableRows((prev) => {
+      const updated = [...prev, newRow];
+      handleSaveDraft(updated);
+      return updated;
+    });
+  };
+
+  // Process and append next page of ledger / sheet
+  const handleExecuteAppend = async () => {
+    if (appendMode === "CAMERA" && appendImages.length === 0) {
+      alert("Please capture or choose a photo of the next page first.");
+      return;
+    }
+    if (appendMode === "SHEET" && !appendText.trim()) {
+      alert("Please paste spreadsheet text or upload a sheet first.");
+      return;
+    }
+
+    setIsAppending(true);
+    try {
+      let newRows: FastTrackParsedRow[] = [];
+
+      if (appendMode === "CAMERA") {
+        const apiRes = await fetch("/api/fasttrack/ai-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            images: appendImages.map((img) => ({
+              data: img.base64,
+              mimeType: "image/jpeg",
+            })),
+            propertyId,
+            defaultRentalTiers: settings.rentalTiers,
+          }),
+        });
+
+        if (!apiRes.ok) {
+          const errData = await apiRes.json().catch(() => ({}));
+          throw new Error(errData.details || errData.error || `Server returned ${apiRes.status}`);
+        }
+
+        const apiJson = await apiRes.json();
+        if (apiJson.success && apiJson.rows?.length > 0) {
+          newRows = apiJson.rows;
+        } else {
+          throw new Error("No readable entries could be extracted from this photo.");
+        }
+      } else {
+        const parsed = parseRawSpreadsheetText(appendText, settings.rentalTiers);
+        newRows = parsed.rows;
+      }
+
+      // Room-scoped bed allocation across existing + newly appended rows:
+      const roomOccupancy = new Map<string, number>();
+      editableRows.forEach((r) => {
+        const rm = r.roomNumber.toUpperCase().trim();
+        roomOccupancy.set(rm, (roomOccupancy.get(rm) || 0) + 1);
+      });
+
+      const normalizedNewRows = newRows.map((nr, idx) => {
+        const rm = nr.roomNumber.toUpperCase().trim();
+        const currentCount = (roomOccupancy.get(rm) || 0) + 1;
+        roomOccupancy.set(rm, currentCount);
+
+        const autoBedLetter = String.fromCharCode(64 + Math.min(currentCount, 26));
+        const finalBedCode = nr.bedCode && nr.bedCode.trim() ? nr.bedCode.trim() : `Bed ${autoBedLetter}`;
+
+        return {
+          ...nr,
+          id: `ft_appended_${Date.now()}_${idx}`,
+          bedCode: finalBedCode,
+        };
+      });
+
+      const combined = [...editableRows, ...normalizedNewRows];
+      setEditableRows(combined);
+      handleSaveDraft(combined);
+
+      // Reset append drawer state
+      setAppendImages([]);
+      setAppendText("");
+      setShowAppendDrawer(false);
+      setAppendSuccessNotice(`Successfully appended ${normalizedNewRows.length} residents from Page ${Math.floor(combined.length / 4) + 1}!`);
+      setTimeout(() => setAppendSuccessNotice(null), 4500);
+    } catch (err: any) {
+      alert(`Append Error: ${err.message}`);
+    } finally {
+      setIsAppending(false);
+    }
   };
 
   useEffect(() => {
     if (isOpen) {
+      // Check for saved draft in localStorage
+      try {
+        const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+            setSavedDraft(parsed);
+          } else {
+            setSavedDraft(null);
+          }
+        }
+      } catch (e) {
+        setSavedDraft(null);
+      }
+
       setStep("INPUT");
       setPastedText("");
       setFileName(null);
@@ -191,8 +354,11 @@ export function FastTrackImportModal({
       setIsMaximized(false);
       setProcessingError(null);
       setProcessingProgress(0);
+      setShowAppendDrawer(false);
+      setAppendImages([]);
+      setAppendText("");
     }
-  }, [isOpen]);
+  }, [isOpen, propertyId]);
 
   if (!isOpen) return null;
 
@@ -473,6 +639,7 @@ export function FastTrackImportModal({
 
       setIngestResult(result);
       setStep("SUCCESS");
+      handleClearDraft();
       fireCelebrationConfetti();
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -533,6 +700,47 @@ export function FastTrackImportModal({
         {/* STEP 1: INPUT MODE */}
         {step === "INPUT" && (
           <div className="p-6 overflow-y-auto space-y-6 flex-1">
+            {/* Resume Draft Banner */}
+            {savedDraft && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 via-orange-50 to-amber-50 border border-purple-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm shrink-0 shadow-inner">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-gray-900">
+                        Saved Draft Available ({savedDraft.rows.length} Residents)
+                      </h4>
+                      <span className="text-[9px] bg-purple-200/80 text-purple-800 font-extrabold px-2 py-0.5 rounded-full">
+                        In Progress
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Last saved {new Date(savedDraft.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • Resume to continue editing, append next pages, or commit.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResumeDraft}
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Resume Draft ({savedDraft.rows.length})
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Mode Switcher Tabs */}
             <div className="flex p-1 bg-gray-100 rounded-2xl max-w-md mx-auto">
               <button
@@ -867,7 +1075,31 @@ Priya Verma    9855667788   Room 201   22000"
                 </label>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSaveDraft()}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Save draft so you can resume anytime"
+                >
+                  <Save className="w-3.5 h-3.5 text-gray-500" />
+                  <span>{draftSaveStatus || "Save Draft"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAppendDrawer(!showAppendDrawer)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                    showAppendDrawer
+                      ? "bg-purple-700 text-white"
+                      : "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20"
+                  }`}
+                  title="Scan another ledger page or paste more rows to append to this list"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>{showAppendDrawer ? "Close Append Drawer" : "➕ Append Next Page"}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleAddNewManualRow}
@@ -889,6 +1121,134 @@ Priya Verma    9855667788   Room 201   22000"
                 )}
               </div>
             </div>
+
+            {/* Append Success Notification */}
+            {appendSuccessNotice && (
+              <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in">
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  {appendSuccessNotice}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAppendSuccessNotice(null)}
+                  className="text-emerald-500 hover:text-emerald-700 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Multi-Page Append Drawer */}
+            {showAppendDrawer && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50/90 via-white to-orange-50/80 border-2 border-purple-300 shadow-md space-y-3 animate-in slide-in-from-top-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-purple-700" />
+                    <h4 className="font-bold text-xs text-gray-900">
+                      Append Next Page to This List
+                    </h4>
+                    <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full">
+                      Currently {editableRows.length} Residents
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setAppendMode("CAMERA")}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                        appendMode === "CAMERA" ? "bg-white text-purple-700 shadow-xs" : "text-gray-500 hover:text-gray-800"
+                      }`}
+                    >
+                      📸 Ledger Photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAppendMode("SHEET")}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                        appendMode === "SHEET" ? "bg-white text-[#c2652a] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                      }`}
+                    >
+                      📄 Sheet / Paste
+                    </button>
+                  </div>
+                </div>
+
+                {appendMode === "CAMERA" ? (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-purple-100 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="file"
+                        ref={appendCameraInputRef}
+                        accept="image/*"
+                        multiple
+                        capture="environment"
+                        onChange={async (e) => {
+                          const files = e.target.files;
+                          if (!files) return;
+                          for (const f of Array.from(files)) {
+                            const opt = await compressImageForAi(f);
+                            if (opt.base64) setAppendImages((prev) => [...prev, opt]);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => appendCameraInputRef.current?.click()}
+                        className="px-3.5 py-2 rounded-xl bg-purple-100 text-purple-800 hover:bg-purple-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <Camera className="w-4 h-4" />
+                        {appendImages.length > 0 ? `Selected (${appendImages.length} Photos)` : "Take / Choose Page Photo"}
+                      </button>
+                      <span className="text-[11px] text-gray-500 truncate max-w-[200px]">
+                        {appendImages.length > 0 ? appendImages.map((i) => i.name).join(", ") : "Snap photo of Page 2 / next register sheet"}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isAppending || appendImages.length === 0}
+                      onClick={handleExecuteAppend}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      {isAppending ? (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                          <span>Scanning in 2s...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Scan & Append to List</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <textarea
+                      rows={3}
+                      value={appendText}
+                      onChange={(e) => setAppendText(e.target.value)}
+                      placeholder="Paste additional table rows here (e.g. from Page 2 or Excel sheet)..."
+                      className="w-full p-2.5 bg-white rounded-xl border border-gray-200 text-xs font-mono text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        disabled={isAppending || !appendText.trim()}
+                        onClick={handleExecuteAppend}
+                        className="px-4 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Append Rows</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Reassuring Bed Allocation Notification */}
             <div className="px-3.5 py-2 rounded-xl bg-purple-50/70 border border-purple-200/60 text-[11px] text-purple-900 font-semibold flex items-center justify-between">
