@@ -29,6 +29,7 @@ import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverl
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { DigitRollingOdometer } from "@/components/motion/DigitRollingOdometer";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { initializeCleanProperty } from "@/lib/accountInitializer";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
@@ -226,6 +227,9 @@ export default function HomeWorkspacePage() {
       collectionRate: "0%",
       status: "HEALTHY",
     };
+
+    // Initialize clean zero-data state with zero spillovers for this property
+    initializeCleanProperty(newBuilding.id, newBuilding.name);
 
     // Save initial property settings SSOT profile in Firestore & local store
     propertySettingsStore.updateSettings({
