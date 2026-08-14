@@ -7,6 +7,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
@@ -87,194 +88,68 @@ export default function IndividualTenantProfilePage({
   const occupant = useMemo(() => {
     const allOccupants = typeof window !== "undefined" ? occupantStore.getOccupants(propertyId) : [];
     const match = allOccupants.find((o) => o.id === tenantId);
-
-    if (match) return match;
-
-    // Direct match for test IDs if proxy evaluation hasn't hydrated yet
-    if (tenantId === "occ-test-tenant-future") {
-      return {
-        id: "occ-test-tenant-future",
-        name: "Vikram Malhotra (Future Tenant)",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VikramMalhotra",
-        phone: "+91 98111 22334",
-        email: "vikram.m@example.com",
-        stayType: "Tenant" as const,
-        lifecycleStatus: "Booked" as const,
-        paymentStatus: "Due" as const,
-        daysDiff: 13,
-        daysRemainingText: "Due on Check-In",
-        rentAmount: 14500,
-        dueDate: "15 Aug 2026",
-        dueDay: 15,
-        lastPaidDate: "Pending Check-In",
-        roomNumber: "201",
-        bedCode: "BED A",
-        joiningDate: "15 Aug 2026",
-        kycVerified: false,
-        hasPdfAgreement: true,
-        workplace: "TCS Systems",
-        address: "HSR Layout, Bengaluru",
-        aadhaarNumber: "XXXX-XXXX-1122",
-        emergencyContact: {
-          name: "Rajesh Malhotra",
-          phone: "+91 98111 99999",
-          relation: "Father",
-        },
-      };
-    }
-
-    if (tenantId === "occ-test-tenant-today") {
-      return {
-        id: "occ-test-tenant-today",
-        name: "Rohan Varma (Today Tenant)",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RohanVarma",
-        phone: "+91 98222 33445",
-        email: "rohan.v@example.com",
-        stayType: "Tenant" as const,
-        lifecycleStatus: "Active" as const,
-        paymentStatus: "Paid" as const,
-        daysDiff: 30,
-        daysRemainingText: "—",
-        rentAmount: 14500,
-        dueDate: "01 Sep 2026",
-        dueDay: 1,
-        lastPaidDate: "02 Aug 2026",
-        roomNumber: "202",
-        bedCode: "BED B",
-        joiningDate: "02 Aug 2026",
-        kycVerified: true,
-        hasPdfAgreement: true,
-        workplace: "Infosys Labs",
-        address: "Koramangala, Bengaluru",
-        aadhaarNumber: "XXXX-XXXX-3344",
-        emergencyContact: {
-          name: "Sunita Varma",
-          phone: "+91 98222 88888",
-          relation: "Mother",
-        },
-      };
-    }
-
-    if (tenantId === "occ-test-guest-future") {
-      return {
-        id: "occ-test-guest-future",
-        name: "Ananya Deshmukh (Future Guest)",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AnanyaDeshmukh",
-        phone: "+91 98333 44556",
-        email: "ananya.d@guest.com",
-        stayType: "Guest" as const,
-        lifecycleStatus: "Booked" as const,
-        paymentStatus: "Due" as const,
-        daysDiff: 8,
-        daysRemainingText: "Due on Check-In",
-        rentAmount: 3500,
-        dueDate: "17 Aug 2026",
-        dueDay: 17,
-        lastPaidDate: "Pending Check-In",
-        roomNumber: "203",
-        bedCode: "BED A",
-        joiningDate: "10 Aug 2026",
-        kycVerified: false,
-        hasPdfAgreement: false,
-        workplace: "Design Studio",
-        address: "Indiranagar, Bengaluru",
-        aadhaarNumber: "XXXX-XXXX-5566",
-        emergencyContact: {
-          name: "Prakash Deshmukh",
-          phone: "+91 98333 77777",
-          relation: "Father",
-        },
-      };
-    }
-
-    if (tenantId === "occ-test-guest-today") {
-      return {
-        id: "occ-test-guest-today",
-        name: "Karan Johar (Today Guest)",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=KaranJohar",
-        phone: "+91 98444 55667",
-        email: "karan.j@guest.com",
-        stayType: "Guest" as const,
-        lifecycleStatus: "Active" as const,
-        paymentStatus: "Paid" as const,
-        daysDiff: 7,
-        daysRemainingText: "7 Days Remaining",
-        rentAmount: 3500,
-        dueDate: "09 Aug 2026",
-        dueDay: 9,
-        lastPaidDate: "02 Aug 2026",
-        roomNumber: "204",
-        bedCode: "BED C",
-        joiningDate: "02 Aug 2026",
-        kycVerified: true,
-        hasPdfAgreement: false,
-        workplace: "Freelance",
-        address: "Jayanagar, Bengaluru",
-        aadhaarNumber: "XXXX-XXXX-7788",
-        emergencyContact: {
-          name: "Meena Johar",
-          phone: "+91 98444 66666",
-          relation: "Mother",
-        },
-      };
-    }
-
-    return {
-      id: tenantId,
-      name: "Amara Okafor",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AmaraOkafor",
-      phone: "+91 98765 43210",
-      email: "amara.o@techrec.co",
-      stayType: "Tenant" as const,
-      roomNumber: "102",
-      bedCode: "Bed A",
-      joiningDate: "12 Oct 2023",
-      lastPaidDate: "01 Jul 2026",
-      dueDate: "01 Aug 2026",
-      dueDay: 1,
-      daysRemainingText: "IN 20 DAYS",
-      daysDiff: 20,
-      rentAmount: 24500,
-      paymentStatus: "Paid" as const,
-      lifecycleStatus: "Active" as const,
-      aadhaarNumber: "XXXX-XXXX-4819",
-      emergencyContact: {
-        name: "Suresh Okafor",
-        phone: "+91 98765 11223",
-        relation: "Father",
-      },
-    };
-  }, [tenantId]);
+    return match || null;
+  }, [tenantId, propertyId]);
 
   // Local state for dynamic occupant edits
-  const [occupantState, setOccupantState] = useState<Occupant>(occupant);
+  const [occupantState, setOccupantState] = useState<Occupant | null>(occupant);
+
+  // Synchronize occupantState and paymentHistory whenever tenantId/propertyId changes
+  useEffect(() => {
+    setIsMounted(true);
+    const existing = occupantStore.getOccupants(propertyId).find((o) => o.id === tenantId);
+    if (existing) {
+      setOccupantState(existing);
+      setEditName(existing.name);
+      setEditPhone(existing.phone);
+      setEditEmail(existing.email || "");
+      setEditRent(existing.rentAmount);
+      if (existing.paymentHistory && Array.isArray(existing.paymentHistory)) {
+        setPaymentHistory(existing.paymentHistory);
+      }
+    }
+
+    const unsubscribeLocal = occupantStore.subscribe(() => {
+      const updated = occupantStore.getOccupants(propertyId).find((o) => o.id === tenantId);
+      if (updated) {
+        setOccupantState(updated);
+        setEditName(updated.name);
+        setEditPhone(updated.phone);
+        setEditEmail(updated.email || "");
+        setEditRent(updated.rentAmount);
+        if (updated.paymentHistory && Array.isArray(updated.paymentHistory)) {
+          setPaymentHistory(updated.paymentHistory);
+        }
+      }
+    });
+
+    const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+        const updated = fsOccupants.find((o) => o.id === tenantId);
+        if (updated) {
+          setOccupantState(updated);
+          setEditName(updated.name);
+          setEditPhone(updated.phone);
+          setEditEmail(updated.email || "");
+          setEditRent(updated.rentAmount);
+          if (updated.paymentHistory && Array.isArray(updated.paymentHistory)) {
+            setPaymentHistory(updated.paymentHistory);
+          }
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeLocal();
+      unsubscribeFirestore();
+    };
+  }, [tenantId, propertyId]);
 
   // Payment History State (Starts empty [] for Booked status or newly onboarded profiles!)
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
 
-  // Synchronize occupantState and paymentHistory whenever tenantId/occupant route parameter changes or on client mount!
-  useEffect(() => {
-    if (!isMounted) return;
-    setOccupantState(occupant);
 
-    if (occupant.paymentHistory && Array.isArray(occupant.paymentHistory)) {
-      setPaymentHistory(occupant.paymentHistory);
-    } else if (occupant.lifecycleStatus === "Booked" || occupant.lastPaidDate === "Unpaid / Due Now" || occupant.lastPaidDate === "Pending Check-In" || occupant.paymentStatus === "Due") {
-      setPaymentHistory([]);
-    } else {
-      setPaymentHistory([
-        {
-          id: "pay-1",
-          month: "August 2026",
-          date: occupant.lastPaidDate || "01 Aug 2026",
-          amount: occupant.rentAmount,
-          mode: "UPI (HDFC)",
-          receiptNo: "#REC-73104",
-          status: "PAID",
-        },
-      ]);
-    }
-  }, [occupant, tenantId, isMounted]);
 
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
@@ -298,13 +173,13 @@ export default function IndividualTenantProfilePage({
   const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
 
   // Promote Form Inputs
-  const [promoteMonthlyRent, setPromoteMonthlyRent] = useState<number>(occupantState.rentAmount || 12500);
+  const [promoteMonthlyRent, setPromoteMonthlyRent] = useState<number>(occupantState?.rentAmount || 12500);
   const [promoteDeposit, setPromoteDeposit] = useState<number>(25000);
   const [promoteJoiningDate, setPromoteJoiningDate] = useState<string>("2026-08-01");
 
   // Collect Rent Form Inputs
   const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
-  const [paymentAmount, setPaymentAmount] = useState<number>(occupantState.rentAmount);
+  const [paymentAmount, setPaymentAmount] = useState<number>(occupantState?.rentAmount || 0);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [transactionRef, setTransactionRef] = useState<string>("");
 
@@ -332,10 +207,10 @@ export default function IndividualTenantProfilePage({
   } | null>(null);
 
   // Edit Profile Form Inputs
-  const [editName, setEditName] = useState<string>(occupantState.name);
-  const [editPhone, setEditPhone] = useState<string>(occupantState.phone);
-  const [editEmail, setEditEmail] = useState<string>(occupantState.email);
-  const [editRent, setEditRent] = useState<number>(occupantState.rentAmount);
+  const [editName, setEditName] = useState<string>(occupantState?.name || "");
+  const [editPhone, setEditPhone] = useState<string>(occupantState?.phone || "");
+  const [editEmail, setEditEmail] = useState<string>(occupantState?.email || "");
+  const [editRent, setEditRent] = useState<number>(occupantState?.rentAmount || 0);
 
   // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -367,6 +242,7 @@ export default function IndividualTenantProfilePage({
 
   const handleRoomTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
 
     const isGuest = occupantState.stayType === "Guest";
     const oldRoomNumber = occupantState.roomNumber;
@@ -488,6 +364,7 @@ export default function IndividualTenantProfilePage({
 
   const handleCompleteKycSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
     const updated: Occupant = {
       ...occupantState,
       kycVerified: true,
@@ -503,6 +380,7 @@ export default function IndividualTenantProfilePage({
   // 1. Collect Rent Submit Handler (No Cheques, Transaction ID for UPI/Bank, Updates State)
   const handleCollectRentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
 
     // Format selected date (e.g. "2026-07-31" -> "31 Jul 2026")
     const dParts = paymentDate.split("-");
@@ -592,6 +470,7 @@ export default function IndividualTenantProfilePage({
   // 2. Log Notice Submit Handler (Vacating date & reason modal, sets status to Notice)
   const handleLogNoticeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
 
     // Format date string for display (e.g., "15 Aug 2026")
     const formattedVacatingDate = formatIsoToDisplayDate(vacatingDate);
@@ -635,6 +514,7 @@ export default function IndividualTenantProfilePage({
   // 2a-1. Extend Notice Submit Handler with Automated Conflict Check
   const handleExtendNoticeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
     const conflict = propertyStore.checkBedBookingConflict(
       occupantState.roomNumber,
       occupantState.bedCode,
@@ -693,6 +573,7 @@ export default function IndividualTenantProfilePage({
   // 2a-2. Cancel Notice & Stay Submit Handler with Automated Conflict Check
   const handleCancelNoticeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
     const conflict = propertyStore.checkBedBookingConflict(
       occupantState.roomNumber,
       occupantState.bedCode,
@@ -747,6 +628,7 @@ export default function IndividualTenantProfilePage({
   // 2a-3. Extend Guest Stay Submit Handler with Automated Conflict Check
   const handleExtendGuestStaySubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
     const conflict = propertyStore.checkBedBookingConflict(
       occupantState.roomNumber,
       occupantState.bedCode,
@@ -803,6 +685,7 @@ export default function IndividualTenantProfilePage({
   // 2b. Guest Checkout & Bed Clearance Submit Handler (DDS-13 Dynamic Cascading Matrix Compliance!)
   const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
 
     const updatedGuest: Occupant = {
       ...occupantState,
@@ -843,6 +726,7 @@ export default function IndividualTenantProfilePage({
   // 3. Edit Profile Submit Handler (Updates Name, Phone, Email, Rent across state)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
 
     const updated: Occupant = {
       ...occupantState,
@@ -882,6 +766,7 @@ export default function IndividualTenantProfilePage({
   // 4. Promote Guest to Long-Term Tenant Submit Handler (Updates stayType: "Tenant", lifecycleStatus: "Active", rent & deposit)
   const handlePromoteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!occupantState) return;
 
     const updated: Occupant = {
       ...occupantState,
@@ -949,7 +834,25 @@ export default function IndividualTenantProfilePage({
             </div>
           )}
 
-          {occupantState.stayType === "Guest" ? (
+          {!occupantState ? (
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-12 text-center max-w-lg mx-auto space-y-4 shadow-sm">
+              <div className="w-16 h-16 rounded-full bg-orange-50 text-[#c2652a] flex items-center justify-center mx-auto text-2xl font-bold">
+                🔍
+              </div>
+              <h3 className="font-serif font-bold text-xl text-gray-900">
+                Resident Record Not Found
+              </h3>
+              <p className="text-xs text-gray-500">
+                The resident record for ID &quot;{tenantId}&quot; could not be located in this property.
+              </p>
+              <Link
+                href={`/p/${propertyId}/tenants`}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#c2652a] hover:bg-[#a35220] text-white font-bold text-xs shadow-sm transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" /> Back to Tenants Directory
+              </Link>
+            </div>
+          ) : occupantState.stayType === "Guest" ? (
             <GuestProfileView
               occupantState={occupantState}
               propertyId={propertyId}
@@ -1743,8 +1646,10 @@ export default function IndividualTenantProfilePage({
         )}
       </div>
 
-        {/* 1. Collect Rent Modal (UPI / Bank / Cash with Transaction ID - No Cheques) */}
-        {showCollectRentModal && (
+      {occupantState && (
+        <>
+          {/* 1. Collect Rent Modal (UPI / Bank / Cash with Transaction ID - No Cheques) */}
+          {showCollectRentModal && (
           <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
@@ -2520,11 +2425,15 @@ export default function IndividualTenantProfilePage({
                     ] || "Aug"
                   } ${dParts[0]}`;
 
-                  setOccupantState((prev) => ({
-                    ...prev,
-                    joiningDate: formattedDate,
-                    dueDate: formattedDate,
-                  }));
+                  setOccupantState((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          joiningDate: formattedDate,
+                          dueDate: formattedDate,
+                        }
+                      : null
+                  );
 
                   triggerToast(`✓ Updated check-in move-in date for ${occupantState.name} to ${formattedDate}`);
                   setShowEditCheckInModal(false);
@@ -3623,10 +3532,14 @@ export default function IndividualTenantProfilePage({
                         value={occupantState.kycDocs?.aadhaarFrontUrl}
                         onChange={(base64) => {
                           setKycFrontUploaded(true);
-                          setOccupantState((prev) => ({
-                            ...prev,
-                            kycDocs: { ...prev.kycDocs, aadhaarFrontUrl: base64 },
-                          }));
+                          setOccupantState((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  kycDocs: { ...prev.kycDocs, aadhaarFrontUrl: base64 },
+                                }
+                              : null
+                          );
                         }}
                       />
                     </div>
@@ -3641,10 +3554,14 @@ export default function IndividualTenantProfilePage({
                         value={occupantState.kycDocs?.aadhaarBackUrl}
                         onChange={(base64) => {
                           setKycBackUploaded(true);
-                          setOccupantState((prev) => ({
-                            ...prev,
-                            kycDocs: { ...prev.kycDocs, aadhaarBackUrl: base64 },
-                          }));
+                          setOccupantState((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  kycDocs: { ...prev.kycDocs, aadhaarBackUrl: base64 },
+                                }
+                              : null
+                          );
                         }}
                       />
                     </div>
@@ -3681,15 +3598,21 @@ export default function IndividualTenantProfilePage({
             isOpen={showCheckOutModal}
             onClose={() => setShowCheckOutModal(false)}
             onSuccess={() => {
-              setOccupantState((prev) => ({
-                ...prev,
-                lifecycleStatus: "Past",
-                depositStatus: "REFUNDED",
-              }));
+              setOccupantState((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      lifecycleStatus: "Past",
+                      depositStatus: "REFUNDED",
+                    }
+                  : null
+              );
               triggerToast(`🎉 Completed formal check-out & deposit settlement for ${occupantState.name}!`);
             }}
           />
         )}
+      </>
+    )}
       </div>
     </div>
   );

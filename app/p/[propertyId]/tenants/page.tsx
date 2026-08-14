@@ -75,10 +75,10 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants && fsOccupants.length > 0) {
-        occupantStore.setOccupantsFromFirestore(fsOccupants);
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
         setOccupantsList(occupantStore.getOccupants(propertyId));
       } else {
-        occupantStore.setOccupantsFromFirestore([]);
+        occupantStore.setOccupantsFromFirestore([], propertyId);
         setOccupantsList([]);
       }
     });

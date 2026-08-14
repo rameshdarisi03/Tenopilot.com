@@ -338,30 +338,17 @@ export const occupantStore = {
     return [];
   },
 
-  setOccupantsFromFirestore(newList: Occupant[]) {
+  setOccupantsFromFirestore(newList: Occupant[], propertyId?: string) {
     // 🌟 CLOUD FIRESTORE IS 100% THE SINGLE SOURCE OF TRUTH (SSOT)
-    // Cloud snapshot directly overwrites state — deleted Firestore records disappear automatically!
     const LEGACY_PURGE_KEYS = ["mock-guest-", "occ-test-", "tera01", "tera02"];
     const filteredFirestoreList = newList.filter(
       (o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key)
     );
 
-    // If Firestore returns records, Cloud Firestore is master authority!
-    // We only preserve un-synced newly onboarded local items created in the last 10 seconds.
-    const current = loadOccupants();
-    const firestoreIds = new Set(filteredFirestoreList.map((o) => o.id));
-
-    // Preserve local drafts only if they are newly created genuine records
-    const unsyncedLocalDrafts = current.filter(
-      (o) => !firestoreIds.has(o.id) && o.id.startsWith("og-")
-    );
-
-    const masterList = [...filteredFirestoreList, ...unsyncedLocalDrafts];
-
-    GLOBAL_OCCUPANTS_CACHE = masterList;
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && propertyId) {
       try {
-        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(masterList));
+        const savedKey = `tenopilot_occupants_${propertyId}`;
+        localStorage.setItem(savedKey, JSON.stringify(filteredFirestoreList));
       } catch (e) {
         console.warn("Failed to update cache with Cloud Firestore SSOT:", e);
       }
@@ -371,15 +358,17 @@ export const occupantStore = {
 
   async deleteOccupant(occupantId: string, propertyId: string = "sunshine-pg") {
     // 1. Delete document permanently from Cloud Firestore FIRST
-    await deleteOccupantFromFirestore(propertyId, occupantId);
+    if (propertyId) {
+      await deleteOccupantFromFirestore(propertyId, occupantId);
+    }
 
     // 2. Update local state & cache without deleted tenant
-    const list = this.getOccupants();
+    const list = this.getOccupants(propertyId);
     const updatedList = list.filter((o) => o.id !== occupantId);
-    GLOBAL_OCCUPANTS_CACHE = updatedList;
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && propertyId) {
       try {
-        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(updatedList));
+        const savedKey = `tenopilot_occupants_${propertyId}`;
+        localStorage.setItem(savedKey, JSON.stringify(updatedList));
       } catch (e) {
         console.warn("Failed to save updated occupants store:", e);
       }
@@ -388,10 +377,10 @@ export const occupantStore = {
   },
 
   updateOccupants(newList: Occupant[], propertyId: string = "sunshine-pg") {
-    GLOBAL_OCCUPANTS_CACHE = newList;
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && propertyId) {
       try {
-        localStorage.setItem(OCCUPANTS_STORAGE_KEY, JSON.stringify(newList));
+        const savedKey = `tenopilot_occupants_${propertyId}`;
+        localStorage.setItem(savedKey, JSON.stringify(newList));
         // Asynchronously sync to Firebase Cloud Firestore collection: properties/{propertyId}/occupants
         newList.forEach((occ) => {
           saveOccupantToFirestore(propertyId, occ);
@@ -404,7 +393,7 @@ export const occupantStore = {
   },
 
   updateOccupant(updatedOcc: Occupant, propertyId: string = "sunshine-pg") {
-    const list = this.getOccupants();
+    const list = this.getOccupants(propertyId);
     const updatedList = list.map((o) => (o.id === updatedOcc.id ? updatedOcc : o));
     this.updateOccupants(updatedList, propertyId);
   },
