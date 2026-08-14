@@ -168,35 +168,8 @@ export const propertyStore = {
         console.warn(`Failed to load structure for property ${propertyId}:`, e);
       }
     }
-    // Default clean 2-floor layout for new property (0 demo occupants)
-    return [
-      {
-        id: `fl-01-${propertyId}`,
-        floorName: "FLOOR 01",
-        floorSubtitle: "MAIN SUITES",
-        totalBeds: 8,
-        rooms: [
-          {
-            id: `rm-101-${propertyId}`,
-            roomNumber: "101",
-            sharingType: 2,
-            beds: [
-              { id: `b-101A-${propertyId}`, bedCode: "BED A", status: "Available" },
-              { id: `b-101B-${propertyId}`, bedCode: "BED B", status: "Available" },
-            ],
-          },
-          {
-            id: `rm-102-${propertyId}`,
-            roomNumber: "102",
-            sharingType: 2,
-            beds: [
-              { id: `b-102A-${propertyId}`, bedCode: "BED A", status: "Available" },
-              { id: `b-102B-${propertyId}`, bedCode: "BED B", status: "Available" },
-            ],
-          },
-        ],
-      },
-    ];
+    // Default clean 0-floor layout for new property (0 demo occupants)
+    return [];
   },
 
   updateStructure(newStructure: FloorConfig[], propertyId: string = "sunshine-pg") {

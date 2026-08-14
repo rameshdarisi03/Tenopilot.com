@@ -158,7 +158,7 @@ export function PropertySidebar({
           }`}
         >
           <Settings className={`w-4 h-4 ${pathname?.includes("settings") ? "text-amber-300" : "text-[#964407]"}`} />
-          <span>Property Settings</span>
+          <span>Settings</span>
         </Link>
 
         <a

@@ -50,6 +50,24 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   },
 };
 
+export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
+  billingCycleDates: "1st to End of Month",
+  desiredDueDate: 5,
+  gracePeriodDays: 5,
+  defaultSecurityDeposit: 0,
+  upiPaymentId: "",
+  propertyName: "New Property Estate",
+  propertyAddress: "",
+  managerPhone: "",
+  qrProfiles: DEFAULT_QR_PROFILES,
+  rentalTiers: {
+    sharing1: 0,
+    sharing2: 0,
+    sharing3: 0,
+    sharing4: 0,
+  },
+};
+
 let currentSettings: PropertySettingsData = { ...DEFAULT_PROPERTY_SETTINGS };
 let activeUnsubscribe: (() => void) | null = null;
 let activePropertyId: string | null = null;
@@ -84,6 +102,7 @@ export const propertySettingsStore = {
     }
 
     activePropertyId = propertyId;
+    const baseDefault = propertyId === "sunshine-pg" ? DEFAULT_PROPERTY_SETTINGS : CLEAN_ZERO_PROPERTY_SETTINGS;
 
     try {
       const docRef = doc(db, `properties/${propertyId}/settings/config`);
@@ -92,10 +111,13 @@ export const propertySettingsStore = {
         (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.data() as PropertySettingsData;
-            currentSettings = { ...DEFAULT_PROPERTY_SETTINGS, ...data };
+            currentSettings = { ...baseDefault, ...data };
             if (typeof window !== "undefined") {
-              localStorage.setItem("tenopilot_property_settings", JSON.stringify(currentSettings));
+              localStorage.setItem(`tenopilot_settings_${propertyId}`, JSON.stringify(currentSettings));
             }
+            this.notify();
+          } else {
+            currentSettings = { ...baseDefault };
             this.notify();
           }
         },
@@ -110,16 +132,19 @@ export const propertySettingsStore = {
 
   getSettings(propertyId = "sunshine-pg"): PropertySettingsData {
     this.initFirebaseListener(propertyId);
+    const baseDefault = propertyId === "sunshine-pg" ? DEFAULT_PROPERTY_SETTINGS : CLEAN_ZERO_PROPERTY_SETTINGS;
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tenopilot_property_settings");
+      const saved = localStorage.getItem(`tenopilot_settings_${propertyId}`);
       if (saved) {
         try {
-          currentSettings = { ...DEFAULT_PROPERTY_SETTINGS, ...JSON.parse(saved) };
+          currentSettings = { ...baseDefault, ...JSON.parse(saved) };
+          return currentSettings;
         } catch {
-          // fallback to default
+          // fallback
         }
       }
     }
+    currentSettings = { ...baseDefault };
     return currentSettings;
   },
 

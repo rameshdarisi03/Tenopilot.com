@@ -166,15 +166,7 @@ export const partnerStore = {
         console.warn(`Failed to read partners for ${propertyId}:`, e);
       }
     }
-    return [
-      {
-        id: `p-owner-${propertyId}`,
-        name: "Property Owner",
-        ownershipPercentage: 100,
-        color: "#964407",
-        accountType: "Primary Business Account",
-      },
-    ];
+    return [];
   },
 
   async syncToFirestore(propertyId = "sunshine-pg") {
@@ -200,7 +192,8 @@ export const partnerStore = {
   updatePartners(newPartners: PartnerConfig[], propertyId = "sunshine-pg") {
     partnerState = newPartners;
     // Auto sync partner accounts into payment accounts
-    const partnerAccs: PaymentAccountConfig[] = newPartners.map((p) => ({
+    const partnerAccs: PartnerConfig[] = newPartners;
+    const partnerAccountConfigs: PaymentAccountConfig[] = partnerAccs.map((p) => ({
       id: `acc-partner-${p.id}`,
       name: p.name,
       type: "Partner Account",
@@ -209,12 +202,12 @@ export const partnerStore = {
     const nonPartnerAccs = paymentAccountState.filter(
       (a) => a.type !== "Partner Account"
     );
-    paymentAccountState = [...nonPartnerAccs, ...partnerAccs];
+    paymentAccountState = [...nonPartnerAccs, ...partnerAccountConfigs];
 
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("tenopilot_partner_ownership", JSON.stringify(newPartners));
-        localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
+        localStorage.setItem(`tenopilot_partners_${propertyId}`, JSON.stringify(newPartners));
+        localStorage.setItem(`tenopilot_payment_accounts_${propertyId}`, JSON.stringify(paymentAccountState));
       } catch (e) {
         console.error("Failed to save partners to localStorage", e);
       }
@@ -223,8 +216,19 @@ export const partnerStore = {
     this.syncToFirestore(propertyId);
   },
 
-  getPaymentAccounts(): PaymentAccountConfig[] {
-    return paymentAccountState;
+  getPaymentAccounts(propertyId = "sunshine-pg"): PaymentAccountConfig[] {
+    if (propertyId === "sunshine-pg") {
+      return paymentAccountState;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`tenopilot_payment_accounts_${propertyId}`);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn(`Failed to read payment accounts for ${propertyId}:`, e);
+      }
+    }
+    return [];
   },
 
   addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account") {

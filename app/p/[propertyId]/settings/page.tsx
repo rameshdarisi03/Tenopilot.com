@@ -27,6 +27,7 @@ import {
   propertySettingsStore,
   PropertySettingsData,
   DEFAULT_PROPERTY_SETTINGS,
+  CLEAN_ZERO_PROPERTY_SETTINGS,
   PaymentQRProfile,
   DEFAULT_QR_PROFILES,
 } from "@/constants/propertySettings";
@@ -228,9 +229,10 @@ export default function PropertySettingsPage({
 
   const handleResetDefaults = () => {
     if (confirm("Reset property settings back to factory defaults?")) {
-      setSettings(DEFAULT_PROPERTY_SETTINGS);
-      propertySettingsStore.updateSettings(DEFAULT_PROPERTY_SETTINGS, propertyId);
-      triggerToast("✓ Property Settings reset to factory defaults.");
+      const defaultData = propertyId === "sunshine-pg" ? DEFAULT_PROPERTY_SETTINGS : CLEAN_ZERO_PROPERTY_SETTINGS;
+      setSettings(defaultData);
+      propertySettingsStore.updateSettings(defaultData, propertyId);
+      triggerToast("✓ Property Settings reset to clean defaults.");
     }
   };
 
@@ -695,7 +697,7 @@ export default function PropertySettingsPage({
 
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      `billingCycleDates` Variable *
+                      Select Billing Cycle Mode *
                     </label>
                     <select
                       value={settings.billingCycleDates}
@@ -730,7 +732,7 @@ export default function PropertySettingsPage({
 
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      `desiredDueDate` Variable *
+                      Target Due Day of Month *
                     </label>
                     <div className="flex items-center gap-3">
                       <input
