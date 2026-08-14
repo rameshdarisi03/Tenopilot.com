@@ -103,8 +103,11 @@ export function FastTrackImportModal({
   const [appendImages, setAppendImages] = useState<{ name: string; base64: string }[]>([]);
   const [appendText, setAppendText] = useState<string>("");
   const [isAppending, setIsAppending] = useState<boolean>(false);
+  const [isDraggingAppendCamera, setIsDraggingAppendCamera] = useState<boolean>(false);
+  const [isDraggingAppendSheet, setIsDraggingAppendSheet] = useState<boolean>(false);
   const [appendSuccessNotice, setAppendSuccessNotice] = useState<string | null>(null);
   const appendCameraInputRef = useRef<HTMLInputElement>(null);
+  const appendSheetInputRef = useRef<HTMLInputElement>(null);
 
   const DRAFT_STORAGE_KEY = `tenopilot_fasttrack_draft_${propertyId}`;
 
@@ -1175,76 +1178,223 @@ Priya Verma    9855667788   Room 201   22000"
                 </div>
 
                 {appendMode === "CAMERA" ? (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-purple-100 shadow-2xs">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        ref={appendCameraInputRef}
-                        accept="image/*"
-                        multiple
-                        capture="environment"
-                        onChange={async (e) => {
-                          const files = e.target.files;
-                          if (!files) return;
-                          for (const f of Array.from(files)) {
-                            const opt = await compressImageForAi(f);
-                            if (opt.base64) setAppendImages((prev) => [...prev, opt]);
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => appendCameraInputRef.current?.click()}
-                        className="px-3.5 py-2 rounded-xl bg-purple-100 text-purple-800 hover:bg-purple-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                      >
-                        <Camera className="w-4 h-4" />
-                        {appendImages.length > 0 ? `Selected (${appendImages.length} Photos)` : "Take / Choose Page Photo"}
-                      </button>
-                      <span className="text-[11px] text-gray-500 truncate max-w-[200px]">
-                        {appendImages.length > 0 ? appendImages.map((i) => i.name).join(", ") : "Snap photo of Page 2 / next register sheet"}
-                      </span>
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendCamera(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendCamera(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendCamera(false);
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendCamera(false);
+                      const files = e.dataTransfer.files;
+                      if (!files) return;
+                      for (const f of Array.from(files)) {
+                        if (f.type.startsWith("image/")) {
+                          const opt = await compressImageForAi(f);
+                          if (opt.base64) setAppendImages((prev) => [...prev, opt]);
+                        }
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-4 text-center space-y-3 transition-all ${
+                      isDraggingAppendCamera
+                        ? "border-purple-600 bg-purple-100/70 ring-4 ring-purple-500/10 scale-[0.99]"
+                        : "border-purple-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 text-left">
+                        <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-800">
+                            {appendImages.length > 0 ? `${appendImages.length} Photos Selected for Append` : "Drag & Drop Next Ledger Page Photo Here"}
+                          </p>
+                          <p className="text-[11px] text-gray-500">Supports .jpg, .png, .jpeg from mobile camera or notebook photos</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={appendCameraInputRef}
+                          accept="image/*"
+                          multiple
+                          capture="environment"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files) return;
+                            for (const f of Array.from(files)) {
+                              const opt = await compressImageForAi(f);
+                              if (opt.base64) setAppendImages((prev) => [...prev, opt]);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => appendCameraInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+                        >
+                          <Camera className="w-4 h-4" />
+                          Choose Photo
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isAppending || appendImages.length === 0}
+                          onClick={handleExecuteAppend}
+                          className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {isAppending ? (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                              <span>Scanning in 2s...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Scan & Append</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={isAppending || appendImages.length === 0}
-                      onClick={handleExecuteAppend}
-                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer flex items-center gap-1.5 shrink-0"
-                    >
-                      {isAppending ? (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                          <span>Scanning in 2s...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Scan & Append to List</span>
-                        </>
-                      )}
-                    </button>
+                    {/* Thumbnails of selected append images */}
+                    {appendImages.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {appendImages.map((img, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 rounded-lg border border-purple-200 text-[11px] font-semibold text-purple-900"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-purple-600" />
+                            <span className="truncate max-w-[140px]">{img.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setAppendImages((prev) => prev.filter((_, idx) => idx !== i))}
+                              className="text-gray-400 hover:text-rose-500 cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendSheet(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendSheet(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendSheet(false);
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingAppendSheet(false);
+                      const files = e.dataTransfer.files;
+                      if (!files || files.length === 0) return;
+                      const f = files[0];
+                      const ext = f.name.split(".").pop()?.toLowerCase();
+                      if (ext === "xlsx" || ext === "xls") {
+                        const ab = await f.arrayBuffer();
+                        const XLSX = await import("xlsx");
+                        const wb = XLSX.read(ab, { type: "array" });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        setAppendText(XLSX.utils.sheet_to_csv(ws));
+                      } else {
+                        setAppendText(await f.text());
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-4 space-y-3 transition-all ${
+                      isDraggingAppendSheet
+                        ? "border-orange-500 bg-orange-50/70 ring-4 ring-orange-500/10 scale-[0.99]"
+                        : "border-orange-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 text-left">
+                        <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center shrink-0">
+                          <Upload className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-800">Drag & Drop Next CSV / Excel File or Paste Below</p>
+                          <p className="text-[11px] text-gray-500">Supports .xlsx, .xls, .csv, or paste copied cells from Google Sheets</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={appendSheetInputRef}
+                          accept=".csv,.tsv,.txt,.xlsx,.xls"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const ext = file.name.split(".").pop()?.toLowerCase();
+                            if (ext === "xlsx" || ext === "xls") {
+                              const ab = await file.arrayBuffer();
+                              const XLSX = await import("xlsx");
+                              const wb = XLSX.read(ab, { type: "array" });
+                              const ws = wb.Sheets[wb.SheetNames[0]];
+                              setAppendText(XLSX.utils.sheet_to_csv(ws));
+                            } else {
+                              setAppendText(await file.text());
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => appendSheetInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-xl bg-orange-50 border border-orange-200 text-[#c2652a] text-xs font-bold hover:bg-orange-100 transition-all cursor-pointer shadow-2xs"
+                        >
+                          Choose File
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isAppending || !appendText.trim()}
+                          onClick={handleExecuteAppend}
+                          className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Append to List</span>
+                        </button>
+                      </div>
+                    </div>
+
                     <textarea
                       rows={3}
                       value={appendText}
                       onChange={(e) => setAppendText(e.target.value)}
-                      placeholder="Paste additional table rows here (e.g. from Page 2 or Excel sheet)..."
-                      className="w-full p-2.5 bg-white rounded-xl border border-gray-200 text-xs font-mono text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+                      placeholder="Paste additional table rows here (e.g. from Page 2 or Excel sheet)...
+Ravi Kumar   9845011223   Room 103   12000
+Anil Verma   9812345678   Room 103   12000"
+                      className="w-full p-3 bg-gray-50/50 rounded-xl border border-gray-200 text-xs font-mono text-gray-800 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] transition-all resize-none"
                     />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        disabled={isAppending || !appendText.trim()}
-                        onClick={handleExecuteAppend}
-                        className="px-4 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Append Rows</span>
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1271,29 +1421,19 @@ Priya Verma    9855667788   Room 201   22000"
                       <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
                       <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
                       <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
-                      <th className="py-2.5 px-3 min-w-[190px]">
+                      <th className="py-2.5 px-3 min-w-[150px]">
                         <div className="flex items-center justify-between gap-1.5">
                           <span>Joining Date</span>
-                          <div className="flex items-center gap-1">
-                            <select
-                              value={dateFormatMode}
-                              onChange={(e) => setDateFormatMode(e.target.value as any)}
-                              title="Choose display date format"
-                              className="px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-[10px] font-mono text-gray-800 cursor-pointer transition-colors border-0"
-                            >
-                              <option value="DD-MMM-YYYY">DD Mon YYYY</option>
-                              <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                              <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={handleSwapDayAndMonth}
-                              title="Swap Day and Month (DD ⇄ MM) across all rows"
-                              className="px-1.5 py-0.5 rounded bg-orange-100 hover:bg-orange-200 text-[10px] font-bold text-[#c2652a] cursor-pointer transition-colors"
-                            >
-                              ⇄ Swap
-                            </button>
-                          </div>
+                          <select
+                            value={dateFormatMode}
+                            onChange={(e) => setDateFormatMode(e.target.value as any)}
+                            title="Choose display date format"
+                            className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-[10px] font-mono text-gray-800 cursor-pointer transition-colors border-0"
+                          >
+                            <option value="DD-MMM-YYYY">DD Mon YYYY</option>
+                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                          </select>
                         </div>
                       </th>
                       <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
