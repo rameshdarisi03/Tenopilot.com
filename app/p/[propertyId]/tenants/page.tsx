@@ -143,16 +143,20 @@ export default function TenantsDirectoryPage({
   const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
   const [checkOutModalOccupant, setCheckOutModalOccupant] = useState<Occupant | null>(null);
 
-  const [currentSettings, setCurrentSettings] = useState(() => propertySettingsStore.getSettings());
+  const [currentSettings, setCurrentSettings] = useState(() =>
+    typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
+  );
 
   // Silent Automated Move-In Date Auto-Checkin Engine & Property Settings Reactive Subscriber
   useEffect(() => {
     runAutoCheckInEngine();
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setCurrentSettings(propertySettingsStore.getSettings(propertyId));
     const unsubscribe = propertySettingsStore.subscribe(() => {
-      setCurrentSettings({ ...propertySettingsStore.getSettings() });
+      setCurrentSettings(propertySettingsStore.getSettings(propertyId));
     });
-    return () => unsubscribe();
-  }, []);
+    return unsubscribe;
+  }, [propertyId]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
