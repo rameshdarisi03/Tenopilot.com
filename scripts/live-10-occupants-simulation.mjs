@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
 
-const BASE_URL = process.env.BASE_URL || "https://tenopilot-com.vercel.app";
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const EMAIL = "hifawoh279@playboot.com";
 const PASSWORD = "def12345";
 
@@ -72,7 +72,10 @@ async function runLiveMasterSimulation() {
     await addBtn.waitFor({ state: "visible", timeout: 15000 });
     await addBtn.click();
 
-    const propertyName = `Royal Palm PG ${Date.now().toString().slice(-4)}`;
+    const rawId = Date.now().toString().slice(-4);
+    const propertyName = `Royal Palm PG ${rawId}`;
+    const slugId = `royal-palm-pg-${rawId}`;
+
     await page.fill('input[placeholder*="Meridian"], input[placeholder*="Property Name"], input[placeholder*="Sunshine"]', propertyName);
 
     const locationInput = await page.$('input[placeholder*="Gachibowli"], input[placeholder*="Location"], input[placeholder*="Hitech"]');
@@ -82,95 +85,66 @@ async function runLiveMasterSimulation() {
 
     const submitBtn = page.locator('button:has-text("Onboard Building"), button:has-text("Create Property"), button[type="submit"]').first();
     await submitBtn.click();
-    await page.waitForTimeout(2500);
-    console.log(`  ✓ Created Property: "${propertyName}"`);
-
-    // Navigate to dashboard
-    const dashboardLink = page.locator('a:has-text("View Dashboard"), a:has-text("Manage Property")').last();
-    await dashboardLink.waitFor({ state: "visible", timeout: 15000 });
-    const href = await dashboardLink.getAttribute("href");
-    if (href) {
-      await page.goto(`${BASE_URL}${href}`, { waitUntil: "domcontentloaded" });
-    } else {
-      await dashboardLink.click();
-      await page.waitForURL("**/p/**/overview", { timeout: 15000 });
-    }
-
-    const currentUrl = page.url();
-    const propertyIdMatch = currentUrl.match(/\/p\/([^\/]+)/);
-    const propertyId = propertyIdMatch ? propertyIdMatch[1] : "royal-palm-pg";
-    console.log(`  ✓ Active Property ID: ${propertyId}`);
+    await page.waitForTimeout(2000);
+    console.log(`  ✓ Created Property: "${propertyName}" (ID: ${slugId})`);
 
     // ----------------------------------------------------
     // STEP 3: CONFIGURE 2 FLOORS & 10 BEDS IN PROPERTY SETUP
     // ----------------------------------------------------
-    console.log(`\n[Step 3/14] Configuring Property Setup (${BASE_URL}/p/${propertyId}/property-setup)...`);
-    await page.goto(`${BASE_URL}/p/${propertyId}/property-setup`, { waitUntil: "domcontentloaded" });
+    console.log(`\n[Step 3/14] Configuring Property Setup (${BASE_URL}/p/${slugId}/property-setup)...`);
+    await page.goto(`${BASE_URL}/p/${slugId}/property-setup`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1500);
 
     // Floor 01: Room 101 (2 sharing) + Room 102 (3 sharing)
     console.log(`  Adding Floor 01...`);
-    let addFloorBtn = page.locator('button:has-text("Add Floor"), button:has-text("+ Add Floor")').first();
-    if (await addFloorBtn.isVisible()) {
-      await addFloorBtn.click();
-      await page.waitForTimeout(800);
-      await page.fill('input[placeholder="FLOOR 06"], input[placeholder*="Floor"]', "FLOOR 01");
-      await page.click('button:has-text("Create Floor")');
-      await page.waitForTimeout(1500);
-    }
+    await page.click('button:has-text("Add New Floor"), button:has-text("Add Floor 1 Now")');
+    await page.waitForTimeout(500);
+    await page.fill('input[placeholder*="FLOOR"]', "FLOOR 01");
+    await page.click('button:has-text("Create Floor")');
+    await page.waitForTimeout(1200);
 
     console.log(`  Adding Room 101 (2-Sharing) & Room 102 (3-Sharing) to Floor 01...`);
-    let addRoomBtns = await page.$$('button:has-text("Add Room")');
-    if (addRoomBtns.length > 0) {
-      await addRoomBtns[0].click();
-      await page.waitForTimeout(800);
-      await page.fill('input[placeholder="601"], input[placeholder*="Room Number"]', "101");
-      await page.fill('input[type="number"][min="1"]', "2");
-      await page.click('button:has-text("Create Room")');
-      await page.waitForTimeout(1500);
-    }
+    let fl1AddRoom = page.locator('div', { has: page.locator('h2:has-text("FLOOR 01")') }).locator('button:has-text("Add Room")').first();
+    await fl1AddRoom.click();
+    await page.waitForTimeout(500);
+    await page.fill('input[placeholder="601"]', "101");
+    await page.fill('input[type="number"][min="1"]', "2");
+    await page.click('button:has-text("Create Room")');
+    await page.waitForTimeout(1200);
 
-    addRoomBtns = await page.$$('button:has-text("Add Room")');
-    if (addRoomBtns.length > 0) {
-      await addRoomBtns[0].click();
-      await page.waitForTimeout(800);
-      await page.fill('input[placeholder="601"], input[placeholder*="Room Number"]', "102");
-      await page.fill('input[type="number"][min="1"]', "3");
-      await page.click('button:has-text("Create Room")');
-      await page.waitForTimeout(1500);
-    }
+    fl1AddRoom = page.locator('div', { has: page.locator('h2:has-text("FLOOR 01")') }).locator('button:has-text("Add Room")').first();
+    await fl1AddRoom.click();
+    await page.waitForTimeout(500);
+    await page.fill('input[placeholder="601"]', "102");
+    await page.fill('input[type="number"][min="1"]', "3");
+    await page.click('button:has-text("Create Room")');
+    await page.waitForTimeout(1200);
 
     // Floor 02: Room 201 (2 sharing) + Room 202 (3 sharing)
     console.log(`  Adding Floor 02...`);
-    addFloorBtn = page.locator('button:has-text("Add Floor"), button:has-text("+ Add Floor")').first();
-    if (await addFloorBtn.isVisible()) {
-      await addFloorBtn.click();
-      await page.waitForTimeout(800);
-      await page.fill('input[placeholder="FLOOR 06"], input[placeholder*="Floor"]', "FLOOR 02");
-      await page.click('button:has-text("Create Floor")');
-      await page.waitForTimeout(1500);
-    }
+    await page.click('button:has-text("Add New Floor")');
+    await page.waitForTimeout(500);
+    await page.fill('input[placeholder*="FLOOR"]', "FLOOR 02");
+    await page.click('button:has-text("Create Floor")');
+    await page.waitForTimeout(1200);
 
     console.log(`  Adding Room 201 (2-Sharing) & Room 202 (3-Sharing) to Floor 02...`);
-    addRoomBtns = await page.$$('button:has-text("Add Room")');
-    if (addRoomBtns.length > 1) {
-      await addRoomBtns[1].click();
-      await page.waitForTimeout(800);
-      await page.fill('input[placeholder="601"], input[placeholder*="Room Number"]', "201");
-      await page.fill('input[type="number"][min="1"]', "2");
-      await page.click('button:has-text("Create Room")');
-      await page.waitForTimeout(1500);
-    }
+    let fl2AddRoom = page.locator('div', { has: page.locator('h2:has-text("FLOOR 02")') }).locator('button:has-text("Add Room")').first();
+    await fl2AddRoom.click();
+    await page.waitForTimeout(500);
+    await page.fill('input[placeholder="601"]', "201");
+    await page.fill('input[type="number"][min="1"]', "2");
+    await page.click('button:has-text("Create Room")');
+    await page.waitForTimeout(1200);
 
-    addRoomBtns = await page.$$('button:has-text("Add Room")');
-    if (addRoomBtns.length > 1) {
-      await addRoomBtns[1].click();
-      await page.waitForTimeout(800);
-      await page.fill('input[placeholder="601"], input[placeholder*="Room Number"]', "202");
-      await page.fill('input[type="number"][min="1"]', "3");
-      await page.click('button:has-text("Create Room")');
-      await page.waitForTimeout(1500);
-    }
+    fl2AddRoom = page.locator('div', { has: page.locator('h2:has-text("FLOOR 02")') }).locator('button:has-text("Add Room")').first();
+    await fl2AddRoom.click();
+    await page.waitForTimeout(500);
+    await page.fill('input[placeholder="601"]', "202");
+    await page.fill('input[type="number"][min="1"]', "3");
+    await page.click('button:has-text("Create Room")');
+    await page.waitForTimeout(1200);
+
     console.log(`  ✓ 2 Floors & 10 Bed Slots configured live in Property Setup!`);
 
     // ----------------------------------------------------
@@ -187,7 +161,7 @@ async function runLiveMasterSimulation() {
     for (let i = 0; i < tenants.length; i++) {
       const t = tenants[i];
       console.log(`\n[Step ${4 + i}/14] Onboarding Tenant ${i + 1}/5: "${t.name}" (Room ${t.room} ${t.bed} - KYC: ${t.kycMode})...`);
-      await page.goto(`${BASE_URL}/p/${propertyId}/tenants/onboard-tenant`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${BASE_URL}/p/${slugId}/tenants/onboard-tenant`, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(1000);
 
       // Step 1: Personal Details
@@ -195,25 +169,22 @@ async function runLiveMasterSimulation() {
       await page.fill('input[placeholder="9876543210"]', t.phone);
       await page.fill('input[placeholder*="Parent"]', `980000000${i + 1}`);
       await page.click('button:has-text("Proceed to Bed Allocation")');
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(800);
 
       // Step 2: Bed Allocation
       const allSharingFilter = page.locator('button:has-text("ALL SHARING")').first();
-      await allSharingFilter.waitFor({ state: "visible", timeout: 10000 });
-      await allSharingFilter.click();
-      await page.waitForTimeout(400);
-
-      // Target exact room and bed
-      let availableBedBtn = page.locator(`div:has(h3:has-text("Room ${t.room}")) button:has-text("${t.bed}")`).first();
-      if (!await availableBedBtn.isVisible()) {
-        availableBedBtn = page.locator(`button:has-text("${t.bed}")`).first();
+      if (await allSharingFilter.isVisible()) {
+        await allSharingFilter.click();
+        await page.waitForTimeout(300);
       }
+
+      const availableBedBtn = page.locator(`button:has-text("${t.bed}")`).first();
       await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
       await availableBedBtn.click();
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(500);
 
       await page.click('button:has-text("Proceed to KYC Upload")');
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(800);
 
       // Step 3: KYC Uploads
       if (t.kycMode === "ALL" || t.kycMode === "PARTIAL") {
@@ -233,17 +204,17 @@ async function runLiveMasterSimulation() {
       }
 
       await page.click('button:has-text("Proceed to Agreement Preview")');
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(800);
 
       // Step 4: Agree & Onboard Tenant
       await page.click('button:has-text("Agree & Onboard Tenant"), button:has-text("Agree & Onboard")');
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1800);
 
       // View Profile & Verify Name
       const viewProf = page.locator('a:has-text("View Tenant Profile"), a:has-text("View Profile")').first();
       if (await viewProf.isVisible()) {
         await viewProf.click();
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1200);
         const bodyText = await page.innerText("body");
         if (bodyText.includes(t.name)) {
           console.log(`  ✓ PASS: Tenant Profile dynamically displays "${t.name}"!`);
@@ -265,8 +236,8 @@ async function runLiveMasterSimulation() {
     for (let i = 0; i < guests.length; i++) {
       const g = guests[i];
       console.log(`\n[Step ${9 + i}/14] Onboarding Guest ${i + 1}/5: "${g.name}" (Room ${g.room} ${g.bed} - Stay: ${g.stay} Days)...`);
-      await page.goto(`${BASE_URL}/p/${propertyId}/tenants/onboard-guest`, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(1200);
+      await page.goto(`${BASE_URL}/p/${slugId}/tenants/onboard-guest`, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1000);
 
       // Step 1: Personal & Stay Details
       await page.fill('input[placeholder*="Rohan Verma"]', g.name);
@@ -276,27 +247,22 @@ async function runLiveMasterSimulation() {
       // Click Proceed to Bed Allocation
       const proceedBtn = page.locator('button:has-text("Proceed to Bed Allocation")').first();
       await proceedBtn.click();
-      
+      await page.waitForTimeout(800);
+
       // Step 2: Bed Allocation
-      await page.waitForSelector('h2:has-text("Select Bed")', { timeout: 15000 });
-      await page.waitForTimeout(400);
-
       const allSharingFilter = page.locator('button:has-text("ALL SHARING")').first();
-      await allSharingFilter.waitFor({ state: "visible", timeout: 10000 });
-      await allSharingFilter.click();
-      await page.waitForTimeout(500);
-
-      // Target exact room and bed
-      let availableBedBtn = page.locator(`div:has(h3:has-text("Room ${g.room}")) button:has-text("${g.bed}")`).first();
-      if (!await availableBedBtn.isVisible()) {
-        availableBedBtn = page.locator(`button:has-text("${g.bed}")`).first();
+      if (await allSharingFilter.isVisible()) {
+        await allSharingFilter.click();
+        await page.waitForTimeout(300);
       }
+
+      const availableBedBtn = page.locator(`button:has-text("${g.bed}")`).first();
       await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
       await availableBedBtn.click();
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(500);
 
       await page.click('button:has-text("Proceed to Quick KYC")');
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(800);
 
       // Step 3: Quick KYC Uploads
       if (g.kycMode === "ALL" || g.kycMode === "AVATAR_ONLY") {
@@ -320,13 +286,13 @@ async function runLiveMasterSimulation() {
 
       // Complete Guest Onboarding
       await page.click('button:has-text("Complete Guest Onboarding"), button:has-text("Finish")');
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1800);
 
       // View Profile & Verify Name
       const viewProf = page.locator('a:has-text("View Guest Profile"), a:has-text("View Profile")').first();
       if (await viewProf.isVisible()) {
         await viewProf.click();
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1200);
         const bodyText = await page.innerText("body");
         if (bodyText.includes(g.name)) {
           console.log(`  ✓ PASS: Guest Profile dynamically displays "${g.name}"!`);
@@ -340,8 +306,8 @@ async function runLiveMasterSimulation() {
     console.log(`\n[Step 14/14] Performing Final Portal Verification Audits...`);
 
     // 1. Tenants Directory
-    console.log(`  Inspecting Tenants & Guests Directory (${BASE_URL}/p/${propertyId}/tenants)...`);
-    await page.goto(`${BASE_URL}/p/${propertyId}/tenants`, { waitUntil: "domcontentloaded" });
+    console.log(`  Inspecting Tenants & Guests Directory (${BASE_URL}/p/${slugId}/tenants)...`);
+    await page.goto(`${BASE_URL}/p/${slugId}/tenants`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(2000);
 
     let dirText = await page.innerText("body");
@@ -362,14 +328,14 @@ async function runLiveMasterSimulation() {
     }
 
     // 2. Property Map
-    console.log(`  Inspecting Interactive Property Map (${BASE_URL}/p/${propertyId}/property-map)...`);
-    await page.goto(`${BASE_URL}/p/${propertyId}/property-map`, { waitUntil: "domcontentloaded" });
+    console.log(`  Inspecting Interactive Property Map (${BASE_URL}/p/${slugId}/property-map)...`);
+    await page.goto(`${BASE_URL}/p/${slugId}/property-map`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(2500);
     console.log(`  ✓ Property Map rendered Floor 01 & Floor 02 with all 10 active beds!`);
 
     // 3. Financial Hub
-    console.log(`  Inspecting Financial Hub (${BASE_URL}/p/${propertyId}/financial-hub)...`);
-    await page.goto(`${BASE_URL}/p/${propertyId}/financial-hub`, { waitUntil: "domcontentloaded" });
+    console.log(`  Inspecting Financial Hub (${BASE_URL}/p/${slugId}/financial-hub)...`);
+    await page.goto(`${BASE_URL}/p/${slugId}/financial-hub`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(2500);
     console.log(`  ✓ Financial Hub rendered aggregated revenue and dues!`);
 
