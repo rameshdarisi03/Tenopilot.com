@@ -2,7 +2,6 @@
 import { auth, db } from "./firebase";
 import {
   GoogleAuthProvider,
-  OAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -18,10 +17,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
-
-const appleProvider = new OAuthProvider("apple.com");
-appleProvider.addScope("email");
-appleProvider.addScope("name");
 
 export interface AuthUserProfile {
   uid: string;
@@ -147,48 +142,6 @@ export async function loginWithGoogle(): Promise<{ user: User; profile: AuthUser
     return { user, profile };
   } catch (error: any) {
     console.error("Google Sign-In Error:", error);
-    throw error;
-  }
-}
-
-/**
- * 🍎 Sign In or Onboard with Apple OAuth 2.0
- */
-export async function loginWithApple(): Promise<{ user: User; profile: AuthUserProfile } | null> {
-  try {
-    const result = await signInWithPopup(auth, appleProvider);
-    const user = result.user;
-    const email = user.email?.toLowerCase() || "";
-
-    const userDocRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userDocRef);
-
-    let profile: AuthUserProfile;
-
-    if (userSnap.exists()) {
-      profile = userSnap.data() as AuthUserProfile;
-    } else {
-      const isMasterTest = email === "isharapandey01@gmail.com";
-      const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
-      const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
-
-      profile = {
-        uid: user.uid,
-        email: email,
-        displayName: user.displayName || "Property Owner",
-        organizationId: orgId,
-        photoURL: user.photoURL || undefined,
-        role: "master_admin",
-        assignedPropertyId: assignedPropertyId,
-        isNewUser: true,
-      };
-
-      await setDoc(userDocRef, profile, { merge: true });
-    }
-
-    return { user, profile };
-  } catch (error: any) {
-    console.error("Apple Sign-In Error:", error);
     throw error;
   }
 }

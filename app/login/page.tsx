@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Shield,
 } from "lucide-react";
-import { loginWithGoogle, loginWithApple, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
+import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
@@ -67,20 +67,6 @@ export default function LoginPage() {
       router.push("/home");
     } catch (err: any) {
       console.error("Google Login Error:", err);
-      setError(getCleanAuthErrorMessage(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAppleSignIn = async () => {
-    setError(null);
-    setIsLoading(true);
-    try {
-      await loginWithApple();
-      router.push("/home");
-    } catch (err: any) {
-      console.error("Apple Login Error:", err);
       setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -168,18 +154,6 @@ export default function LoginPage() {
               />
             </svg>
             <span>Continue with Google</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAppleSignIn}
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
-          >
-            <svg className="w-5 h-5 fill-current" viewBox="0 0 170 170">
-              <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.13-1.9-14.38-6.08-3.37-2.76-7.23-7.46-11.59-14.1-6.19-9.52-11.11-20.25-14.76-32.19-3.65-11.95-5.48-23.23-5.48-33.86 0-15.11 3.73-27.75 11.19-37.93 7.46-10.17 16.89-15.34 28.3-15.51 4.79 0 10.15 1.25 16.08 3.75 5.93 2.5 10.05 3.79 12.36 3.87 1.85 0 6.1-1.33 12.74-4 6.64-2.67 12.21-3.89 16.71-3.66 12.36.78 22.09 5.34 29.17 13.68-10.96 6.64-16.32 15.8-16.08 27.48.24 9.1 3.79 16.66 10.65 22.68 6.87 6.03 15.13 9.4 24.8 10.12-2.18 6.6-4.9 13.06-8.16 19.38zM119.22 31.81c0-7.05 2.57-13.88 7.71-20.49 5.14-6.61 11.64-10.74 19.5-12.39.46 7.42-1.92 14.39-7.14 20.91-5.22 6.52-11.75 10.63-19.59 12.33-.14-.12-.29-.24-.48-.36z" />
-            </svg>
-            <span>Continue with Apple</span>
           </button>
 
           <button
