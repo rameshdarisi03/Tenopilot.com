@@ -86,22 +86,40 @@ export function FastTrackImportModal({
   const [ingestResult, setIngestResult] = useState<BatchIngestResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
-  const [dateFormatMode, setDateFormatMode] = useState<"DD-MM-YYYY" | "MM-DD-YYYY" | "YYYY-MM-DD">("DD-MM-YYYY");
+  const [dateFormatMode, setDateFormatMode] = useState<"DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD">("DD-MMM-YYYY");
 
-  // Toggle date interpretation across all loaded rows
-  const handleToggleDateFormat = () => {
-    const nextMode = dateFormatMode === "DD-MM-YYYY" ? "MM-DD-YYYY" : dateFormatMode === "MM-DD-YYYY" ? "YYYY-MM-DD" : "DD-MM-YYYY";
-    setDateFormatMode(nextMode);
+  // Helper to format ISO date (YYYY-MM-DD) into user's chosen display format
+  const formatDisplayDate = (isoDate: string | undefined): string => {
+    if (!isoDate) return "";
+    const parts = isoDate.split("-");
+    if (parts.length !== 3) return isoDate;
+    const [y, m, d] = parts;
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monIdx = parseInt(m, 10) - 1;
+    const monStr = months[monIdx] || m;
 
+    if (dateFormatMode === "DD-MMM-YYYY") {
+      return `${d} ${monStr} ${y}`;
+    }
+    if (dateFormatMode === "DD/MM/YYYY") {
+      return `${d}/${m}/${y}`;
+    }
+    return `${y}-${m}-${d}`;
+  };
+
+  // Explicit action to swap Day and Month across all rows if inverted
+  const handleSwapDayAndMonth = () => {
     setEditableRows((prev) =>
       prev.map((row) => {
         if (!row.joiningDate) return row;
         const parts = row.joiningDate.split("-");
         if (parts.length === 3) {
           const [y, m, d] = parts;
-          // When swapping DD/MM vs MM/DD
-          if (parseInt(d, 10) <= 12 && parseInt(m, 10) <= 12) {
-            return { ...row, joiningDate: `${y}-${d}-${m}` };
+          const numM = parseInt(m, 10);
+          const numD = parseInt(d, 10);
+          // Only swap if both are <= 12 (otherwise day cannot become month)
+          if (numM <= 12 && numD <= 12) {
+            return { ...row, joiningDate: `${y}-${String(numD).padStart(2, "0")}-${String(numM).padStart(2, "0")}` };
           }
         }
         return row;
@@ -893,17 +911,29 @@ Priya Verma    9855667788   Room 201   22000"
                       <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
                       <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
                       <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
-                      <th className="py-2.5 px-3 min-w-[140px]">
-                        <div className="flex items-center gap-1.5">
+                      <th className="py-2.5 px-3 min-w-[190px]">
+                        <div className="flex items-center justify-between gap-1.5">
                           <span>Joining Date</span>
-                          <button
-                            type="button"
-                            onClick={handleToggleDateFormat}
-                            title="Click to switch date format (DD/MM/YYYY vs MM/DD/YYYY)"
-                            className="px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-[9px] font-mono text-gray-700 cursor-pointer transition-colors"
-                          >
-                            {dateFormatMode} ▾
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={dateFormatMode}
+                              onChange={(e) => setDateFormatMode(e.target.value as any)}
+                              title="Choose display date format"
+                              className="px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-[10px] font-mono text-gray-800 cursor-pointer transition-colors border-0"
+                            >
+                              <option value="DD-MMM-YYYY">DD Mon YYYY</option>
+                              <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                              <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleSwapDayAndMonth}
+                              title="Swap Day and Month (DD ⇄ MM) across all rows"
+                              className="px-1.5 py-0.5 rounded bg-orange-100 hover:bg-orange-200 text-[10px] font-bold text-[#c2652a] cursor-pointer transition-colors"
+                            >
+                              ⇄ Swap
+                            </button>
+                          </div>
                         </div>
                       </th>
                       <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
@@ -976,12 +1006,18 @@ Priya Verma    9855667788   Room 201   22000"
                           </select>
                         </td>
                         <td className="py-2 px-3">
-                          <input
-                            type="date"
-                            value={row.joiningDate || new Date().toISOString().split("T")[0]}
-                            onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
-                            className="w-32 px-2 py-1.5 rounded-lg border border-gray-200 font-mono text-[11px] text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                          />
+                          <div className="flex items-center justify-between gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a] focus-within:border-[#c2652a] transition-all min-w-[145px]">
+                            <span className="font-mono text-xs font-semibold text-gray-900">
+                              {formatDisplayDate(row.joiningDate)}
+                            </span>
+                            <input
+                              type="date"
+                              value={row.joiningDate || new Date().toISOString().split("T")[0]}
+                              onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
+                              className="w-5 h-5 opacity-60 hover:opacity-100 cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                              title="Pick a date"
+                            />
+                          </div>
                         </td>
                         <td className="py-2 px-3">
                           <input
