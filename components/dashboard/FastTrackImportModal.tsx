@@ -505,6 +505,84 @@ export function FastTrackImportModal({
     }
   };
 
+  // Drag & drop handlers specifically for Append Drawer
+  const handleAppendCameraDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingAppendCamera(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const newImages: { name: string; base64: string }[] = [];
+    for (const file of Array.from(files)) {
+      const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|bmp|avif|gif)$/i.test(file.name);
+      if (isImage) {
+        const optimized = await compressImageForAi(file);
+        if (optimized.base64) {
+          newImages.push(optimized);
+        }
+      } else {
+        // Dropped spreadsheet onto camera tab in append drawer -> switch to sheet tab!
+        setAppendMode("SHEET");
+        const ext = file.name.split(".").pop()?.toLowerCase();
+        if (ext === "xlsx" || ext === "xls") {
+          const ab = await file.arrayBuffer();
+          const XLSX = await import("xlsx");
+          const wb = XLSX.read(ab, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          setAppendText(XLSX.utils.sheet_to_csv(ws));
+        } else {
+          setAppendText(await file.text());
+        }
+        return;
+      }
+    }
+    if (newImages.length > 0) {
+      setAppendImages((prev) => [...prev, ...newImages]);
+    }
+  };
+
+  const handleAppendSheetDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingAppendSheet(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|bmp|avif|gif)$/i.test(file.name);
+    if (isImage) {
+      // Dropped image onto sheet tab in append drawer -> switch to camera tab!
+      setAppendMode("CAMERA");
+      const newImages: { name: string; base64: string }[] = [];
+      for (const imgFile of Array.from(files)) {
+        const optimized = await compressImageForAi(imgFile);
+        if (optimized.base64) newImages.push(optimized);
+      }
+      if (newImages.length > 0) {
+        setAppendImages((prev) => [...prev, ...newImages]);
+      }
+      return;
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    try {
+      if (ext === "xlsx" || ext === "xls") {
+        const ab = await file.arrayBuffer();
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(ab, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        setAppendText(XLSX.utils.sheet_to_csv(ws));
+      } else {
+        setAppendText(await file.text());
+      }
+    } catch (err: any) {
+      console.error("Append sheet drop error:", err);
+    }
+  };
+
   // 4. Run Intelligent Parser (Waterfall Router)
   const handleProcessInput = async () => {
     setStep("PROCESSING");
@@ -1194,19 +1272,7 @@ Priya Verma    9855667788   Room 201   22000"
                       e.stopPropagation();
                       setIsDraggingAppendCamera(false);
                     }}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDraggingAppendCamera(false);
-                      const files = e.dataTransfer.files;
-                      if (!files) return;
-                      for (const f of Array.from(files)) {
-                        if (f.type.startsWith("image/")) {
-                          const opt = await compressImageForAi(f);
-                          if (opt.base64) setAppendImages((prev) => [...prev, opt]);
-                        }
-                      }
-                    }}
+                    onDrop={handleAppendCameraDrop}
                     className={`border-2 border-dashed rounded-2xl p-4 text-center space-y-3 transition-all ${
                       isDraggingAppendCamera
                         ? "border-purple-600 bg-purple-100/70 ring-4 ring-purple-500/10 scale-[0.99]"
@@ -1311,24 +1377,7 @@ Priya Verma    9855667788   Room 201   22000"
                       e.stopPropagation();
                       setIsDraggingAppendSheet(false);
                     }}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDraggingAppendSheet(false);
-                      const files = e.dataTransfer.files;
-                      if (!files || files.length === 0) return;
-                      const f = files[0];
-                      const ext = f.name.split(".").pop()?.toLowerCase();
-                      if (ext === "xlsx" || ext === "xls") {
-                        const ab = await f.arrayBuffer();
-                        const XLSX = await import("xlsx");
-                        const wb = XLSX.read(ab, { type: "array" });
-                        const ws = wb.Sheets[wb.SheetNames[0]];
-                        setAppendText(XLSX.utils.sheet_to_csv(ws));
-                      } else {
-                        setAppendText(await f.text());
-                      }
-                    }}
+                    onDrop={handleAppendSheetDrop}
                     className={`border-2 border-dashed rounded-2xl p-4 space-y-3 transition-all ${
                       isDraggingAppendSheet
                         ? "border-orange-500 bg-orange-50/70 ring-4 ring-orange-500/10 scale-[0.99]"
@@ -1673,24 +1722,35 @@ Anil Verma   9812345678   Room 103   12000"
               >
                 Back to Edit
               </button>
-              <button
-                type="button"
-                disabled={isSubmitting || editableRows.length === 0}
-                onClick={handleCommitIngest}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Enrolling {totalTenantsCount} Tenants...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>Confirm & Enroll {totalTenantsCount} Tenants</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSaveDraft()}
+                  className="px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Save draft so you can resume anytime"
+                >
+                  <Save className="w-4 h-4 text-gray-500" />
+                  <span>{draftSaveStatus || "Save Draft"}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || editableRows.length === 0}
+                  onClick={handleCommitIngest}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Enrolling {totalTenantsCount} Tenants...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Confirm & Enroll {totalTenantsCount} Tenants</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </>
           )}
 
