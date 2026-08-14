@@ -38,26 +38,27 @@ export default function PropertySetupPage({
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Accordion open/close state for floors
-  const [openFloorIds, setOpenFloorIds] = useState<string[]>([
-    "fl-05",
-    "fl-04",
-    "fl-03",
-    "fl-02",
-    "fl-01",
-    "fl-00",
-  ]);
+  // Accordion open/close state for floors (Auto-expands all active floors)
+  const [openFloorIds, setOpenFloorIds] = useState<string[]>([]);
 
   // Reactive Property Layout Structure State
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
     propertyStore.getStructure(propertyId)
   );
 
-  // Subscribe to propertyStore updates
+  // Subscribe to propertyStore updates & auto-expand floor accordions
   useEffect(() => {
-    setPropertyStructure(propertyStore.getStructure(propertyId));
+    const current = propertyStore.getStructure(propertyId);
+    setPropertyStructure(current);
+    if (current && current.length > 0) {
+      setOpenFloorIds((prev) => Array.from(new Set([...prev, ...current.map((f) => f.id)])));
+    }
     const unsubscribe = propertyStore.subscribe(() => {
-      setPropertyStructure(propertyStore.getStructure(propertyId));
+      const updated = propertyStore.getStructure(propertyId);
+      setPropertyStructure(updated);
+      if (updated && updated.length > 0) {
+        setOpenFloorIds((prev) => Array.from(new Set([...prev, ...updated.map((f) => f.id)])));
+      }
     });
     return unsubscribe;
   }, [propertyId]);
