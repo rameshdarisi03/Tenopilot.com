@@ -29,10 +29,10 @@ async function runLiveMasterSimulation() {
   console.log(`👤 User Account: ${EMAIL}`);
   console.log(`======================================================\n`);
 
-  // Launch visible desktop browser window with comfortable slowMo pacing
+  // Launch visible desktop browser window with smooth, observable pacing
   const browser = await chromium.launch({
     headless: false,
-    slowMo: 220,
+    slowMo: 180,
   });
 
   const context = await browser.newContext({
@@ -262,7 +262,7 @@ async function runLiveMasterSimulation() {
       const g = guests[i];
       console.log(`\n[Step ${9 + i}/14] Onboarding Guest ${i + 1}/5: "${g.name}" (Room ${g.room} ${g.bed} - Stay: ${g.stay} Days)...`);
       await page.goto(`${BASE_URL}/p/${propertyId}/tenants/onboard-guest`, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(1200);
 
       // Step 1: Personal & Stay Details
       await page.fill('input[placeholder*="Rohan Verma"]', g.name);
@@ -272,26 +272,22 @@ async function runLiveMasterSimulation() {
       // Click Proceed to Bed Allocation
       const proceedBtn = page.locator('button:has-text("Proceed to Bed Allocation")').first();
       await proceedBtn.click();
-      
-      // Wait for Step 2 to appear
-      await page.waitForSelector('h2:has-text("Select Bed")', { timeout: 10000 });
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(1000);
 
       // Step 2: Bed Allocation
       const allSharingFilter = page.locator('button:has-text("ALL SHARING")').first();
       if (await allSharingFilter.isVisible()) {
         await allSharingFilter.click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(400);
       }
 
-      // Pick available bed button on Floor 02
-      const bedBtn = page.locator(`button:has-text("${g.bed}"), button:has-text("Available 🟢")`).first();
-      await bedBtn.waitFor({ state: "visible", timeout: 10000 });
-      await bedBtn.click();
-      await page.waitForTimeout(800);
+      const availableBedBtn = page.locator(`button:has-text("${g.bed}"), button:has-text("Available 🟢")`).first();
+      await availableBedBtn.waitFor({ state: "visible", timeout: 10000 });
+      await availableBedBtn.click();
+      await page.waitForTimeout(600);
 
       await page.click('button:has-text("Proceed to Quick KYC")');
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1000);
 
       // Step 3: Quick KYC Uploads
       if (g.kycMode === "ALL" || g.kycMode === "AVATAR_ONLY") {
@@ -315,7 +311,7 @@ async function runLiveMasterSimulation() {
 
       // Complete Guest Onboarding
       await page.click('button:has-text("Complete Guest Onboarding"), button:has-text("Finish")');
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(2000);
 
       // View Profile & Verify Name
       const viewProf = page.locator('a:has-text("View Guest Profile"), a:has-text("View Profile")').first();
@@ -324,7 +320,7 @@ async function runLiveMasterSimulation() {
         await page.waitForTimeout(1500);
         const bodyText = await page.innerText("body");
         if (bodyText.includes(g.name)) {
-          console.log(`  ✓ PASS: Guest Profile dynamically displays "${g.name}" (0 mock data)!`);
+          console.log(`  ✓ PASS: Guest Profile dynamically displays "${g.name}"!`);
         }
       }
     }
