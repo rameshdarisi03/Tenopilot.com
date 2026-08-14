@@ -6,7 +6,6 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import { sanitizeTitleCase } from "@/lib/authService";
-import { initializeAccountState } from "@/lib/accountInitializer";
 
 export interface UserProfile {
   uid: string;
@@ -66,7 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (data.displayName) {
               data.displayName = sanitizeTitleCase(data.displayName);
             }
-            initializeAccountState(orgId, isMasterTest);
             setProfile(data);
           } else {
             const rawName = currentUser.displayName || (isMasterTest ? "Ishara Pandey" : "Property Owner");
