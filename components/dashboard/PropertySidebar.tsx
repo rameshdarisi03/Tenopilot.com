@@ -15,11 +15,13 @@ import {
   HelpCircle,
   X,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { useAuth } from "@/providers/AuthProvider";
+import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 
 export function PropertySidebar({
   propertyId = "sunshine-pg",
@@ -83,6 +85,8 @@ export function PropertySidebar({
   const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "PO";
   const roleDisplay = profile?.role === "master_admin" ? "Master Admin 👑" : profile?.role === "admin" ? "Admin (Owner) 🏢" : "Receptionist 🔑";
 
+  const [showFastTrackModal, setShowFastTrackModal] = useState(false);
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#fff8f6] border-r border-[#d7c2b9]/60 select-none">
       {/* Sidebar Header */}
@@ -105,20 +109,39 @@ export function PropertySidebar({
       </div>
 
       {/* Navigation Menus */}
-      <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="px-3 pb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#964407]">
-          Property Management
-        </div>
+      <div className="flex-1 px-3 py-4 space-y-3 overflow-y-auto">
+        {/* FastTrack Migration Quick Trigger */}
+        <button
+          type="button"
+          onClick={() => {
+            setShowFastTrackModal(true);
+            if (onMobileClose) onMobileClose();
+          }}
+          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-orange-100/80 via-amber-50 to-purple-100/80 border border-orange-200 text-orange-950 hover:shadow-xs hover:border-orange-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-[#c2652a] group-hover:rotate-12 transition-transform" />
+            <span>FastTrack Migration</span>
+          </div>
+          <span className="text-[9px] bg-gradient-to-r from-[#c2652a] to-purple-600 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+            AI
+          </span>
+        </button>
 
-        <nav className="space-y-1">
-          {navItems
-            .filter((item) => {
-              if (activeRole === "receptionist") {
-                return item.name !== "Staff Management";
-              }
-              return true;
-            })
-            .map((item) => {
+        <div>
+          <div className="px-3 pb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#964407]">
+            Property Management
+          </div>
+
+          <nav className="space-y-1">
+            {navItems
+              .filter((item) => {
+                if (activeRole === "receptionist") {
+                  return item.name !== "Staff Management";
+                }
+                return true;
+              })
+              .map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.name === "Tenants & Guests" && pathname?.includes("tenants")) ||
@@ -143,7 +166,8 @@ export function PropertySidebar({
                 </Link>
               );
             })}
-        </nav>
+          </nav>
+        </div>
       </div>
 
       {/* Sidebar Footer */}
@@ -213,6 +237,13 @@ export function PropertySidebar({
           </div>
         </div>
       )}
+
+      {/* FastTrack Migration Modal */}
+      <FastTrackImportModal
+        propertyId={propertyId}
+        isOpen={showFastTrackModal}
+        onClose={() => setShowFastTrackModal(false)}
+      />
     </>
   );
 }

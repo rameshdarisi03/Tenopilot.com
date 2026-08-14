@@ -26,7 +26,9 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from "lucide-react";
+import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 
 export default function PropertySetupPage({
   params,
@@ -41,6 +43,7 @@ export default function PropertySetupPage({
 
   // Accordion open/close state for floors (Auto-expands all active floors)
   const [openFloorIds, setOpenFloorIds] = useState<string[]>([]);
+  const [showFastTrackModal, setShowFastTrackModal] = useState(false);
 
   // Reactive Property Layout Structure State
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
@@ -475,12 +478,27 @@ export default function PropertySetupPage({
               </p>
             </div>
 
-            <button
-              onClick={() => setShowAddFloorModal(true)}
-              className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all"
-            >
-              <Plus className="w-4 h-4" /> + Add New Floor
-            </button>
+            {/* Top Controls */}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowFastTrackModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-purple-600 hover:opacity-95 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-200" />
+                <span>FastTrack Auto-Build</span>
+                <span className="bg-white/20 text-white text-[9px] px-1.5 py-0.5 rounded-full uppercase font-extrabold tracking-wider">
+                  AI
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowAddFloorModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> + Add New Floor
+              </button>
+            </div>
           </div>
 
           {/* Toast Notification */}
@@ -495,7 +513,7 @@ export default function PropertySetupPage({
 
           {/* Floor Accordion List */}
           {propertyStructure.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-dashed border-[#d7c2b9] p-10 text-center max-w-lg mx-auto my-12 space-y-4 shadow-sm animate-fadeIn">
+            <div className="bg-white rounded-3xl border border-dashed border-[#d7c2b9] p-8 text-center max-w-xl mx-auto my-10 space-y-5 shadow-sm animate-fadeIn">
               <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto border border-[#d7c2b9]">
                 <Building2 className="w-8 h-8" />
               </div>
@@ -503,17 +521,29 @@ export default function PropertySetupPage({
                 <h3 className="font-serif font-bold text-xl text-[#201a17]">
                   Start Building Your Estate Layout
                 </h3>
-                <p className="text-xs text-[#554339] leading-relaxed">
-                  Add your first floor to begin configuring physical rooms, sharing types, and monthly bed tariffs.
+                <p className="text-xs text-[#554339] leading-relaxed max-w-md mx-auto">
+                  Have an existing Excel sheet or paper ledger? Use FastTrack AI to automatically generate all floors, rooms, and beds in 10 seconds!
                 </p>
               </div>
-              <button
-                onClick={() => setShowAddFloorModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer mt-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Floor 1 Now</span>
-              </button>
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFastTrackModal(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-purple-600 hover:opacity-95 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-200" />
+                  <span>⚡ FastTrack Auto-Build from Sheet / Photos</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddFloorModal(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Floor Manually</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -1175,6 +1205,16 @@ export default function PropertySetupPage({
             </div>
           </div>
         )}
+
+        {/* ⚡ FastTrack 1-Click Migration Modal */}
+        <FastTrackImportModal
+          propertyId={propertyId}
+          isOpen={showFastTrackModal}
+          onClose={() => setShowFastTrackModal(false)}
+          onSuccess={() => {
+            triggerToast("🎉 FastTrack Migration Complete! Building layout and tenants are now live.");
+          }}
+        />
       </div>
     </div>
   );

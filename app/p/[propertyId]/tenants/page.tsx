@@ -19,9 +19,11 @@ import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";
 import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
 import { StaggerItem } from "@/components/motion/StaggerContainer";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
+import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import {
   Search,
   Plus,
+  Sparkles,
   Filter,
   Phone,
   MessageSquare,
@@ -120,6 +122,7 @@ export default function TenantsDirectoryPage({
   // Selection state for bulk actions (Default empty, no ghost selected banners!)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showFastTrackModal, setShowFastTrackModal] = useState(false);
   const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
 
   // Collect Rent Modal State
@@ -445,16 +448,37 @@ export default function TenantsDirectoryPage({
 
             {/* Top Action Controls */}
             <div className="flex flex-wrap items-center gap-3">
+              {/* FastTrack Migration Button */}
+              <button
+                onClick={() => setShowFastTrackModal(true)}
+                className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-orange-500 via-amber-500 to-purple-600 hover:opacity-95 text-white text-xs md:text-sm font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-200" />
+                <span>FastTrack Import</span>
+                <span className="bg-white/20 text-white text-[9px] px-1.5 py-0.5 rounded-full uppercase font-extrabold tracking-wider">
+                  AI
+                </span>
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setShowAddMenu(!showAddMenu)}
-                  className="px-6 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
+                  className="px-5 py-2.5 rounded-lg bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
                 >
-                  <Plus className="w-5 h-5" /> Add New Tenant
+                  <Plus className="w-5 h-5" /> Add Resident
                 </button>
 
               {showAddMenu && (
-                <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg border border-gray-200 shadow-xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in">
+                  <button
+                    onClick={() => {
+                      setShowAddMenu(false);
+                      setShowFastTrackModal(true);
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700 font-bold border-b border-gray-100 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-600" /> ⚡ FastTrack 1-Click Import
+                  </button>
                   <Link
                     href={`/p/${propertyId}/tenants/onboard-tenant`}
                     onClick={() => setShowAddMenu(false)}
@@ -1854,6 +1878,16 @@ export default function TenantsDirectoryPage({
             }}
           />
         )}
+
+        {/* ⚡ FastTrack 1-Click Migration Modal */}
+        <FastTrackImportModal
+          propertyId={propertyId}
+          isOpen={showFastTrackModal}
+          onClose={() => setShowFastTrackModal(false)}
+          onSuccess={() => {
+            triggerToast("🎉 FastTrack Ingestion Complete! Building and tenants are now live.");
+          }}
+        />
       </div>
     </div>
   );
