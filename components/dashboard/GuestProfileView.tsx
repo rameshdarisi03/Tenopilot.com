@@ -575,63 +575,6 @@ export function GuestProfileView({
                     </div>
                   )}
                 </div>
-
-                {/* Guest Financial Summary Box */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-4 text-xs">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                      <h3 className="font-serif font-bold text-base text-gray-900">
-                        Guest Stay Billing Summary
-                      </h3>
-                      <p className="text-[10px] text-gray-400">Short-term stay package account statement</p>
-                    </div>
-
-                    <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
-                      stmt.isFullyPaid
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                        : stmt.isPartialPaid
-                        ? "bg-orange-100 text-orange-800 border-orange-200"
-                        : "bg-red-100 text-red-800 border-red-200"
-                    }`}>
-                      {stmt.isFullyPaid ? "ALL CLEAR 🟢" : stmt.isPartialPaid ? "PARTIAL DUE 🟧" : "PAYMENT PENDING 🔴"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2.5 text-gray-700 font-medium">
-                    <div className="flex justify-between">
-                      <span>Stay Package Tariff</span>
-                      <span className="font-mono font-bold text-gray-900">
-                        ₹{stmt.proRataRent.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span>Security Deposit</span>
-                      <span className="font-mono font-bold text-purple-700">₹{stmt.securityDepositRequired.toLocaleString("en-IN")} (Refundable)</span>
-                    </div>
-
-                    <div className="flex justify-between border-t border-gray-100 pt-2 font-bold text-gray-900">
-                      <span>Total Stay Gross Package</span>
-                      <span className="font-mono text-gray-900">
-                        ₹{stmt.totalGrossDue.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between text-emerald-700 font-bold">
-                      <span>Total Payments Collected</span>
-                      <span className="font-mono">
-                        ₹{stmt.totalPaid.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between pt-2 border-t border-gray-100 font-bold text-gray-900 text-sm">
-                      <span>Net Outstanding Due</span>
-                      <span className={`font-mono ${stmt.isFullyPaid ? "text-emerald-700" : "text-red-600"}`}>
-                        ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
               </>
             );
           })()}

@@ -1797,16 +1797,24 @@ Anil Verma   9812345678   Room 103   12000"
                         <td className="py-2 px-3">
                           <input
                             type="number"
-                            value={row.rentAmount}
-                            onChange={(e) => updateRowField(idx, "rentAmount", Number(e.target.value))}
+                            value={row.rentAmount ? row.rentAmount : ""}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              updateRowField(idx, "rentAmount", val === "" ? 0 : parseInt(val, 10));
+                            }}
                             className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
                         <td className="py-2 px-3">
                           <input
                             type="number"
-                            value={row.securityDeposit}
-                            onChange={(e) => updateRowField(idx, "securityDeposit", Number(e.target.value))}
+                            value={row.securityDeposit ? row.securityDeposit : ""}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              updateRowField(idx, "securityDeposit", val === "" ? 0 : parseInt(val, 10));
+                            }}
                             className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
                           />
                         </td>
@@ -1829,9 +1837,12 @@ Anil Verma   9812345678   Room 103   12000"
                             <span className="text-gray-400 font-mono text-xs">₹</span>
                             <input
                               type="number"
-                              value={row.priorArrearsAmount ?? 0}
-                              onChange={(e) => updateRowField(idx, "priorArrearsAmount", Math.max(0, Number(e.target.value)))}
+                              value={row.priorArrearsAmount ? row.priorArrearsAmount : ""}
                               placeholder="0"
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, "");
+                                updateRowField(idx, "priorArrearsAmount", val === "" ? 0 : parseInt(val, 10));
+                              }}
                               className="w-20 font-mono font-bold text-gray-900 text-xs border-0 p-0 focus:ring-0"
                             />
                           </div>

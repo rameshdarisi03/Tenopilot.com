@@ -1189,138 +1189,38 @@ export default function IndividualTenantProfilePage({
                 </div>
               </div>
 
-              {/* 💳 2. DEDICATED FINANCIAL SUMMARY & NET DUES CARD */}
-              <div className="bg-gradient-to-br from-white to-orange-50/40 rounded-2xl border border-orange-200 p-6 shadow-sm space-y-5 text-xs">
-                <div className="flex justify-between items-center pb-3 border-b border-orange-100">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
-                      <Wallet className="w-5 h-5" />
+              {/* Past Tenant Deposit Settlement Audit Card (If Vacated) */}
+              {occupantState.lifecycleStatus === "Past" && (
+                <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-purple-200/60 pb-1.5 font-bold text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-purple-700" /> Check-Out Deposit Settlement Audit
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                      occupantState.arrearsBalance && occupantState.arrearsBalance > 0
+                        ? "bg-amber-200 text-amber-950 border border-amber-300"
+                        : "bg-emerald-200 text-emerald-950 border border-emerald-300"
+                    }`}>
+                      {occupantState.arrearsBalance && occupantState.arrearsBalance > 0
+                        ? "PARTIAL REFUND 🟡"
+                        : "FULL REFUND 🟢"}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-[11px] font-mono text-purple-900">
+                    <div className="flex justify-between">
+                      <span>Initial Deposit Intake:</span>
+                      <span className="font-bold">₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
                     </div>
-                    <div>
-                      <h3 className="font-serif font-bold text-base text-gray-900">
-                        Financial Summary & Net Dues
-                      </h3>
-                      <p className="text-[10px] text-gray-500 font-semibold">
-                        Real-time calculated account statement
-                      </p>
+                    <div className="flex justify-between text-emerald-800 font-bold border-t border-purple-200/60 pt-1">
+                      <span>Net Amount Refunded:</span>
+                      <span>₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="text-[10px] opacity-80 pt-1 font-sans">
+                      Checked Out: {occupantState.vacatingDate || "09 Aug 2026"} • Status: Settled & Closed
                     </div>
                   </div>
                 </div>
-
-                {(() => {
-                  const tenantStmt = calculateOccupantFinancialStatement(occupantState);
-                  return (
-                    <>
-                      {/* Net Due Hero Banner */}
-                      <div className="p-4 rounded-xl bg-white border border-orange-200/80 flex justify-between items-center shadow-xs">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block">
-                            Total Net Amount Due
-                          </span>
-                          <span className="font-mono text-2xl font-extrabold text-gray-900">
-                            ₹{tenantStmt.netOutstandingBalance.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-extrabold ${
-                          tenantStmt.isFullyPaid
-                            ? "bg-emerald-100 text-emerald-800"
-                            : tenantStmt.isPartialPaid
-                            ? "bg-orange-100 text-orange-800 border border-orange-200"
-                            : "bg-red-100 text-red-800"
-                        }`}>
-                          {tenantStmt.statusBadgeText}
-                        </span>
-                      </div>
-
-                      {/* Itemized Financial Ledger Breakdown */}
-                      <div className="space-y-2.5 pt-1 text-gray-700">
-                        <div className="flex justify-between items-center pb-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 font-medium">Rent Due ({tenantStmt.proRataRent < occupantState.rentAmount ? "Pro-Rata" : "Full Month"})</span>
-                          <span className="font-mono font-bold text-gray-900">
-                            ₹{tenantStmt.proRataRent.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 font-medium">Security Deposit</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-gray-900">
-                              ₹{tenantStmt.securityDepositRequired.toLocaleString("en-IN")}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                              tenantStmt.isDepositCleared
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-amber-100 text-amber-700"
-                            }`}>
-                              {tenantStmt.depositStatusLabel}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pb-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 font-medium">Prior Arrears Balance</span>
-                          <span className="font-mono font-bold text-gray-900">
-                            ₹{tenantStmt.priorArrears.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500 font-medium">Total Payments Received</span>
-                          <span className="font-mono font-bold text-emerald-600">
-                            -₹{tenantStmt.totalPaid.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Past Tenant Deposit Settlement Audit Card */}
-                      {occupantState.lifecycleStatus === "Past" && (
-                        <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-950 space-y-2">
-                          <div className="flex items-center justify-between border-b border-purple-200/60 pb-1.5 font-bold text-xs">
-                            <span className="flex items-center gap-1.5">
-                              <ShieldCheck className="w-4 h-4 text-purple-700" /> Check-Out Deposit Settlement Audit
-                            </span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                              occupantState.arrearsBalance && occupantState.arrearsBalance > 0
-                                ? "bg-amber-200 text-amber-950 border border-amber-300"
-                                : "bg-emerald-200 text-emerald-950 border border-emerald-300"
-                            }`}>
-                              {occupantState.arrearsBalance && occupantState.arrearsBalance > 0
-                                ? "PARTIAL REFUND 🟡"
-                                : "FULL REFUND 🟢"}
-                            </span>
-                          </div>
-                          <div className="space-y-1 text-[11px] font-mono text-purple-900">
-                            <div className="flex justify-between">
-                              <span>Initial Deposit Intake:</span>
-                              <span className="font-bold">₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
-                            </div>
-                            <div className="flex justify-between text-emerald-800 font-bold border-t border-purple-200/60 pt-1">
-                              <span>Net Amount Refunded:</span>
-                              <span>₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
-                            </div>
-                            <div className="text-[10px] opacity-80 pt-1 font-sans">
-                              Checked Out: {occupantState.vacatingDate || "09 Aug 2026"} • Status: Settled & Closed
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 1-Click Action */}
-                      {occupantState.lifecycleStatus !== "Past" && (
-                        <button
-                          onClick={() => {
-                            setPaymentAmount(tenantStmt.netOutstandingBalance);
-                            setShowCollectRentModal(true);
-                          }}
-                          className="w-full py-2.5 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                        >
-                          <CreditCard className="w-4 h-4" /> Collect Payment / Record Receipt (₹{tenantStmt.netOutstandingBalance.toLocaleString("en-IN")})
-                        </button>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
+              )}
 
               {/* 🪪 Granular Real-Time KYC Verification Card for Tenants */}
               {(() => {
@@ -1708,8 +1608,12 @@ export default function IndividualTenantProfilePage({
                   <input
                     type="number"
                     required
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                    value={paymentAmount ? paymentAmount : ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setPaymentAmount(val === "" ? 0 : parseInt(val, 10));
+                    }}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>

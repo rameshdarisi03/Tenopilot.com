@@ -676,8 +676,12 @@ export default function OnboardTenantPage({
                   <input
                     type="number"
                     required
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(Number(e.target.value))}
+                    value={depositAmount ? depositAmount : ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setDepositAmount(val === "" ? 0 : parseInt(val, 10));
+                    }}
                     className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>
@@ -871,8 +875,12 @@ export default function OnboardTenantPage({
                   <input
                     type="number"
                     required
-                    value={monthlyRent}
-                    onChange={(e) => setMonthlyRent(Number(e.target.value))}
+                    value={monthlyRent ? monthlyRent : ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setMonthlyRent(val === "" ? 0 : parseInt(val, 10));
+                    }}
                     className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
                   />
                   <p className="text-[10px] text-gray-500 font-medium">

@@ -636,8 +636,12 @@ export default function OnboardGuestPage({
                     <input
                       type="number"
                       required
-                      value={totalTariff}
-                      onChange={(e) => setTotalTariff(Number(e.target.value))}
+                      value={totalTariff ? totalTariff : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setTotalTariff(val === "" ? 0 : parseInt(val, 10));
+                      }}
                       className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   </div>
@@ -648,8 +652,12 @@ export default function OnboardGuestPage({
                     </label>
                     <input
                       type="number"
-                      value={depositAmount}
-                      onChange={(e) => setDepositAmount(Number(e.target.value))}
+                      value={depositAmount ? depositAmount : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setDepositAmount(val === "" ? 0 : parseInt(val, 10));
+                      }}
                       className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   </div>

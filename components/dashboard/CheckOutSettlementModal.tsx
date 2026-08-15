@@ -210,8 +210,12 @@ export function CheckOutSettlementModal({
               <input
                 type="number"
                 min="0"
-                value={unpaidRentDues}
-                onChange={(e) => setUnpaidRentDues(Number(e.target.value))}
+                value={unpaidRentDues ? unpaidRentDues : ""}
+                placeholder="0"
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setUnpaidRentDues(val === "" ? 0 : parseInt(val, 10));
+                }}
                 className="w-full p-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
               />
             </div>
@@ -223,8 +227,12 @@ export function CheckOutSettlementModal({
               <input
                 type="number"
                 min="0"
-                value={repairDeductions}
-                onChange={(e) => setRepairDeductions(Number(e.target.value))}
+                value={repairDeductions ? repairDeductions : ""}
+                placeholder="0"
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setRepairDeductions(val === "" ? 0 : parseInt(val, 10));
+                }}
                 className="w-full p-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
               />
             </div>
@@ -236,8 +244,12 @@ export function CheckOutSettlementModal({
               <input
                 type="number"
                 min="0"
-                value={maintenanceExpenses}
-                onChange={(e) => setMaintenanceExpenses(Number(e.target.value))}
+                value={maintenanceExpenses ? maintenanceExpenses : ""}
+                placeholder="0"
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setMaintenanceExpenses(val === "" ? 0 : parseInt(val, 10));
+                }}
                 className="w-full p-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
               />
             </div>
