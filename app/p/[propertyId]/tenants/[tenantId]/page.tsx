@@ -2511,35 +2511,78 @@ export default function IndividualTenantProfilePage({
                           )}
                         </div>
 
-                        {/* Highlighted Net Action Box */}
+                        {/* Highlighted Net Action Box with Exact Composition Breakdown */}
                         {netCashDifference > 0 ? (
-                          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 text-emerald-950 space-y-1">
-                            <div className="flex justify-between items-center">
-                              <span className="font-extrabold text-xs">👉 CASH TO RETURN TO GUEST:</span>
-                              <span className="font-mono text-base font-extrabold text-emerald-800">
-                                ₹{netCashDifference.toLocaleString("en-IN")} 💵
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-emerald-700 font-semibold">
-                              (Give ₹{netCashDifference.toLocaleString("en-IN")} back to guest via Cash / UPI. You keep ₹{totalOwnerKeeps.toLocaleString("en-IN")} as your earned room rent).
-                            </p>
-                          </div>
+                          (() => {
+                            const depositRefundAmount = guestRefundKeyDeposit ? depositHeld : 0;
+                            const unusedRentRefundAmount = Math.max(0, netCashDifference - depositRefundAmount);
+
+                            return (
+                              <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-300 text-emerald-950 space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-extrabold text-xs">👉 CASH TO RETURN TO GUEST:</span>
+                                  <span className="font-mono text-base font-extrabold text-emerald-800">
+                                    ₹{netCashDifference.toLocaleString("en-IN")} 💵
+                                  </span>
+                                </div>
+
+                                {/* Exact Cash Breakup */}
+                                <div className="pt-2 border-t border-emerald-200/80 space-y-1 text-[11px] text-emerald-900 font-semibold">
+                                  <span className="text-[10px] font-extrabold uppercase text-emerald-800 tracking-wider block">
+                                    Cash Return Breakup:
+                                  </span>
+                                  {depositRefundAmount > 0 && (
+                                    <div className="flex justify-between items-center">
+                                      <span>🛡️ Security Deposit Refund:</span>
+                                      <span className="font-mono font-bold">₹{depositRefundAmount.toLocaleString("en-IN")}</span>
+                                    </div>
+                                  )}
+                                  {unusedRentRefundAmount > 0 && (
+                                    <div className="flex justify-between items-center">
+                                      <span>🏨 Unused Stay Rent Refund ({analysis?.unusedDays || 0} days):</span>
+                                      <span className="font-mono font-bold">+₹{unusedRentRefundAmount.toLocaleString("en-IN")}</span>
+                                    </div>
+                                  )}
+                                  {depositRefundAmount > 0 && unusedRentRefundAmount === 0 && (
+                                    <div className="flex justify-between items-center text-[10px] text-emerald-700 font-medium">
+                                      <span>(Room rent of ₹{roomRentToCharge.toLocaleString("en-IN")} was fully consumed for stay)</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()
                         ) : netCashDifference < 0 ? (
-                          <div className="p-3 bg-rose-50 rounded-xl border border-rose-300 text-rose-950 space-y-1">
+                          <div className="p-3.5 bg-rose-50 rounded-2xl border border-rose-300 text-rose-950 space-y-2">
                             <div className="flex justify-between items-center">
                               <span className="font-extrabold text-xs">👉 CASH TO COLLECT FROM GUEST:</span>
                               <span className="font-mono text-base font-extrabold text-rose-800">
                                 ₹{Math.abs(netCashDifference).toLocaleString("en-IN")} 🔴
                               </span>
                             </div>
-                            <p className="text-[10px] text-rose-700 font-semibold">
-                              (Collect ₹{Math.abs(netCashDifference).toLocaleString("en-IN")} from guest before handing over keys / checkout).
-                            </p>
+                            <div className="pt-2 border-t border-rose-200/80 space-y-1 text-[11px] text-rose-900 font-semibold">
+                              <span className="text-[10px] font-extrabold uppercase text-rose-800 tracking-wider block">
+                                Pending Amount Breakup:
+                              </span>
+                              <div className="flex justify-between items-center">
+                                <span>🏨 Room Rent for Stay:</span>
+                                <span className="font-mono font-bold">₹{roomRentToCharge.toLocaleString("en-IN")}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-rose-700">
+                                <span>💳 Less Money Paid at Check-in:</span>
+                                <span className="font-mono font-bold">-₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
+                              </div>
+                            </div>
                           </div>
                         ) : (
-                          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 text-emerald-950 flex items-center justify-between">
-                            <span className="font-extrabold text-xs">👉 ALL BALANCED — ₹0 TO RETURN OR COLLECT</span>
-                            <span className="font-mono text-sm font-extrabold text-emerald-800">₹0 🟢</span>
+                          <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-300 text-emerald-950 flex items-center justify-between">
+                            <div>
+                              <span className="font-extrabold text-xs block">👉 ALL BALANCED — ₹0 TO RETURN OR COLLECT</span>
+                              <span className="text-[10px] text-emerald-700 font-semibold">
+                                Total paid (₹{stmt.totalPaid.toLocaleString("en-IN")}) equals stay charges. No pending cash.
+                              </span>
+                            </div>
+                            <span className="font-mono text-sm font-extrabold text-emerald-800 shrink-0">₹0 🟢</span>
                           </div>
                         )}
                       </div>
