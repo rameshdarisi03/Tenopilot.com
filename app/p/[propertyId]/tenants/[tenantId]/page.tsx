@@ -20,6 +20,7 @@ import {
   formatIsoToDisplayDate,
   getRoomTariff,
 } from "@/utils/domainSSOT";
+import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import {
   ChevronLeft,
@@ -720,17 +721,24 @@ export default function IndividualTenantProfilePage({
   // Initialize Guest Stay Management Inputs
   useEffect(() => {
     if (showGuestStayManagementModal && occupantState) {
-      const currentCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate || new Date().toISOString().split("T")[0];
-      setGuestCheckoutDate(currentCheckout);
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const currentHours = String(now.getHours()).padStart(2, "0");
+      const currentMinutes = String(now.getMinutes()).padStart(2, "0");
 
-      const baseDate = new Date(currentCheckout);
+      // Auto-populate with today's live date & current live time (100% Free, Zero Cost)
+      setGuestCheckoutDate(todayIso);
+      setCheckoutTime(`${currentHours}:${currentMinutes}`);
+
+      const scheduledCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate || todayIso;
+      const baseDate = new Date(scheduledCheckout);
       baseDate.setDate(baseDate.getDate() + 3);
       const y = baseDate.getFullYear();
       const m = String(baseDate.getMonth() + 1).padStart(2, "0");
       const d = String(baseDate.getDate()).padStart(2, "0");
       setExtendedStayDate(`${y}-${m}-${d}`);
 
-      const stayDurationDays = Math.max(1, Math.round((new Date(currentCheckout).getTime() - new Date(occupantState.joiningDate).getTime()) / (1000 * 60 * 60 * 24)));
+      const stayDurationDays = Math.max(1, Math.round((new Date(scheduledCheckout).getTime() - new Date(occupantState.joiningDate).getTime()) / (1000 * 60 * 60 * 24)));
       const calculatedDaily = Math.round((occupantState.rentAmount || 1000) / stayDurationDays) || 500;
       setCustomDailyRate(calculatedDaily);
       setPenaltyAmount(0);
@@ -744,14 +752,18 @@ export default function IndividualTenantProfilePage({
     const scheduledCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
     if (!scheduledCheckout) return null;
 
-    const checkInMs = new Date(occupantState.joiningDate).getTime();
-    const scheduledMs = new Date(scheduledCheckout).getTime();
-    const actualMs = new Date(guestCheckoutDate).getTime();
+    const parsedJoining = parseOccupantDate(occupantState.joiningDate) || new Date();
+    const parsedScheduled = parseOccupantDate(scheduledCheckout) || new Date();
+    const parsedActual = parseOccupantDate(guestCheckoutDate) || new Date();
 
-    const totalOriginalDays = Math.max(1, Math.round((scheduledMs - checkInMs) / (1000 * 60 * 60 * 24)));
-    const actualDaysElapsed = Math.max(1, Math.round((actualMs - checkInMs) / (1000 * 60 * 60 * 24)));
+    const checkInMidnight = new Date(parsedJoining.getFullYear(), parsedJoining.getMonth(), parsedJoining.getDate()).getTime();
+    const scheduledMidnight = new Date(parsedScheduled.getFullYear(), parsedScheduled.getMonth(), parsedScheduled.getDate()).getTime();
+    const actualMidnight = new Date(parsedActual.getFullYear(), parsedActual.getMonth(), parsedActual.getDate()).getTime();
 
-    const isEarly = actualMs < scheduledMs && actualDaysElapsed < totalOriginalDays;
+    const totalOriginalDays = Math.max(1, Math.round((scheduledMidnight - checkInMidnight) / (1000 * 60 * 60 * 24)));
+    const actualDaysElapsed = Math.max(1, Math.round((actualMidnight - checkInMidnight) / (1000 * 60 * 60 * 24)));
+
+    const isEarly = actualMidnight < scheduledMidnight && actualDaysElapsed < totalOriginalDays;
     const unusedDays = Math.max(0, totalOriginalDays - actualDaysElapsed);
 
     const totalOriginalRent = occupantState.rentAmount || 1000;
@@ -2116,7 +2128,15 @@ export default function IndividualTenantProfilePage({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setGuestStayModalTab("CHECKOUT")}
+                  onClick={() => {
+                    const now = new Date();
+                    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+                    const currentHours = String(now.getHours()).padStart(2, "0");
+                    const currentMinutes = String(now.getMinutes()).padStart(2, "0");
+                    setGuestCheckoutDate(todayIso);
+                    setCheckoutTime(`${currentHours}:${currentMinutes}`);
+                    setGuestStayModalTab("CHECKOUT");
+                  }}
                   className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     guestStayModalTab === "CHECKOUT"
                       ? "bg-white text-red-700 shadow-sm border border-red-100"
