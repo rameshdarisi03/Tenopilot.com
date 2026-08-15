@@ -181,6 +181,7 @@ export default function IndividualTenantProfilePage({
   const [penaltyAmount, setPenaltyAmount] = useState<number>(0);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showDeleteGuestModal, setShowDeleteGuestModal] = useState(false);
+  const [showGuestCheckoutConfirmModal, setShowGuestCheckoutConfirmModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
 
   // Edit Check-In Date Inputs
@@ -2295,7 +2296,18 @@ export default function IndividualTenantProfilePage({
 
               {/* TAB 2: GUEST CHECKOUT (SIMPLE PLAIN-ENGLISH PG OWNER VIEW) */}
               {guestStayModalTab === "CHECKOUT" && (
-                <form onSubmit={handleGuestCheckoutSubmit} className="space-y-4 pt-1">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setShowGuestCheckoutConfirmModal(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="space-y-4 pt-1"
+                >
                   
                   {/* Actual Checkout Date Picker */}
                   <div>
@@ -2584,6 +2596,115 @@ export default function IndividualTenantProfilePage({
                 </form>
               )}
 
+            </div>
+          </div>
+        )}
+
+        {/* 🏁 GUEST CHECKOUT FINAL CONFIRMATION POPUP MODAL */}
+        {showGuestCheckoutConfirmModal && occupantState && (
+          <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-2xl bg-red-100 text-red-700">
+                    <LogOut className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Confirm Guest Checkout?
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-semibold">
+                      {occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGuestCheckoutConfirmModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Summary details */}
+              {(() => {
+                const stmt = calculateOccupantFinancialStatement(occupantState);
+                const analysis = earlyDepartureAnalysis;
+
+                let baseRoomRent = stmt.proRataRent;
+                if (analysis && analysis.isEarly) {
+                  if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
+                    baseRoomRent = analysis.recalculatedProRataTariff;
+                  } else {
+                    baseRoomRent = analysis.totalOriginalRent;
+                  }
+                }
+
+                const addedPenalty = Math.max(0, Number(penaltyAmount) || 0);
+                const roomRentToCharge = baseRoomRent + addedPenalty;
+                const depositHeld = occupantState.securityDeposit || 1000;
+                const depositPenalty = guestRefundKeyDeposit ? 0 : depositHeld;
+                const totalOwnerKeeps = roomRentToCharge + depositPenalty;
+                const netCashDifference = stmt.totalPaid - totalOwnerKeeps;
+
+                return (
+                  <div className="space-y-3">
+                    <p className="text-gray-700 text-xs">
+                      Are you sure you want to finalize checkout for <strong>{occupantState.name}</strong> on <strong>{formatIsoToDisplayDate(guestCheckoutDate)}</strong>?
+                    </p>
+
+                    <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-[11px]">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Final Stay Rent & Fees:</span>
+                        <span className="font-bold font-mono text-gray-900">₹{roomRentToCharge.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Total Money Paid at Check-in:</span>
+                        <span className="font-bold font-mono text-gray-900">₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="pt-2 border-t border-gray-200 flex justify-between items-center font-bold">
+                        <span className="text-gray-800">Final Cash Action:</span>
+                        <span className={`font-mono ${netCashDifference > 0 ? "text-emerald-700 font-extrabold" : netCashDifference < 0 ? "text-rose-700 font-extrabold" : "text-gray-800"}`}>
+                          {netCashDifference > 0
+                            ? `Return ₹${netCashDifference.toLocaleString("en-IN")} 💵`
+                            : netCashDifference < 0
+                            ? `Collect ₹${Math.abs(netCashDifference).toLocaleString("en-IN")} 🔴`
+                            : "All Balanced (₹0) 🟢"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2">
+                      <span className="text-base shrink-0">🟢</span>
+                      <span>
+                        Bed <strong>{occupantState.roomNumber} ({occupantState.bedCode})</strong> will be immediately marked <strong>Available</strong> for new bookings.
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowGuestCheckoutConfirmModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                >
+                  Go Back / Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setShowGuestCheckoutConfirmModal(false);
+                    handleGuestCheckoutSubmit(e);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Yes, Check Out 🏁</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
