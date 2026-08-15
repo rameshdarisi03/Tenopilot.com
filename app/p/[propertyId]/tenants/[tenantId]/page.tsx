@@ -23,6 +23,7 @@ import {
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { complianceLogStore } from "@/constants/complianceLogStore";
+import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import {
   ChevronLeft,
   ChevronDown,
@@ -911,20 +912,17 @@ export default function IndividualTenantProfilePage({
     setOccupantState(updatedGuest);
     occupantStore.updateOccupant(updatedGuest, propertyId);
 
-    // 🔒 Write Permanent Immutable Record to Master Police & Legal Register
+    // 🔒 Write DPDP Act 2023 Sanitized Immutable Record to Master Police Register
     const exitCategory = analysis?.isEarly ? "Emergency Early Departure" : "Standard Scheduled Departure";
     const exitReasonText = guestCheckoutNotes.trim() || (analysis?.isEarly ? `Early departure on emergency (${analysis.unusedDays} days unused). Key returned & settled.` : "Completed scheduled stay package. Key returned & settled.");
 
-    complianceLogStore.addLog(propertyId, {
+    const sanitizedComplianceEntry = sanitizeOccupantForCompliance({
       propertyId,
       occupantId: occupantState.id,
       name: occupantState.name,
       phone: occupantState.phone,
-      emergencyPhone: occupantState.emergencyContact?.phone || "—",
-      emergencyRelation: occupantState.emergencyContact?.relation || "Family",
       address: occupantState.address || "Bengaluru, Karnataka",
-      aadhaarNumber: occupantState.aadhaarNumber || "Skipped",
-      photoUrl: occupantState.kycDocs?.photoUrl || occupantState.avatar,
+      aadhaarNumber: occupantState.aadhaarNumber,
       stayType: "Guest",
       roomNumber: occupantState.roomNumber,
       bedCode: occupantState.bedCode,
@@ -941,6 +939,8 @@ export default function IndividualTenantProfilePage({
       penaltyPaid: addedPenalty,
       kycVerified: Boolean(occupantState.kycVerified),
     });
+
+    complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
 
     // Vacate bed slot in propertyStore singleton (Bed returns to Available 🟢)
     const currentStructure = propertyStore.getStructure(propertyId);

@@ -16,6 +16,7 @@ import { Occupant, occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { expenseStore } from "@/constants/expenseStore";
 import { complianceLogStore } from "@/constants/complianceLogStore";
+import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -103,17 +104,14 @@ export function CheckOutSettlementModal({
         });
       }
 
-      // 4. 🔒 Write Permanent Immutable Record to Master Police & Legal Register
-      complianceLogStore.addLog(propertyId, {
+      // 4. 🔒 Write DPDP Act 2023 Sanitized Immutable Record to Master Police Register
+      const sanitizedComplianceEntry = sanitizeOccupantForCompliance({
         propertyId,
         occupantId: occupant.id,
         name: occupant.name,
         phone: occupant.phone,
-        emergencyPhone: occupant.emergencyContact?.phone || "—",
-        emergencyRelation: occupant.emergencyContact?.relation || "Family",
         address: occupant.address || "Bengaluru, Karnataka",
-        aadhaarNumber: occupant.aadhaarNumber || "Skipped",
-        photoUrl: occupant.kycDocs?.photoUrl || occupant.avatar,
+        aadhaarNumber: occupant.aadhaarNumber,
         stayType: occupant.stayType || "Tenant",
         roomNumber: roomNumber || occupant.roomNumber || "101",
         bedCode: bedCode || occupant.bedCode || "BED A",
@@ -130,6 +128,8 @@ export function CheckOutSettlementModal({
         penaltyPaid: totalDeductions,
         kycVerified: Boolean(occupant.kycVerified),
       });
+
+      complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
 
       setIsSubmitting(false);
       onSuccess?.();

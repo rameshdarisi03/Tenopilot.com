@@ -1,8 +1,9 @@
 // TenoPilot Permanent Police & Legal Compliance Audit Log Store
-// 100% Immutable Cloud Firestore Ledger + Real-Time Sync & Local Fallback
+// 100% Immutable Cloud Firestore Ledger + DPDP Act (India) 2023 Privacy Retention Lifecycle
 
 import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { applyDpdpLifecycleSweep } from "@/utils/dpdpRetentionEngine";
 
 export interface ComplianceLogEntry {
   id: string;
@@ -39,6 +40,14 @@ export interface ComplianceLogEntry {
   penaltyPaid?: number;
   timestamp: number;
   kycVerified: boolean;
+
+  // DPDP Act 2023 Compliance Metadata
+  dpdpStatus?: "ACTIVE" | "PHOTO_PURGED" | "PHONE_ADDRESS_PURGED" | "EXPIRED";
+  isPhotoPurged?: boolean;
+  isEmergencyContactPurged?: boolean;
+  checkoutTimestamp?: number;
+  purge3YearDate?: string;
+  purge5YearDate?: string;
 }
 
 const DEFAULT_SEEDED_LOGS: ComplianceLogEntry[] = [
@@ -48,11 +57,11 @@ const DEFAULT_SEEDED_LOGS: ComplianceLogEntry[] = [
     occupantId: "og-guest-1786316000004",
     name: "Rohan Verma",
     phone: "+91 98765 43210",
-    emergencyPhone: "+91 98111 22233",
-    emergencyRelation: "Father",
-    address: "Flat 402, Green Glen, Indiranagar, Bengaluru, KA",
+    emergencyPhone: "[PURGED ON CHECKOUT - DPDP ACT 2023]",
+    emergencyRelation: "Purged",
+    address: "Indiranagar, Bengaluru, KA",
     aadhaarNumber: "XXXX-XXXX-4421",
-    photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=RohanVerma",
+    photoUrl: undefined, // Purged upon checkout
     stayType: "Guest",
     roomNumber: "105",
     bedCode: "BED C",
@@ -69,6 +78,12 @@ const DEFAULT_SEEDED_LOGS: ComplianceLogEntry[] = [
     penaltyPaid: 0,
     timestamp: 1786815000000,
     kycVerified: true,
+    dpdpStatus: "PHOTO_PURGED",
+    isPhotoPurged: true,
+    isEmergencyContactPurged: true,
+    checkoutTimestamp: 1786815000000,
+    purge3YearDate: "15 Aug 2029",
+    purge5YearDate: "15 Aug 2031",
   },
   {
     id: "COMP-2026-08-09-002",
@@ -76,11 +91,11 @@ const DEFAULT_SEEDED_LOGS: ComplianceLogEntry[] = [
     occupantId: "og-tenant-1786316000002",
     name: "Sneha Kulkarni",
     phone: "+91 99002 23344",
-    emergencyPhone: "+91 99002 00000",
-    emergencyRelation: "Father",
+    emergencyPhone: "[PURGED ON CHECKOUT - DPDP ACT 2023]",
+    emergencyRelation: "Purged",
     address: "Kothrud, Pune, Maharashtra",
     aadhaarNumber: "XXXX-XXXX-9812",
-    photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=SnehaKulkarni",
+    photoUrl: undefined, // Purged upon checkout
     stayType: "Tenant",
     roomNumber: "102",
     bedCode: "BED A",
@@ -97,6 +112,12 @@ const DEFAULT_SEEDED_LOGS: ComplianceLogEntry[] = [
     penaltyPaid: 0,
     timestamp: 1786316000000,
     kycVerified: true,
+    dpdpStatus: "PHOTO_PURGED",
+    isPhotoPurged: true,
+    isEmergencyContactPurged: true,
+    checkoutTimestamp: 1786316000000,
+    purge3YearDate: "31 Jul 2029",
+    purge5YearDate: "31 Jul 2031",
   },
 ];
 
@@ -110,15 +131,20 @@ export const complianceLogStore = {
         try {
           const raw = localStorage.getItem(`tenopilot_compliance_logs_${propertyId}`);
           if (raw) {
-            COMPLIANCE_MAP.set(propertyId, JSON.parse(raw));
+            const parsed = JSON.parse(raw);
+            const { sanitizedLogs } = applyDpdpLifecycleSweep(parsed);
+            COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
           } else {
-            COMPLIANCE_MAP.set(propertyId, DEFAULT_SEEDED_LOGS);
+            const { sanitizedLogs } = applyDpdpLifecycleSweep(DEFAULT_SEEDED_LOGS);
+            COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
           }
         } catch {
-          COMPLIANCE_MAP.set(propertyId, DEFAULT_SEEDED_LOGS);
+          const { sanitizedLogs } = applyDpdpLifecycleSweep(DEFAULT_SEEDED_LOGS);
+          COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
         }
       } else {
-        COMPLIANCE_MAP.set(propertyId, DEFAULT_SEEDED_LOGS);
+        const { sanitizedLogs } = applyDpdpLifecycleSweep(DEFAULT_SEEDED_LOGS);
+        COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
       }
     }
     return COMPLIANCE_MAP.get(propertyId) || DEFAULT_SEEDED_LOGS;
@@ -133,11 +159,12 @@ export const complianceLogStore = {
 
     const current = this.getLogs(propertyId);
     const updated = [newEntry, ...current];
-    COMPLIANCE_MAP.set(propertyId, updated);
+    const { sanitizedLogs } = applyDpdpLifecycleSweep(updated);
+    COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
 
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(`tenopilot_compliance_logs_${propertyId}`, JSON.stringify(updated));
+        localStorage.setItem(`tenopilot_compliance_logs_${propertyId}`, JSON.stringify(sanitizedLogs));
       } catch (err) {
         console.warn("Local storage write failed for compliance logs", err);
       }
@@ -158,6 +185,26 @@ export const complianceLogStore = {
     return newEntry;
   },
 
+  runDpdpSweep(propertyId: string): { purged3YCount: number; deleted5YCount: number; remainingCount: number } {
+    const current = this.getLogs(propertyId);
+    const { sanitizedLogs, purged3YCount, deleted5YCount } = applyDpdpLifecycleSweep(current);
+    COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`tenopilot_compliance_logs_${propertyId}`, JSON.stringify(sanitizedLogs));
+      } catch {}
+    }
+
+    listeners.forEach((l) => l());
+
+    return {
+      purged3YCount,
+      deleted5YCount,
+      remainingCount: sanitizedLogs.length,
+    };
+  },
+
   subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);
@@ -176,9 +223,10 @@ export const complianceLogStore = {
               firestoreLogs.push(docSnap.data() as ComplianceLogEntry);
             });
             firestoreLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            COMPLIANCE_MAP.set(propertyId, firestoreLogs);
+            const { sanitizedLogs } = applyDpdpLifecycleSweep(firestoreLogs);
+            COMPLIANCE_MAP.set(propertyId, sanitizedLogs);
             try {
-              localStorage.setItem(`tenopilot_compliance_logs_${propertyId}`, JSON.stringify(firestoreLogs));
+              localStorage.setItem(`tenopilot_compliance_logs_${propertyId}`, JSON.stringify(sanitizedLogs));
             } catch {}
             listeners.forEach((l) => l());
           }
