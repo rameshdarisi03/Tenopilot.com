@@ -19,7 +19,7 @@ export function getOccupantVacatingDate(occupant?: Partial<Occupant> | null): st
  */
 export function getBedVacatingDate(bed?: BedSlotConfig | null): string | undefined {
   if (!bed) return undefined;
-  return bed.occupant?.vacatingDate || bed.vacatingDate;
+  return bed.occupant?.vacatingDate || bed.guestCheckoutDate || bed.vacatingDate || (bed.status === "Guest" ? bed.occupant?.dueDate : undefined);
 }
 
 /**

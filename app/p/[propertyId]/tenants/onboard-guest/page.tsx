@@ -8,11 +8,11 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import {
   propertyStore,
-  getBedVacatingDate,
   FloorConfig,
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
+import { getBedVacatingDate, formatIsoToDisplayDate } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   ChevronRight,
@@ -97,6 +97,8 @@ export default function OnboardGuestPage({
     bedCode: string;
     roomNumber: string;
     floorName: string;
+    vacatingDate?: string;
+    isVacating?: boolean;
   } | null>(null);
 
   // Form State — Step 3: Quick KYC Upload & Auto-Compression Documents (Capped PDF 1MB, Front/Back ID Images)
@@ -171,15 +173,17 @@ export default function OnboardGuestPage({
             ...rm,
             beds: rm.beds
               .filter(
-                (bd) => bd.status === "Available" || bd.status === "Vacating"
+                (bd) => bd.status === "Available" || bd.status === "Vacating" || bd.status === "Guest"
               )
               .map((bd) => {
-                const vacatingDateStr = getBedVacatingDate(bd) || "15 Aug 2026";
-                const cleanDate = vacatingDateStr.replace(" 2026", "");
-                if (bd.status !== "Vacating") return bd;
+                const isVacating = bd.status === "Vacating" || bd.status === "Guest";
+                if (!isVacating) return bd;
+                const vacatingDateRaw = getBedVacatingDate(bd) || "18 Aug 2026";
+                const displayVacatingDate = vacatingDateRaw.includes("-") ? formatIsoToDisplayDate(vacatingDateRaw) : vacatingDateRaw;
+                const cleanDate = displayVacatingDate.replace(" 2026", "");
                 return {
                   ...bd,
-                  vacatingDate: vacatingDateStr,
+                  vacatingDate: displayVacatingDate,
                   vacatingNote: `Vacating ${cleanDate}`,
                 };
               }),
@@ -841,7 +845,7 @@ export default function OnboardGuestPage({
                               {room.beds.map((bed) => {
                                 const isSelected =
                                   selectedBed?.bedId === bed.id;
-                                const isVacating = bed.status === "Vacating";
+                                const isVacating = bed.status === "Vacating" || bed.status === "Guest";
 
                                 return (
                                   <button
@@ -853,6 +857,8 @@ export default function OnboardGuestPage({
                                         bedCode: bed.bedCode,
                                         roomNumber: room.roomNumber,
                                         floorName: floor.floorName,
+                                        vacatingDate: (bed as any).vacatingDate,
+                                        isVacating,
                                       })
                                     }
                                     className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
@@ -870,7 +876,7 @@ export default function OnboardGuestPage({
                                     {/* Status & Date Badge ONLY — NO Tenant Names! */}
                                     <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
                                       {isVacating
-                                        ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "15 Aug"}`
+                                        ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "18 Aug"}`
                                         : "Available 🟢"}
                                     </span>
                                   </button>

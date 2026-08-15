@@ -8,11 +8,11 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
 import {
   propertyStore,
-  getBedVacatingDate,
   FloorConfig,
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
+import { getBedVacatingDate, formatIsoToDisplayDate } from "@/utils/domainSSOT";
 import {
   propertySettingsStore,
   PropertySettingsData,
@@ -98,6 +98,8 @@ export default function OnboardTenantPage({
     bedCode: string;
     roomNumber: string;
     floorName: string;
+    vacatingDate?: string;
+    isVacating?: boolean;
   } | null>(null);
 
   // Form State — Step 3: KYC Upload & Auto-Compression Documents (Capped PDF 1MB, Front/Back ID Images)
@@ -176,7 +178,7 @@ export default function OnboardTenantPage({
   }, [propertyId]);
 
   // Intelligent Floor Navigation Filter for Onboarding:
-  // 1. Shows Available 🟢 & Vacating 🟧 beds (Hides Occupied & Booked beds)
+  // 1. Shows Available 🟢, Notice-Period Vacating 🟧 beds, and Short-Term Guest 🟧 beds (Hides permanently occupied & booked beds)
   // 2. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
   const onboardingFloorNavigation = useMemo(() => {
     return propertyStructure
@@ -191,15 +193,17 @@ export default function OnboardTenantPage({
             ...rm,
             beds: rm.beds
               .filter(
-                (bd) => bd.status === "Available" || bd.status === "Vacating"
+                (bd) => bd.status === "Available" || bd.status === "Vacating" || bd.status === "Guest"
               )
               .map((bd) => {
-                const vacatingDateStr = getBedVacatingDate(bd) || "15 Aug 2026";
-                const cleanDate = vacatingDateStr.replace(" 2026", "");
-                if (bd.status !== "Vacating") return bd;
+                const isVacating = bd.status === "Vacating" || bd.status === "Guest";
+                if (!isVacating) return bd;
+                const vacatingDateRaw = getBedVacatingDate(bd) || "18 Aug 2026";
+                const displayVacatingDate = vacatingDateRaw.includes("-") ? formatIsoToDisplayDate(vacatingDateRaw) : vacatingDateRaw;
+                const cleanDate = displayVacatingDate.replace(" 2026", "");
                 return {
                   ...bd,
-                  vacatingDate: vacatingDateStr,
+                  vacatingDate: displayVacatingDate,
                   vacatingNote: `Vacating ${cleanDate}`,
                 };
               }),
@@ -808,46 +812,48 @@ export default function OnboardTenantPage({
                             {/* Bed Slot Buttons (NO Tenant Names displayed for privacy!) */}
                             <div className="grid grid-cols-2 gap-2">
                               {room.beds.map((bed) => {
-                                const isSelected =
-                                  selectedBed?.bedId === bed.id;
-                                const isVacating = bed.status === "Vacating";
+                                  const isSelected =
+                                    selectedBed?.bedId === bed.id;
+                                  const isVacating = bed.status === "Vacating" || bed.status === "Guest";
 
-                                return (
-                                  <button
-                                    type="button"
-                                    key={bed.id}
-                                    onClick={() => {
-                                      setSelectedBed({
-                                        bedId: bed.id,
-                                        bedCode: bed.bedCode,
-                                        roomNumber: room.roomNumber,
-                                        floorName: floor.floorName,
-                                      });
-                                      const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
-                                      setMonthlyRent(autoRent);
-                                      setDepositAmount(settings.defaultSecurityDeposit || autoRent * 2);
-                                    }}
-                                    className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
-                                      isSelected
-                                        ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-md scale-[1.02]"
-                                        : isVacating
-                                        ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
-                                        : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
-                                    }`}
-                                  >
-                                    <span className="font-extrabold text-xs">
-                                      {bed.bedCode}
-                                    </span>
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={bed.id}
+                                      onClick={() => {
+                                        setSelectedBed({
+                                          bedId: bed.id,
+                                          bedCode: bed.bedCode,
+                                          roomNumber: room.roomNumber,
+                                          floorName: floor.floorName,
+                                          vacatingDate: (bed as any).vacatingDate,
+                                          isVacating,
+                                        });
+                                        const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
+                                        setMonthlyRent(autoRent);
+                                        setDepositAmount(settings.defaultSecurityDeposit || autoRent * 2);
+                                      }}
+                                      className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
+                                        isSelected
+                                          ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-md scale-[1.02]"
+                                          : isVacating
+                                          ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
+                                          : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
+                                      }`}
+                                    >
+                                      <span className="font-extrabold text-xs">
+                                        {bed.bedCode}
+                                      </span>
 
-                                    {/* Status & Date Badge ONLY — NO Tenant Names! */}
-                                    <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
-                                      {isVacating
-                                        ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "15 Aug"}`
-                                        : "Available 🟢"}
-                                    </span>
-                                  </button>
-                                );
-                              })}
+                                      {/* Status & Date Badge ONLY — NO Tenant Names! */}
+                                      <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
+                                        {isVacating
+                                          ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "18 Aug"}`
+                                          : "Available 🟢"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
                             </div>
                           </div>
                         ))}
@@ -863,7 +869,15 @@ export default function OnboardTenantPage({
 
               {/* 💡 AUTO-FILLED EDITABLE MONTHLY RENT TARIFF INPUT */}
               {selectedBed && (
-                <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200 space-y-2 animate-in fade-in">
+                <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3 animate-in fade-in">
+                  {selectedBed.isVacating && selectedBed.vacatingDate && (
+                    <div className="p-3 bg-orange-100/80 border border-orange-300 rounded-xl text-orange-950 text-xs font-semibold flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0" />
+                      <span>
+                        ⚠️ Bed {selectedBed.roomNumber} ({selectedBed.bedCode}) is currently occupied and scheduled to become vacant on <strong>{selectedBed.vacatingDate}</strong>.
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <label className="block font-bold text-gray-900 text-xs flex items-center gap-2">
                       <CreditCard className="w-4 h-4 text-[#c2652a]" /> Monthly Rent Tariff for {selectedBed.roomNumber} ({selectedBed.bedCode}) *
