@@ -1,0 +1,26 @@
+Tenant Name,Mobile Number,Room Number,Bed Slot,Sharing,Joining Date,Monthly Rent,Security Deposit,Rent Paid (This Month),Prior Arrears
+Aarav Sharma,9845011001,101,Bed A,1-Sharing,01 Aug 2026,18000,36000,Yes,0
+Vikram Malhotra,9845011002,102,Bed A,2-Sharing,05 Aug 2026,13500,27000,Yes,0
+Siddharth Rao,9845011003,102,Bed B,2-Sharing,10 Jul 2026,13500,27000,Yes,0
+Rohit Verma,9845011004,103,Bed A,2-Sharing,15 Jun 2026,13500,27000,Yes,4000
+Kunal Deshmukh,9845011005,103,Bed B,2-Sharing,01 Aug 2026,13500,27000,No,0
+Aniket Joshi,9845011006,104,Bed A,3-Sharing,20 Jul 2026,11000,22000,Yes,0
+Pranav Iyer,9845011007,104,Bed B,3-Sharing,01 May 2026,11000,22000,Yes,0
+Aditya Kulkarni,9845011008,104,Bed C,3-Sharing,12 Jun 2026,11000,22000,No,2500
+Manish Tiwari,9845011009,105,Bed A,4-Sharing,01 Aug 2026,9000,18000,Yes,0
+Deepak Choudhary,9845011010,105,Bed B,4-Sharing,04 Aug 2026,9000,18000,Yes,0
+Harsh Vardhan,9845011011,201,Bed A,1-Sharing,06 Aug 2026,18000,36000,Yes,0
+Rajesh Kumar,9845011012,202,Bed A,2-Sharing,01 Jul 2026,13500,27000,Yes,0
+Gaurav Sen,9845011013,202,Bed B,2-Sharing,14 Jul 2026,13500,27000,Yes,0
+Tarun Bhatia,9845011014,203,Bed A,2-Sharing,01 Aug 2026,13500,27000,Yes,0
+Naveen Reddy,9845011015,203,Bed B,2-Sharing,02 Aug 2026,13500,27000,No,1500
+Abhishek Nambiar,9845011016,204,Bed A,3-Sharing,01 Jun 2026,11000,22000,Yes,0
+Suresh Pillai,9845011017,204,Bed B,3-Sharing,18 Jun 2026,11000,22000,Yes,0
+Varun Gupta,9845011018,204,Bed C,3-Sharing,25 Jun 2026,11000,22000,Yes,0
+Ashwin Sundaram,9845011019,205,Bed A,4-Sharing,01 Aug 2026,9000,18000,Yes,0
+Nikhil Agarwal,9845011020,205,Bed B,4-Sharing,08 Jul 2026,9000,18000,Yes,0
+Rohan Mehra,9845011021,301,Bed A,1-Sharing,01 Aug 2026,18000,36000,Yes,0
+Karthik Subramanian,9845011022,302,Bed A,2-Sharing,11 Jul 2026,13500,27000,Yes,0
+Vikas Pandey,9845011023,302,Bed B,2-Sharing,22 Jul 2026,13500,27000,Yes,0
+Shreyas Nair,9845011024,303,Bed A,2-Sharing,01 Aug 2026,13500,27000,No,3500
+Arjun Kapoor,9845011025,303,Bed B,2-Sharing,03 Aug 2026,13500,27000,Yes,0
