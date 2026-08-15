@@ -1005,7 +1005,8 @@ export default function TenantsDirectoryPage({
                                       }}
                                       className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-rose-50 text-rose-600 border-t border-gray-100"
                                     >
-                                      <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Delete Past Tenant
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                      <span>{occ.stayType === "Guest" ? "Delete Guest" : "Delete Past Tenant"}</span>
                                     </button>
                                   )}
                                 </div>
@@ -1230,7 +1231,8 @@ export default function TenantsDirectoryPage({
                                   }}
                                   className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-rose-50 text-rose-600 border-t border-gray-100 font-bold"
                                 >
-                                  <Trash2 className="w-4 h-4 text-rose-600" /> Delete Past Tenant
+                                  <Trash2 className="w-4 h-4 text-rose-600" />
+                                  <span>{occ.stayType === "Guest" ? "Delete Guest" : "Delete Past Tenant"}</span>
                                 </button>
                               )}
                             </div>
@@ -1841,7 +1843,7 @@ export default function TenantsDirectoryPage({
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-lg text-gray-900">
-                    Delete Past Tenant Record?
+                    {deletePastTenantTarget.stayType === "Guest" ? "Delete Guest Record?" : "Delete Past Tenant Record?"}
                   </h3>
                   <p className="text-[11px] text-gray-500 font-medium">
                     Permanent Record Erasure Warning
@@ -1851,7 +1853,8 @@ export default function TenantsDirectoryPage({
 
               <div className="space-y-3">
                 <p className="text-gray-700 text-xs leading-relaxed">
-                  Are you sure you want to permanently delete past tenant <strong>{deletePastTenantTarget.name}</strong> (Room {deletePastTenantTarget.roomNumber})?
+                  Are you sure you want to permanently delete past {deletePastTenantTarget.stayType === "Guest" ? "guest" : "tenant"}{" "}
+                  <strong>{deletePastTenantTarget.name}</strong> (Room {deletePastTenantTarget.roomNumber})?
                 </p>
 
                 <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1.5 text-[11px]">
@@ -1859,7 +1862,7 @@ export default function TenantsDirectoryPage({
                     ⚠️ Irreversible Deletion Warning:
                   </span>
                   <p className="text-rose-800 leading-snug">
-                    Confirming deletion will permanently wipe out the entire history of this past tenant from Cloud Firestore and local storage — including KYC verification documents, uploaded photo IDs, payment receipts, emergency contact details, and stay history.
+                    Confirming deletion will permanently wipe out the entire history of this {deletePastTenantTarget.stayType === "Guest" ? "guest" : "tenant"} from Cloud Firestore and local storage — including KYC verification documents, uploaded photo IDs, payment receipts, emergency contact details, and stay history.
                   </p>
                 </div>
               </div>
@@ -1886,7 +1889,7 @@ export default function TenantsDirectoryPage({
                   className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>Permanently Delete</span>
+                  <span>{deletePastTenantTarget.stayType === "Guest" ? "Delete Guest 🗑️" : "Permanently Delete"}</span>
                 </button>
               </div>
             </div>

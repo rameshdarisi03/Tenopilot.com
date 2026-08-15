@@ -174,13 +174,13 @@ export default function IndividualTenantProfilePage({
   const [extendPaymentOption, setExtendPaymentOption] = useState<"COLLECT_NOW" | "ADD_TO_DUE">("COLLECT_NOW");
   const [extendPaymentMode, setExtendPaymentMode] = useState<string>("UPI");
 
-  // Tab 2: Guest Checkout Inputs & Early Departure Settle
   const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>("2026-08-01");
   const [guestRefundKeyDeposit, setGuestRefundKeyDeposit] = useState<boolean>(true);
   const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
-  const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE" | "CUSTOM">("PRO_RATA_REFUND");
-  const [customFinalTariff, setCustomFinalTariff] = useState<number>(0);
+  const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE">("PRO_RATA_REFUND");
+  const [penaltyAmount, setPenaltyAmount] = useState<number>(0);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showDeleteGuestModal, setShowDeleteGuestModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
 
   // Edit Check-In Date Inputs
@@ -731,7 +731,7 @@ export default function IndividualTenantProfilePage({
       const stayDurationDays = Math.max(1, Math.round((new Date(currentCheckout).getTime() - new Date(occupantState.joiningDate).getTime()) / (1000 * 60 * 60 * 24)));
       const calculatedDaily = Math.round((occupantState.rentAmount || 1000) / stayDurationDays) || 500;
       setCustomDailyRate(calculatedDaily);
-      setCustomFinalTariff(occupantState.rentAmount || 1000);
+      setPenaltyAmount(0);
       setEarlyDeparturePolicy("PRO_RATA_REFUND");
     }
   }, [showGuestStayManagementModal, occupantState]);
@@ -852,17 +852,17 @@ export default function IndividualTenantProfilePage({
     const stmt = calculateOccupantFinancialStatement(occupantState);
     const analysis = earlyDepartureAnalysis;
 
-    let finalRoomRent = occupantState.rentAmount || 1000;
+    let baseRoomRent = occupantState.rentAmount || 1000;
     if (analysis && analysis.isEarly) {
       if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
-        finalRoomRent = analysis.recalculatedProRataTariff;
-      } else if (earlyDeparturePolicy === "CUSTOM") {
-        finalRoomRent = customFinalTariff > 0 ? customFinalTariff : analysis.recalculatedProRataTariff;
+        baseRoomRent = analysis.recalculatedProRataTariff;
       } else {
-        finalRoomRent = analysis.totalOriginalRent;
+        baseRoomRent = analysis.totalOriginalRent;
       }
     }
 
+    const addedPenalty = Math.max(0, Number(penaltyAmount) || 0);
+    const finalRoomRent = baseRoomRent + addedPenalty;
     const depositHeld = occupantState.securityDeposit || 1000;
     const depositPenalty = guestRefundKeyDeposit ? 0 : depositHeld;
     const totalOwnerKeeps = finalRoomRent + depositPenalty;
@@ -970,42 +970,14 @@ export default function IndividualTenantProfilePage({
     setShowEditProfileModal(false);
   };
 
-  // 4. Wipe Out / Delete Guest Profile Handler (Vacates Bed & Erases Records)
-  const handleDeleteGuest = async () => {
+  // 4. Wipe Out / Delete Guest Profile Handler (Opens Confirmation Modal for Past Guests)
+  const handleDeleteGuest = () => {
     if (!occupantState) return;
-    const isPast = occupantState.lifecycleStatus === "Past";
-    const confirmPrompt = isPast
-      ? `Are you sure you want to permanently delete past guest ${occupantState.name}? This will wipe out all stay history and receipts.`
-      : `Are you sure you want to permanently wipe out guest profile for ${occupantState.name}? This will immediately free Bed ${occupantState.roomNumber} (${occupantState.bedCode}) and erase all records.`;
-
-    if (confirm(confirmPrompt)) {
-      if (!isPast) {
-        const currentStructure = propertyStore.getStructure(propertyId);
-        const updatedStructure = currentStructure.map((floor) => ({
-          ...floor,
-          rooms: floor.rooms.map((room) => {
-            if (room.roomNumber !== occupantState.roomNumber) return room;
-            return {
-              ...room,
-              beds: room.beds.map((bed) => {
-                if (bed.bedCode !== occupantState.bedCode) return bed;
-                return {
-                  ...bed,
-                  status: "Available" as const,
-                  occupant: undefined,
-                  vacatingDate: undefined,
-                };
-              }),
-            };
-          }),
-        }));
-        propertyStore.updateStructure(updatedStructure, propertyId);
-      }
-
-      await occupantStore.deleteOccupant(occupantState.id, propertyId);
-      alert(`🗑️ Permanently erased guest profile for ${occupantState.name}.`);
-      window.location.href = `/p/${propertyId}/tenants`;
+    if (occupantState.lifecycleStatus !== "Past") {
+      alert(`Active guest ${occupantState.name} is currently staying in Bed ${occupantState.roomNumber} (${occupantState.bedCode}). Please complete the Checkout process first before deleting.`);
+      return;
     }
+    setShowDeleteGuestModal(true);
   };
 
   return (
@@ -2334,20 +2306,7 @@ export default function IndividualTenantProfilePage({
                       type="date"
                       required
                       value={guestCheckoutDate}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setGuestCheckoutDate(val);
-                        if (occupantState) {
-                          const scheduledCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
-                          const checkInMs = new Date(occupantState.joiningDate).getTime();
-                          const actualMs = new Date(val).getTime();
-                          const schedMs = new Date(scheduledCheckout).getTime();
-                          const totalOrig = Math.max(1, Math.round((schedMs - checkInMs) / (1000 * 60 * 60 * 24)));
-                          const actualDays = Math.max(1, Math.round((actualMs - checkInMs) / (1000 * 60 * 60 * 24)));
-                          const daily = Math.round((occupantState.rentAmount || 1000) / totalOrig) || 500;
-                          setCustomFinalTariff(actualDays * daily);
-                        }
-                      }}
+                      onChange={(e) => setGuestCheckoutDate(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-red-500"
                     />
                     <p className="text-[10px] text-gray-400 mt-1">
@@ -2371,7 +2330,7 @@ export default function IndividualTenantProfilePage({
                       </div>
 
                       {/* Plain Language Settlement Options */}
-                      <div className="pt-2 border-t border-amber-200/80 space-y-2 font-semibold text-gray-800">
+                      <div className="pt-2 border-t border-amber-200/80 space-y-2.5 font-semibold text-gray-800">
                         <span className="text-[10px] uppercase font-extrabold text-amber-900 block">How do you want to bill this stay?</span>
 
                         <label className="flex items-center gap-2 cursor-pointer text-[11px]">
@@ -2400,34 +2359,28 @@ export default function IndividualTenantProfilePage({
                           </span>
                         </label>
 
-                        <label className="flex items-center gap-2 cursor-pointer text-[11px]">
-                          <input
-                            type="radio"
-                            name="earlyDeparturePolicy"
-                            checked={earlyDeparturePolicy === "CUSTOM"}
-                            onChange={() => setEarlyDeparturePolicy("CUSTOM")}
-                            className="text-amber-600 focus:ring-amber-500"
-                          />
-                          <span>
-                            <strong>Custom room rent amount:</strong> Enter exact rent to charge ✏️
-                          </span>
-                        </label>
-
-                        {earlyDeparturePolicy === "CUSTOM" && (
-                          <div className="ml-6 flex items-center gap-2 pt-1">
-                            <span className="text-[11px] text-gray-600 font-bold">Room Rent to Charge:</span>
-                            <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-2 py-1">
-                              <span className="text-gray-400 font-mono">₹</span>
+                        {/* Add Penalty Amount Input Box */}
+                        <div className="p-3 bg-white/90 rounded-xl border border-amber-200 space-y-1.5 mt-1">
+                          <label className="block text-[11px] font-bold text-gray-800">
+                            Add Penalty Amount (Optional):
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-amber-500">
+                              <span className="text-gray-400 font-mono font-bold">₹</span>
                               <input
                                 type="number"
                                 min={0}
-                                value={customFinalTariff}
-                                onChange={(e) => setCustomFinalTariff(Number(e.target.value))}
-                                className="w-24 font-bold text-gray-900 border-0 p-0 focus:ring-0 text-xs"
+                                placeholder="0"
+                                value={penaltyAmount === 0 ? "" : penaltyAmount}
+                                onChange={(e) => setPenaltyAmount(Math.max(0, Number(e.target.value) || 0))}
+                                className="w-28 font-bold text-gray-900 border-0 p-0 focus:ring-0 text-xs"
                               />
                             </div>
+                            <span className="text-[10px] text-gray-500 font-medium">
+                              (Added to final bill. If left empty, penalty is ₹0).
+                            </span>
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2456,17 +2409,17 @@ export default function IndividualTenantProfilePage({
                     const stmt = calculateOccupantFinancialStatement(occupantState);
                     const analysis = earlyDepartureAnalysis;
 
-                    let roomRentToCharge = stmt.proRataRent;
+                    let baseRoomRent = stmt.proRataRent;
                     if (analysis && analysis.isEarly) {
                       if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
-                        roomRentToCharge = analysis.recalculatedProRataTariff;
-                      } else if (earlyDeparturePolicy === "CUSTOM") {
-                        roomRentToCharge = customFinalTariff;
+                        baseRoomRent = analysis.recalculatedProRataTariff;
                       } else {
-                        roomRentToCharge = analysis.totalOriginalRent;
+                        baseRoomRent = analysis.totalOriginalRent;
                       }
                     }
 
+                    const addedPenalty = Math.max(0, Number(penaltyAmount) || 0);
+                    const roomRentToCharge = baseRoomRent + addedPenalty;
                     const depositHeld = occupantState.securityDeposit || 1000;
                     const depositDeduction = guestRefundKeyDeposit ? 0 : depositHeld;
                     const totalOwnerKeeps = roomRentToCharge + depositDeduction;
@@ -2490,8 +2443,15 @@ export default function IndividualTenantProfilePage({
                             <span className="text-gray-600">
                               Room Rent for Stay ({analysis?.isEarly ? `${analysis.actualDaysElapsed} Day(s)` : "Stay Period"}):
                             </span>
-                            <span className="font-bold text-gray-900 font-mono">-₹{roomRentToCharge.toLocaleString("en-IN")} (You Keep 🟢)</span>
+                            <span className="font-bold text-gray-900 font-mono">-₹{baseRoomRent.toLocaleString("en-IN")} (You Keep 🟢)</span>
                           </div>
+
+                          {addedPenalty > 0 && (
+                            <div className="flex justify-between items-center text-amber-900 font-bold">
+                              <span>Added Penalty / Fee:</span>
+                              <span className="font-mono">-₹{addedPenalty.toLocaleString("en-IN")} (You Keep)</span>
+                            </div>
+                          )}
 
                           {!guestRefundKeyDeposit && (
                             <div className="flex justify-between items-center text-rose-700 font-bold">
@@ -2535,7 +2495,7 @@ export default function IndividualTenantProfilePage({
                                   )}
                                   {depositRefundAmount > 0 && unusedRentRefundAmount === 0 && (
                                     <div className="flex justify-between items-center text-[10px] text-emerald-700 font-medium">
-                                      <span>(Room rent of ₹{roomRentToCharge.toLocaleString("en-IN")} was fully consumed for stay)</span>
+                                      <span>(Room rent of ₹{baseRoomRent.toLocaleString("en-IN")}{addedPenalty > 0 ? ` + ₹${addedPenalty.toLocaleString("en-IN")} penalty` : ""} was consumed for stay)</span>
                                     </div>
                                   )}
                                 </div>
@@ -2556,8 +2516,14 @@ export default function IndividualTenantProfilePage({
                               </span>
                               <div className="flex justify-between items-center">
                                 <span>🏨 Room Rent for Stay:</span>
-                                <span className="font-mono font-bold">₹{roomRentToCharge.toLocaleString("en-IN")}</span>
+                                <span className="font-mono font-bold">₹{baseRoomRent.toLocaleString("en-IN")}</span>
                               </div>
+                              {addedPenalty > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span>⚠️ Added Penalty:</span>
+                                  <span className="font-mono font-bold">+₹{addedPenalty.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
                               <div className="flex justify-between items-center text-rose-700">
                                 <span>💳 Less Money Paid at Check-in:</span>
                                 <span className="font-mono font-bold">-₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
@@ -2618,6 +2584,73 @@ export default function IndividualTenantProfilePage({
                 </form>
               )}
 
+            </div>
+          </div>
+        )}
+
+        {/* 🗑️ PERMANENT DELETE PAST GUEST CONFIRMATION MODAL */}
+        {showDeleteGuestModal && occupantState && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-2xl bg-rose-100 text-rose-700">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Delete Guest Record
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-semibold">
+                      {occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteGuestModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-gray-700 text-xs leading-relaxed">
+                  Are you sure you want to permanently delete past guest <strong>{occupantState.name}</strong>?
+                </p>
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1 text-[11px]">
+                  <span className="font-bold flex items-center gap-1 text-rose-700">
+                    ⚠️ Permanent Deletion:
+                  </span>
+                  <p className="text-rose-800 leading-snug">
+                    This will permanently wipe out all stay history, payment receipts, and guest records from Cloud Firestore.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteGuestModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowDeleteGuestModal(false);
+                    await occupantStore.deleteOccupant(occupantState.id, propertyId);
+                    triggerToast(`🗑️ Permanently erased guest record for ${occupantState.name}`);
+                    window.location.href = `/p/${propertyId}/tenants`;
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-200" />
+                  <span>Delete Guest 🗑️</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

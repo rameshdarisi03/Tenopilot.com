@@ -170,15 +170,6 @@ export function GuestProfileView({
                 <Clock className="w-3.5 h-3.5 text-purple-200" />
                 <span>Extend Date / Checkout ⏳🏁</span>
               </button>
-
-              <button
-                onClick={onDeleteGuest}
-                className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                title="Wipe Out Guest Record"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Wipe Out Profile 🗑️</span>
-              </button>
             </>
           ) : (
             <button
@@ -186,7 +177,7 @@ export function GuestProfileView({
               className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
             >
               <Trash2 className="w-4 h-4 text-rose-200" />
-              <span>🗑️ Delete Past Guest Record</span>
+              <span>Delete Guest 🗑️</span>
             </button>
           )}
         </div>
