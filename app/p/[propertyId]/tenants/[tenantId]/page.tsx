@@ -38,6 +38,7 @@ import {
   Building2,
   Download,
   CheckCircle2,
+  Check,
   Camera,
   Clock,
   Trash2,
@@ -162,20 +163,24 @@ export default function IndividualTenantProfilePage({
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
   const [showLogNoticeModal, setShowLogNoticeModal] = useState(false);
-  const [showGuestCheckoutModal, setShowGuestCheckoutModal] = useState(false);
+
+  // Unified Guest Stay Management Modal State (Extend Date / Checkout)
+  const [showGuestStayManagementModal, setShowGuestStayManagementModal] = useState<boolean>(false);
+  const [guestStayModalTab, setGuestStayModalTab] = useState<"EXTEND" | "CHECKOUT">("EXTEND");
+
+  // Tab 1: Extend Stay Inputs
+  const [extendedStayDate, setExtendedStayDate] = useState<string>("");
+  const [customDailyRate, setCustomDailyRate] = useState<number>(0);
+  const [extendPaymentOption, setExtendPaymentOption] = useState<"COLLECT_NOW" | "ADD_TO_DUE">("COLLECT_NOW");
+  const [extendPaymentMode, setExtendPaymentMode] = useState<string>("UPI");
+
+  // Tab 2: Guest Checkout Inputs
   const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>("2026-08-01");
   const [guestRefundKeyDeposit, setGuestRefundKeyDeposit] = useState<boolean>(true);
   const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
-  const [showExtendStayModal, setShowExtendStayModal] = useState(false);
-
-  // Guest Extend Stay / Book Next Stay Inputs
-  const [extendMode, setExtendMode] = useState<"EXTEND" | "PREBOOK">("EXTEND");
-  const [additionalDays, setAdditionalDays] = useState<number>(3);
-  const [nextVisitStartDate, setNextVisitStartDate] = useState<string>("2026-08-25");
-  const [nextVisitEndDate, setNextVisitEndDate] = useState<string>("2026-08-30");
 
   // Edit Check-In Date Inputs
   const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
@@ -679,6 +684,134 @@ export default function IndividualTenantProfilePage({
     triggerToast(`⏳ Guest stay extended until ${formattedCheckoutDate} for ${occupantState.name}!`);
   };
 
+  // Quick Preset Helper for Guest Stay Extension
+  const applyExtensionPresetDays = (days: number) => {
+    const currentCheckout = occupantState?.vacatingDate || occupantState?.dueDate || occupantState?.joiningDate || new Date().toISOString().split("T")[0];
+    const baseDate = new Date(currentCheckout);
+    baseDate.setDate(baseDate.getDate() + days);
+    const y = baseDate.getFullYear();
+    const m = String(baseDate.getMonth() + 1).padStart(2, "0");
+    const d = String(baseDate.getDate()).padStart(2, "0");
+    setExtendedStayDate(`${y}-${m}-${d}`);
+  };
+
+  // Real-time Bed Conflict Scanner for Guest Extension
+  const conflictingOccupantForGuest = useMemo(() => {
+    if (!occupantState || !extendedStayDate) return null;
+    const currentCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
+    if (extendedStayDate <= currentCheckout) return null;
+
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    return (
+      allOccupants.find((occ) => {
+        if (occ.id === occupantState.id) return false;
+        if (occ.lifecycleStatus === "Past") return false;
+        if (
+          occ.roomNumber?.toUpperCase().trim() !== occupantState.roomNumber?.toUpperCase().trim() ||
+          occ.bedCode?.toUpperCase().trim() !== occupantState.bedCode?.toUpperCase().trim()
+        ) {
+          return false;
+        }
+        const occJoin = occ.joiningDate;
+        const occVacate = occ.vacatingDate || occ.dueDate || "9999-12-31";
+        return occJoin <= extendedStayDate && occVacate >= currentCheckout;
+      }) || null
+    );
+  }, [occupantState, extendedStayDate, propertyId]);
+
+  // Initialize Guest Stay Management Inputs
+  useEffect(() => {
+    if (showGuestStayManagementModal && occupantState) {
+      const currentCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate || new Date().toISOString().split("T")[0];
+      setGuestCheckoutDate(currentCheckout);
+
+      const baseDate = new Date(currentCheckout);
+      baseDate.setDate(baseDate.getDate() + 3);
+      const y = baseDate.getFullYear();
+      const m = String(baseDate.getMonth() + 1).padStart(2, "0");
+      const d = String(baseDate.getDate()).padStart(2, "0");
+      setExtendedStayDate(`${y}-${m}-${d}`);
+
+      const stayDurationDays = Math.max(1, Math.round((new Date(currentCheckout).getTime() - new Date(occupantState.joiningDate).getTime()) / (1000 * 60 * 60 * 24)));
+      const calculatedDaily = Math.round((occupantState.rentAmount || 1000) / stayDurationDays) || 500;
+      setCustomDailyRate(calculatedDaily);
+    }
+  }, [showGuestStayManagementModal, occupantState]);
+
+  // 2a. Guest Stay Extension Submit Handler (With Conflict Guard & Payment Reflection)
+  const handleGuestStayExtensionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!occupantState || !extendedStayDate) return;
+
+    if (conflictingOccupantForGuest) {
+      alert(
+        `Cannot extend stay: Bed ${occupantState.bedCode} is already booked by ${conflictingOccupantForGuest.name} starting ${conflictingOccupantForGuest.joiningDate}. Please use Transfer Room to move this guest.`
+      );
+      return;
+    }
+
+    const currentCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
+    const diffMs = new Date(extendedStayDate).getTime() - new Date(currentCheckout).getTime();
+    const extraDays = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+
+    const rateToUse = customDailyRate > 0 ? customDailyRate : 500;
+    const addedTariff = extraDays * rateToUse;
+
+    const newPaymentHistory = [...(occupantState.paymentHistory || [])];
+    if (extendPaymentOption === "COLLECT_NOW") {
+      newPaymentHistory.push({
+        id: `pay_ext_${Date.now()}`,
+        month: `Stay Extension (+${extraDays} Days)`,
+        date: new Date().toISOString().split("T")[0],
+        amount: addedTariff,
+        mode: extendPaymentMode,
+        receiptNo: `REC-EXT-${Date.now().toString().slice(-4)}`,
+        status: "PAID",
+      });
+    }
+
+    const updatedGuest: Occupant = {
+      ...occupantState,
+      vacatingDate: extendedStayDate,
+      dueDate: extendedStayDate,
+      rentAmount: (occupantState.rentAmount || 0) + addedTariff,
+      paymentHistory: newPaymentHistory,
+    };
+
+    setOccupantState(updatedGuest);
+    occupantStore.updateOccupant(updatedGuest, propertyId);
+
+    // Sync bed vacatingDate in propertyStore
+    const currentStructure = propertyStore.getStructure(propertyId);
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== occupantState.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== occupantState.bedCode) return bed;
+            return {
+              ...bed,
+              vacatingDate: extendedStayDate,
+              occupant: updatedGuest,
+            };
+          }),
+        };
+      }),
+    }));
+    propertyStore.updateStructure(updatedStructure, propertyId);
+
+    triggerToast(
+      `🎉 Stay extended for ${occupantState.name} until ${extendedStayDate} (+${extraDays} days)! ${
+        extendPaymentOption === "COLLECT_NOW"
+          ? `Collected ₹${addedTariff.toLocaleString("en-IN")} via ${extendPaymentMode} 🟢`
+          : `Added ₹${addedTariff.toLocaleString("en-IN")} to pending dues 🟧`
+      }`
+    );
+    setShowGuestStayManagementModal(false);
+  };
+
   // 2b. Guest Checkout & Bed Clearance Submit Handler (DDS-13 Dynamic Cascading Matrix Compliance!)
   const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -707,6 +840,7 @@ export default function IndividualTenantProfilePage({
               ...bed,
               status: "Available" as const,
               occupant: undefined,
+              vacatingDate: undefined,
             };
           }),
         };
@@ -717,7 +851,7 @@ export default function IndividualTenantProfilePage({
     triggerToast(
       `🏁 Guest Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & available 🟢`
     );
-    setShowGuestCheckoutModal(false);
+    setShowGuestStayManagementModal(false);
   };
 
   // 3. Edit Profile Submit Handler (Updates Name, Phone, Email, Rent across state)
@@ -857,7 +991,10 @@ export default function IndividualTenantProfilePage({
               onCollectPayment={() => setShowCollectRentModal(true)}
               onTransferRoom={() => setShowTransferModal(true)}
               onPromoteToTenant={() => setShowPromoteModal(true)}
-              onCheckOutGuest={() => setShowGuestCheckoutModal(true)}
+              onCheckOutGuest={() => {
+                setGuestStayModalTab("EXTEND");
+                setShowGuestStayManagementModal(true);
+              }}
             />
           ) : (
             <>
@@ -1865,107 +2002,354 @@ export default function IndividualTenantProfilePage({
           </div>
         )}
 
-        {/* 2b. 🏁 GUEST CHECKOUT & BED CLEARANCE MODAL (Replaces 30-day notice form for short-term guests!) */}
-        {showGuestCheckoutModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+        {/* 🏨 UNIFIED GUEST STAY MANAGEMENT MODAL (EXTEND DATE / CHECKOUT) */}
+        {showGuestStayManagementModal && occupantState && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in-95 text-xs max-h-[90vh] overflow-y-auto">
+              
+              {/* Modal Header */}
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div>
-                  <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                    <LogOut className="w-5 h-5 text-red-600" /> Guest Checkout & Bed Clearance
-                  </h3>
-                  <p className="text-[10px] text-gray-500 font-semibold">
-                    Vacate bed & complete short-term stay for {occupantState.name}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-purple-100 text-purple-800">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                      Guest Stay Management
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-semibold">
+                      {occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowGuestCheckoutModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                  onClick={() => setShowGuestStayManagementModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleGuestCheckoutSubmit} className="space-y-4">
-                <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 space-y-1 text-xs">
-                  <span className="text-[10px] font-extrabold uppercase text-purple-700 block">Current Guest Allocation</span>
-                  <p className="font-bold text-gray-900">
-                    {displayPropertyName} • Room {occupantState.roomNumber} ({occupantState.bedCode})
-                  </p>
-                </div>
+              {/* Side-by-Side Dual Tabs */}
+              <div className="flex bg-gray-100 p-1.5 rounded-2xl gap-1.5 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setGuestStayModalTab("EXTEND")}
+                  className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    guestStayModalTab === "EXTEND"
+                      ? "bg-white text-purple-900 shadow-sm border border-purple-100"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <Clock className="w-4 h-4 text-purple-700" />
+                  <span>⏳ Extend Stay Date</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGuestStayModalTab("CHECKOUT")}
+                  className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    guestStayModalTab === "CHECKOUT"
+                      ? "bg-white text-red-700 shadow-sm border border-red-100"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <LogOut className="w-4 h-4 text-red-600" />
+                  <span>🏁 Check-Out & Settle</span>
+                </button>
+              </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Actual Checkout Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={guestCheckoutDate}
-                    onChange={(e) => setGuestCheckoutDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-red-500"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Defaults to expected checkout date. Change if guest vacates early or late.
-                  </p>
-                </div>
+              {/* TAB 1: EXTEND STAY DATE */}
+              {guestStayModalTab === "EXTEND" && (
+                <form onSubmit={handleGuestStayExtensionSubmit} className="space-y-4 pt-1">
+                  {/* Current Stay Context */}
+                  <div className="p-3 bg-purple-50 rounded-2xl border border-purple-200 text-purple-950 flex justify-between items-center text-xs">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase text-purple-700 block">Current Check-Out</span>
+                      <p className="font-bold text-gray-900">
+                        {formatIsoToDisplayDate(occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-extrabold uppercase text-purple-700 block">Stay Tariff Rate</span>
+                      <p className="font-bold text-gray-900 font-mono">
+                        ₹{customDailyRate > 0 ? customDailyRate.toLocaleString("en-IN") : "500"}/day
+                      </p>
+                    </div>
+                  </div>
 
-                {/* Security Deposit Refund Handover Box */}
-                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-gray-800">🛡️ Security Deposit Refund</span>
-                    <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
-                      ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} Deposit
+                  {/* New Extended Checkout Date Input & Quick Presets */}
+                  <div className="space-y-2">
+                    <label className="block font-bold text-gray-700">
+                      New Extended Check-Out Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      min={occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate}
+                      value={extendedStayDate}
+                      onChange={(e) => setExtendedStayDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-purple-500"
+                    />
+
+                    {/* Quick 1-Click Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[11px] font-bold text-gray-400 mr-1">Quick Presets:</span>
+                      {[
+                        { label: "+1 Day", days: 1 },
+                        { label: "+3 Days", days: 3 },
+                        { label: "+7 Days (+1 Wk)", days: 7 },
+                        { label: "+15 Days", days: 15 },
+                        { label: "+30 Days (+1 Mo)", days: 30 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => applyExtensionPresetDays(preset.days)}
+                          className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-purple-100 hover:text-purple-800 text-[11px] font-bold text-gray-700 transition-colors cursor-pointer"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 🔍 CONFLICT DETECTION ALERT OR SUCCESS CONFIRMATION */}
+                  {conflictingOccupantForGuest ? (
+                    <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl space-y-3 animate-in fade-in">
+                      <div className="flex items-start gap-2.5 text-rose-950">
+                        <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-xs text-rose-950">
+                            ⚠️ Bed Allocation Conflict Detected!
+                          </p>
+                          <p className="text-[11px] text-rose-800 mt-1 leading-relaxed">
+                            Resident <strong>{conflictingOccupantForGuest.name}</strong> ({conflictingOccupantForGuest.stayType || "Tenant"}) is already scheduled to occupy <strong>Bed {occupantState.bedCode}</strong> starting on <strong>{formatIsoToDisplayDate(conflictingOccupantForGuest.joiningDate)}</strong>.
+                          </p>
+                          <p className="text-[11px] text-rose-700 mt-1">
+                            You cannot extend this guest's stay in their current bed past {formatIsoToDisplayDate(conflictingOccupantForGuest.joiningDate)}.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 1-Click Transfer Room Action */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowGuestStayManagementModal(false);
+                          setShowTransferModal(true);
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all"
+                      >
+                        <ArrowRightLeft className="w-4 h-4 text-purple-200" />
+                        <span>🔀 Transfer Guest to Another Available Room / Bed</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Bed Available Success Banner */}
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-emerald-900 text-xs font-bold">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Bed {occupantState.roomNumber} ({occupantState.bedCode}) is completely free until {formatIsoToDisplayDate(extendedStayDate)}.</span>
+                      </div>
+
+                      {/* Financial Extension Breakdown */}
+                      {(() => {
+                        const currentCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
+                        const diffMs = new Date(extendedStayDate).getTime() - new Date(currentCheckout).getTime();
+                        const extraDays = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+                        const rateToUse = customDailyRate > 0 ? customDailyRate : 500;
+                        const addedTariff = extraDays * rateToUse;
+
+                        return (
+                          <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-2xl space-y-3">
+                            <div className="flex justify-between items-center font-bold text-xs">
+                              <span className="text-gray-600">Extension Duration:</span>
+                              <span className="text-purple-900 bg-purple-100 px-2 py-0.5 rounded-full text-[11px] font-extrabold">
+                                +{extraDays} Additional Days
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center font-bold text-xs">
+                              <span className="text-gray-600">Additional Tariff Amount:</span>
+                              <span className="text-gray-900 font-mono text-sm font-extrabold">
+                                ₹{addedTariff.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+
+                            {/* Payment Options */}
+                            <div className="pt-2 border-t border-gray-200 space-y-2">
+                              <span className="text-[10px] font-bold uppercase text-gray-500 block">Payment Collection</span>
+                              
+                              <label className="flex items-center gap-2.5 cursor-pointer font-semibold text-gray-800">
+                                <input
+                                  type="radio"
+                                  name="extendPaymentOption"
+                                  checked={extendPaymentOption === "COLLECT_NOW"}
+                                  onChange={() => setExtendPaymentOption("COLLECT_NOW")}
+                                  className="text-purple-600 focus:ring-purple-500"
+                                />
+                                <span>Collect Payment Now (Generate Official Receipt)</span>
+                              </label>
+
+                              {extendPaymentOption === "COLLECT_NOW" && (
+                                <div className="ml-6 flex items-center gap-2 pt-1">
+                                  <span className="text-[11px] text-gray-500 font-bold">Payment Mode:</span>
+                                  {["UPI", "Cash", "Bank Transfer"].map((mode) => (
+                                    <button
+                                      key={mode}
+                                      type="button"
+                                      onClick={() => setExtendPaymentMode(mode)}
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                                        extendPaymentMode === mode
+                                          ? "bg-purple-100 text-purple-900 border-purple-300 font-extrabold"
+                                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                      }`}
+                                    >
+                                      {mode}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              <label className="flex items-center gap-2.5 cursor-pointer font-semibold text-gray-800">
+                                <input
+                                  type="radio"
+                                  name="extendPaymentOption"
+                                  checked={extendPaymentOption === "ADD_TO_DUE"}
+                                  onChange={() => setExtendPaymentOption("ADD_TO_DUE")}
+                                  className="text-purple-600 focus:ring-purple-500"
+                                />
+                                <span>Add to Outstanding Dues (Collect at Checkout)</span>
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Modal Footer */}
+                  <div className="flex justify-end gap-2.5 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowGuestStayManagementModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={Boolean(conflictingOccupantForGuest)}
+                      className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold shadow-md cursor-pointer flex items-center gap-1.5 transition-all"
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span>Confirm & Extend Stay ⏳</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* TAB 2: GUEST CHECKOUT */}
+              {guestStayModalTab === "CHECKOUT" && (
+                <form onSubmit={handleGuestCheckoutSubmit} className="space-y-4 pt-1">
+                  {/* Settlement Overview Audit */}
+                  {(() => {
+                    const stmt = calculateOccupantFinancialStatement(occupantState);
+
+                    return (
+                      <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-semibold">Total Stay Tariff Package:</span>
+                          <span className="font-bold text-gray-900 font-mono">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-semibold">Total Payments Collected:</span>
+                          <span className="font-bold text-emerald-700 font-mono">₹{stmt.totalPaid.toLocaleString("en-IN")} 🟢</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                          <span className="font-bold text-gray-700">Outstanding Balance:</span>
+                          <span className={`font-bold font-mono ${stmt.remainingRentDue > 0 ? "text-red-600" : "text-emerald-700"}`}>
+                            ₹{stmt.remainingRentDue.toLocaleString("en-IN")} {stmt.remainingRentDue > 0 ? "🔴 (DUE)" : "🟢 (CLEARED)"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Actual Checkout Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={guestCheckoutDate}
+                      onChange={(e) => setGuestCheckoutDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-red-500"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Defaults to scheduled checkout date. Change if guest vacates early or late.
+                    </p>
+                  </div>
+
+                  {/* Security Deposit Refund Handover Box */}
+                  <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-950">🛡️ Security Deposit Refund</span>
+                      <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
+                        ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} Deposit
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-gray-700 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={guestRefundKeyDeposit}
+                        onChange={(e) => setGuestRefundKeyDeposit(e.target.checked)}
+                        className="rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <span>Room key returned & room inspected (Refund ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} security deposit to guest)</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Checkout Inspection Notes (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={guestCheckoutNotes}
+                      onChange={(e) => setGuestCheckoutNotes(e.target.value)}
+                      placeholder="e.g. Room inspected, key returned, no damages found..."
+                      className="w-full p-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-red-500"
+                    ></textarea>
+                  </div>
+
+                  <div className="p-2.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-[10px] text-emerald-900 font-semibold space-y-0.5">
+                    <span className="font-extrabold block">⚡ DDS-13 Dynamic Bed Clearance:</span>
+                    <span>
+                      Submitting will immediately mark Bed {occupantState.roomNumber} ({occupantState.bedCode}) as <strong>Available 🟢</strong> across the Property Map and Overview Dashboard.
                     </span>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer font-semibold text-gray-700 text-[11px]">
-                    <input
-                      type="checkbox"
-                      checked={guestRefundKeyDeposit}
-                      onChange={(e) => setGuestRefundKeyDeposit(e.target.checked)}
-                      className="rounded text-purple-600 focus:ring-purple-500"
-                    />
-                    <span>Room key returned & room inspected (Refund ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} security deposit to guest)</span>
-                  </label>
-                </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Checkout Inspection Notes (Optional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={guestCheckoutNotes}
-                    onChange={(e) => setGuestCheckoutNotes(e.target.value)}
-                    placeholder="e.g. Room inspected, key returned, no damages found..."
-                    className="w-full p-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-red-500"
-                  ></textarea>
-                </div>
+                  <div className="flex justify-end gap-2.5 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowGuestStayManagementModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md cursor-pointer flex items-center gap-1.5"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Confirm Checkout & Vacate Bed 🏁</span>
+                    </button>
+                  </div>
+                </form>
+              )}
 
-                <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[10px] text-emerald-900 font-semibold space-y-0.5">
-                  <span className="font-extrabold block">⚡ DDS-13 Dynamic Bed Clearance:</span>
-                  <span>
-                    Submitting will immediately mark Bed {occupantState.roomNumber} ({occupantState.bedCode}) as <strong>Available 🟢</strong> across the Property Map and Overview Dashboard.
-                  </span>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowGuestCheckoutModal(false)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md"
-                  >
-                    Confirm Checkout & Vacate Bed 🏁
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}
@@ -2430,168 +2814,7 @@ export default function IndividualTenantProfilePage({
           </div>
         )}
 
-        {/* HOTEL PMS GUEST EXTEND STAY / BOOK NEXT VISIT MODAL */}
-        {showExtendStayModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95">
-              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a]">
-                    <RefreshCw className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Hotel Stay — Extend / Book Next Visit
-                    </h3>
-                    <p className="text-[10px] text-gray-400 font-semibold">
-                      RECURRING GUEST: {occupantState.name}
-                    </p>
-                  </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowExtendStayModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Mode Toggle Tabs */}
-              <div className="flex bg-gray-100 p-1 rounded-xl gap-1 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setExtendMode("EXTEND")}
-                  className={`flex-1 py-2 rounded-lg transition-all ${
-                    extendMode === "EXTEND"
-                      ? "bg-white text-[#c2652a] shadow-xs"
-                      : "text-gray-500 hover:text-gray-900"
-                  }`}
-                >
-                  Extend Current Stay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExtendMode("PREBOOK")}
-                  className={`flex-1 py-2 rounded-lg transition-all ${
-                    extendMode === "PREBOOK"
-                      ? "bg-white text-[#c2652a] shadow-xs"
-                      : "text-gray-500 hover:text-gray-900"
-                  }`}
-                >
-                  Pre-Book Next Visit
-                </button>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (extendMode === "EXTEND") {
-                    const extraRent = additionalDays * (occupantState.rentAmount || 1000);
-                    triggerToast(`🎉 Extended stay for ${occupantState.name} by +${additionalDays} days! Added ₹${extraRent.toLocaleString("en-IN")} to charges.`);
-                  } else {
-                    const d1Parts = nextVisitStartDate.split("-");
-                    const d2Parts = nextVisitEndDate.split("-");
-                    const formattedStart = `${d1Parts[2]}/${d1Parts[1]}/${d1Parts[0]}`;
-                    const formattedEnd = `${d2Parts[2]}/${d2Parts[1]}/${d2Parts[0]}`;
-                    triggerToast(`🗓️ Pre-booked returning stay for ${occupantState.name} from ${formattedStart} to ${formattedEnd}!`);
-                  }
-                  setShowExtendStayModal(false);
-                }}
-                className="space-y-4 text-xs"
-              >
-                {extendMode === "EXTEND" ? (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-orange-950">
-                      <p className="font-bold text-xs">Current Stay Overview</p>
-                      <p className="text-[11px] mt-0.5">
-                        Room {occupantState.roomNumber} ({occupantState.bedCode}) • Daily Rent: ₹{occupantState.rentAmount?.toLocaleString("en-IN") || "1,000"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-gray-700 mb-1">
-                        Additional Stay Days *
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number"
-                          min={1}
-                          max={90}
-                          required
-                          value={additionalDays}
-                          onChange={(e) => setAdditionalDays(Number(e.target.value))}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        />
-                        <span className="font-bold text-gray-600 shrink-0">Days</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center font-bold">
-                      <span className="text-gray-600">Calculated Extension Amount:</span>
-                      <span className="text-[#c2652a] text-sm font-mono">
-                        ₹{((occupantState.rentAmount || 1000) * additionalDays).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900">
-                      <p className="font-bold text-xs">Recurring Guest Pre-Booking</p>
-                      <p className="text-[11px] mt-0.5">
-                        Reserve bed for returning guest {occupantState.name}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block font-bold text-gray-700 mb-1">
-                          Arrival Date *
-                        </label>
-                        <input
-                          type="date"
-                          required
-                          value={nextVisitStartDate}
-                          onChange={(e) => setNextVisitStartDate(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a] text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-gray-700 mb-1">
-                          Departure Date *
-                        </label>
-                        <input
-                          type="date"
-                          required
-                          value={nextVisitEndDate}
-                          onChange={(e) => setNextVisitEndDate(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a] text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowExtendStayModal(false)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
-                  >
-                    {extendMode === "EXTEND" ? "Confirm Extension" : "Confirm Pre-Booking"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {/* 5. Transfer Room Modal (Interactive Bed Shift - Mobile Single-Handed Bottom Sheet) */}
         {showTransferModal && (

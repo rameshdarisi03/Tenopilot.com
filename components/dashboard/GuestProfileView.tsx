@@ -146,15 +146,6 @@ export function GuestProfileView({
 
         {/* 🚀 Quick Guest Actions Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {onExtendGuestStay && (
-            <button
-              onClick={onExtendGuestStay}
-              className="px-4 py-2.5 rounded-xl border border-purple-300 bg-purple-50 text-purple-900 font-bold text-xs hover:bg-purple-100 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-            >
-              <Clock className="w-3.5 h-3.5 text-purple-700" /> Extend Stay ⏳
-            </button>
-          )}
-
           <button
             onClick={onCollectPayment}
             className="px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
@@ -178,9 +169,10 @@ export function GuestProfileView({
 
           <button
             onClick={onCheckOutGuest}
-            className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-700 to-red-600 hover:from-purple-800 hover:to-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5" /> Check-Out & Vacate 🏁
+            <Clock className="w-3.5 h-3.5 text-purple-200" />
+            <span>Extend Date / Checkout ⏳🏁</span>
           </button>
         </div>
       </div>
