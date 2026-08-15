@@ -1348,7 +1348,15 @@ Priya Verma    9855667788   Room 201   22000"
                   <input
                     type="checkbox"
                     checked={markDepositsPaid}
-                    onChange={(e) => setMarkDepositsPaid(e.target.checked)}
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      setMarkDepositsPaid(val);
+                      setEditableRows((prev) => {
+                        const updated = prev.map((r) => ({ ...r, isSecurityDepositPaid: val }));
+                        handleSaveDraft(updated);
+                        return updated;
+                      });
+                    }}
                     className="rounded text-[#c2652a] focus:ring-[#c2652a]"
                   />
                   <span>Mark Security Deposits as Paid</span>
@@ -1740,6 +1748,7 @@ Anil Verma   9812345678   Room 103   12000"
                       </th>
                       <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
                       <th className="py-2.5 px-3 min-w-[100px]">Deposit</th>
+                      <th className="py-2.5 px-3 min-w-[130px] text-center">Deposit Paid</th>
                       <th className="py-2.5 px-3 min-w-[130px] text-center">Rent Paid (This Mo)</th>
                       <th className="py-2.5 px-3 min-w-[110px]">Prior Arrears</th>
                       <th className="py-2.5 px-3 text-center">Status</th>
@@ -1873,9 +1882,29 @@ Anil Verma   9812345678   Room 103   12000"
                         </td>
                         <td className="py-2 px-3 text-center">
                           <select
+                            value={row.isSecurityDepositPaid !== false ? "YES" : "NO"}
+                            onChange={(e) => {
+                              const isPaid = e.target.value === "YES";
+                              updateRowField(idx, "isSecurityDepositPaid", isPaid);
+                            }}
+                            className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                              row.isSecurityDepositPaid !== false
+                                ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
+                                : "bg-amber-50 border-amber-300 text-amber-900 font-extrabold"
+                            }`}
+                          >
+                            <option value="YES">Yes (Paid)</option>
+                            <option value="NO">No (Pending)</option>
+                          </select>
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <select
                             value={row.isCurrentMonthRentPaid ? "YES" : "NO"}
-                            onChange={(e) => updateRowField(idx, "isCurrentMonthRentPaid", e.target.value === "YES")}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                            onChange={(e) => {
+                              const isPaid = e.target.value === "YES";
+                              updateRowField(idx, "isCurrentMonthRentPaid", isPaid);
+                            }}
+                            className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                               row.isCurrentMonthRentPaid
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-extrabold"
                                 : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"

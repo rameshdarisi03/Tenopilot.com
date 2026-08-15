@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseRawSpreadsheetText, FastTrackParsedRow, normalizeIndianPhoneNumber } from "@/lib/fastTrackHeuristicParser";
+import { parseRawSpreadsheetText, FastTrackParsedRow, normalizeIndianPhoneNumber, normalizeBedCode } from "@/lib/fastTrackHeuristicParser";
 
 export const dynamic = "force-dynamic";
 
@@ -180,7 +180,7 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
                   roomOccupancyMap.set(cleanRoom, currentCountInRoom);
 
                   const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
-                  const finalBedCode = (item.bedCode && item.bedCode.trim()) ? item.bedCode.trim() : `Bed ${autoBedLetter}`;
+                  const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
                   const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
                   const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
@@ -202,6 +202,7 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
                     joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
                     paymentMode: item.paymentMode || "UPI",
                     isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
+                    isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
                     priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
                     isValid: warnings.length === 0,
                     warnings,
@@ -366,7 +367,7 @@ OUTPUT JSON SCHEMA ONLY (No markdown formatting, no commentary):
                   roomOccupancyMap.set(cleanRoom, currentCountInRoom);
 
                   const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
-                  const finalBedCode = (item.bedCode && item.bedCode.trim()) ? item.bedCode.trim() : `Bed ${autoBedLetter}`;
+                  const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
                   const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
                   const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
@@ -388,6 +389,7 @@ OUTPUT JSON SCHEMA ONLY (No markdown formatting, no commentary):
                     joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
                     paymentMode: item.paymentMode || "UPI",
                     isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
+                    isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
                     priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
                     isValid: warnings.length === 0,
                     warnings,

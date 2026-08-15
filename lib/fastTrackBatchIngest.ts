@@ -107,7 +107,7 @@ export async function executeFastTrackBatchIngest(
     const deposit = Number(row.securityDeposit) || rent * 2;
     const priorArrears = Number(row.priorArrearsAmount) || 0;
     const isRentPaid = row.isCurrentMonthRentPaid !== undefined ? Boolean(row.isCurrentMonthRentPaid) : (options.markCurrentMonthRentPaid ?? false);
-    const isDepositPaid = options.markDepositsPaid !== false;
+    const isDepositPaid = row.isSecurityDepositPaid !== undefined ? Boolean(row.isSecurityDepositPaid) : (options.markDepositsPaid !== false);
     totalMonthlyRevenue += rent;
 
     // Build initial payment ledger items

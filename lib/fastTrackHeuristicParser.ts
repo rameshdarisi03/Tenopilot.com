@@ -20,6 +20,7 @@ export interface FastTrackParsedRow {
   blockName?: string;
   floorName?: string;
   isCurrentMonthRentPaid?: boolean; // Rent Paid This Month (Yes / No, default false)
+  isSecurityDepositPaid?: boolean; // Security Deposit Paid (Yes / No, default true)
   priorArrearsAmount?: number; // Previous Arrears / Pending Due (default 0)
   isValid: boolean;
   warnings: string[];
@@ -93,6 +94,42 @@ export function formatProperCaseName(name: string): string {
 }
 
 export type DateFormatMode = "AUTO" | "DD-MM-YYYY" | "MM-DD-YYYY" | "YYYY-MM-DD";
+
+/**
+ * Normalizes Bed Code into standard format ("Bed A", "Bed B", "Bed C"...)
+ * Supports "Bed 1", "Cot 2", "Slot 3", "1", "2", "3", "Bed A", "Cot B", etc.
+ */
+export function normalizeBedCode(rawBed: string | undefined, fallbackBedLetter: string): string {
+  if (!rawBed || !rawBed.trim()) {
+    return `Bed ${fallbackBedLetter}`;
+  }
+
+  const trimmed = rawBed.trim();
+
+  // If already matches "Bed A", "Bed B", "BED C" etc.
+  const stdBedMatch = trimmed.match(/^bed\s*([A-Za-z])$/i);
+  if (stdBedMatch) {
+    return `Bed ${stdBedMatch[1].toUpperCase()}`;
+  }
+
+  // If matches "Bed 1", "Cot 2", "Slot 3", "1", "2", "3" etc.
+  const numMatch = trimmed.match(/(?:bed|cot|slot|berth|b)?\s*([0-9]{1,2})/i);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    if (num >= 1 && num <= 26) {
+      const letter = String.fromCharCode(64 + num); // 1 -> A, 2 -> B, 3 -> C...
+      return `Bed ${letter}`;
+    }
+  }
+
+  // If matches "Cot A", "Slot B", "A", "B"
+  const letterMatch = trimmed.match(/(?:bed|cot|slot|berth)?\s*([A-Za-z])$/i);
+  if (letterMatch) {
+    return `Bed ${letterMatch[1].toUpperCase()}`;
+  }
+
+  return `Bed ${fallbackBedLetter}`;
+}
 
 /**
  * Cross-Row Anchor Date Heuristic:
@@ -550,7 +587,7 @@ export function parseRawSpreadsheetText(
     const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
     roomOccupancyMap.set(cleanRoom, currentCountInRoom);
     const bedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C, D...
-    const cleanBed = rawBed && /bed/i.test(rawBed) ? rawBed.toUpperCase() : `Bed ${bedLetter}`;
+    const cleanBed = normalizeBedCode(rawBed, bedLetter);
 
     // Clean monetary values
     let rentNum = parseIndianCurrencyAmount(rawRent, fallbackRent);
@@ -561,6 +598,7 @@ export function parseRawSpreadsheetText(
 
     const cleanDate = normalizeDateToYYYYMMDD(rawDate);
     const isPaid = /^(?:yes|true|paid|cleared|done)$/i.test(rawRentPaid);
+    const isDepositPaid = true; // Default deposit paid for migrated tenants
     const arrearsNum = parseIndianCurrencyAmount(rawArrears, 0);
 
     const effectiveSharing = parsedSharing.count > 0 ? parsedSharing.count : (roomSharingMap.get(cleanRoom) || currentCountInRoom);
@@ -592,6 +630,7 @@ export function parseRawSpreadsheetText(
       blockName: inferred.blockName,
       floorName: inferred.floorName,
       isCurrentMonthRentPaid: isPaid,
+      isSecurityDepositPaid: isDepositPaid,
       priorArrearsAmount: arrearsNum,
       isValid,
       warnings,
