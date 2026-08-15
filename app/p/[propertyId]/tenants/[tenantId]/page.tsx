@@ -181,16 +181,10 @@ export default function IndividualTenantProfilePage({
   const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE" | "CUSTOM">("PRO_RATA_REFUND");
   const [customFinalTariff, setCustomFinalTariff] = useState<number>(0);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
 
   // Edit Check-In Date Inputs
   const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
-
-  // Promote Form Inputs
-  const [promoteMonthlyRent, setPromoteMonthlyRent] = useState<number>(occupantState?.rentAmount || 12500);
-  const [promoteDeposit, setPromoteDeposit] = useState<number>(25000);
-  const [promoteJoiningDate, setPromoteJoiningDate] = useState<string>("2026-08-01");
 
   // Collect Rent Form Inputs
   const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
@@ -976,46 +970,42 @@ export default function IndividualTenantProfilePage({
     setShowEditProfileModal(false);
   };
 
-  // 4. Promote Guest to Long-Term Tenant Submit Handler (Updates stayType: "Tenant", lifecycleStatus: "Active", rent & deposit)
-  const handlePromoteSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // 4. Wipe Out / Delete Guest Profile Handler (Vacates Bed & Erases Records)
+  const handleDeleteGuest = async () => {
     if (!occupantState) return;
+    const isPast = occupantState.lifecycleStatus === "Past";
+    const confirmPrompt = isPast
+      ? `Are you sure you want to permanently delete past guest ${occupantState.name}? This will wipe out all stay history and receipts.`
+      : `Are you sure you want to permanently wipe out guest profile for ${occupantState.name}? This will immediately free Bed ${occupantState.roomNumber} (${occupantState.bedCode}) and erase all records.`;
 
-    const updated: Occupant = {
-      ...occupantState,
-      stayType: "Tenant",
-      lifecycleStatus: "Active",
-      rentAmount: promoteMonthlyRent,
-      joiningDate: promoteJoiningDate,
-      hasPdfAgreement: true,
-    };
-
-    setOccupantState(updated);
-    occupantStore.updateOccupant(updated, propertyId);
-
-    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed status from Guest 🟣 to Occupied 🟤 in propertyStore!
-    const currentStructure = propertyStore.getStructure(propertyId);
-    const updatedStructure = currentStructure.map((floor) => ({
-      ...floor,
-      rooms: floor.rooms.map((room) => {
-        if (room.roomNumber !== occupantState.roomNumber) return room;
-        return {
-          ...room,
-          beds: room.beds.map((bed) => {
-            if (bed.bedCode !== occupantState.bedCode) return bed;
+    if (confirm(confirmPrompt)) {
+      if (!isPast) {
+        const currentStructure = propertyStore.getStructure(propertyId);
+        const updatedStructure = currentStructure.map((floor) => ({
+          ...floor,
+          rooms: floor.rooms.map((room) => {
+            if (room.roomNumber !== occupantState.roomNumber) return room;
             return {
-              ...bed,
-              status: "Occupied" as const,
-              occupant: updated,
+              ...room,
+              beds: room.beds.map((bed) => {
+                if (bed.bedCode !== occupantState.bedCode) return bed;
+                return {
+                  ...bed,
+                  status: "Available" as const,
+                  occupant: undefined,
+                  vacatingDate: undefined,
+                };
+              }),
             };
           }),
-        };
-      }),
-    }));
-    propertyStore.updateStructure(updatedStructure, propertyId);
+        }));
+        propertyStore.updateStructure(updatedStructure, propertyId);
+      }
 
-    triggerToast(`🎉 Successfully promoted ${occupantState.name} to Long-Term Active Tenant!`);
-    setShowPromoteModal(false);
+      await occupantStore.deleteOccupant(occupantState.id, propertyId);
+      alert(`🗑️ Permanently erased guest profile for ${occupantState.name}.`);
+      window.location.href = `/p/${propertyId}/tenants`;
+    }
   };
 
   return (
@@ -1072,7 +1062,7 @@ export default function IndividualTenantProfilePage({
               onEditProfile={() => setShowEditProfileModal(true)}
               onCollectPayment={() => setShowCollectRentModal(true)}
               onTransferRoom={() => setShowTransferModal(true)}
-              onPromoteToTenant={() => setShowPromoteModal(true)}
+              onDeleteGuest={handleDeleteGuest}
               onCheckOutGuest={() => {
                 setGuestStayModalTab("EXTEND");
                 setShowGuestStayManagementModal(true);
@@ -2904,103 +2894,7 @@ export default function IndividualTenantProfilePage({
           </div>
         )}
 
-        {/* PROMOTE SHORT-TERM GUEST TO LONG-TERM TENANT MODAL */}
-        {showPromoteModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
-              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
-                    <UserPlus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Promote to Long-Term Tenant
-                    </h3>
-                    <p className="text-[10px] text-gray-400 font-semibold">
-                      CONVERT GUEST 🟣 → ACTIVE TENANT 🟢
-                    </p>
-                  </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowPromoteModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs space-y-1">
-                <p className="font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-purple-700 shrink-0" />
-                  Transitioning Short-Term Stay into Permanent Lease
-                </p>
-                <p className="text-[11px] text-purple-800">
-                  This will convert <strong>{occupantState.name}</strong> from a Short-Term Guest into an Active Long-Term Tenant, update badge colors, generate rental agreement controls, and sync all stores.
-                </p>
-              </div>
-
-              <form onSubmit={handlePromoteSubmit} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Monthly Rent Amount (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={promoteMonthlyRent}
-                    onChange={(e) => setPromoteMonthlyRent(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Security Deposit Amount (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={promoteDeposit}
-                    onChange={(e) => setPromoteDeposit(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Lease Agreement Joining Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={promoteJoiningDate}
-                    onChange={(e) => setPromoteJoiningDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-purple-700"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowPromoteModal(false)}
-                    className="px-5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md"
-                  >
-                    Confirm & Promote to Tenant
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {/* EDIT CHECK-IN DATE DATEPICKER MODAL */}
         {showEditCheckInModal && (

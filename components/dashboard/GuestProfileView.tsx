@@ -20,6 +20,7 @@ import {
   User,
   ShieldCheck,
   UserPlus,
+  Trash2,
   LogOut,
   Sparkles,
   TrendingUp,
@@ -38,7 +39,7 @@ interface GuestProfileViewProps {
   onEditProfile: () => void;
   onCollectPayment: () => void;
   onTransferRoom: () => void;
-  onPromoteToTenant: () => void;
+  onDeleteGuest: () => void;
   onCheckOutGuest: () => void;
   onExtendGuestStay?: () => void;
 }
@@ -49,7 +50,7 @@ export function GuestProfileView({
   onEditProfile,
   onCollectPayment,
   onTransferRoom,
-  onPromoteToTenant,
+  onDeleteGuest,
   onCheckOutGuest,
   onExtendGuestStay,
 }: GuestProfileViewProps) {
@@ -146,34 +147,48 @@ export function GuestProfileView({
 
         {/* 🚀 Quick Guest Actions Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={onCollectPayment}
-            className="px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <CreditCard className="w-3.5 h-3.5" /> Collect Payment 💰
-          </button>
+          {occupantState.lifecycleStatus !== "Past" ? (
+            <>
+              <button
+                onClick={onCollectPayment}
+                className="px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5" /> Collect Payment 💰
+              </button>
 
-          <button
-            onClick={onTransferRoom}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-[#c2652a]" /> Transfer Room
-          </button>
+              <button
+                onClick={onTransferRoom}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-[#c2652a]" /> Transfer Room
+              </button>
 
-          <button
-            onClick={onPromoteToTenant}
-            className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <UserPlus className="w-3.5 h-3.5" /> Promote to Tenant 🟢
-          </button>
+              <button
+                onClick={onCheckOutGuest}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-700 to-red-600 hover:from-purple-800 hover:to-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-purple-200" />
+                <span>Extend Date / Checkout ⏳🏁</span>
+              </button>
 
-          <button
-            onClick={onCheckOutGuest}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-700 to-red-600 hover:from-purple-800 hover:to-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <Clock className="w-3.5 h-3.5 text-purple-200" />
-            <span>Extend Date / Checkout ⏳🏁</span>
-          </button>
+              <button
+                onClick={onDeleteGuest}
+                className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                title="Wipe Out Guest Record"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Wipe Out Profile 🗑️</span>
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onDeleteGuest}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 text-rose-200" />
+              <span>🗑️ Delete Past Guest Record</span>
+            </button>
+          )}
         </div>
       </div>
 
