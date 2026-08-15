@@ -850,7 +850,7 @@ export default function IndividualTenantProfilePage({
     setShowGuestStayManagementModal(false);
   };
 
-  // 2b. Guest Checkout & Bed Clearance Submit Handler (With Smart Early Departure Pro-Rata Settle)
+  // 2b. Guest Checkout & Bed Clearance Submit Handler (Simple PG Owner Cash Settlement)
   const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
@@ -858,29 +858,33 @@ export default function IndividualTenantProfilePage({
     const stmt = calculateOccupantFinancialStatement(occupantState);
     const analysis = earlyDepartureAnalysis;
 
-    let finalTariff = occupantState.rentAmount || 1000;
+    let finalRoomRent = occupantState.rentAmount || 1000;
     if (analysis && analysis.isEarly) {
       if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
-        finalTariff = analysis.recalculatedProRataTariff;
+        finalRoomRent = analysis.recalculatedProRataTariff;
       } else if (earlyDeparturePolicy === "CUSTOM") {
-        finalTariff = customFinalTariff > 0 ? customFinalTariff : analysis.recalculatedProRataTariff;
+        finalRoomRent = customFinalTariff > 0 ? customFinalTariff : analysis.recalculatedProRataTariff;
       } else {
-        finalTariff = analysis.totalOriginalRent;
+        finalRoomRent = analysis.totalOriginalRent;
       }
     }
 
-    const netTariffDifference = (occupantState.rentAmount || 1000) - finalTariff;
+    const depositHeld = occupantState.securityDeposit || 1000;
+    const depositPenalty = guestRefundKeyDeposit ? 0 : depositHeld;
+    const totalOwnerKeeps = finalRoomRent + depositPenalty;
+    const netCashToReturn = stmt.totalPaid - totalOwnerKeeps;
+
     const newPaymentHistory = [...(occupantState.paymentHistory || [])];
 
-    // If pro-rata reduced the bill and payments were already collected, log an official early checkout adjustment
-    if (netTariffDifference > 0 && stmt.totalPaid >= finalTariff) {
+    // If money was returned to the guest, log an official return receipt in ledger
+    if (netCashToReturn > 0) {
       newPaymentHistory.push({
         id: `pay_early_refund_${Date.now()}`,
-        month: `Early Departure Pro-Rata Adjustment (${analysis?.unusedDays || 0} Unused Days)`,
+        month: `Checkout Settlement (${analysis?.isEarly ? `${analysis.actualDaysElapsed}d stay` : "Regular checkout"})`,
         date: guestCheckoutDate,
-        amount: -netTariffDifference,
-        mode: "UPI",
-        receiptNo: `REF-EARLY-${Date.now().toString().slice(-4)}`,
+        amount: -netCashToReturn,
+        mode: "Cash",
+        receiptNo: `RET-${Date.now().toString().slice(-4)}`,
         status: "PAID",
       });
     }
@@ -889,15 +893,15 @@ export default function IndividualTenantProfilePage({
       ...occupantState,
       lifecycleStatus: "Past",
       vacatingDate: guestCheckoutDate,
-      rentAmount: finalTariff,
+      rentAmount: finalRoomRent,
       paymentHistory: newPaymentHistory,
-      paymentStatus: stmt.totalPaid >= finalTariff ? "Paid" : "Due",
+      paymentStatus: stmt.totalPaid >= totalOwnerKeeps ? "Paid" : "Due",
     };
 
     setOccupantState(updatedGuest);
     occupantStore.updateOccupant(updatedGuest, propertyId);
 
-    // Vacate bed slot in propertyStore singleton (DDS-13 Compliance: Bed returns to Available 🟢)
+    // Vacate bed slot in propertyStore singleton (Bed returns to Available 🟢)
     const currentStructure = propertyStore.getStructure(propertyId);
     const updatedStructure = currentStructure.map((floor) => ({
       ...floor,
@@ -920,13 +924,13 @@ export default function IndividualTenantProfilePage({
     propertyStore.updateStructure(updatedStructure, propertyId);
 
     const summaryMsg =
-      analysis?.isEarly && netTariffDifference > 0
-        ? `🏁 Guest ${occupantState.name} checked out ${analysis.unusedDays} days early! Pro-rata tariff adjusted to ₹${finalTariff.toLocaleString(
+      netCashToReturn > 0
+        ? `🏁 Checkout Done for ${occupantState.name}! Hand over ₹${netCashToReturn.toLocaleString(
             "en-IN"
-          )} (Refunded ₹${netTariffDifference.toLocaleString("en-IN")} unused tariff). Bed ${occupantState.roomNumber} (${
+          )} to guest (You keep ₹${totalOwnerKeeps.toLocaleString("en-IN")} earned rent). Bed ${occupantState.roomNumber} (${
             occupantState.bedCode
           }) is now Available 🟢`
-        : `🏁 Guest Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & Available 🟢`;
+        : `🏁 Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & Available 🟢`;
 
     triggerToast(summaryMsg);
     setShowGuestStayManagementModal(false);
@@ -2327,7 +2331,7 @@ export default function IndividualTenantProfilePage({
                 </form>
               )}
 
-              {/* TAB 2: GUEST CHECKOUT */}
+              {/* TAB 2: GUEST CHECKOUT (SIMPLE PLAIN-ENGLISH PG OWNER VIEW) */}
               {guestStayModalTab === "CHECKOUT" && (
                 <form onSubmit={handleGuestCheckoutSubmit} className="space-y-4 pt-1">
                   
@@ -2357,28 +2361,28 @@ export default function IndividualTenantProfilePage({
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-red-500"
                     />
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Scheduled Checkout was: {formatIsoToDisplayDate(occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate)}
+                      Original scheduled date: {formatIsoToDisplayDate(occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate)}
                     </p>
                   </div>
 
-                  {/* ⚡ EARLY DEPARTURE SMART ASSISTANT BANNER */}
+                  {/* ⚡ EARLY CHECKOUT SELECTOR IN SIMPLE EVERYDAY LANGUAGE */}
                   {earlyDepartureAnalysis && earlyDepartureAnalysis.isEarly && (
                     <div className="p-4 bg-amber-50/90 border border-amber-300 rounded-2xl space-y-3 animate-in fade-in text-xs">
                       <div className="flex items-start gap-2.5">
                         <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                         <div>
-                          <p className="font-bold text-amber-950 flex items-center gap-1.5">
-                            <span>⚡ Early Departure Detected ({earlyDepartureAnalysis.unusedDays} Days Early)</span>
+                          <p className="font-bold text-amber-950 text-xs">
+                            ⚡ Early Checkout ({earlyDepartureAnalysis.unusedDays} Days Early)
                           </p>
                           <p className="text-[11px] text-amber-800 mt-0.5">
-                            Guest stayed <strong>{earlyDepartureAnalysis.actualDaysElapsed} of {earlyDepartureAnalysis.totalOriginalDays} booked days</strong>. Unused stay value is <strong>₹{earlyDepartureAnalysis.unusedTariffAmount.toLocaleString("en-IN")}</strong>.
+                            Guest used <strong>{earlyDepartureAnalysis.actualDaysElapsed} of {earlyDepartureAnalysis.totalOriginalDays} booked days</strong>.
                           </p>
                         </div>
                       </div>
 
-                      {/* Policy Radio Options */}
+                      {/* Plain Language Settlement Options */}
                       <div className="pt-2 border-t border-amber-200/80 space-y-2 font-semibold text-gray-800">
-                        <span className="text-[10px] uppercase font-extrabold text-amber-900 block">Choose Settlement Policy:</span>
+                        <span className="text-[10px] uppercase font-extrabold text-amber-900 block">How do you want to bill this stay?</span>
 
                         <label className="flex items-center gap-2 cursor-pointer text-[11px]">
                           <input
@@ -2389,7 +2393,7 @@ export default function IndividualTenantProfilePage({
                             className="text-amber-600 focus:ring-amber-500"
                           />
                           <span>
-                            <strong>Recalculate Pro-Rata (Fair Policy):</strong> Bill for {earlyDepartureAnalysis.actualDaysElapsed} days (<strong>₹{earlyDepartureAnalysis.recalculatedProRataTariff.toLocaleString("en-IN")}</strong>) & refund <strong>₹{earlyDepartureAnalysis.unusedTariffAmount.toLocaleString("en-IN")}</strong> unused stay 🟢
+                            <strong>Charge only for {earlyDepartureAnalysis.actualDaysElapsed} day(s) stayed (₹{earlyDepartureAnalysis.recalculatedProRataTariff.toLocaleString("en-IN")})</strong> — Cancel remaining {earlyDepartureAnalysis.unusedDays} days 🟢
                           </span>
                         </label>
 
@@ -2402,7 +2406,7 @@ export default function IndividualTenantProfilePage({
                             className="text-amber-600 focus:ring-amber-500"
                           />
                           <span>
-                            <strong>Retain Original Package (Non-Refundable Policy):</strong> Charge full ₹{earlyDepartureAnalysis.totalOriginalRent.toLocaleString("en-IN")} ⚪
+                            <strong>Charge full {earlyDepartureAnalysis.totalOriginalDays}-day booking (₹{earlyDepartureAnalysis.totalOriginalRent.toLocaleString("en-IN")})</strong> — No cancellation discount ⚪
                           </span>
                         </label>
 
@@ -2415,13 +2419,13 @@ export default function IndividualTenantProfilePage({
                             className="text-amber-600 focus:ring-amber-500"
                           />
                           <span>
-                            <strong>Custom Adjusted Final Bill:</strong> Specify final stay tariff amount ✏️
+                            <strong>Custom room rent amount:</strong> Enter exact rent to charge ✏️
                           </span>
                         </label>
 
                         {earlyDeparturePolicy === "CUSTOM" && (
                           <div className="ml-6 flex items-center gap-2 pt-1">
-                            <span className="text-[11px] text-gray-600 font-bold">Custom Final Tariff:</span>
+                            <span className="text-[11px] text-gray-600 font-bold">Room Rent to Charge:</span>
                             <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-2 py-1">
                               <span className="text-gray-400 font-mono">₹</span>
                               <input
@@ -2438,69 +2442,10 @@ export default function IndividualTenantProfilePage({
                     </div>
                   )}
 
-                  {/* Dynamic Settlement Audit Card */}
-                  {(() => {
-                    const stmt = calculateOccupantFinancialStatement(occupantState);
-                    const analysis = earlyDepartureAnalysis;
-
-                    let finalStayTariff = stmt.proRataRent;
-                    if (analysis && analysis.isEarly) {
-                      if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
-                        finalStayTariff = analysis.recalculatedProRataTariff;
-                      } else if (earlyDeparturePolicy === "CUSTOM") {
-                        finalStayTariff = customFinalTariff;
-                      } else {
-                        finalStayTariff = analysis.totalOriginalRent;
-                      }
-                    }
-
-                    const netTariffDifference = stmt.totalPaid - finalStayTariff;
-                    const depositHeld = occupantState.securityDeposit || 1000;
-                    const totalRefundToGuest = (netTariffDifference > 0 ? netTariffDifference : 0) + (guestRefundKeyDeposit ? depositHeld : 0);
-
-                    return (
-                      <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500 font-semibold">Final Adjusted Stay Tariff:</span>
-                          <span className="font-bold text-gray-900 font-mono">₹{finalStayTariff.toLocaleString("en-IN")}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500 font-semibold">Total Payments Collected:</span>
-                          <span className="font-bold text-emerald-700 font-mono">₹{stmt.totalPaid.toLocaleString("en-IN")} 🟢</span>
-                        </div>
-                        
-                        {netTariffDifference > 0 ? (
-                          <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-50 p-2 rounded-xl border border-emerald-200">
-                            <span>Unused Stay Tariff Refund:</span>
-                            <span className="font-mono text-sm font-extrabold">+₹{netTariffDifference.toLocaleString("en-IN")} (Refund to Guest) 🟢</span>
-                          </div>
-                        ) : netTariffDifference < 0 ? (
-                          <div className="flex justify-between items-center text-red-800 font-bold bg-red-50 p-2 rounded-xl border border-red-200">
-                            <span>Remaining Stay Tariff Due:</span>
-                            <span className="font-mono text-sm font-extrabold">₹{Math.abs(netTariffDifference).toLocaleString("en-IN")} (Collect from Guest) 🔴</span>
-                          </div>
-                        ) : (
-                          <div className="flex justify-between items-center text-gray-600 font-semibold pt-1 border-t border-gray-200">
-                            <span>Stay Tariff Balance:</span>
-                            <span className="font-mono font-bold text-emerald-700">₹0 (Fully Cleared) 🟢</span>
-                          </div>
-                        )}
-
-                        {/* Net Final Cash Handover Summary */}
-                        {totalRefundToGuest > 0 && (
-                          <div className="flex justify-between items-center pt-2 border-t border-gray-200 text-xs font-bold text-purple-950">
-                            <span>Total Net Refund to Guest (Tariff + Deposit):</span>
-                            <span className="font-mono text-sm font-extrabold text-purple-700">₹{totalRefundToGuest.toLocaleString("en-IN")} 💵</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Security Deposit Refund Handover Box */}
-                  <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200 space-y-2">
+                  {/* Security Deposit & Key Handover Box */}
+                  <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-purple-950">🛡️ Security Deposit Refund</span>
+                      <span className="font-bold text-purple-950">🔑 Room Key & Deposit Status</span>
                       <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
                         ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} Deposit
                       </span>
@@ -2512,9 +2457,94 @@ export default function IndividualTenantProfilePage({
                         onChange={(e) => setGuestRefundKeyDeposit(e.target.checked)}
                         className="rounded text-purple-600 focus:ring-purple-500"
                       />
-                      <span>Room key returned & room inspected (Refund ₹{(occupantState.securityDeposit || 1000).toLocaleString("en-IN")} security deposit to guest)</span>
+                      <span>Key returned & room inspected without damages (Return deposit in final cash math)</span>
                     </label>
                   </div>
+
+                  {/* 💰 CRYSTAL-CLEAR CASH SETTLEMENT SUMMARY BOX (NO CONFUSION, NO DOUBLE COUNTING!) */}
+                  {(() => {
+                    const stmt = calculateOccupantFinancialStatement(occupantState);
+                    const analysis = earlyDepartureAnalysis;
+
+                    let roomRentToCharge = stmt.proRataRent;
+                    if (analysis && analysis.isEarly) {
+                      if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
+                        roomRentToCharge = analysis.recalculatedProRataTariff;
+                      } else if (earlyDeparturePolicy === "CUSTOM") {
+                        roomRentToCharge = customFinalTariff;
+                      } else {
+                        roomRentToCharge = analysis.totalOriginalRent;
+                      }
+                    }
+
+                    const depositHeld = occupantState.securityDeposit || 1000;
+                    const depositDeduction = guestRefundKeyDeposit ? 0 : depositHeld;
+                    const totalOwnerKeeps = roomRentToCharge + depositDeduction;
+                    const netCashDifference = stmt.totalPaid - totalOwnerKeeps;
+
+                    return (
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3 text-xs">
+                        <div className="flex justify-between items-center pb-2 border-b border-gray-200 font-bold">
+                          <span className="text-gray-700">💰 Final Cash Settlement:</span>
+                          <span className="text-gray-500 text-[11px]">Exact Math</span>
+                        </div>
+
+                        {/* Breakdown lines */}
+                        <div className="space-y-1.5 text-[11px]">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Total Money Guest Paid at Check-in:</span>
+                            <span className="font-bold text-gray-900 font-mono">₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600">
+                              Room Rent for Stay ({analysis?.isEarly ? `${analysis.actualDaysElapsed} Day(s)` : "Stay Period"}):
+                            </span>
+                            <span className="font-bold text-gray-900 font-mono">-₹{roomRentToCharge.toLocaleString("en-IN")} (You Keep 🟢)</span>
+                          </div>
+
+                          {!guestRefundKeyDeposit && (
+                            <div className="flex justify-between items-center text-rose-700 font-bold">
+                              <span>Deposit Held (Damage / Lost Key Penalty):</span>
+                              <span className="font-mono">-₹{depositHeld.toLocaleString("en-IN")} (You Keep)</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Highlighted Net Action Box */}
+                        {netCashDifference > 0 ? (
+                          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 text-emerald-950 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-extrabold text-xs">👉 CASH TO RETURN TO GUEST:</span>
+                              <span className="font-mono text-base font-extrabold text-emerald-800">
+                                ₹{netCashDifference.toLocaleString("en-IN")} 💵
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-emerald-700 font-semibold">
+                              (Give ₹{netCashDifference.toLocaleString("en-IN")} back to guest via Cash / UPI. You keep ₹{totalOwnerKeeps.toLocaleString("en-IN")} as your earned room rent).
+                            </p>
+                          </div>
+                        ) : netCashDifference < 0 ? (
+                          <div className="p-3 bg-rose-50 rounded-xl border border-rose-300 text-rose-950 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-extrabold text-xs">👉 CASH TO COLLECT FROM GUEST:</span>
+                              <span className="font-mono text-base font-extrabold text-rose-800">
+                                ₹{Math.abs(netCashDifference).toLocaleString("en-IN")} 🔴
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-rose-700 font-semibold">
+                              (Collect ₹{Math.abs(netCashDifference).toLocaleString("en-IN")} from guest before handing over keys / checkout).
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 text-emerald-950 flex items-center justify-between">
+                            <span className="font-extrabold text-xs">👉 ALL BALANCED — ₹0 TO RETURN OR COLLECT</span>
+                            <span className="font-mono text-sm font-extrabold text-emerald-800">₹0 🟢</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
@@ -2530,9 +2560,9 @@ export default function IndividualTenantProfilePage({
                   </div>
 
                   <div className="p-2.5 bg-emerald-50 rounded-2xl border border-emerald-200 text-[10px] text-emerald-900 font-semibold space-y-0.5">
-                    <span className="font-extrabold block">⚡ DDS-13 Dynamic Bed Clearance:</span>
+                    <span className="font-extrabold block">⚡ Instant Bed Release:</span>
                     <span>
-                      Submitting will immediately mark Bed {occupantState.roomNumber} ({occupantState.bedCode}) as <strong>Available 🟢</strong> across the Property Map and Overview Dashboard.
+                      Submitting will immediately mark Bed {occupantState.roomNumber} ({occupantState.bedCode}) as <strong>Available 🟢</strong> across the Property Map.
                     </span>
                   </div>
 
