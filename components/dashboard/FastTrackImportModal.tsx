@@ -253,6 +253,48 @@ export function FastTrackImportModal({
     setTimeout(() => setAppendSuccessNotice(null), 4000);
   };
 
+  // State for on-demand Gemini AI text re-scan
+  const [isReScanningWithAi, setIsReScanningWithAi] = useState(false);
+
+  const handleRescanWithGeminiAi = async () => {
+    if (!pastedText || pastedText.trim().length === 0) {
+      alert("No raw spreadsheet text found to re-scan. You can edit the rows directly or paste new data.");
+      return;
+    }
+
+    setIsReScanningWithAi(true);
+    try {
+      const apiRes = await fetch("/api/fasttrack/ai-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: pastedText,
+          propertyId,
+          defaultRentalTiers: settings.rentalTiers,
+        }),
+      });
+
+      if (!apiRes.ok) {
+        const errData = await apiRes.json().catch(() => ({}));
+        throw new Error(errData.details || errData.error || `Server returned ${apiRes.status}`);
+      }
+
+      const apiJson = await apiRes.json();
+      if (apiJson.success && apiJson.rows?.length > 0) {
+        setEditableRows(apiJson.rows);
+        setParsedResult(apiJson);
+        setAppendSuccessNotice("✨ Successfully enhanced and re-parsed roster with Gemini AI!");
+        setTimeout(() => setAppendSuccessNotice(null), 4000);
+      } else {
+        throw new Error("Gemini AI could not extract valid rows from this text.");
+      }
+    } catch (err: any) {
+      alert(`AI Re-scan Error: ${err.message || "Failed to connect to Gemini AI"}`);
+    } finally {
+      setIsReScanningWithAi(false);
+    }
+  };
+
   // Helper to format ISO date (YYYY-MM-DD) into user's chosen display format
   const formatDisplayDate = (isoDate: string | undefined): string => {
     if (!isoDate) return "";
@@ -775,13 +817,13 @@ export function FastTrackImportModal({
 
       const res = parseRawSpreadsheetText(pastedText, settings.rentalTiers);
 
-      // If confidence is good, go straight to review
-      if (res.success && res.confidenceScore >= 60) {
+      // If heuristic found 0 warnings and high confidence, go straight to review
+      if (res.success && res.warningCount === 0 && res.confidenceScore >= 80) {
         applyParsedRows(res.rows, res);
         return;
       }
 
-      // If messy, attempt AI escalation via API route
+      // If any warnings or ambiguous columns, attempt AI escalation via Gemini
       setProcessingStatus("Engaging Gemini AI for Deep Unstructured Parsing...");
       setProcessingProgress(70);
       try {
@@ -1340,6 +1382,17 @@ Priya Verma    9855667788   Room 201   22000"
                 >
                   <Save className="w-3.5 h-3.5 text-gray-500" />
                   <span>{draftSaveStatus || "Save Draft"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isReScanningWithAi}
+                  onClick={handleRescanWithGeminiAi}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                  title="Use Gemini AI semantic reasoning to re-parse unstructured columns, dates, or non-standard formats"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{isReScanningWithAi ? "AI Parsing..." : "✨ Enhance with Gemini AI"}</span>
                 </button>
 
                 <button
