@@ -37,6 +37,7 @@ import {
   ExpenseCategoryConfig,
   PaymentAccountConfig,
 } from "@/constants/partnerStore";
+import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
 
 export default function PropertySettingsPage({
   params,
@@ -48,7 +49,7 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // QR Profiles State
@@ -345,6 +346,18 @@ export default function PropertySettingsPage({
               }`}
             >
               <QrCode className="w-4 h-4" /> Payment QR Profiles & Accounts
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("POLICE_REGISTER")}
+              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "POLICE_REGISTER"
+                  ? "border-blue-600 text-blue-700 font-extrabold"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 text-blue-600" /> Police & Legal Register 📜
             </button>
           </div>
 
@@ -1027,6 +1040,10 @@ export default function PropertySettingsPage({
                 </div>
               </div>
             </div>
+          )}
+          {/* TAB 5: POLICE & LEGAL RESIDENT REGISTER */}
+          {activeTab === "POLICE_REGISTER" && (
+            <PoliceVerificationRegister propertyId={propertyId} />
           )}
         </div>
       </div>

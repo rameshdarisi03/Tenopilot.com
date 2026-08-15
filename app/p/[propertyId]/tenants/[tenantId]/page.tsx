@@ -22,6 +22,7 @@ import {
 } from "@/utils/domainSSOT";
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { complianceLogStore } from "@/constants/complianceLogStore";
 import {
   ChevronLeft,
   ChevronDown,
@@ -909,6 +910,37 @@ export default function IndividualTenantProfilePage({
 
     setOccupantState(updatedGuest);
     occupantStore.updateOccupant(updatedGuest, propertyId);
+
+    // 🔒 Write Permanent Immutable Record to Master Police & Legal Register
+    const exitCategory = analysis?.isEarly ? "Emergency Early Departure" : "Standard Scheduled Departure";
+    const exitReasonText = guestCheckoutNotes.trim() || (analysis?.isEarly ? `Early departure on emergency (${analysis.unusedDays} days unused). Key returned & settled.` : "Completed scheduled stay package. Key returned & settled.");
+
+    complianceLogStore.addLog(propertyId, {
+      propertyId,
+      occupantId: occupantState.id,
+      name: occupantState.name,
+      phone: occupantState.phone,
+      emergencyPhone: occupantState.emergencyContact?.phone || "—",
+      emergencyRelation: occupantState.emergencyContact?.relation || "Family",
+      address: occupantState.address || "Bengaluru, Karnataka",
+      aadhaarNumber: occupantState.aadhaarNumber || "Skipped",
+      photoUrl: occupantState.kycDocs?.photoUrl || occupantState.avatar,
+      stayType: "Guest",
+      roomNumber: occupantState.roomNumber,
+      bedCode: occupantState.bedCode,
+      checkInDate: formatIsoToDisplayDate(occupantState.joiningDate) || occupantState.joiningDate,
+      checkInTime: "12:00 PM",
+      checkOutDate: formatIsoToDisplayDate(guestCheckoutDate) || guestCheckoutDate,
+      checkOutTime: checkoutTime || "11:00 AM",
+      totalDaysStayed: analysis?.actualDaysElapsed || 1,
+      purposeOfVisit: occupantState.purposeOfVisit || occupantState.workplace || "Short-Term Stay",
+      exitCategory,
+      exitReason: exitReasonText,
+      totalPaid: stmt.totalPaid,
+      depositRefunded: guestRefundKeyDeposit ? depositHeld : 0,
+      penaltyPaid: addedPenalty,
+      kycVerified: Boolean(occupantState.kycVerified),
+    });
 
     // Vacate bed slot in propertyStore singleton (Bed returns to Available 🟢)
     const currentStructure = propertyStore.getStructure(propertyId);

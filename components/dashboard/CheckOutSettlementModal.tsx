@@ -15,6 +15,7 @@ import {
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { expenseStore } from "@/constants/expenseStore";
+import { complianceLogStore } from "@/constants/complianceLogStore";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -99,9 +100,36 @@ export function CheckOutSettlementModal({
           property: "Sunshine Luxury PG",
           date: todayStr,
           hasReceipt: false,
-          notes: `Security Deposit Refund to ${occupant.name} on Check-Out (Room ${roomNumber} ${bedCode}). Deductions: ₹${totalDeductions.toLocaleString("en-IN")}`,
         });
       }
+
+      // 4. 🔒 Write Permanent Immutable Record to Master Police & Legal Register
+      complianceLogStore.addLog(propertyId, {
+        propertyId,
+        occupantId: occupant.id,
+        name: occupant.name,
+        phone: occupant.phone,
+        emergencyPhone: occupant.emergencyContact?.phone || "—",
+        emergencyRelation: occupant.emergencyContact?.relation || "Family",
+        address: occupant.address || "Bengaluru, Karnataka",
+        aadhaarNumber: occupant.aadhaarNumber || "Skipped",
+        photoUrl: occupant.kycDocs?.photoUrl || occupant.avatar,
+        stayType: occupant.stayType || "Tenant",
+        roomNumber: roomNumber || occupant.roomNumber || "101",
+        bedCode: bedCode || occupant.bedCode || "BED A",
+        checkInDate: occupant.joiningDate,
+        checkInTime: "10:00 AM",
+        checkOutDate: todayStr,
+        checkOutTime: "11:00 AM",
+        totalDaysStayed: Math.max(1, Math.round((Date.now() - new Date(occupant.joiningDate).getTime()) / 86400000)) || 30,
+        purposeOfVisit: occupant.purposeOfVisit || occupant.workplace || "Long-Term Residence",
+        exitCategory: occupant.lifecycleStatus === "Notice" ? "Notice Period Completed" : "Standard Scheduled Departure",
+        exitReason: settlementNotes.trim() || `Formal check-out & deposit settlement executed. Room inspected, keys returned. Deductions: ₹${totalDeductions.toLocaleString("en-IN")}.`,
+        totalPaid: occupant.rentAmount || 0,
+        depositRefunded: netRefundableAmount,
+        penaltyPaid: totalDeductions,
+        kycVerified: Boolean(occupant.kycVerified),
+      });
 
       setIsSubmitting(false);
       onSuccess?.();
