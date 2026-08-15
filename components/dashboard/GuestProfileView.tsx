@@ -373,8 +373,8 @@ export function GuestProfileView({
 
               <div className="flex justify-between pt-2">
                 <span className="text-gray-400">Purpose of Visit</span>
-                <span className="font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                  {occupantState.workplace || "Exam / Corporate Visit"}
+                <span className="font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-lg text-xs">
+                  {occupantState.purposeOfVisit || occupantState.workplace || "Short-Term Stay"}
                 </span>
               </div>
             </div>

@@ -175,6 +175,7 @@ export default function IndividualTenantProfilePage({
   const [extendPaymentMode, setExtendPaymentMode] = useState<string>("UPI");
 
   const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>("2026-08-01");
+  const [checkoutTime, setCheckoutTime] = useState<string>("11:00");
   const [guestRefundKeyDeposit, setGuestRefundKeyDeposit] = useState<boolean>(true);
   const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
   const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE">("PRO_RATA_REFUND");
@@ -1891,43 +1892,66 @@ export default function IndividualTenantProfilePage({
                       </div>
 
                       <div className="space-y-2 text-xs text-gray-700 font-medium">
-                        {/* Current Month Rent or Guest Tariff */}
-                        <div className="flex justify-between items-center">
-                          <span>▫️ {isTenant ? `Rent (${proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`})` : "Stay Package Tariff"}:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-gray-900">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.remainingRentDue === 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
-                              {stmt.remainingRentDue === 0 ? "PAID 🟢" : `₹${stmt.remainingRentDue.toLocaleString("en-IN")} DUE`}
-                            </span>
-                          </div>
-                        </div>
+                        {isTenant ? (
+                          <>
+                            {/* Current Month Rent */}
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Rent ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`}):</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-gray-900">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.remainingRentDue === 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                                  {stmt.remainingRentDue === 0 ? "PAID 🟢" : `₹${stmt.remainingRentDue.toLocaleString("en-IN")} DUE`}
+                                </span>
+                              </div>
+                            </div>
 
-                        {/* Security Deposit */}
-                        <div className="flex justify-between items-center">
-                          <span>▫️ Security Deposit:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.isDepositCleared ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                              {stmt.depositStatusLabel}
-                            </span>
-                          </div>
-                        </div>
+                            {/* Security Deposit */}
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Security Deposit:</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.isDepositCleared ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                  {stmt.depositStatusLabel}
+                                </span>
+                              </div>
+                            </div>
 
-                        {/* Prior Arrears */}
-                        {stmt.priorArrears > 0 && (
-                          <div className="flex justify-between items-center text-red-700">
-                            <span>▫️ Prior Unpaid Arrears:</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-red-600">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                                DUE 🔴
+                            {/* Prior Arrears */}
+                            {stmt.priorArrears > 0 && (
+                              <div className="flex justify-between items-center text-red-700">
+                                <span>▫️ Prior Unpaid Arrears:</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-red-600">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                                    DUE 🔴
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {/* Simple Plain Summary for Short-Term Guest Installments */}
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Total Stay Package (Tariff + Deposit):</span>
+                              <span className="font-mono font-bold text-gray-900">
+                                ₹{(stmt.proRataRent + stmt.securityDepositRequired).toLocaleString("en-IN")}
                               </span>
                             </div>
-                          </div>
+
+                            {stmt.totalPaid > 0 && (
+                              <div className="flex justify-between items-center text-emerald-800">
+                                <span>▫️ Previously Paid / Collected:</span>
+                                <span className="font-mono font-bold text-emerald-700">
+                                  -₹{stmt.totalPaid.toLocaleString("en-IN")} 🟢
+                                </span>
+                              </div>
+                            )}
+                          </>
                         )}
 
                         <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between font-extrabold text-gray-900 text-sm">
-                          <span className="text-amber-950">🟧 TOTAL BALANCE RECEIVABLE NOW:</span>
+                          <span className="text-amber-950">🟧 REMAINING BALANCE DUE NOW:</span>
                           <span className="font-mono text-[#c2652a] text-base">₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}</span>
                         </div>
                       </div>
@@ -2309,21 +2333,48 @@ export default function IndividualTenantProfilePage({
                   className="space-y-4 pt-1"
                 >
                   
-                  {/* Actual Checkout Date Picker */}
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1">
-                      Actual Checkout Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={guestCheckoutDate}
-                      onChange={(e) => setGuestCheckoutDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-red-500"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Original scheduled date: {formatIsoToDisplayDate(occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate)}
-                    </p>
+                  {/* Actual Checkout Date & Time */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Actual Checkout Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={guestCheckoutDate}
+                        onChange={(e) => setGuestCheckoutDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-red-500"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Scheduled: {formatIsoToDisplayDate(occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1 flex items-center justify-between">
+                        <span>Checkout Time (Standard: 11:00 AM)</span>
+                        <span className="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-bold">1 Hr Grace</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={checkoutTime}
+                        onChange={(e) => setCheckoutTime(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-red-500"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        {(() => {
+                          const hour = parseInt(checkoutTime.split(":")[0], 10);
+                          if (isNaN(hour)) return "Standard hours: 11:00 AM cutoff";
+                          if (hour >= 12 && hour < 16) {
+                            return "⏰ Late Checkout (12:00 PM - 04:00 PM) • Half-day fee recommended";
+                          } else if (hour >= 16) {
+                            return "⚠️ Extreme Late Checkout (After 04:00 PM) • Full day stay applies";
+                          }
+                          return "✅ Standard Checkout (Before 12:00 PM cutoff)";
+                        })()}
+                      </p>
+                    </div>
                   </div>
 
                   {/* ⚡ EARLY CHECKOUT SELECTOR IN SIMPLE EVERYDAY LANGUAGE */}
@@ -2371,7 +2422,7 @@ export default function IndividualTenantProfilePage({
                           </span>
                         </label>
 
-                        {/* Add Penalty Amount Input Box */}
+                        {/* Add Penalty Amount Input Box with Late Fee Quick Fill */}
                         <div className="p-3 bg-white/90 rounded-xl border border-amber-200 space-y-1.5 mt-1">
                           <label className="block text-[11px] font-bold text-gray-800">
                             Add Penalty Amount (Optional):
@@ -2391,6 +2442,32 @@ export default function IndividualTenantProfilePage({
                             <span className="text-[10px] text-gray-500 font-medium">
                               (Added to final bill. If left empty, penalty is ₹0).
                             </span>
+                          </div>
+
+                          {/* Quick Late Fee Buttons */}
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <span className="text-[10px] text-gray-500 font-bold">Quick Late Fee:</span>
+                            <button
+                              type="button"
+                              onClick={() => setPenaltyAmount(250)}
+                              className="text-[10px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-bold cursor-pointer"
+                            >
+                              +₹250 (2-Hr Late)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPenaltyAmount(500)}
+                              className="text-[10px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-bold cursor-pointer"
+                            >
+                              +₹500 (Half-Day)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPenaltyAmount(0)}
+                              className="text-[10px] px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-bold cursor-pointer"
+                            >
+                              Clear (₹0)
+                            </button>
                           </div>
                         </div>
                       </div>

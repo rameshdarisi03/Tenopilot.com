@@ -150,19 +150,24 @@ export function getGuestStayTimeline(
   checkoutDateStr?: string,
   isBooked: boolean = false
 ): GuestStayTimeline {
-  const joiningDate = parseOccupantDate(joiningDateStr || "") || new Date();
-  const checkoutDate = parseOccupantDate(checkoutDateStr || "") || new Date();
-  const today = new Date();
+  const parsedJoining = parseOccupantDate(joiningDateStr || "") || new Date();
+  const parsedCheckout = parseOccupantDate(checkoutDateStr || "") || new Date();
+  const now = new Date();
+
+  // Normalize all dates to local calendar midnight to eliminate UTC/offset rounding bugs
+  const joiningMidnight = new Date(parsedJoining.getFullYear(), parsedJoining.getMonth(), parsedJoining.getDate());
+  const checkoutMidnight = new Date(parsedCheckout.getFullYear(), parsedCheckout.getMonth(), parsedCheckout.getDate());
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const totalDays = Math.max(
     1,
-    Math.round((checkoutDate.getTime() - joiningDate.getTime()) / (1000 * 60 * 60 * 24))
+    Math.round((checkoutMidnight.getTime() - joiningMidnight.getTime()) / (1000 * 60 * 60 * 24))
   );
 
-  if (isBooked || today < joiningDate) {
+  if (isBooked || todayMidnight.getTime() < joiningMidnight.getTime()) {
     const daysUntilCheckIn = Math.max(
       1,
-      Math.round((joiningDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      Math.round((joiningMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24))
     );
     return {
       totalDays,
@@ -170,13 +175,13 @@ export function getGuestStayTimeline(
       daysRemaining: totalDays,
       progressPercent: 0,
       isBooked: true,
-      statusText: `Check-In in ${daysUntilCheckIn} Days (${joiningDateStr || "Upcoming"})`,
+      statusText: `Check-In in ${daysUntilCheckIn} Day(s) (${joiningDateStr || "Upcoming"})`,
     };
   }
 
   const daysElapsed = Math.min(
     totalDays,
-    Math.max(0, Math.round((today.getTime() - joiningDate.getTime()) / (1000 * 60 * 60 * 24)))
+    Math.max(0, Math.round((todayMidnight.getTime() - joiningMidnight.getTime()) / (1000 * 60 * 60 * 24)))
   );
   const daysRemaining = Math.max(0, totalDays - daysElapsed);
   const progressPercent = Math.min(100, Math.max(0, Math.round((daysElapsed / totalDays) * 100)));
@@ -187,7 +192,7 @@ export function getGuestStayTimeline(
     daysRemaining,
     progressPercent,
     isBooked: false,
-    statusText: `${daysRemaining} Days Remaining (Checkout: ${checkoutDateStr || "—"})`,
+    statusText: daysRemaining === 0 ? "Checkout Due Today" : `${daysRemaining} Day(s) Remaining (Checkout: ${checkoutDateStr || "—"})`,
   };
 }
 

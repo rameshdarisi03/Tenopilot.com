@@ -74,6 +74,8 @@ export default function OnboardGuestPage({
   const [emergencyCountryCode, setEmergencyCountryCode] = useState("+91");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [purposeOfVisit, setPurposeOfVisit] = useState<string>("Exam / College Admission");
+  const [customPurpose, setCustomPurpose] = useState<string>("");
 
   const [checkInDate, setCheckInDate] = useState(() => {
     const today = new Date();
@@ -326,7 +328,9 @@ export default function OnboardGuestPage({
       avatar: photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
       kycVerified: isVerified,
       hasPdfAgreement: false,
-      address: address.trim(),
+      workplace: undefined,
+      purposeOfVisit: purposeOfVisit === "Other" ? (customPurpose.trim() || "Other Short-Term Stay") : purposeOfVisit,
+      address: address || undefined,
       aadhaarNumber: finalAadhaarNumber,
       emergencyContact: {
         name: "Parent / Guardian",
@@ -585,6 +589,33 @@ export default function OnboardGuestPage({
                     onChange={(e) => setAddress(e.target.value)}
                     className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                   />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Purpose of Visit *
+                  </label>
+                  <select
+                    value={purposeOfVisit}
+                    onChange={(e) => setPurposeOfVisit(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700 bg-white"
+                  >
+                    <option value="Exam / College Admission">🎓 Exam / College Admission</option>
+                    <option value="Job Interview / Corporate Work">💼 Job Interview / Corporate Work</option>
+                    <option value="Medical / Hospital Visit">🏥 Medical / Hospital Visit</option>
+                    <option value="Tourism / Vacation">✈️ Tourism / Vacation</option>
+                    <option value="Relocation / Temporary Stay">🏠 Relocation / Temporary Stay</option>
+                    <option value="Other">✏️ Other Purpose</option>
+                  </select>
+                  {purposeOfVisit === "Other" && (
+                    <input
+                      type="text"
+                      placeholder="Specify purpose of visit..."
+                      value={customPurpose}
+                      onChange={(e) => setCustomPurpose(e.target.value)}
+                      className="mt-2 w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 text-xs focus:ring-1 focus:ring-purple-700"
+                    />
+                  )}
                 </div>
               </div>
 
