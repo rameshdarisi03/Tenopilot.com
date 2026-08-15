@@ -122,11 +122,11 @@ export default function PropertyOverviewPage({
   occupants.forEach((occ) => {
     if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
       const stmt = calculateOccupantFinancialStatement(occ);
-      totalCollectedThisMonth += stmt.totalPaid;
+      totalCollectedThisMonth += stmt.totalRentPaid;
       totalPendingDue += stmt.netOutstandingBalance;
       if (stmt.netOutstandingBalance > 0) {
         pendingCount++;
-        if (occ.paymentStatus === "Overdue") overdueCount++;
+        if (occ.paymentStatus === "Overdue" || occ.daysDiff < 0) overdueCount++;
       }
     }
   });

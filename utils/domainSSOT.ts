@@ -1,7 +1,7 @@
 // TenoPilot Centralized Single Source of Truth (SSOT) Domain Engine
 // Provides authoritative calculation functions for all Occupant, Property, and Financial domains.
 
-import { Occupant, occupantStore, MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
+import { Occupant, occupantStore, MOCK_OCCUPANTS_200, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { BedSlotConfig, RoomConfig } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { parseOccupantDate } from "./autoCheckInEngine";
@@ -274,6 +274,8 @@ export interface FinancialStatementSummary {
   priorArrears: number;
   totalGrossDue: number;
   totalPaid: number;
+  totalRentPaid: number;
+  totalDepositPaid: number;
   netOutstandingBalance: number;
   isFullyPaid: boolean;
   isPartialPaid: boolean;
@@ -284,52 +286,128 @@ export interface FinancialStatementSummary {
 }
 
 /**
- * 7. SSOT Unified Partial Payment & Financial Statement Resolver
- * Calculates exact gross package due, total payments collected, and net outstanding balance.
+ * 7. SSOT Unified Dual-Ledger Partial Payment & Financial Statement Resolver
+ * Strictly segregates Security Deposit (Escrow) from Rent/Stay Tariff (Income).
+ * Handles full life-cycle calculations for Migrated Tenants, Standard Tenants, and Short-Stay Guests.
  */
 export function calculateOccupantFinancialStatement(
   occupant: Partial<Occupant>
 ): FinancialStatementSummary {
   const isGuest = occupant.stayType === "Guest";
-
-  // 1. Pro-Rata or Base Rent
-  const proRataRent = isGuest
-    ? (occupant.rentAmount || 0)
-    : calculateProRataRent(occupant.rentAmount || 0, occupant.joiningDate).proRataAmount;
-
-  // 2. Security Deposit
-  const defaultDeposit = isGuest ? 1000 : 25000;
-  const securityDepositRequired =
-    occupant.securityDeposit !== undefined ? occupant.securityDeposit : defaultDeposit;
-
-  // 3. Prior Arrears
-  const priorArrears = occupant.arrearsBalance || 0;
-
-  // 4. Deposit Clearance
-  const isDepositCleared = occupant.depositStatus === "PAID";
-  const depositDue = isDepositCleared ? 0 : securityDepositRequired;
-
-  // 5. Rent Clearance
-  const isRentCleared = occupant.paymentStatus === "Paid";
-  const rentDue = isRentCleared ? 0 : proRataRent;
-
-  // 6. Total Gross Amount Required for this stay/cycle
-  const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears;
-
-  // 7. Total Payments Collected (Sum of receipts in paymentHistory)
   const history = occupant.paymentHistory || [];
-  const totalPaid = history.reduce((sum, item) => sum + (item.amount || 0), 0);
 
-  // 8. Net Outstanding Balance
-  let netOutstandingBalance = 0;
-  if (isDepositCleared && isRentCleared && priorArrears === 0) {
-    netOutstandingBalance = 0;
-  } else {
-    netOutstandingBalance = Math.max(0, rentDue + depositDue + priorArrears);
+  if (isGuest) {
+    // -------------------------------------------------------------------------
+    // 🏨 GUEST FINANCIAL LEDGER (Package Tariff + Refundable Key Deposit)
+    // -------------------------------------------------------------------------
+    const stayTariff = occupant.rentAmount || 0;
+    const securityDepositRequired =
+      occupant.securityDeposit !== undefined ? occupant.securityDeposit : 1000;
+    const priorArrears = 0;
+    const totalGrossDue = stayTariff + securityDepositRequired;
+
+    // Total actual payment receipts collected
+    const totalCollectedReceipts = history.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+    const isFullyPaidExplicitly = occupant.paymentStatus === "Paid" && occupant.depositStatus === "PAID";
+    const totalPaid = isFullyPaidExplicitly && totalCollectedReceipts === 0
+      ? totalGrossDue
+      : totalCollectedReceipts;
+
+    const netOutstandingBalance = Math.max(0, totalGrossDue - totalPaid);
+    const isFullyPaid = netOutstandingBalance === 0;
+    const isPartialPaid = !isFullyPaid && totalPaid > 0;
+
+    const isDepositCleared =
+      occupant.depositStatus === "PAID" || totalPaid >= totalGrossDue || (totalPaid >= securityDepositRequired && occupant.depositStatus === "PARTIAL");
+
+    const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
+      ? "Paid"
+      : occupant.paymentStatus === "Overdue"
+      ? "Overdue"
+      : "Due";
+
+    const depositStatusLabel: "PAID" | "PENDING" | "PARTIAL" = isDepositCleared
+      ? "PAID"
+      : totalPaid > 0
+      ? "PARTIAL"
+      : "PENDING";
+
+    let statusBadgeText = "DUE NOW 🔴";
+    if (isFullyPaid) {
+      statusBadgeText = "ALL CLEAR 🟢";
+    } else if (isPartialPaid) {
+      statusBadgeText = `PARTIAL DUE (₹${netOutstandingBalance.toLocaleString("en-IN")}) 🟧`;
+    }
+
+    return {
+      proRataRent: stayTariff,
+      securityDepositRequired,
+      priorArrears,
+      totalGrossDue,
+      totalPaid,
+      totalRentPaid: Math.min(totalPaid, stayTariff),
+      totalDepositPaid: Math.max(0, totalPaid - stayTariff),
+      netOutstandingBalance,
+      isFullyPaid,
+      isPartialPaid,
+      isDepositCleared,
+      paymentStatusLabel,
+      depositStatusLabel,
+      statusBadgeText,
+    };
   }
 
+  // ---------------------------------------------------------------------------
+  // 🏢 TENANT DUAL-LEDGER (Monthly Cycle / Pro-Rata Rent + Security Deposit)
+  // ---------------------------------------------------------------------------
+  const proRataRent = calculateProRataRent(occupant.rentAmount || 0, occupant.joiningDate).proRataAmount;
+  const securityDepositRequired =
+    occupant.securityDeposit !== undefined ? occupant.securityDeposit : 25000;
+  const priorArrears = occupant.arrearsBalance || 0;
+
+  // Separate deposit receipts from rent receipts in history
+  const isDepositReceipt = (item: PaymentHistoryItem) => {
+    const m = (item.month || "").toLowerCase();
+    const r = (item.receiptNo || "").toLowerCase();
+    return m.includes("deposit") || r.includes("dep");
+  };
+
+  const depositReceipts = history.filter(isDepositReceipt);
+  const rentReceipts = history.filter((item) => !isDepositReceipt(item));
+
+  const totalDepositPaidFromReceipts = depositReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const totalRentPaidFromReceipts = rentReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  // Deposit Clearance
+  const isDepositCleared = occupant.depositStatus === "PAID" || totalDepositPaidFromReceipts >= securityDepositRequired;
+  const remainingDepositDue = isDepositCleared
+    ? 0
+    : Math.max(0, securityDepositRequired - totalDepositPaidFromReceipts);
+
+  // Rent Clearance
+  const isRentCleared = occupant.paymentStatus === "Paid" || totalRentPaidFromReceipts >= proRataRent;
+  const remainingRentDue = isRentCleared
+    ? 0
+    : Math.max(0, proRataRent - totalRentPaidFromReceipts);
+
+  // Net Outstanding Balance strictly equals remaining rent + remaining deposit + prior arrears
+  const netOutstandingBalance = remainingRentDue + remainingDepositDue + priorArrears;
+
+  // Gross package required for cycle
+  const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears;
+
+  // Total payments tracked
+  const effectiveDepositPaid = isDepositCleared && totalDepositPaidFromReceipts === 0
+    ? securityDepositRequired
+    : totalDepositPaidFromReceipts;
+  const effectiveRentPaid = isRentCleared && totalRentPaidFromReceipts === 0
+    ? proRataRent
+    : totalRentPaidFromReceipts;
+  const totalPaid = effectiveDepositPaid + effectiveRentPaid;
+
   const isFullyPaid = netOutstandingBalance === 0;
-  const isPartialPaid = !isFullyPaid && totalPaid > 0 && totalPaid < totalGrossDue;
+  const isPartialPaid = !isFullyPaid && (totalRentPaidFromReceipts > 0 || totalDepositPaidFromReceipts > 0);
 
   const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
     ? "Paid"
@@ -339,7 +417,7 @@ export function calculateOccupantFinancialStatement(
 
   const depositStatusLabel: "PAID" | "PENDING" | "PARTIAL" = isDepositCleared
     ? "PAID"
-    : occupant.depositStatus === "PARTIAL"
+    : occupant.depositStatus === "PARTIAL" || totalDepositPaidFromReceipts > 0
     ? "PARTIAL"
     : "PENDING";
 
@@ -356,6 +434,8 @@ export function calculateOccupantFinancialStatement(
     priorArrears,
     totalGrossDue,
     totalPaid,
+    totalRentPaid: effectiveRentPaid,
+    totalDepositPaid: effectiveDepositPaid,
     netOutstandingBalance,
     isFullyPaid,
     isPartialPaid,

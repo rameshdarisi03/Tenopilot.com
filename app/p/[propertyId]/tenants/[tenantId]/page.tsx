@@ -413,26 +413,19 @@ export default function IndividualTenantProfilePage({
     };
 
     const updatedHistory = [newReceipt, ...(occupantState.paymentHistory || paymentHistory)];
-    const totalCollected = updatedHistory.reduce((sum, item) => sum + item.amount, 0);
-
-    const isGuest = occupantState.stayType === "Guest";
-    const proRataRent = isGuest
-      ? occupantState.rentAmount
-      : calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate).proRataAmount;
-    const reqDeposit = occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (isGuest ? 1000 : 25000);
-    const arrears = occupantState.arrearsBalance || 0;
-    const totalGrossDue = proRataRent + reqDeposit + arrears;
-
-    const isFullyCleared = totalCollected >= totalGrossDue;
-    const isDepositCleared = totalCollected >= reqDeposit;
+    const updatedDraft: Occupant = {
+      ...occupantState,
+      paymentHistory: updatedHistory,
+    };
+    const stmt = calculateOccupantFinancialStatement(updatedDraft);
 
     const updated: Occupant = {
       ...occupantState,
-      paymentStatus: isFullyCleared ? "Paid" : "Due",
+      paymentStatus: stmt.isFullyPaid ? "Paid" : "Due",
       lastPaidDate: formattedPaidDate,
-      daysRemainingText: isFullyCleared ? "—" : "PARTIAL DUE",
-      depositStatus: isDepositCleared ? "PAID" : (totalCollected > 0 ? "PARTIAL" : "PENDING"),
-      partialPaidThisCycle: totalCollected,
+      daysRemainingText: stmt.isFullyPaid ? "—" : "PARTIAL DUE",
+      depositStatus: stmt.depositStatusLabel,
+      partialPaidThisCycle: stmt.totalPaid,
       paymentHistory: updatedHistory,
     };
 
@@ -1071,7 +1064,7 @@ export default function IndividualTenantProfilePage({
                     Total Rent Paid
                   </p>
                   <p className="text-2xl font-bold font-serif text-gray-900">
-                    ₹{topStmt.totalPaid.toLocaleString("en-IN")}
+                    ₹{topStmt.totalRentPaid.toLocaleString("en-IN")}
                   </p>
                   <p className="text-[10px] text-green-600 font-bold mt-1.5">
                     {paymentHistory.length > 0 ? `${paymentHistory.length} PAYMENTS RECORDED 🟢` : "NO PAYMENTS YET ⚪"}

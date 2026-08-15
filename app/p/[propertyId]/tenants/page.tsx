@@ -12,6 +12,7 @@ import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
+import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -215,41 +216,56 @@ export default function TenantsDirectoryPage({
 
   // Dynamic Rent Metrics Calculations
   const rentMetrics = useMemo(() => {
-    // Only Active & Notice occupants have active monthly rent obligations (Excludes Booked & Past)
+    // Only Active & Notice occupants have active monthly/stay rent obligations (Excludes Booked & Past)
     const billableOccupants = occupantsList.filter(
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
     );
 
-    const dueToday = billableOccupants.filter(
-      (o) => o.paymentStatus === "Due" && o.daysDiff === 0
-    );
-    const dueTomorrow = billableOccupants.filter(
-      (o) => o.paymentStatus === "Due" && o.daysDiff === 1
-    );
-    const dueNext2Days = billableOccupants.filter(
-      (o) => o.paymentStatus === "Due" && o.daysDiff > 1 && o.daysDiff <= 3
-    );
-    const overdue = billableOccupants.filter((o) => o.paymentStatus === "Overdue");
-    const paid = billableOccupants.filter((o) => o.paymentStatus === "Paid");
+    let dueTodayCount = 0;
+    let dueTodaySum = 0;
+    let dueTomorrowCount = 0;
+    let dueTomorrowSum = 0;
+    let dueNext2DaysCount = 0;
+    let dueNext2DaysSum = 0;
+    let overdueCount = 0;
+    let overdueSum = 0;
+    let sumCollected = 0;
+    let totalExpected = 0;
 
-    const sumDueToday = dueToday.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const sumDueTomorrow = dueTomorrow.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const sumDueNext2Days = dueNext2Days.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const sumOverdue = overdue.reduce((acc, curr) => acc + (curr.arrearsBalance || curr.rentAmount), 0);
-    const sumCollected = paid.reduce((acc, curr) => acc + curr.rentAmount, 0);
-    const totalExpected = billableOccupants.reduce((acc, curr) => acc + curr.rentAmount, 0);
+    billableOccupants.forEach((curr) => {
+      const stmt = calculateOccupantFinancialStatement(curr);
+      totalExpected += stmt.proRataRent + stmt.priorArrears;
+      sumCollected += stmt.totalRentPaid;
+
+      if (!stmt.isFullyPaid) {
+        const netDue = stmt.netOutstandingBalance;
+        if (curr.paymentStatus === "Overdue" || curr.daysDiff < 0) {
+          overdueCount++;
+          overdueSum += netDue;
+        } else if (curr.daysDiff === 0) {
+          dueTodayCount++;
+          dueTodaySum += netDue;
+        } else if (curr.daysDiff === 1) {
+          dueTomorrowCount++;
+          dueTomorrowSum += netDue;
+        } else {
+          dueNext2DaysCount++;
+          dueNext2DaysSum += netDue;
+        }
+      }
+    });
 
     const collectionPct = totalExpected > 0 ? Number(((sumCollected / totalExpected) * 100).toFixed(1)) : 0;
 
     return {
-      dueTodayCount: dueToday.length,
-      dueTodaySum: sumDueToday,
-      dueTomorrowCount: dueTomorrow.length,
-      dueTomorrowSum: sumDueTomorrow,
-      dueNext2DaysCount: dueNext2Days.length,
-      dueNext2DaysSum: sumDueNext2Days,
-      overdueCount: overdue.length,
-      overdueSum: sumOverdue,
+      dueTodayCount,
+      dueTodaySum,
+      dueTomorrowCount,
+      dueTomorrowSum,
+      dueNext2DaysCount,
+      dueNext2DaysSum,
+      overdueCount,
+      overdueSum,
       collectionPct,
       sumCollected,
       totalExpected,
@@ -899,17 +915,28 @@ export default function TenantsDirectoryPage({
                           )}
                         </td>
                         <td className="p-4">
-                          <span
-                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
-                              occ.paymentStatus === "Paid"
-                                ? "bg-green-100 text-green-700"
-                                : occ.paymentStatus === "Overdue"
-                                ? "bg-red-100 text-red-600"
-                                : "bg-orange-100 text-orange-600"
-                            }`}
-                          >
-                            {occ.paymentStatus}
-                          </span>
+                          {(() => {
+                            const stmt = calculateOccupantFinancialStatement(occ);
+                            return (
+                              <span
+                                className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
+                                  stmt.isFullyPaid
+                                    ? "bg-green-100 text-green-700"
+                                    : stmt.isPartialPaid
+                                    ? "bg-orange-100 text-orange-800 border border-orange-200"
+                                    : occ.paymentStatus === "Overdue"
+                                    ? "bg-red-100 text-red-600"
+                                    : "bg-orange-100 text-orange-600"
+                                }`}
+                              >
+                                {stmt.isFullyPaid
+                                  ? "Paid"
+                                  : stmt.isPartialPaid
+                                  ? `Partial (₹${stmt.netOutstandingBalance.toLocaleString("en-IN")})`
+                                  : occ.paymentStatus}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">

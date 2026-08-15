@@ -194,15 +194,15 @@ export default function FinancialHubPage({
       }
       const stmt = calculateOccupantFinancialStatement(occ);
       totalGrossRevenue += stmt.totalPaid;
-      totalBilledRent += stmt.totalGrossDue;
+      totalBilledRent += stmt.proRataRent + stmt.priorArrears;
       totalUncollectedArrears += stmt.netOutstandingBalance;
 
-      rentStream += Math.min(stmt.totalPaid, stmt.proRataRent);
+      rentStream += stmt.totalRentPaid;
       if (stmt.isDepositCleared) {
         depositStream += stmt.securityDepositRequired;
       }
       if (occ.stayType === "Guest") {
-        guestStream += stmt.totalPaid;
+        guestStream += stmt.totalRentPaid;
       } else {
         utilityStream += Math.round(stmt.proRataRent * 0.05);
       }
