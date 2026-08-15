@@ -955,10 +955,11 @@ export default function IndividualTenantProfilePage({
               <button
                 disabled={occupantState.lifecycleStatus === "Past"}
                 onClick={() => {
-                  setPaymentAmount(occupantState.rentAmount);
+                  const currentStmt = calculateOccupantFinancialStatement(occupantState);
+                  setPaymentAmount(currentStmt.netOutstandingBalance > 0 ? currentStmt.netOutstandingBalance : occupantState.rentAmount);
                   setShowCollectRentModal(true);
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <CreditCard className="w-4 h-4" /> Collect Rent
               </button>
@@ -1113,24 +1114,61 @@ export default function IndividualTenantProfilePage({
             </div>
 
             {/* Next Due Date */}
-            <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-              <div className="p-2 bg-orange-50 w-fit rounded-lg mb-2 text-[#c2652a]">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                Next Due Date
-              </p>
-              <p className="text-base font-bold font-serif text-gray-900">
-                {occupantState.lifecycleStatus === "Booked"
-                  ? `Due on Check-In`
-                  : occupantState.dueDate}
-              </p>
-              <p className="text-[10px] text-[#c2652a] font-bold mt-1.5">
-                {occupantState.lifecycleStatus === "Booked"
-                  ? `TARGET: ${occupantState.joiningDate}`
-                  : "NEXT RENT CYCLE"}
-              </p>
-              </div>
+            {(() => {
+              const now = new Date();
+              const dueDay = occupantState.dueDay || 5;
+              const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
+              const nextMonthStr = `${String(dueDay).padStart(2, "0")} ${nextMonth.toLocaleString("default", { month: "short", year: "numeric" })}`;
+
+              let displayDueDate = occupantState.dueDate;
+              let dueSubtext = "NEXT RENT CYCLE";
+              let subtextColor = "text-emerald-700";
+
+              if (occupantState.lifecycleStatus === "Booked") {
+                displayDueDate = "Due on Check-In";
+                dueSubtext = `TARGET: ${occupantState.joiningDate}`;
+                subtextColor = "text-[#c2652a]";
+              } else if (occupantState.lifecycleStatus === "Past") {
+                displayDueDate = "Vacated";
+                dueSubtext = "CHECKED OUT ⚪";
+                subtextColor = "text-gray-400";
+              } else {
+                // Active or Notice
+                if (topStmt.remainingRentDue === 0) {
+                  // Current month's rent is already paid
+                  displayDueDate = nextMonthStr;
+                  if (topStmt.priorArrears > 0) {
+                    dueSubtext = `ARREARS DUE: ₹${topStmt.priorArrears.toLocaleString("en-IN")} 🔴`;
+                    subtextColor = "text-red-600";
+                  } else {
+                    dueSubtext = "NEXT RENT CYCLE 🟢";
+                    subtextColor = "text-emerald-700";
+                  }
+                } else {
+                  // Current month rent is due/overdue
+                  displayDueDate = occupantState.dueDate;
+                  dueSubtext = `RENT DUE (₹${topStmt.remainingRentDue.toLocaleString("en-IN")}) 🔴`;
+                  subtextColor = "text-red-600";
+                }
+              }
+
+              return (
+                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
+                  <div className="p-2 bg-orange-50 w-fit rounded-lg mb-2 text-[#c2652a]">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    Next Due Date
+                  </p>
+                  <p className="text-base font-bold font-serif text-gray-900">
+                    {displayDueDate}
+                  </p>
+                  <p className={`text-[10px] font-bold mt-1.5 ${subtextColor}`}>
+                    {dueSubtext}
+                  </p>
+                </div>
+              );
+            })()}
             </div>
           );
         })()}
@@ -1661,9 +1699,9 @@ export default function IndividualTenantProfilePage({
                     <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-amber-200/80 space-y-2.5 my-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                          💰 {isSecondInstallment ? "REMAINING BALANCE BREAKDOWN (PARTIAL INSTALLMENT)" : `RECEIVABLE BREAKDOWN ${isTenant ? "THIS MONTH" : "THIS STAY"}`}
+                          💰 {isTenant ? "RECEIVABLE ACCOUNT BREAKDOWN" : "GUEST STAY TARIFF BREAKDOWN"}
                         </span>
-                        {isTenant && !proRataInfo.isFullMonth && !isSecondInstallment && (
+                        {isTenant && !proRataInfo.isFullMonth && (
                           <span className="text-[10px] bg-orange-200/80 text-orange-950 px-2 py-0.5 rounded-full font-bold">
                             PRO-RATA ({proRataInfo.remainingDays}/{proRataInfo.totalDaysInMonth} DAYS)
                           </span>
@@ -1671,71 +1709,53 @@ export default function IndividualTenantProfilePage({
                       </div>
 
                       <div className="space-y-2 text-xs text-gray-700 font-medium">
-                        {isSecondInstallment ? (
-                          /* Simplified 2nd/Subsequent Installment Parameters */
-                          <>
-                            <div className="flex justify-between items-center text-gray-900 font-semibold">
-                              <span>Total Tariff (including deposit):</span>
-                              <span className="font-mono font-bold">₹{stmt.totalGrossDue.toLocaleString("en-IN")}</span>
-                            </div>
+                        {/* Current Month Rent or Guest Tariff */}
+                        <div className="flex justify-between items-center">
+                          <span>▫️ {isTenant ? `Rent (${proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`})` : "Stay Package Tariff"}:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-gray-900">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.remainingRentDue === 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                              {stmt.remainingRentDue === 0 ? "PAID 🟢" : `₹${stmt.remainingRentDue.toLocaleString("en-IN")} DUE`}
+                            </span>
+                          </div>
+                        </div>
 
-                            <div className="flex justify-between items-center text-emerald-800 font-bold border-b border-amber-200/60 pb-1.5">
-                              <span>▫️ Previously Collected Payments:</span>
-                              <span className="font-mono text-emerald-700">-₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
-                            </div>
-                          </>
-                        ) : (
-                          /* 1st Payment Itemized Breakdown */
-                          <>
-                            {isTenant ? (
-                              <>
-                                <div className="flex justify-between items-center">
-                                  <span>▫️ Rent Due ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays} Days Pro-Rata`}):</span>
-                                  <span className="font-mono font-bold text-gray-900">₹{proRataInfo.proRataAmount.toLocaleString("en-IN")}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span>▫️ Security Deposit ({occupantState.depositStatus === "PAID" ? "PAID 🟢" : "PENDING 🔴"}):</span>
-                                  <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
-                                </div>
-                                {stmt.priorArrears > 0 && (
-                                  <div className="flex justify-between items-center text-red-700">
-                                    <span>▫️ Prior Unpaid Arrears:</span>
-                                    <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="flex justify-between items-center">
-                                  <span>▫️ Stay Tariff Package:</span>
-                                  <span className="font-mono font-bold text-gray-900">₹{occupantState.rentAmount.toLocaleString("en-IN")}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span>▫️ Security Deposit ({stmt.isDepositCleared ? "PAID 🟢" : "PENDING 🔴"}):</span>
-                                  <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
-                                </div>
-                              </>
-                            )}
+                        {/* Security Deposit */}
+                        <div className="flex justify-between items-center">
+                          <span>▫️ Security Deposit:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.isDepositCleared ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                              {stmt.depositStatusLabel}
+                            </span>
+                          </div>
+                        </div>
 
-                            <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 font-bold text-gray-900">
-                              <span>Total Gross Package Due:</span>
-                              <span className="font-mono">₹{stmt.totalGrossDue.toLocaleString("en-IN")}</span>
+                        {/* Prior Arrears */}
+                        {stmt.priorArrears > 0 && (
+                          <div className="flex justify-between items-center text-red-700">
+                            <span>▫️ Prior Unpaid Arrears:</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-red-600">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                                DUE 🔴
+                              </span>
                             </div>
-                          </>
+                          </div>
                         )}
 
                         <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between font-extrabold text-gray-900 text-sm">
-                          <span className="text-amber-950">🟧 REMAINING BALANCE RECEIVABLE:</span>
+                          <span className="text-amber-950">🟧 TOTAL BALANCE RECEIVABLE NOW:</span>
                           <span className="font-mono text-[#c2652a] text-base">₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}</span>
                         </div>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => setPaymentAmount(targetAutoFill)}
+                        onClick={() => setPaymentAmount(targetAutoFill > 0 ? targetAutoFill : occupantState.rentAmount)}
                         className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer mt-1"
                       >
-                        ⚡ Auto-Fill {isSecondInstallment ? "Remaining" : "Suggested"} Amount (₹{targetAutoFill.toLocaleString("en-IN")})
+                        ⚡ Auto-Fill Balance Due (₹{(targetAutoFill > 0 ? targetAutoFill : occupantState.rentAmount).toLocaleString("en-IN")})
                       </button>
                     </div>
                   );

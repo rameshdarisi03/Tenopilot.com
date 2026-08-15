@@ -220,12 +220,22 @@ export async function executeFastTrackBatchIngest(
     currentStructure.forEach((floor) => {
       floor.rooms.forEach((room) => {
         room.beds.forEach((bed) => {
-          const matchingOcc = newOccupants.find(
-            (o) => o.roomNumber.toUpperCase() === room.roomNumber.toUpperCase() && o.bedCode.toUpperCase() === bed.bedCode.toUpperCase()
+          const matchingOcc = mergedOccupants.find(
+            (o) =>
+              o.roomNumber.toUpperCase() === room.roomNumber.toUpperCase() &&
+              o.bedCode.toUpperCase() === bed.bedCode.toUpperCase() &&
+              o.lifecycleStatus !== "Past"
           );
           if (matchingOcc) {
-            bed.status = "Occupied";
+            bed.status = matchingOcc.lifecycleStatus === "Notice" ? "Vacating" : matchingOcc.stayType === "Guest" ? "Guest" : "Occupied";
             bed.occupant = matchingOcc;
+            structureUpdated = true;
+          } else {
+            // Explicitly ensure vacant / unassigned beds are Available
+            bed.status = "Available";
+            bed.occupant = undefined;
+            bed.vacatingDate = undefined;
+            bed.guestCheckoutDate = undefined;
             structureUpdated = true;
           }
         });

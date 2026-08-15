@@ -138,11 +138,26 @@ export default function PropertyMapPage({
     propertyGrid.forEach((floor) => {
       floor.rooms.forEach((room) => {
         room.beds.forEach((bed) => {
-          if (bed.status === "Available") available++;
-          if (bed.status === "Occupied") occupied++;
-          if (bed.status === "Vacating") vacating++;
-          if (bed.status === "Booked") booked++;
-          if (bed.status === "Guest") guest++;
+          const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
+          const primaryOcc = timeline.activeOccupant || (bed.occupant && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
+          const nextOcc = timeline.nextBooking;
+
+          const effectiveStatus = primaryOcc
+            ? primaryOcc.lifecycleStatus === "Notice"
+              ? "Vacating"
+              : primaryOcc.stayType === "Guest"
+              ? "Guest"
+              : "Occupied"
+            : nextOcc
+            ? "Booked"
+            : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
+
+          if (effectiveStatus === "Available") available++;
+          else if (effectiveStatus === "Occupied") occupied++;
+          else if (effectiveStatus === "Vacating") vacating++;
+          else if (effectiveStatus === "Booked") booked++;
+          else if (effectiveStatus === "Guest") guest++;
+          else available++;
         });
       });
     });
@@ -150,7 +165,7 @@ export default function PropertyMapPage({
     const total = available + occupied + vacating + booked + guest;
 
     return { total, available, occupied, vacating, booked, guest };
-  }, [propertyGrid]);
+  }, [propertyGrid, propertyId]);
 
   // Exact SVG Donut Ring Arc Calculations (Zero grey gaps - 100% split between color arcs)
   const ringArcs = useMemo(() => {
@@ -544,8 +559,8 @@ export default function PropertyMapPage({
                           return (
                             <div className={`grid ${gridCols} gap-2.5`}>
                               {room.beds.map((bed) => {
-                                  const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed);
-                                  const primaryOcc = timeline.activeOccupant || bed.occupant;
+                                  const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
+                                  const primaryOcc = timeline.activeOccupant || (bed.occupant && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
                                   const nextOcc = timeline.nextBooking;
 
                                   let badgeStyle = "";
@@ -558,7 +573,9 @@ export default function PropertyMapPage({
                                       : primaryOcc.stayType === "Guest"
                                       ? "Guest"
                                       : "Occupied"
-                                    : bed.status;
+                                    : nextOcc
+                                    ? "Booked"
+                                    : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
 
                                   const isGuestBed = effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest";
                                   const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "08 Aug 2026";
@@ -598,10 +615,14 @@ export default function PropertyMapPage({
                                     badgeStyle =
                                       "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
                                     statusLabel = "Booked";
-                                  } else {
+                                  } else if (primaryOcc) {
                                     badgeStyle =
                                       "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
-                                    statusLabel = "Occupied";
+                                    statusLabel = primaryOcc.name;
+                                  } else {
+                                    badgeStyle =
+                                      "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
+                                    statusLabel = "Available";
                                   }
 
                                   return (

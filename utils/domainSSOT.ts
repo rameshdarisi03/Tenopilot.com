@@ -276,6 +276,8 @@ export interface FinancialStatementSummary {
   totalPaid: number;
   totalRentPaid: number;
   totalDepositPaid: number;
+  remainingRentDue: number;
+  remainingDepositDue: number;
   netOutstandingBalance: number;
   isFullyPaid: boolean;
   isPartialPaid: boolean;
@@ -348,6 +350,8 @@ export function calculateOccupantFinancialStatement(
       totalPaid,
       totalRentPaid: Math.min(totalPaid, stayTariff),
       totalDepositPaid: Math.max(0, totalPaid - stayTariff),
+      remainingRentDue: isFullyPaid ? 0 : Math.max(0, stayTariff - totalPaid),
+      remainingDepositDue: isDepositCleared ? 0 : securityDepositRequired,
       netOutstandingBalance,
       isFullyPaid,
       isPartialPaid,
@@ -436,6 +440,8 @@ export function calculateOccupantFinancialStatement(
     totalPaid,
     totalRentPaid: effectiveRentPaid,
     totalDepositPaid: effectiveDepositPaid,
+    remainingRentDue,
+    remainingDepositDue,
     netOutstandingBalance,
     isFullyPaid,
     isPartialPaid,
@@ -460,9 +466,10 @@ export interface BedOccupantsTimeline {
 export function getBedOccupantsTimeline(
   roomNumber: string,
   bedCode: string,
-  bed: BedSlotConfig
+  bed: BedSlotConfig,
+  propertyId?: string
 ): BedOccupantsTimeline {
-  const allOccupants = occupantStore.getOccupants();
+  const allOccupants = propertyId ? occupantStore.getOccupants(propertyId) : (occupantStore.getOccupants() || []);
   const matching = allOccupants.filter(
     (occ) =>
       occ.roomNumber.toLowerCase() === roomNumber.toLowerCase() &&
@@ -473,7 +480,7 @@ export function getBedOccupantsTimeline(
   // 1. Primary Active or Notice Resident physically living in bed right now
   const activeOccupant =
     matching.find((occ) => occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") ||
-    (bed.occupant?.lifecycleStatus !== "Booked" ? bed.occupant : undefined);
+    (bed.occupant && bed.occupant.lifecycleStatus !== "Booked" && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
 
   // 2. Chronological list of upcoming pre-booked reservations
   const bookedList = matching
