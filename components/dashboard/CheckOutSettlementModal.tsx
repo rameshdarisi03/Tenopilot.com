@@ -40,7 +40,7 @@ export function CheckOutSettlementModal({
   const [roomInspected, setRoomInspected] = useState(true);
 
   // Step 2: Financial Settlement Calculator State
-  const initialDeposit = occupant.securityDeposit || 25000;
+  const initialDeposit = occupant.securityDeposit !== undefined ? occupant.securityDeposit : (occupant.rentAmount ? occupant.rentAmount * 2 : 0);
   const [unpaidRentDues, setUnpaidRentDues] = useState<number>(0);
   const [repairDeductions, setRepairDeductions] = useState<number>(0);
   const [maintenanceExpenses, setMaintenanceExpenses] = useState<number>(0); // Cleaning, painting fees

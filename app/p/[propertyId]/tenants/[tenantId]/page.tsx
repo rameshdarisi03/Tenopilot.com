@@ -223,6 +223,7 @@ export default function IndividualTenantProfilePage({
   const [editPhone, setEditPhone] = useState<string>(occupantState?.phone || "");
   const [editEmail, setEditEmail] = useState<string>(occupantState?.email || "");
   const [editRent, setEditRent] = useState<number>(occupantState?.rentAmount || 0);
+  const [editDeposit, setEditDeposit] = useState<number>(occupantState?.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState?.rentAmount ? occupantState.rentAmount * 2 : 0));
 
   // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -944,17 +945,18 @@ export default function IndividualTenantProfilePage({
     setShowGuestStayManagementModal(false);
   };
 
-  // 3. Edit Profile Submit Handler (Updates Name, Phone, Email, Rent across state)
+  // 3. Edit Profile Submit Handler (Updates Name, Phone, Email, Rent, Deposit across state)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
 
     const updated: Occupant = {
       ...occupantState,
-      name: editName,
-      phone: editPhone,
-      email: editEmail,
+      name: editName.trim(),
+      phone: editPhone.trim(),
+      email: editEmail.trim(),
       rentAmount: editRent,
+      securityDeposit: editDeposit,
     };
 
     setOccupantState(updated);
@@ -1130,7 +1132,7 @@ export default function IndividualTenantProfilePage({
               </div>
             </div>
 
-            {/* 4 Quick Action Buttons */}
+            {/* Quick Action Buttons */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full md:w-auto">
               {/* 1. Edit Profile */}
               <button
@@ -1139,14 +1141,15 @@ export default function IndividualTenantProfilePage({
                   setEditPhone(occupantState.phone);
                   setEditEmail(occupantState.email);
                   setEditRent(occupantState.rentAmount);
+                  setEditDeposit(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
                   setShowEditProfileModal(true);
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all cursor-pointer"
               >
                 <Edit className="w-4 h-4 text-[#c2652a]" /> Edit Profile
               </button>
 
-              {/* 2. Collect Rent (Disabled for Past Tenants) */}
+              {/* 2. Collect Rent / Advance (Disabled for Past Tenants) */}
               <button
                 disabled={occupantState.lifecycleStatus === "Past"}
                 onClick={() => {
@@ -1156,19 +1159,19 @@ export default function IndividualTenantProfilePage({
                 }}
                 className="flex items-center justify-center gap-2 py-2.5 px-4 bg-[#c2652a] hover:bg-[#c2652a]/90 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                <CreditCard className="w-4 h-4" /> Collect Rent
+                <CreditCard className="w-4 h-4" /> {occupantState.lifecycleStatus === "Booked" ? "Collect Advance" : "Collect Rent"}
               </button>
 
               {/* 3. Transfer Room (Disabled for Past Tenants) */}
               <button
                 disabled={occupantState.lifecycleStatus === "Past"}
                 onClick={() => setShowTransferModal(true)}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ArrowRightLeft className="w-4 h-4 text-[#c2652a]" /> Transfer Room
               </button>
 
-              {/* 4. Log Notice vs Manage Notice (Disabled for Past Tenants) */}
+              {/* 4. Log Notice vs Manage Notice (Disabled for Booked & Past Tenants) */}
               {occupantState.lifecycleStatus === "Notice" ? (
                 <button
                   onClick={() => setShowManageNoticeModal(true)}
@@ -1178,20 +1181,41 @@ export default function IndividualTenantProfilePage({
                 </button>
               ) : (
                 <button
-                  disabled={occupantState.lifecycleStatus === "Past"}
+                  disabled={occupantState.lifecycleStatus === "Past" || occupantState.lifecycleStatus === "Booked"}
+                  title={occupantState.lifecycleStatus === "Booked" ? "Move-out notice cannot be logged for Booked tenants before move-in" : undefined}
                   onClick={() => setShowLogNoticeModal(true)}
-                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
                 </button>
               )}
 
-              {/* 🔑 5. Formal Check-Out & Deposit Settlement (Rendered for Active, Notice, Guest, Booked) */}
-              {occupantState.lifecycleStatus !== "Past" ? (
+              {/* Row 2: Balanced Side-by-Side Clean Layout */}
+              {occupantState.lifecycleStatus === "Booked" ? (
+                <>
+                  {/* 5. Edit Check-In Date (Reschedule Move-In) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowEditCheckInModal(true)}
+                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4" /> 📅 Edit Check-In Date (Reschedule)
+                  </button>
+
+                  {/* 6. Formal Check-Out & Deposit Settlement (Cancel Booking) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCheckOutModal(true)}
+                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    🔑 Check-Out / Cancel Booking
+                  </button>
+                </>
+              ) : occupantState.lifecycleStatus !== "Past" ? (
                 <button
                   type="button"
                   onClick={() => setShowCheckOutModal(true)}
-                  className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
                 >
                   🔑 Formal Check-Out & Deposit Settlement
                 </button>
@@ -1209,19 +1233,9 @@ export default function IndividualTenantProfilePage({
                       window.location.href = `/p/${propertyId}/tenants`;
                     }
                   }}
-                  className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4 text-rose-200" /> 🗑️ Delete Past Tenant Record
-                </button>
-              )}
-
-              {/* 6. Edit Check-In Date (Only rendered for Booked profiles) */}
-              {occupantState.lifecycleStatus === "Booked" && (
-                <button
-                  onClick={() => setShowEditCheckInModal(true)}
-                  className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
-                >
-                  <Clock className="w-4 h-4" /> 📅 Edit Check-In Date (Reschedule Move-In)
                 </button>
               )}
             </div>
@@ -1294,7 +1308,7 @@ export default function IndividualTenantProfilePage({
                 Security Deposit
               </p>
               <p className="text-2xl font-bold font-serif text-gray-900">
-                ₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}
+                ₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}
               </p>
               <p className="text-[10px] text-gray-500 font-bold mt-1.5 flex items-center gap-1">
                 STATUS:{" "}
@@ -1402,6 +1416,12 @@ export default function IndividualTenantProfilePage({
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Security Deposit</span>
+                    <span className="font-mono font-bold text-gray-900">
+                      ₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-500 font-medium">Last Paid Date</span>
                     <span className="font-semibold text-gray-900">
                       {occupantState.lastPaidDate}
@@ -1442,11 +1462,11 @@ export default function IndividualTenantProfilePage({
                   <div className="space-y-1 text-[11px] font-mono text-purple-900">
                     <div className="flex justify-between">
                       <span>Initial Deposit Intake:</span>
-                      <span className="font-bold">₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
+                      <span className="font-bold">₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between text-emerald-800 font-bold border-t border-purple-200/60 pt-1">
                       <span>Net Amount Refunded:</span>
-                      <span>₹{(occupantState.securityDeposit || 25000).toLocaleString("en-IN")}</span>
+                      <span>₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}</span>
                     </div>
                     <div className="text-[10px] opacity-80 pt-1 font-sans">
                       Checked Out: {occupantState.vacatingDate || "09 Aug 2026"} • Status: Settled & Closed
@@ -2943,6 +2963,19 @@ export default function IndividualTenantProfilePage({
                     required
                     value={editRent}
                     onChange={(e) => setEditRent(Number(e.target.value))}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Security Deposit (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={editDeposit}
+                    onChange={(e) => setEditDeposit(Number(e.target.value))}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>

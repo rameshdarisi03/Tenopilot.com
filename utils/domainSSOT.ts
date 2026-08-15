@@ -372,7 +372,7 @@ export function calculateOccupantFinancialStatement(
   // ---------------------------------------------------------------------------
   const proRataRent = calculateProRataRent(occupant.rentAmount || 0, occupant.joiningDate).proRataAmount;
   const securityDepositRequired =
-    occupant.securityDeposit !== undefined ? occupant.securityDeposit : 25000;
+    occupant.securityDeposit !== undefined ? occupant.securityDeposit : (occupant.rentAmount ? occupant.rentAmount * 2 : 0);
   const priorArrears = occupant.arrearsBalance || 0;
 
   // Separate deposit receipts from rent receipts in history
