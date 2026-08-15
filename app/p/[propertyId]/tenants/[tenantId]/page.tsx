@@ -174,10 +174,12 @@ export default function IndividualTenantProfilePage({
   const [extendPaymentOption, setExtendPaymentOption] = useState<"COLLECT_NOW" | "ADD_TO_DUE">("COLLECT_NOW");
   const [extendPaymentMode, setExtendPaymentMode] = useState<string>("UPI");
 
-  // Tab 2: Guest Checkout Inputs
+  // Tab 2: Guest Checkout Inputs & Early Departure Settle
   const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>("2026-08-01");
   const [guestRefundKeyDeposit, setGuestRefundKeyDeposit] = useState<boolean>(true);
   const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
+  const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE" | "CUSTOM">("PRO_RATA_REFUND");
+  const [customFinalTariff, setCustomFinalTariff] = useState<number>(0);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
@@ -735,8 +737,44 @@ export default function IndividualTenantProfilePage({
       const stayDurationDays = Math.max(1, Math.round((new Date(currentCheckout).getTime() - new Date(occupantState.joiningDate).getTime()) / (1000 * 60 * 60 * 24)));
       const calculatedDaily = Math.round((occupantState.rentAmount || 1000) / stayDurationDays) || 500;
       setCustomDailyRate(calculatedDaily);
+      setCustomFinalTariff(occupantState.rentAmount || 1000);
+      setEarlyDeparturePolicy("PRO_RATA_REFUND");
     }
   }, [showGuestStayManagementModal, occupantState]);
+
+  // Early Departure Real-Time Calculation Helper
+  const earlyDepartureAnalysis = useMemo(() => {
+    if (!occupantState || !guestCheckoutDate) return null;
+    const scheduledCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
+    if (!scheduledCheckout) return null;
+
+    const checkInMs = new Date(occupantState.joiningDate).getTime();
+    const scheduledMs = new Date(scheduledCheckout).getTime();
+    const actualMs = new Date(guestCheckoutDate).getTime();
+
+    const totalOriginalDays = Math.max(1, Math.round((scheduledMs - checkInMs) / (1000 * 60 * 60 * 24)));
+    const actualDaysElapsed = Math.max(1, Math.round((actualMs - checkInMs) / (1000 * 60 * 60 * 24)));
+
+    const isEarly = actualMs < scheduledMs && actualDaysElapsed < totalOriginalDays;
+    const unusedDays = Math.max(0, totalOriginalDays - actualDaysElapsed);
+
+    const totalOriginalRent = occupantState.rentAmount || 1000;
+    const effectiveDailyRate = Math.round(totalOriginalRent / totalOriginalDays) || 500;
+    const recalculatedProRataTariff = actualDaysElapsed * effectiveDailyRate;
+    const unusedTariffAmount = Math.max(0, totalOriginalRent - recalculatedProRataTariff);
+
+    return {
+      isEarly,
+      totalOriginalDays,
+      actualDaysElapsed,
+      unusedDays,
+      totalOriginalRent,
+      effectiveDailyRate,
+      recalculatedProRataTariff,
+      unusedTariffAmount,
+      scheduledCheckout,
+    };
+  }, [occupantState, guestCheckoutDate]);
 
   // 2a. Guest Stay Extension Submit Handler (With Conflict Guard & Payment Reflection)
   const handleGuestStayExtensionSubmit = (e: React.FormEvent) => {
@@ -812,15 +850,48 @@ export default function IndividualTenantProfilePage({
     setShowGuestStayManagementModal(false);
   };
 
-  // 2b. Guest Checkout & Bed Clearance Submit Handler (DDS-13 Dynamic Cascading Matrix Compliance!)
+  // 2b. Guest Checkout & Bed Clearance Submit Handler (With Smart Early Departure Pro-Rata Settle)
   const handleGuestCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
+
+    const stmt = calculateOccupantFinancialStatement(occupantState);
+    const analysis = earlyDepartureAnalysis;
+
+    let finalTariff = occupantState.rentAmount || 1000;
+    if (analysis && analysis.isEarly) {
+      if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
+        finalTariff = analysis.recalculatedProRataTariff;
+      } else if (earlyDeparturePolicy === "CUSTOM") {
+        finalTariff = customFinalTariff > 0 ? customFinalTariff : analysis.recalculatedProRataTariff;
+      } else {
+        finalTariff = analysis.totalOriginalRent;
+      }
+    }
+
+    const netTariffDifference = (occupantState.rentAmount || 1000) - finalTariff;
+    const newPaymentHistory = [...(occupantState.paymentHistory || [])];
+
+    // If pro-rata reduced the bill and payments were already collected, log an official early checkout adjustment
+    if (netTariffDifference > 0 && stmt.totalPaid >= finalTariff) {
+      newPaymentHistory.push({
+        id: `pay_early_refund_${Date.now()}`,
+        month: `Early Departure Pro-Rata Adjustment (${analysis?.unusedDays || 0} Unused Days)`,
+        date: guestCheckoutDate,
+        amount: -netTariffDifference,
+        mode: "UPI",
+        receiptNo: `REF-EARLY-${Date.now().toString().slice(-4)}`,
+        status: "PAID",
+      });
+    }
 
     const updatedGuest: Occupant = {
       ...occupantState,
       lifecycleStatus: "Past",
       vacatingDate: guestCheckoutDate,
+      rentAmount: finalTariff,
+      paymentHistory: newPaymentHistory,
+      paymentStatus: stmt.totalPaid >= finalTariff ? "Paid" : "Due",
     };
 
     setOccupantState(updatedGuest);
@@ -848,9 +919,16 @@ export default function IndividualTenantProfilePage({
     }));
     propertyStore.updateStructure(updatedStructure, propertyId);
 
-    triggerToast(
-      `🏁 Guest Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & available 🟢`
-    );
+    const summaryMsg =
+      analysis?.isEarly && netTariffDifference > 0
+        ? `🏁 Guest ${occupantState.name} checked out ${analysis.unusedDays} days early! Pro-rata tariff adjusted to ₹${finalTariff.toLocaleString(
+            "en-IN"
+          )} (Refunded ₹${netTariffDifference.toLocaleString("en-IN")} unused tariff). Bed ${occupantState.roomNumber} (${
+            occupantState.bedCode
+          }) is now Available 🟢`
+        : `🏁 Guest Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & Available 🟢`;
+
+    triggerToast(summaryMsg);
     setShowGuestStayManagementModal(false);
   };
 
@@ -2252,30 +2330,8 @@ export default function IndividualTenantProfilePage({
               {/* TAB 2: GUEST CHECKOUT */}
               {guestStayModalTab === "CHECKOUT" && (
                 <form onSubmit={handleGuestCheckoutSubmit} className="space-y-4 pt-1">
-                  {/* Settlement Overview Audit */}
-                  {(() => {
-                    const stmt = calculateOccupantFinancialStatement(occupantState);
-
-                    return (
-                      <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500 font-semibold">Total Stay Tariff Package:</span>
-                          <span className="font-bold text-gray-900 font-mono">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500 font-semibold">Total Payments Collected:</span>
-                          <span className="font-bold text-emerald-700 font-mono">₹{stmt.totalPaid.toLocaleString("en-IN")} 🟢</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
-                          <span className="font-bold text-gray-700">Outstanding Balance:</span>
-                          <span className={`font-bold font-mono ${stmt.remainingRentDue > 0 ? "text-red-600" : "text-emerald-700"}`}>
-                            ₹{stmt.remainingRentDue.toLocaleString("en-IN")} {stmt.remainingRentDue > 0 ? "🔴 (DUE)" : "🟢 (CLEARED)"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
+                  
+                  {/* Actual Checkout Date Picker */}
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
                       Actual Checkout Date *
@@ -2284,13 +2340,162 @@ export default function IndividualTenantProfilePage({
                       type="date"
                       required
                       value={guestCheckoutDate}
-                      onChange={(e) => setGuestCheckoutDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-red-500"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setGuestCheckoutDate(val);
+                        if (occupantState) {
+                          const scheduledCheckout = occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate;
+                          const checkInMs = new Date(occupantState.joiningDate).getTime();
+                          const actualMs = new Date(val).getTime();
+                          const schedMs = new Date(scheduledCheckout).getTime();
+                          const totalOrig = Math.max(1, Math.round((schedMs - checkInMs) / (1000 * 60 * 60 * 24)));
+                          const actualDays = Math.max(1, Math.round((actualMs - checkInMs) / (1000 * 60 * 60 * 24)));
+                          const daily = Math.round((occupantState.rentAmount || 1000) / totalOrig) || 500;
+                          setCustomFinalTariff(actualDays * daily);
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-2 focus:ring-red-500"
                     />
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Defaults to scheduled checkout date. Change if guest vacates early or late.
+                      Scheduled Checkout was: {formatIsoToDisplayDate(occupantState.vacatingDate || occupantState.dueDate || occupantState.joiningDate)}
                     </p>
                   </div>
+
+                  {/* ⚡ EARLY DEPARTURE SMART ASSISTANT BANNER */}
+                  {earlyDepartureAnalysis && earlyDepartureAnalysis.isEarly && (
+                    <div className="p-4 bg-amber-50/90 border border-amber-300 rounded-2xl space-y-3 animate-in fade-in text-xs">
+                      <div className="flex items-start gap-2.5">
+                        <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-amber-950 flex items-center gap-1.5">
+                            <span>⚡ Early Departure Detected ({earlyDepartureAnalysis.unusedDays} Days Early)</span>
+                          </p>
+                          <p className="text-[11px] text-amber-800 mt-0.5">
+                            Guest stayed <strong>{earlyDepartureAnalysis.actualDaysElapsed} of {earlyDepartureAnalysis.totalOriginalDays} booked days</strong>. Unused stay value is <strong>₹{earlyDepartureAnalysis.unusedTariffAmount.toLocaleString("en-IN")}</strong>.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Policy Radio Options */}
+                      <div className="pt-2 border-t border-amber-200/80 space-y-2 font-semibold text-gray-800">
+                        <span className="text-[10px] uppercase font-extrabold text-amber-900 block">Choose Settlement Policy:</span>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-[11px]">
+                          <input
+                            type="radio"
+                            name="earlyDeparturePolicy"
+                            checked={earlyDeparturePolicy === "PRO_RATA_REFUND"}
+                            onChange={() => setEarlyDeparturePolicy("PRO_RATA_REFUND")}
+                            className="text-amber-600 focus:ring-amber-500"
+                          />
+                          <span>
+                            <strong>Recalculate Pro-Rata (Fair Policy):</strong> Bill for {earlyDepartureAnalysis.actualDaysElapsed} days (<strong>₹{earlyDepartureAnalysis.recalculatedProRataTariff.toLocaleString("en-IN")}</strong>) & refund <strong>₹{earlyDepartureAnalysis.unusedTariffAmount.toLocaleString("en-IN")}</strong> unused stay 🟢
+                          </span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-[11px]">
+                          <input
+                            type="radio"
+                            name="earlyDeparturePolicy"
+                            checked={earlyDeparturePolicy === "RETAIN_PACKAGE"}
+                            onChange={() => setEarlyDeparturePolicy("RETAIN_PACKAGE")}
+                            className="text-amber-600 focus:ring-amber-500"
+                          />
+                          <span>
+                            <strong>Retain Original Package (Non-Refundable Policy):</strong> Charge full ₹{earlyDepartureAnalysis.totalOriginalRent.toLocaleString("en-IN")} ⚪
+                          </span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-[11px]">
+                          <input
+                            type="radio"
+                            name="earlyDeparturePolicy"
+                            checked={earlyDeparturePolicy === "CUSTOM"}
+                            onChange={() => setEarlyDeparturePolicy("CUSTOM")}
+                            className="text-amber-600 focus:ring-amber-500"
+                          />
+                          <span>
+                            <strong>Custom Adjusted Final Bill:</strong> Specify final stay tariff amount ✏️
+                          </span>
+                        </label>
+
+                        {earlyDeparturePolicy === "CUSTOM" && (
+                          <div className="ml-6 flex items-center gap-2 pt-1">
+                            <span className="text-[11px] text-gray-600 font-bold">Custom Final Tariff:</span>
+                            <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-lg px-2 py-1">
+                              <span className="text-gray-400 font-mono">₹</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={customFinalTariff}
+                                onChange={(e) => setCustomFinalTariff(Number(e.target.value))}
+                                className="w-24 font-bold text-gray-900 border-0 p-0 focus:ring-0 text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dynamic Settlement Audit Card */}
+                  {(() => {
+                    const stmt = calculateOccupantFinancialStatement(occupantState);
+                    const analysis = earlyDepartureAnalysis;
+
+                    let finalStayTariff = stmt.proRataRent;
+                    if (analysis && analysis.isEarly) {
+                      if (earlyDeparturePolicy === "PRO_RATA_REFUND") {
+                        finalStayTariff = analysis.recalculatedProRataTariff;
+                      } else if (earlyDeparturePolicy === "CUSTOM") {
+                        finalStayTariff = customFinalTariff;
+                      } else {
+                        finalStayTariff = analysis.totalOriginalRent;
+                      }
+                    }
+
+                    const netTariffDifference = stmt.totalPaid - finalStayTariff;
+                    const depositHeld = occupantState.securityDeposit || 1000;
+                    const totalRefundToGuest = (netTariffDifference > 0 ? netTariffDifference : 0) + (guestRefundKeyDeposit ? depositHeld : 0);
+
+                    return (
+                      <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-semibold">Final Adjusted Stay Tariff:</span>
+                          <span className="font-bold text-gray-900 font-mono">₹{finalStayTariff.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-semibold">Total Payments Collected:</span>
+                          <span className="font-bold text-emerald-700 font-mono">₹{stmt.totalPaid.toLocaleString("en-IN")} 🟢</span>
+                        </div>
+                        
+                        {netTariffDifference > 0 ? (
+                          <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+                            <span>Unused Stay Tariff Refund:</span>
+                            <span className="font-mono text-sm font-extrabold">+₹{netTariffDifference.toLocaleString("en-IN")} (Refund to Guest) 🟢</span>
+                          </div>
+                        ) : netTariffDifference < 0 ? (
+                          <div className="flex justify-between items-center text-red-800 font-bold bg-red-50 p-2 rounded-xl border border-red-200">
+                            <span>Remaining Stay Tariff Due:</span>
+                            <span className="font-mono text-sm font-extrabold">₹{Math.abs(netTariffDifference).toLocaleString("en-IN")} (Collect from Guest) 🔴</span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-center text-gray-600 font-semibold pt-1 border-t border-gray-200">
+                            <span>Stay Tariff Balance:</span>
+                            <span className="font-mono font-bold text-emerald-700">₹0 (Fully Cleared) 🟢</span>
+                          </div>
+                        )}
+
+                        {/* Net Final Cash Handover Summary */}
+                        {totalRefundToGuest > 0 && (
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-200 text-xs font-bold text-purple-950">
+                            <span>Total Net Refund to Guest (Tariff + Deposit):</span>
+                            <span className="font-mono text-sm font-extrabold text-purple-700">₹{totalRefundToGuest.toLocaleString("en-IN")} 💵</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Security Deposit Refund Handover Box */}
                   <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-200 space-y-2">
@@ -2319,7 +2524,7 @@ export default function IndividualTenantProfilePage({
                       rows={2}
                       value={guestCheckoutNotes}
                       onChange={(e) => setGuestCheckoutNotes(e.target.value)}
-                      placeholder="e.g. Room inspected, key returned, no damages found..."
+                      placeholder="e.g. Early checkout due to emergency, room inspected, key returned, no damages..."
                       className="w-full p-2.5 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-red-500"
                     ></textarea>
                   </div>
