@@ -26,6 +26,7 @@ import {
   Plus,
   Save,
   Filter,
+  ImageIcon,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -67,7 +68,8 @@ export function FastTrackImportModal({
   // Camera / Ledger images
   const [selectedImages, setSelectedImages] = useState<{ name: string; base64: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraDirectRef = useRef<HTMLInputElement>(null);
 
   // Drag & drop state
   const [isDraggingSheet, setIsDraggingSheet] = useState(false);
@@ -108,6 +110,7 @@ export function FastTrackImportModal({
   const [isDraggingAppendCamera, setIsDraggingAppendCamera] = useState<boolean>(false);
   const [isDraggingAppendSheet, setIsDraggingAppendSheet] = useState<boolean>(false);
   const [appendSuccessNotice, setAppendSuccessNotice] = useState<string | null>(null);
+  const appendGalleryInputRef = useRef<HTMLInputElement>(null);
   const appendCameraInputRef = useRef<HTMLInputElement>(null);
   const appendSheetInputRef = useRef<HTMLInputElement>(null);
 
@@ -1183,25 +1186,46 @@ Priya Verma    9855667788   Room 201   22000"
                     </p>
                   </div>
 
+                  {/* Native OS Gallery & Media Picker (Triggers Android/iOS System Sheet with Gallery, Photos & Files) */}
                   <input
                     type="file"
-                    ref={cameraInputRef}
+                    ref={galleryInputRef}
                     accept="image/*"
                     multiple
-                    capture="environment"
                     onChange={handleImageCapture}
                     className="hidden"
                   />
 
-                  <div className="flex items-center justify-center gap-3 pt-2">
+                  {/* Direct Hardware Camera Viewfinder (Forces Direct Snap) */}
+                  <input
+                    type="file"
+                    ref={cameraDirectRef}
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    onChange={handleImageCapture}
+                    className="hidden"
+                  />
+
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      Choose from Gallery / Photos
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => cameraDirectRef.current?.click()}
+                      className="px-4 py-2.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-98"
                     >
                       <Camera className="w-4 h-4" />
-                      Take / Choose Photo
+                      Take Photo with Camera
                     </button>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -1553,7 +1577,25 @@ Priya Verma    9855667788   Room 201   22000"
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Native OS Gallery & Media Picker for Append */}
+                        <input
+                          type="file"
+                          ref={appendGalleryInputRef}
+                          accept="image/*"
+                          multiple
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files) return;
+                            for (const f of Array.from(files)) {
+                              const opt = await compressImageForAi(f);
+                              if (opt.base64) setAppendImages((prev) => [...prev, opt]);
+                            }
+                          }}
+                          className="hidden"
+                        />
+
+                        {/* Direct Hardware Camera for Append */}
                         <input
                           type="file"
                           ref={appendCameraInputRef}
@@ -1570,13 +1612,22 @@ Priya Verma    9855667788   Room 201   22000"
                           }}
                           className="hidden"
                         />
+
+                        <button
+                          type="button"
+                          onClick={() => appendGalleryInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-98"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          Choose from Gallery
+                        </button>
                         <button
                           type="button"
                           onClick={() => appendCameraInputRef.current?.click()}
-                          className="px-3.5 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+                          className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-98"
                         >
                           <Camera className="w-4 h-4" />
-                          Choose Photo
+                          Take Photo
                         </button>
                         <button
                           type="button"
