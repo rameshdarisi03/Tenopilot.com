@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Lock,
   Mail,
@@ -13,10 +14,10 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
-  ShieldCheck,
+  Phone,
+  Clock,
   RefreshCw,
   LogOut,
-  Clock,
 } from "lucide-react";
 import {
   loginWithGoogle,
@@ -26,8 +27,9 @@ import {
   getCleanAuthErrorMessage,
 } from "@/lib/authService";
 import { useAuth } from "@/providers/AuthProvider";
+import { staffStore } from "@/lib/staffStore";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
-import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+import { CompactPwaInstallCard } from "@/components/pwa/CompactPwaInstallCard";
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -36,8 +38,10 @@ function SignUpPageContent() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [securityPin, setSecurityPin] = useState("123456");
   const [showPassword, setShowPassword] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(true);
 
@@ -51,7 +55,7 @@ function SignUpPageContent() {
   const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
   const isGatekeeperActive = verificationSent || isEmailUnverified || searchParams?.get("verify") === "true";
 
-  // Auto-polling Engine: Every 3.5s check if user clicked the email verification link
+  // Auto-polling Engine: Every 3.5s check if user clicked email verification link
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (user && !user.emailVerified && !isGoogleUser) {
@@ -61,8 +65,8 @@ function SignUpPageContent() {
           if (user.emailVerified) {
             router.push("/home");
           }
-        } catch (e) {
-          // Silent polling error handling
+        } catch {
+          // Silent polling
         }
       }, 3500);
     }
@@ -91,7 +95,12 @@ function SignUpPageContent() {
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match. Please verify your password entry.");
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (securityPin.length !== 6) {
+      setError("Please set a 6-digit security PIN.");
       return;
     }
 
@@ -99,6 +108,38 @@ function SignUpPageContent() {
 
     try {
       await registerWithEmailPassword(email, password, fullName);
+
+      // Register master admin staff record
+      staffStore.addGlobalStaff({
+        id: `staff-master-${Date.now()}`,
+        name: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim() || "+91 98000 00000",
+        role: "master_admin",
+        assignedPropertyId: "sunshine-pg",
+        assignedPropertyIds: ["*"],
+        propertyName: "All Properties",
+        status: "Active",
+        joinedDate: new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        securityPin: securityPin || "123456",
+      });
+
+      // Save local device session
+      localStorage.setItem(
+        "tenopilot_saved_session",
+        JSON.stringify({
+          email: email.trim().toLowerCase(),
+          name: fullName.trim(),
+          role: "master_admin",
+          propertyName: "All Properties",
+        })
+      );
+      staffStore.setActiveRole("master_admin");
+
       setVerificationSent(true);
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
@@ -112,348 +153,338 @@ function SignUpPageContent() {
     setIsLoading(true);
     try {
       await loginWithGoogle();
+      staffStore.setActiveRole("master_admin");
       router.push("/home");
     } catch (err: any) {
-      console.error("Google Sign-Up Error:", err);
       setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleManualCheckVerification = async () => {
-    if (!user) return;
-    setIsVerifyingStatus(true);
+  const handleResendVerification = async () => {
     setResendStatus(null);
-
     try {
-      await user.reload();
-      if (user.emailVerified) {
-        setResendStatus("✅ Email verified! Redirecting to your dashboard...");
-        setTimeout(() => {
-          router.push("/home");
-        }, 1000);
-      } else {
-        setResendStatus("⚠️ Email not verified yet. Please click the link sent to your inbox.");
-      }
+      await sendUserEmailVerification();
+      setResendStatus("Verification email sent! Check your inbox.");
     } catch (err: any) {
       setResendStatus(getCleanAuthErrorMessage(err));
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    setIsVerifyingStatus(true);
+    try {
+      if (user) {
+        await user.reload();
+        if (user.emailVerified) {
+          router.push("/home");
+        } else {
+          setError("Email not verified yet. Please check your inbox or spam folder.");
+        }
+      }
+    } catch {
+      setError("Failed to check status. Try again.");
     } finally {
       setIsVerifyingStatus(false);
     }
   };
 
-  const handleResendVerification = async () => {
-    setResendStatus("Sending verification link...");
-    try {
-      await sendUserEmailVerification();
-      setResendStatus("✉️ Fresh verification email sent! Please check your inbox & spam folder.");
-    } catch (err: any) {
-      setResendStatus(getCleanAuthErrorMessage(err));
-    }
-  };
-
-  const handleLogoutAndReset = async () => {
-    await logoutUser();
-    setVerificationSent(false);
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-    router.push("/signup");
-  };
-
-  const targetEmail = email || user?.email || "your email";
-
   return (
-    <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
-      {/* Background Subtle Gradient Blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-[#f8ede3]/60 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-[#f8ede3]/40 blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-[#140e0c] text-[#201a17] flex relative overflow-hidden font-sans">
+      
+      {/* 📱 MOBILE BACKGROUND (35% Opacity Leather Emblem Artwork + Backdrop Blur) */}
+      <div className="lg:hidden absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <Image
+          src="/tenopilot-leather-emblem.jpg"
+          alt="TenoPilot Leather Emblem"
+          fill
+          priority
+          className="object-cover object-center opacity-35 scale-105 filter blur-xs"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#140e0c]/80 via-[#140e0c]/90 to-[#140e0c]" />
+      </div>
 
-      {/* Main Centered Auth Card */}
-      <div className="w-full max-w-md bg-white rounded-3xl border border-[#d7c2b9] p-8 sm:p-10 shadow-xl shadow-[#964407]/5 relative z-10 space-y-6">
-        
-        {/* Brand Emblem Logo */}
-        <div className="flex justify-center">
-          <Link href="/" className="inline-block hover:opacity-90 transition-opacity">
-            <TenoPilotLogo size="lg" />
-          </Link>
-        </div>
+      {/* 🖥️ DESKTOP LEFT COLUMN: Full Glory Edge-to-Edge 3D Leather Emblem Artwork */}
+      <div className="hidden lg:block lg:w-1/2 relative min-h-screen bg-[#1c1513] overflow-hidden border-r border-[#3d2a22]">
+        <Image
+          src="/tenopilot-leather-emblem.jpg"
+          alt="TenoPilot 3D Leather Emblem & Keys"
+          fill
+          priority
+          className="object-cover object-center"
+        />
+      </div>
 
-        {/* 🛑 GATEKEEPER VIEW: VERIFY EMAIL ADDRESS */}
-        {isGatekeeperActive ? (
-          <div className="space-y-6 text-center animate-fadeIn">
-            {/* Animated Mail Badge */}
-            <div className="relative inline-flex items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-16 w-16 rounded-2xl bg-[#964407]/20"></span>
-              <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center relative z-10 shadow-sm border border-[#d7c2b9]">
-                <Mail className="w-8 h-8 text-[#964407]" />
-              </div>
+      {/* 🔑 RIGHT COLUMN: Ultra-Clean Magnific-Style Signup Card */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white/95 lg:bg-white min-h-screen overflow-y-auto">
+        <div className="w-full max-w-md space-y-5 my-auto">
+
+          {/* Header Logo & Title */}
+          <div className="text-center space-y-1.5">
+            <div className="inline-flex justify-center mb-1">
+              <TenoPilotLogo size="md" />
             </div>
-
-            <div className="space-y-2">
-              <h1 className="font-serif font-bold text-2xl text-[#201a17]">
-                Verify Your Email Address
-              </h1>
-              <p className="text-xs text-[#554339] leading-relaxed">
-                We sent an official activation link to:
-              </p>
-              <p className="font-mono font-bold text-sm text-[#964407] bg-[#f8ede3] py-1.5 px-3 rounded-xl border border-[#d7c2b9] inline-block">
-                {targetEmail}
-              </p>
-              <p className="text-[11px] text-[#554339]/80 pt-1">
-                Please check your inbox and click the link to activate your 10-day trial.
-              </p>
-            </div>
-
-            {/* Status Feedback Banner */}
-            {resendStatus && (
-              <div className="p-3.5 rounded-2xl bg-[#f8ede3] border border-[#d7c2b9] text-xs font-semibold text-[#964407] animate-fadeIn">
-                {resendStatus}
-              </div>
-            )}
-
-            {/* Gatekeeper Actions */}
-            <div className="space-y-3 pt-2">
-              <button
-                type="button"
-                onClick={handleManualCheckVerification}
-                disabled={isVerifyingStatus}
-                className="w-full py-3 px-4 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs transition-all shadow-md shadow-[#964407]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${isVerifyingStatus ? "animate-spin" : ""}`} />
-                <span>{isVerifyingStatus ? "Checking Verification..." : "I Have Verified My Email"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleResendVerification}
-                className="w-full py-2.5 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Mail className="w-3.5 h-3.5 text-[#964407]" />
-                <span>Resend Verification Email</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutAndReset}
-                className="w-full py-2 px-4 text-[11px] font-semibold text-[#554339] hover:text-red-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer pt-2"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Use Different Email / Sign Out</span>
-              </button>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 text-[10px] text-[#554339]/60 font-medium">
-              <Clock className="w-3 h-3 animate-spin" />
-              <span>Auto-detecting verification status...</span>
-            </div>
+            <h1 className="font-serif font-bold text-2xl sm:text-3xl text-[#201a17]">
+              {isGatekeeperActive ? "Verify Your Email" : "Create Master Account"}
+            </h1>
+            <p className="text-xs text-gray-500 font-medium">
+              {isGatekeeperActive
+                ? "Confirm your identity to unlock estate cloud features"
+                : "Set up your property management operating system"}
+            </p>
           </div>
-        ) : (
-          /* 📝 REGULAR SIGN-UP FORM VIEW */
-          <>
-            {/* Title Header */}
-            <div className="text-center space-y-1">
-              <h1 className="font-serif font-bold text-2xl sm:text-3xl text-[#201a17]">
-                Create an account
-              </h1>
-              <p className="text-xs text-[#554339] font-medium">
-                Start your 10-day free trial • No credit card required
-              </p>
-            </div>
 
-            {/* Error Alert Banner */}
-            {error && (
-              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2.5 animate-shake">
-                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span className="leading-snug">{error}</span>
+          {/* Gatekeeper Email Verification Screen */}
+          {isGatekeeperActive ? (
+            <div className="p-6 bg-[#fff8f6] border border-[#d7c2b9] rounded-3xl space-y-4 text-xs animate-in zoom-in-95">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-[#964407] flex items-center justify-center">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm">Action Required: Verify Email</h4>
+                  <p className="text-[11px] text-gray-500">{user?.email || email}</p>
+                </div>
               </div>
-            )}
 
-            {/* OAuth Social Buttons */}
-            <div className="space-y-3">
-              <span className="block text-[11px] font-semibold text-center text-[#554339] uppercase tracking-wider">
-                Sign up with
-              </span>
+              <p className="text-gray-600 leading-relaxed">
+                We sent a secure verification link to your email. Click the link in your inbox to instantly activate your Master Admin account.
+              </p>
 
+              {resendStatus && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 font-medium text-[11px]">
+                  {resendStatus}
+                </div>
+              )}
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCheckVerification}
+                  disabled={isVerifyingStatus}
+                  className="w-full py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isVerifyingStatus ? "animate-spin" : ""}`} />
+                  <span>I&apos;ve Verified My Email</span>
+                </button>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className="text-[11px] font-bold text-[#c2652a] hover:underline"
+                  >
+                    Resend Verification Link
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => logoutUser()}
+                    className="text-[11px] font-bold text-gray-500 hover:text-rose-600 flex items-center gap-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> Sign Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Signup Form */
+            <div className="space-y-4 animate-in fade-in">
+              {/* Google Sign In */}
               <button
                 type="button"
                 onClick={handleGoogleSignUp}
                 disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
+                className="w-full py-3 px-4 rounded-2xl border border-gray-300 hover:bg-gray-50 hover:border-gray-400 text-gray-800 font-bold text-xs flex items-center justify-center gap-3 shadow-xs transition-all cursor-pointer active:scale-98 disabled:opacity-50"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   />
                   <path
                     fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.29v3.15C3.26 21.3 7.35 24 12 24z"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
                   />
                   <path
                     fill="#FBBC05"
-                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.29C.47 8.2.0 10.04.0 12s.47 3.8 1.29 5.42l3.99-3.15z"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
                   />
                   <path
                     fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24.0 12 .0 7.35.0 3.26 2.7 1.29 6.58l3.99 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
                 <span>Continue with Google</span>
               </button>
-            </div>
 
-            {/* Divider */}
-            <div className="relative flex items-center justify-center">
-              <div className="border-t border-[#d7c2b9] w-full" />
-              <span className="bg-white px-3 text-[11px] text-[#554339] font-semibold uppercase tracking-wider shrink-0 relative z-10">
-                Or continue with email
-              </span>
-            </div>
-
-            {/* Email & Password Registration Form */}
-            <form onSubmit={handleEmailSignUp} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#201a17] block">Full Name *</label>
-                <div className="relative">
-                  <UserIcon className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Ramesh Darisi"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
-                  />
-                </div>
+              <div className="relative flex items-center justify-center my-3">
+                <div className="border-t border-gray-200 w-full" />
+                <span className="bg-white px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 shrink-0">
+                  Or sign up with email
+                </span>
+                <div className="border-t border-gray-200 w-full" />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#201a17] block">Work Email Address *</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
-                  />
+              {error && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 font-semibold">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{error}</span>
                 </div>
-              </div>
+              )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#201a17] block">Password *</label>
+              <form onSubmit={handleEmailSignUp} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Full Name *</label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <UserIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type="text"
                       required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Min 8 characters"
-                      className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Ramesh Darisi"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#554339] hover:text-[#964407]"
-                    >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#201a17] block">Confirm Password *</label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Work Email *</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="owner@property.com"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-[11px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Phone Number</label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-[11px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Password *</label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Min 8 chars"
+                        className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-[11px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      >
+                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Confirm Password *</label>
                     <input
                       type={showPassword ? "text" : "password"}
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Re-enter password"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-[11px]"
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* Terms Agreement Checkbox */}
-              <div className="flex items-start gap-2.5 pt-1">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  checked={agreedTerms}
-                  onChange={(e) => setAgreedTerms(e.target.checked)}
-                  className="mt-0.5 rounded border-[#d7c2b9] text-[#964407] focus:ring-[#964407] cursor-pointer"
-                />
-                <label htmlFor="terms" className="text-[11px] text-[#554339] leading-relaxed cursor-pointer">
-                  By continuing, you agree to TenoPilot&apos;s{" "}
-                  <span className="font-semibold text-[#964407] underline underline-offset-2">Terms of Service</span> and{" "}
-                  <span className="font-semibold text-[#964407] underline underline-offset-2">Privacy Policy</span>.
+                {/* 6-Digit Security PIN Setup */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Set 6-Digit App Security PIN *
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    required
+                    placeholder="123456"
+                    value={securityPin}
+                    onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, ""))}
+                    className="w-full max-w-[180px] px-3.5 py-2 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest bg-white"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Used for instant 2-second banking-grade unlocking on your device.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-2 pt-1 text-[11px] text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreedTerms}
+                    onChange={(e) => setAgreedTerms(e.target.checked)}
+                    className="mt-0.5 rounded text-[#c2652a]"
+                  />
+                  <span>
+                    I agree to the <strong>Terms of Service</strong> & <strong>Privacy Policy</strong>.
+                  </span>
                 </label>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2"
+                >
+                  {isLoading ? "Creating Account..." : "Create Master Account"}
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+
+              {/* Log in Link */}
+              <div className="text-center pt-2">
+                <span className="text-xs text-gray-500 font-medium">
+                  Already have an account?{" "}
+                  <Link href="/login" className="font-bold text-[#c2652a] hover:underline">
+                    Log in
+                  </Link>
+                </span>
               </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-sm transition-all duration-200 shadow-md shadow-[#964407]/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer mt-2"
-              >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Sending Verification Email...</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span>Continue & Verify Email</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </span>
-                )}
-              </button>
-            </form>
-
-            {/* Footer Navigation Link */}
-            <div className="text-center pt-2 border-t border-[#d7c2b9]/60">
-              <p className="text-xs text-[#554339]">
-                Already have an account?{" "}
-                <Link href="/login" className="font-bold text-[#964407] hover:underline">
-                  Log in
-                </Link>
-              </p>
             </div>
-          </>
-        )}
+          )}
 
+          {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP (COMPACT & THEMED) */}
+          <div className="pt-2">
+            <CompactPwaInstallCard />
+          </div>
+
+        </div>
       </div>
 
-      {/* Footer Branding */}
-      <div className="mt-8 text-center text-[11px] text-[#554339] space-y-1">
-        <p className="flex items-center justify-center gap-1.5 font-medium">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#964407]" /> Protected by 256-Bit SSL Enterprise Security
-        </p>
-        <p>© 2026 TenoPilot.com • All Rights Reserved.</p>
-      </div>
-
-      {/* PWA Install Banner */}
-      <PWAInstallBanner />
     </div>
   );
 }
 
 export default function SignUpPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#fff8f6] flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-[#964407] border-t-transparent rounded-full animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen bg-[#140e0c]" />}>
       <SignUpPageContent />
     </Suspense>
   );

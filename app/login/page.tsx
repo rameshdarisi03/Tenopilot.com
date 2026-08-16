@@ -13,19 +13,14 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
-  Key,
   X,
-  ShieldCheck,
-  Shield,
-  Smartphone,
-  QrCode,
   RotateCcw,
-  User,
 } from "lucide-react";
 import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { CompactPwaInstallCard } from "@/components/pwa/CompactPwaInstallCard";
 
 interface SavedSession {
   email: string;
@@ -215,7 +210,6 @@ export default function LoginPage() {
     const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
 
     if (verification.valid) {
-      // Success! Update active role & redirect based on RBAC
       const role = verification.member?.role || savedSession?.role || "master_admin";
       staffStore.setActiveRole(role);
 
@@ -293,51 +287,16 @@ export default function LoginPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 🖥️ DESKTOP LEFT COLUMN: Edge-to-Edge Cinematic 3D Leather Artwork Panel   */}
+        {/* 🖥️ DESKTOP LEFT COLUMN: Full Glory Edge-to-Edge 3D Leather Emblem Artwork  */}
         {/* ========================================================================= */}
-        <div className="hidden lg:flex lg:w-1/2 relative bg-[#1c1513] p-8 flex-col justify-between overflow-hidden border-r border-[#3d2a22]">
-          {/* Top Branding Pill */}
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white shadow-lg">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[11px] font-bold tracking-wider uppercase">
-                TenoPilot Estate Cloud
-              </span>
-            </div>
-            <span className="text-xs font-mono text-amber-200/60 font-semibold">
-              Enterprise v2.4
-            </span>
-          </div>
-
-          {/* Center 3D Emblem Showcase */}
-          <div className="relative z-10 my-auto flex flex-col items-center text-center p-4">
-            <div className="relative w-full max-w-md aspect-[4/5] rounded-3xl overflow-hidden border border-white/10 shadow-2xl shadow-black/80 group">
-              <Image
-                src="/tenopilot-leather-emblem.jpg"
-                alt="TenoPilot 3D Leather Emblem & Keys"
-                fill
-                priority
-                className="object-cover object-center transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-              <div className="absolute bottom-6 left-6 right-6 text-left text-white">
-                <p className="text-xs font-mono uppercase tracking-widest text-amber-300 font-bold">
-                  Coliving & Property Management
-                </p>
-                <h2 className="font-serif text-2xl font-bold mt-1 text-white leading-snug">
-                  Precision Estate Operating System.
-                </h2>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Trust & Compliance Bar */}
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-gray-400 font-medium pt-4 border-t border-white/10">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" /> DPDP Act 2023 Compliant
-            </span>
-            <span>Zero-Friction Role Governance</span>
-          </div>
+        <div className="hidden lg:block lg:w-1/2 relative min-h-screen bg-[#1c1513] overflow-hidden border-r border-[#3d2a22]">
+          <Image
+            src="/tenopilot-leather-emblem.jpg"
+            alt="TenoPilot 3D Leather Emblem & Keys"
+            fill
+            priority
+            className="object-cover object-center"
+          />
         </div>
 
         {/* ========================================================================= */}
@@ -471,12 +430,12 @@ export default function LoginPage() {
                   </button>
                 </form>
 
-                {/* New Owner Registration Link */}
+                {/* Sign up Link */}
                 <div className="text-center pt-2">
                   <span className="text-xs text-gray-500 font-medium">
-                    New Property Owner?{" "}
+                    Don&apos;t have an account?{" "}
                     <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
-                      Create Master Account
+                      Sign up
                     </Link>
                   </span>
                 </div>
@@ -586,28 +545,10 @@ export default function LoginPage() {
             )}
 
             {/* =================================================================== */}
-            {/* 📲 PWA SCAN TO INSTALL MOBILE APP SECTION                          */}
+            {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP (COMPACT & THEMED)      */}
             {/* =================================================================== */}
-            <div className="pt-4 border-t border-gray-100">
-              <div className="p-3 bg-gradient-to-r from-gray-50 to-orange-50/40 rounded-2xl border border-gray-200/80 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center shrink-0">
-                    <Smartphone className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-gray-900 text-[11px] block">
-                      TenoPilot Mobile PWA
-                    </span>
-                    <span className="text-[10px] text-gray-500 font-medium block">
-                      Zero App Store install • Instant offline sync
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-1.5 bg-white rounded-lg border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center">
-                  <QrCode className="w-5 h-5 text-gray-700" />
-                </div>
-              </div>
+            <div className="pt-2">
+              <CompactPwaInstallCard />
             </div>
 
           </div>
