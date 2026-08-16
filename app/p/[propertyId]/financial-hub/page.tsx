@@ -104,6 +104,13 @@ export default function FinancialHubPage({
     };
   }, [propertyId]);
 
+  // Receptionist Access Guard: Keep on Expenses tab
+  useEffect(() => {
+    if (activeRole === "receptionist" && activeTab !== "Expenses") {
+      setActiveTab("Expenses");
+    }
+  }, [activeRole, activeTab]);
+
   // Timeline Filter State (This Month, Last Month, Quarter, Year, All Time)
   const [selectedTimelineFilter, setSelectedTimelineFilter] = useState<
     "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_YEAR" | "ALL_TIME"
@@ -588,41 +595,60 @@ export default function FinancialHubPage({
 
             {/* Prominent 3-Section Core Pillar Navigation Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-              <button
-                type="button"
-                onClick={() => setActiveTab("Revenues")}
-                className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
-                  activeTab === "Revenues"
-                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
-                    : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`p-2.5 rounded-xl transition-colors ${
-                      activeTab === "Revenues"
-                        ? "bg-[#c2652a] text-white"
-                        : "bg-emerald-100 text-emerald-800 group-hover:bg-[#c2652a] group-hover:text-white"
-                    }`}
-                  >
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3
-                      className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Revenues" ? "text-[#c2652a]" : "text-gray-900"
-                      }`}
-                    >
-                      Revenues
-                    </h3>
-                    <p className="text-[11px] text-gray-500">Income Streams & Yield</p>
+              {/* REVENUES TAB */}
+              {activeRole === "receptionist" ? (
+                <div className="p-4 md:p-5 rounded-2xl border text-left bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gray-200 text-gray-400">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-sm md:text-base text-gray-500 flex items-center gap-1.5">
+                        <span>Revenues</span>
+                        <span className="text-[9px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-md uppercase font-bold">Admin Only</span>
+                      </h3>
+                      <p className="text-[11px] text-gray-400">Income Streams & Yield</p>
+                    </div>
                   </div>
                 </div>
-                {activeTab === "Revenues" && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
-                )}
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("Revenues")}
+                  className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                    activeTab === "Revenues"
+                      ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
+                      : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2.5 rounded-xl transition-colors ${
+                        activeTab === "Revenues"
+                          ? "bg-[#c2652a] text-white"
+                          : "bg-emerald-100 text-emerald-800 group-hover:bg-[#c2652a] group-hover:text-white"
+                      }`}
+                    >
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3
+                        className={`font-serif font-bold text-sm md:text-base ${
+                          activeTab === "Revenues" ? "text-[#c2652a]" : "text-gray-900"
+                        }`}
+                      >
+                        Revenues
+                      </h3>
+                      <p className="text-[11px] text-gray-500">Income Streams & Yield</p>
+                    </div>
+                  </div>
+                  {activeTab === "Revenues" && (
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
+                  )}
+                </button>
+              )}
 
+              {/* EXPENSES TAB */}
               <button
                 type="button"
                 onClick={() => setActiveTab("Expenses")}
@@ -658,40 +684,58 @@ export default function FinancialHubPage({
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab("Partner Settlement")}
-                className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
-                  activeTab === "Partner Settlement"
-                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
-                    : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`p-2.5 rounded-xl transition-colors ${
-                      activeTab === "Partner Settlement"
-                        ? "bg-[#c2652a] text-white"
-                        : "bg-purple-100 text-purple-700 group-hover:bg-[#c2652a] group-hover:text-white"
-                    }`}
-                  >
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3
-                      className={`font-serif font-bold text-sm md:text-base ${
-                        activeTab === "Partner Settlement" ? "text-[#c2652a]" : "text-gray-900"
-                      }`}
-                    >
-                      Partner Settlement
-                    </h3>
-                    <p className="text-[11px] text-gray-500">Equity & Profit Share</p>
+              {/* PARTNER SETTLEMENT TAB */}
+              {activeRole === "receptionist" ? (
+                <div className="p-4 md:p-5 rounded-2xl border text-left bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gray-200 text-gray-400">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-sm md:text-base text-gray-500 flex items-center gap-1.5">
+                        <span>Partner Settlement</span>
+                        <span className="text-[9px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-md uppercase font-bold">Admin Only</span>
+                      </h3>
+                      <p className="text-[11px] text-gray-400">Equity & Profit Share</p>
+                    </div>
                   </div>
                 </div>
-                {activeTab === "Partner Settlement" && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
-                )}
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("Partner Settlement")}
+                  className={`p-4 md:p-5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                    activeTab === "Partner Settlement"
+                      ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
+                      : "bg-[#fcf9f8] border-gray-200 hover:bg-white hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2.5 rounded-xl transition-colors ${
+                        activeTab === "Partner Settlement"
+                          ? "bg-[#c2652a] text-white"
+                          : "bg-purple-100 text-purple-700 group-hover:bg-[#c2652a] group-hover:text-white"
+                      }`}
+                    >
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3
+                        className={`font-serif font-bold text-sm md:text-base ${
+                          activeTab === "Partner Settlement" ? "text-[#c2652a]" : "text-gray-900"
+                        }`}
+                      >
+                        Partner Settlement
+                      </h3>
+                      <p className="text-[11px] text-gray-500">Equity & Profit Share</p>
+                    </div>
+                  </div>
+                  {activeTab === "Partner Settlement" && (
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 

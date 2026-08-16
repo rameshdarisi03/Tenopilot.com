@@ -139,7 +139,6 @@ export function PropertySidebar({
                 if (activeRole === "receptionist") {
                   return (
                     item.name !== "Staff Management" &&
-                    item.name !== "Financial Hub" &&
                     item.name !== "Reports & Analytics"
                   );
                 }
