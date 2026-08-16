@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, Occupant } from "@/constants/mockOccupants";
@@ -12,6 +13,7 @@ import {
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { staffStore, UserRole } from "@/lib/staffStore";
 import {
   ChevronLeft,
   Plus,
@@ -35,8 +37,25 @@ export default function PropertySetupPage({
 }: {
   params: Promise<{ propertyId: string }>;
 }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+
+  useEffect(() => {
+    const unsub = staffStore.subscribe(() => {
+      setActiveRole(staffStore.getActiveRole());
+    });
+    return unsub;
+  }, []);
+
+  // 🔒 Receptionist Route Guard: Bounce to Property Map
+  useEffect(() => {
+    if (activeRole === "receptionist") {
+      router.replace(`/p/${propertyId}/property-map`);
+    }
+  }, [activeRole, propertyId, router]);
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

@@ -33,9 +33,11 @@ import {
   EyeOff,
   Camera,
   Download,
+  Lock,
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { staffStore, UserRole } from "@/lib/staffStore";
 
 export default function PropertyMapPage({
   params,
@@ -66,6 +68,15 @@ export default function PropertyMapPage({
     });
     return unsubscribe;
   }, [propertyId]);
+
+  const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
+
+  useEffect(() => {
+    const unsub = staffStore.subscribe(() => {
+      setActiveRole(staffStore.getActiveRole());
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -269,14 +280,25 @@ export default function PropertyMapPage({
               </p>
             </div>
 
-            <Link
-              href={`/p/${propertyId}/property-setup`}
-              className={`px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all ${
-                propertyGrid.length === 0 ? "ring-4 ring-[#964407]/40 animate-pulse shadow-xl" : ""
-              }`}
-            >
-              <Settings className="w-4 h-4" /> Property Setup
-            </Link>
+            {activeRole === "receptionist" ? (
+              <div
+                title="Room & floor configuration is restricted to Property Admins"
+                className="px-4 py-2.5 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 text-xs font-bold flex items-center gap-2 cursor-not-allowed select-none opacity-70"
+              >
+                <Lock className="w-4 h-4 text-gray-400" />
+                <span>Property Setup</span>
+                <span className="text-[9px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-md uppercase font-bold">Admin Only</span>
+              </div>
+            ) : (
+              <Link
+                href={`/p/${propertyId}/property-setup`}
+                className={`px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all ${
+                  propertyGrid.length === 0 ? "ring-4 ring-[#964407]/40 animate-pulse shadow-xl" : ""
+                }`}
+              >
+                <Settings className="w-4 h-4" /> Property Setup
+              </Link>
+            )}
           </div>
 
           {/* Toast Callout */}
@@ -765,13 +787,20 @@ export default function PropertyMapPage({
                     Start by configuring your building floors, room sharing types, and bed capacities using <strong>Property Setup</strong>.
                   </p>
                 </div>
-                <Link
-                  href={`/p/${propertyId}/property-setup`}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer mt-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Configure Building Layout Now</span>
-                </Link>
+                {activeRole === "receptionist" ? (
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-100 text-gray-400 font-bold text-xs cursor-not-allowed opacity-70">
+                    <Lock className="w-4 h-4" />
+                    <span>Configuration Restricted (Contact Admin)</span>
+                  </div>
+                ) : (
+                  <Link
+                    href={`/p/${propertyId}/property-setup`}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer mt-2"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>Configure Building Layout Now</span>
+                  </Link>
+                )}
               </div>
             ) : (
               <div className="py-16 text-center text-xs text-gray-500 bg-white rounded-2xl border border-gray-200">
