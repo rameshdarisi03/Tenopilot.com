@@ -286,18 +286,16 @@ export default function LoginPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 🖥️ DESKTOP LEFT COLUMN: Exact Full Resolution Framing (Zero Cropping)     */}
+        {/* 🖥️ DESKTOP LEFT COLUMN: Edge-to-Edge Extended 3D Artwork Panel              */}
         {/* ========================================================================= */}
-        <div className="hidden lg:flex flex-1 relative min-h-screen bg-[#f7f4ee] items-center justify-center p-6 xl:p-10 overflow-hidden border-r border-[#e8dfd8]">
-          <div className="relative w-full h-full max-w-lg aspect-[9/16] max-h-[88vh] flex items-center justify-center">
-            <Image
-              src="/tenopilot-leather-emblem.jpg"
-              alt="TenoPilot 3D Leather Emblem Artwork"
-              fill
-              priority
-              className="object-contain object-center drop-shadow-xl"
-            />
-          </div>
+        <div className="hidden lg:block lg:flex-1 relative min-h-screen bg-[#f7f4ee] overflow-hidden border-r border-[#e8dfd8]">
+          <Image
+            src="/tenopilot-leather-emblem.jpg"
+            alt="TenoPilot 3D Leather Emblem Artwork"
+            fill
+            priority
+            className="object-cover object-center"
+          />
         </div>
 
         {/* ========================================================================= */}
