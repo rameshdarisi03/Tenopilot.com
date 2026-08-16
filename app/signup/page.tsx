@@ -206,7 +206,7 @@ function SignUpPageContent() {
     }
 
     const currentEmail = user?.email || email || "owner@tenopilot.com";
-    const currentName = user?.displayName || fullName || "Ramesh Darisi";
+    const currentName = user?.displayName || fullName || "Property Owner";
 
     // Update global staff record PIN
     const all = staffStore.getAllGlobalStaff();
@@ -411,7 +411,7 @@ function SignUpPageContent() {
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Ramesh Darisi"
+                      placeholder="e.g. Rajesh Sharma"
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                     />
                   </div>

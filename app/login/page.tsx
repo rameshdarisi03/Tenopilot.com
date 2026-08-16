@@ -17,7 +17,7 @@ import {
   RotateCcw,
   KeyRound,
 } from "lucide-react";
-import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
+import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage, sanitizeTitleCase } from "@/lib/authService";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { AuthPwaInstallSection } from "@/components/pwa/AuthPwaInstallSection";
@@ -125,7 +125,7 @@ export default function LoginPage() {
 
       const session: SavedSession = {
         email: email.trim().toLowerCase(),
-        name: match?.name || (email.includes("ramesh") ? "Ramesh Darisi" : "Estate Admin"),
+        name: match?.name || sanitizeTitleCase(email.split("@")[0]) || "Property Owner",
         role: match?.role || (email.includes("rec") ? "receptionist" : "master_admin"),
         propertyName: match?.propertyName || "Sunshine Heights PG",
         securityPin: match?.securityPin || "123456",
@@ -361,7 +361,7 @@ export default function LoginPage() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="e.g. ramesh@tenopilot.com or priya.desk@sunshinepg.com"
+                        placeholder="e.g. owner@property.com or priya.desk@sunshinepg.com"
                         className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all bg-white"
                       />
                     </div>
@@ -430,7 +430,7 @@ export default function LoginPage() {
                       {savedSession?.name?.charAt(0) || "U"}
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 text-xs">{savedSession?.name || "Ramesh Darisi"}</h4>
+                      <h4 className="font-bold text-gray-900 text-xs">{savedSession?.name || "Property Owner"}</h4>
                       <p className="text-[10px] text-gray-500 font-semibold">
                         {savedSession?.role === "master_admin"
                           ? "Master Admin 👑 • All Properties"

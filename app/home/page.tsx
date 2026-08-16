@@ -774,7 +774,7 @@ export default function HomeWorkspacePage() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Ramesh Kumar"
+                      placeholder="e.g. Anand Kumar"
                       value={newStaffName}
                       onChange={(e) => setNewStaffName(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
@@ -788,7 +788,7 @@ export default function HomeWorkspacePage() {
                     <input
                       type="email"
                       required
-                      placeholder="e.g. ramesh.warden@sunshinepg.com"
+                      placeholder="e.g. anand.warden@sunshinepg.com"
                       value={newStaffEmail}
                       onChange={(e) => setNewStaffEmail(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"

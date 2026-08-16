@@ -18,7 +18,7 @@ interface GrandWelcomeOverlayProps {
  * Phase 3 (3.2s onwards): Smooth curtain spring reveal bringing properties into the limelight
  */
 export const GrandWelcomeOverlay: React.FC<GrandWelcomeOverlayProps> = ({
-  ownerName = "Ramesh Darisi",
+  ownerName = "Property Owner",
   onComplete,
 }) => {
   const [phase, setPhase] = useState<1 | 2 | 3 | 4>(1);

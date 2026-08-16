@@ -29,19 +29,6 @@ export interface StaffMember {
 // Initial Mock Staff Seed for Instant Testing
 export const INITIAL_STAFF: StaffMember[] = [
   {
-    id: "staff-master-01",
-    name: "Ramesh Darisi",
-    email: "ramesh@tenopilot.com",
-    phone: "+91 9876543210",
-    role: "master_admin",
-    assignedPropertyId: "sunshine-pg",
-    assignedPropertyIds: ["*"], // Global access across all buildings
-    propertyName: "Sunshine Heights PG",
-    status: "Active",
-    joinedDate: "01 Jan 2026",
-    securityPin: "123456",
-  },
-  {
     id: "staff-admin-01",
     name: "Vikram Sharma",
     email: "vikram.owner@sunshinepg.com",
@@ -236,7 +223,39 @@ class StaffStore {
 
   // Global Staff Query across All Properties
   getAllGlobalStaff(): StaffMember[] {
-    return this.globalStaffList.length > 0 ? this.globalStaffList : INITIAL_STAFF;
+    let list = this.globalStaffList.length > 0 ? this.globalStaffList : INITIAL_STAFF;
+
+    // Filter out any stale legacy hardcoded master admin records
+    list = list.filter((s) => s.id !== "staff-master-01" && s.email !== "ramesh@tenopilot.com");
+
+    // Dynamically inject the active registered user as the Master Admin
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tenopilot_saved_session");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.name && parsed.email) {
+            const currentMaster: StaffMember = {
+              id: `staff-master-active`,
+              name: parsed.name,
+              email: parsed.email,
+              phone: parsed.phone || "+91 98000 00000",
+              role: "master_admin",
+              assignedPropertyId: "sunshine-pg",
+              assignedPropertyIds: ["*"],
+              propertyName: "All Properties",
+              status: "Active",
+              joinedDate: "Today",
+              securityPin: parsed.securityPin || "123456",
+            };
+            list = [currentMaster, ...list.filter((s) => s.role !== "master_admin")];
+          }
+        } catch {
+          // Ignore parse error
+        }
+      }
+    }
+    return list;
   }
 
   async addGlobalStaff(member: StaffMember): Promise<boolean> {
