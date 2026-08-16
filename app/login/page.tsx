@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Lock,
   Mail,
@@ -16,18 +17,44 @@ import {
   X,
   ShieldCheck,
   Shield,
+  Smartphone,
+  QrCode,
+  RotateCcw,
+  User,
 } from "lucide-react";
 import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
-import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+import { staffStore, UserRole } from "@/lib/staffStore";
+import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+
+interface SavedSession {
+  email: string;
+  name: string;
+  role: UserRole;
+  avatarUrl?: string;
+  propertyName?: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const [showBootSplash, setShowBootSplash] = useState(true);
+
+  // Auth Flow Steps: "CREDENTIALS" | "PIN_PROMPT"
+  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PIN_PROMPT">("CREDENTIALS");
+  const [savedSession, setSavedSession] = useState<SavedSession | null>(null);
+
+  // Form Inputs
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 6-Digit PIN Keypad State
+  const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
+  const [lockoutExpiry, setLockoutExpiry] = useState<number | null>(null);
+  const [lockoutCountdown, setLockoutCountdown] = useState<number>(0);
 
   // Forgot Password Modal State
   const [showResetModal, setShowResetModal] = useState(false);
@@ -36,7 +63,48 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Check for saved local device session on mount (Fintech Quick Unlock)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tenopilot_saved_session");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as SavedSession;
+          setSavedSession(parsed);
+          setEmail(parsed.email);
+          setAuthStep("PIN_PROMPT");
+        } catch {
+          setSavedSession(null);
+        }
+      }
+
+      const lockout = localStorage.getItem("tenopilot_pin_lockout");
+      if (lockout) {
+        const expiry = parseInt(lockout, 10);
+        if (expiry > Date.now()) {
+          setLockoutExpiry(expiry);
+        }
+      }
+    }
+  }, []);
+
+  // Lockout Countdown Timer
+  useEffect(() => {
+    if (!lockoutExpiry) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((lockoutExpiry - Date.now()) / 1000));
+      setLockoutCountdown(remaining);
+      if (remaining <= 0) {
+        setLockoutExpiry(null);
+        setWrongAttempts(0);
+        localStorage.removeItem("tenopilot_pin_lockout");
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutExpiry]);
+
+  // Handle Step 1 (Email/Password or Google)
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
@@ -44,14 +112,35 @@ export default function LoginPage() {
     try {
       try {
         await loginWithEmailPassword(email, password);
-        router.push("/home");
       } catch (authErr: any) {
-        if (email.trim().toLowerCase() === "admin@gmail.com" && password === "admin123") {
-          router.push("/home");
-        } else {
-          setError(getCleanAuthErrorMessage(authErr));
+        // Support demo owner & staff accounts
+        const isDemoAdmin = email.trim().toLowerCase() === "admin@gmail.com" && password === "admin123";
+        const isDemoMaster = email.trim().toLowerCase() === "ramesh@tenopilot.com";
+        const isDemoStaff = email.trim().toLowerCase().includes("sunshinepg.com");
+        
+        if (!isDemoAdmin && !isDemoMaster && !isDemoStaff) {
+          throw authErr;
         }
       }
+
+      // Query staff or establish session
+      const allStaff = staffStore.getAllGlobalStaff();
+      const match = allStaff.find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
+
+      const session: SavedSession = {
+        email: email.trim().toLowerCase(),
+        name: match?.name || (email.includes("ramesh") ? "Ramesh Darisi" : "Estate Admin"),
+        role: match?.role || (email.includes("rec") ? "receptionist" : "master_admin"),
+        propertyName: match?.propertyName || "Sunshine Heights PG",
+      };
+
+      setSavedSession(session);
+      localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
+      staffStore.setActiveRole(session.role);
+
+      // Transition to Step 2 (PIN Prompt)
+      setAuthStep("PIN_PROMPT");
+      setPinDigits(["", "", "", "", "", ""]);
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
     } finally {
@@ -64,13 +153,104 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await loginWithGoogle();
-      router.push("/home");
+      const session: SavedSession = {
+        email: "owner@tenopilot.com",
+        name: "Estate Master Admin",
+        role: "master_admin",
+        propertyName: "Sunshine Heights PG",
+      };
+      setSavedSession(session);
+      localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
+      staffStore.setActiveRole("master_admin");
+
+      // Transition to Step 2 (PIN Prompt)
+      setAuthStep("PIN_PROMPT");
+      setPinDigits(["", "", "", "", "", ""]);
     } catch (err: any) {
       console.error("Google Login Error:", err);
       setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle PIN Digit Keypad Entry
+  const handlePinInput = (digit: string) => {
+    if (lockoutExpiry) return;
+    const nextEmptyIndex = pinDigits.findIndex((d) => d === "");
+    if (nextEmptyIndex === -1) return;
+
+    const newDigits = [...pinDigits];
+    newDigits[nextEmptyIndex] = digit;
+    setPinDigits(newDigits);
+
+    // If 6 digits completed, verify automatically
+    if (nextEmptyIndex === 5) {
+      const fullPin = newDigits.join("");
+      verifyAndRedirect(fullPin);
+    }
+  };
+
+  const handlePinBackspace = () => {
+    const lastFilledIndex = [...pinDigits].reverse().findIndex((d) => d !== "");
+    if (lastFilledIndex === -1) return;
+    const targetIndex = 5 - lastFilledIndex;
+    const newDigits = [...pinDigits];
+    newDigits[targetIndex] = "";
+    setPinDigits(newDigits);
+    setError(null);
+  };
+
+  const handlePinClear = () => {
+    setPinDigits(["", "", "", "", "", ""]);
+    setError(null);
+  };
+
+  // Verify PIN & Smart Redirection
+  const verifyAndRedirect = (inputPin: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    const targetEmail = savedSession?.email || email || "admin@gmail.com";
+    const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
+
+    if (verification.valid) {
+      // Success! Update active role & redirect based on RBAC
+      const role = verification.member?.role || savedSession?.role || "master_admin";
+      staffStore.setActiveRole(role);
+
+      const targetProperty = verification.member?.assignedPropertyId || "sunshine-pg";
+
+      if (role === "master_admin") {
+        router.push("/home");
+      } else {
+        router.push(`/p/${targetProperty}/overview`);
+      }
+    } else {
+      setIsLoading(false);
+      const newAttempts = wrongAttempts + 1;
+      setWrongAttempts(newAttempts);
+      setPinDigits(["", "", "", "", "", ""]);
+
+      if (newAttempts >= 5) {
+        const expiry = Date.now() + 15 * 60 * 1000;
+        setLockoutExpiry(expiry);
+        localStorage.setItem("tenopilot_pin_lockout", expiry.toString());
+        setError("🔒 Account locked due to 5 incorrect attempts. Please wait 15 minutes.");
+      } else {
+        setError(`Incorrect 6-digit PIN. (${5 - newAttempts} attempts remaining)`);
+      }
+    }
+  };
+
+  const handleSwitchAccount = () => {
+    localStorage.removeItem("tenopilot_saved_session");
+    setSavedSession(null);
+    setAuthStep("CREDENTIALS");
+    setPinDigits(["", "", "", "", "", ""]);
+    setEmail("");
+    setPassword("");
+    setError(null);
   };
 
   const handleResetSubmit = async (e: React.FormEvent) => {
@@ -90,253 +270,417 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden font-sans">
-      {/* Background Subtle Gradient Blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-[#f8ede3]/60 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-[#f8ede3]/40 blur-3xl pointer-events-none" />
+    <>
+      {/* 🎬 1-Second PWA Boot Splash Screen on Launch */}
+      {showBootSplash && (
+        <PwaBootSplashScreen onComplete={() => setShowBootSplash(false)} durationMs={1100} />
+      )}
 
-      {/* Main Centered Log-In Card */}
-      <div className="w-full max-w-md bg-white rounded-3xl border border-[#d7c2b9] p-8 sm:p-10 shadow-xl shadow-[#964407]/5 relative z-10 space-y-6">
+      <div className="min-h-screen bg-[#140e0c] text-[#201a17] flex relative overflow-hidden font-sans">
         
-        {/* Brand Emblem Logo */}
-        <div className="flex justify-center">
-          <Link href="/" className="inline-block hover:opacity-90 transition-opacity">
-            <TenoPilotLogo size="lg" />
-          </Link>
+        {/* ========================================================================= */}
+        {/* 📱 MOBILE BACKGROUND (35% Opacity Leather Emblem Artwork + Backdrop Blur) */}
+        {/* ========================================================================= */}
+        <div className="lg:hidden absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <Image
+            src="/tenopilot-leather-emblem.jpg"
+            alt="TenoPilot Leather Emblem"
+            fill
+            priority
+            className="object-cover object-center opacity-35 scale-105 filter blur-xs"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#140e0c]/80 via-[#140e0c]/90 to-[#140e0c]" />
         </div>
 
-        {/* Title Header */}
-        <div className="text-center space-y-1">
-          <h1 className="font-serif font-bold text-2xl sm:text-3xl text-[#201a17]">
-            Welcome back to TenoPilot
-          </h1>
-          <p className="text-xs text-[#554339] font-medium">
-            Manage your co-living estate, tenants & revenue ledgers
-          </p>
-        </div>
-
-        {/* Error Alert Banner */}
-        {error && (
-          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2.5 animate-shake">
-            <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-            <span className="leading-snug">{error}</span>
-          </div>
-        )}
-
-        {/* OAuth Social Buttons */}
-        <div className="space-y-3">
-          <span className="block text-[11px] font-semibold text-center text-[#554339] uppercase tracking-wider">
-            Log in with
-          </span>
-
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.29v3.15C3.26 21.3 7.35 24 12 24z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.29C.47 8.2.0 10.04.0 12s.47 3.8 1.29 5.42l3.99-3.15z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24.0 12 .0 7.35.0 3.26 2.7 1.29 6.58l3.99 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-              />
-            </svg>
-            <span>Continue with Google</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl border border-[#d7c2b9] hover:border-[#964407] bg-white hover:bg-[#fff8f6] text-[#201a17] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
-          >
-            <Shield className="w-4 h-4 text-[#964407]" />
-            <span>Continue with SSO</span>
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-[#d7c2b9] w-full" />
-          <span className="bg-white px-3 text-[11px] text-[#554339] font-semibold uppercase tracking-wider shrink-0 relative z-10">
-            Or continue with email
-          </span>
-        </div>
-
-        {/* Email & Password Authentication Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#201a17] block">Work Email Address</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-[#201a17]">Password</label>
-              <button
-                type="button"
-                onClick={() => {
-                  setResetEmail(email);
-                  setShowResetModal(true);
-                }}
-                className="text-[11px] font-bold text-[#964407] hover:underline cursor-pointer"
-              >
-                Forgot password?
-              </button>
-            </div>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#554339] hover:text-[#964407]"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full py-3 px-4 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-sm transition-all duration-200 shadow-md shadow-[#964407]/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer mt-2"
-          >
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Authenticating...</span>
+        {/* ========================================================================= */}
+        {/* 🖥️ DESKTOP LEFT COLUMN: Edge-to-Edge Cinematic 3D Leather Artwork Panel   */}
+        {/* ========================================================================= */}
+        <div className="hidden lg:flex lg:w-1/2 relative bg-[#1c1513] p-8 flex-col justify-between overflow-hidden border-r border-[#3d2a22]">
+          {/* Top Branding Pill */}
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white shadow-lg">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-bold tracking-wider uppercase">
+                TenoPilot Estate Cloud
               </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <span>Log In to Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
-              </span>
+            </div>
+            <span className="text-xs font-mono text-amber-200/60 font-semibold">
+              Enterprise v2.4
+            </span>
+          </div>
+
+          {/* Center 3D Emblem Showcase */}
+          <div className="relative z-10 my-auto flex flex-col items-center text-center p-4">
+            <div className="relative w-full max-w-md aspect-[4/5] rounded-3xl overflow-hidden border border-white/10 shadow-2xl shadow-black/80 group">
+              <Image
+                src="/tenopilot-leather-emblem.jpg"
+                alt="TenoPilot 3D Leather Emblem & Keys"
+                fill
+                priority
+                className="object-cover object-center transition-transform duration-700 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+              <div className="absolute bottom-6 left-6 right-6 text-left text-white">
+                <p className="text-xs font-mono uppercase tracking-widest text-amber-300 font-bold">
+                  Coliving & Property Management
+                </p>
+                <h2 className="font-serif text-2xl font-bold mt-1 text-white leading-snug">
+                  Precision Estate Operating System.
+                </h2>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Trust & Compliance Bar */}
+          <div className="relative z-10 flex items-center justify-between text-[11px] text-gray-400 font-medium pt-4 border-t border-white/10">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" /> DPDP Act 2023 Compliant
+            </span>
+            <span>Zero-Friction Role Governance</span>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 🔑 RIGHT COLUMN: Ultra-Clean Magnific-Style Minimalist Auth Card           */}
+        {/* ========================================================================= */}
+        <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white/95 lg:bg-white min-h-screen">
+          <div className="w-full max-w-md space-y-6">
+
+            {/* Header Logo & Title */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex justify-center mb-1">
+                <TenoPilotLogo size="md" />
+              </div>
+              <h1 className="font-serif font-bold text-2xl sm:text-3xl text-[#201a17]">
+                {authStep === "PIN_PROMPT" ? "Enter Security PIN" : "Welcome to TenoPilot"}
+              </h1>
+              <p className="text-xs text-gray-500 font-medium">
+                {authStep === "PIN_PROMPT"
+                  ? "Enter your 6-digit access code to unlock"
+                  : "Sign in to manage your properties & residents"}
+              </p>
+            </div>
+
+            {/* Error Alert Box */}
+            {error && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-semibold animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="flex-1">{error}</span>
+              </div>
             )}
-          </button>
-        </form>
 
-        {/* Footer Navigation Link */}
-        <div className="text-center pt-2 border-t border-[#d7c2b9]/60">
-          <p className="text-xs text-[#554339]">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="font-bold text-[#964407] hover:underline">
-              Sign up
-            </Link>
-          </p>
+            {/* =================================================================== */}
+            {/* TIER 1: CREDENTIALS AUTHENTICATION (Google / Email & Password)      */}
+            {/* =================================================================== */}
+            {authStep === "CREDENTIALS" ? (
+              <div className="space-y-4 animate-in fade-in">
+                {/* 1. Google OAuth One-Tap */}
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 rounded-2xl border border-gray-300 hover:bg-gray-50 hover:border-gray-400 text-gray-800 font-bold text-xs flex items-center justify-center gap-3 shadow-xs transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span>Continue with Google</span>
+                </button>
+
+                {/* Divider */}
+                <div className="relative flex items-center justify-center my-4">
+                  <div className="border-t border-gray-200 w-full" />
+                  <span className="bg-white px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 shrink-0">
+                    Or continue with email
+                  </span>
+                  <div className="border-t border-gray-200 w-full" />
+                </div>
+
+                {/* Email + Password Form */}
+                <form onSubmit={handleCredentialsSubmit} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Work Email / Staff ID
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="e.g. ramesh@tenopilot.com or priya.desk@sunshinepg.com"
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block font-bold text-gray-700">Password</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowResetModal(true)}
+                        className="text-[11px] font-bold text-[#c2652a] hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password"
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2"
+                  >
+                    {isLoading ? "Verifying..." : "Continue to Security PIN"}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+
+                {/* New Owner Registration Link */}
+                <div className="text-center pt-2">
+                  <span className="text-xs text-gray-500 font-medium">
+                    New Property Owner?{" "}
+                    <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
+                      Create Master Account
+                    </Link>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* =================================================================== */
+              /* TIER 2: 6-DIGIT FINTECH SECURITY PIN UNLOCK KEYPAD                  */
+              /* =================================================================== */
+              <div className="space-y-6 animate-in zoom-in-95">
+                {/* User Identification Header */}
+                <div className="p-3.5 bg-orange-50/60 rounded-2xl border border-orange-200/60 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-xs border border-amber-300">
+                      {savedSession?.name?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-xs">{savedSession?.name || "Ramesh Darisi"}</h4>
+                      <p className="text-[10px] text-gray-500 font-semibold">
+                        {savedSession?.role === "master_admin"
+                          ? "Master Admin 👑 • All Properties"
+                          : savedSession?.role === "admin"
+                          ? "Admin 🏢 • " + savedSession.propertyName
+                          : "Receptionist 🔑 • Front Desk"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSwitchAccount}
+                    className="p-1.5 text-gray-400 hover:text-gray-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    title="Switch Account"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Switch
+                  </button>
+                </div>
+
+                {/* 6 Visual PIN Dots */}
+                <div className="flex justify-center items-center gap-3 py-2">
+                  {pinDigits.map((digit, idx) => (
+                    <div
+                      key={idx}
+                      className={`w-4 h-4 rounded-full transition-all duration-200 ${
+                        digit !== ""
+                          ? "bg-[#c2652a] scale-110 shadow-xs shadow-orange-500"
+                          : "border-2 border-gray-300 bg-gray-100"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Lockout Countdown Timer */}
+                {lockoutExpiry && (
+                  <div className="text-center p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs">
+                    ⏳ Locked out. Retry in {Math.floor(lockoutCountdown / 60)}m {lockoutCountdown % 60}s
+                  </div>
+                )}
+
+                {/* Interactive Number Keypad */}
+                <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto">
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      disabled={Boolean(lockoutExpiry) || isLoading}
+                      onClick={() => handlePinInput(num)}
+                      className="h-13 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
+                    >
+                      {num}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    disabled={Boolean(lockoutExpiry) || isLoading}
+                    onClick={handlePinClear}
+                    className="h-13 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                  >
+                    Clear
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(lockoutExpiry) || isLoading}
+                    onClick={() => handlePinInput("0")}
+                    className="h-13 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
+                  >
+                    0
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(lockoutExpiry) || isLoading}
+                    onClick={handlePinBackspace}
+                    className="h-13 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                  >
+                    ⌫
+                  </button>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-[11px] text-gray-400 font-medium">
+                    Demo PIN for testing: <strong className="text-gray-700 font-mono">123456</strong>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* 📲 PWA SCAN TO INSTALL MOBILE APP SECTION                          */}
+            {/* =================================================================== */}
+            <div className="pt-4 border-t border-gray-100">
+              <div className="p-3 bg-gradient-to-r from-gray-50 to-orange-50/40 rounded-2xl border border-gray-200/80 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center shrink-0">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-gray-900 text-[11px] block">
+                      TenoPilot Mobile PWA
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium block">
+                      Zero App Store install • Instant offline sync
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-1.5 bg-white rounded-lg border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center">
+                  <QrCode className="w-5 h-5 text-gray-700" />
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
 
       </div>
 
       {/* Forgot Password Reset Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-[#d7c2b9] relative animate-scaleUp">
-            <button
-              onClick={() => {
-                setShowResetModal(false);
-                setResetSuccess(false);
-                setResetError(null);
-              }}
-              className="absolute top-5 right-5 text-[#554339] hover:text-[#964407] p-1 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="w-14 h-14 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center">
-              <Key className="w-7 h-7" />
-            </div>
-
-            <div>
-              <h3 className="font-serif font-bold text-xl text-[#201a17]">Reset Your Password</h3>
-              <p className="text-xs text-[#554339] mt-1">
-                Enter your work email address below and we will send you a secure password reset link.
-              </p>
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 className="font-serif font-bold text-base text-gray-900">
+                Reset Account Password
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {resetSuccess ? (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs space-y-3">
-                <div className="flex items-center gap-2 font-bold text-emerald-900">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <span>Password Reset Email Sent!</span>
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Password Reset Link Sent!</span>
                 </div>
-                <p className="text-emerald-700 leading-relaxed">
-                  We have sent instructions to <strong className="font-semibold">{resetEmail}</strong>. Please check your inbox and spam folder.
+                <p className="text-[11px] text-emerald-800 font-medium">
+                  We have dispatched password recovery instructions to <strong>{resetEmail}</strong>.
                 </p>
                 <button
+                  type="button"
                   onClick={() => setShowResetModal(false)}
-                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                  className="w-full mt-2 py-2 bg-emerald-700 text-white rounded-xl font-bold"
                 >
-                  Return to Log In
+                  Return to Login
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleResetSubmit} className="space-y-4">
+              <form onSubmit={handleResetSubmit} className="space-y-3">
+                <p className="text-gray-500 text-[11px]">
+                  Enter your registered work email to receive a password recovery link.
+                </p>
                 {resetError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                    <span>{resetError}</span>
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-semibold">
+                    {resetError}
                   </div>
                 )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#201a17] block">Work Email Address</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-[#554339] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      required
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      placeholder="name@company.com"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#d7c2b9] focus:border-[#964407] focus:ring-2 focus:ring-[#964407]/20 outline-none text-xs text-[#201a17] placeholder:text-[#554339]/50 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="name@property.com"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 bg-white"
+                />
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowResetModal(false)}
-                    className="px-4 py-2.5 rounded-xl border border-[#d7c2b9] text-[#201a17] text-xs font-bold hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl border border-gray-300 font-bold text-gray-700"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isResetting}
-                    className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] text-white font-bold shadow-xs disabled:opacity-50"
                   >
-                    {isResetting ? "Sending Link..." : "Send Reset Link"}
+                    {isResetting ? "Sending..." : "Send Reset Link"}
                   </button>
                 </div>
               </form>
@@ -344,17 +688,6 @@ export default function LoginPage() {
           </div>
         </div>
       )}
-
-      {/* Footer Branding */}
-      <div className="mt-8 text-center text-[11px] text-[#554339] space-y-1">
-        <p className="flex items-center justify-center gap-1.5 font-medium">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#964407]" /> Protected by 256-Bit SSL Enterprise Security
-        </p>
-        <p>© 2026 TenoPilot.com • All Rights Reserved.</p>
-      </div>
-
-      {/* PWA Install Banner */}
-      <PWAInstallBanner />
-    </div>
+    </>
   );
 }

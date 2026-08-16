@@ -137,7 +137,11 @@ export function PropertySidebar({
             {navItems
               .filter((item) => {
                 if (activeRole === "receptionist") {
-                  return item.name !== "Staff Management";
+                  return (
+                    item.name !== "Staff Management" &&
+                    item.name !== "Financial Hub" &&
+                    item.name !== "Reports & Analytics"
+                  );
                 }
                 return true;
               })
@@ -172,18 +176,20 @@ export function PropertySidebar({
 
       {/* Sidebar Footer */}
       <div className="p-4 border-t border-[#d7c2b9]/60 space-y-2 text-xs text-[#554339]">
-        <Link
-          href={`/p/${propertyId}/settings`}
-          onClick={() => onMobileClose && onMobileClose()}
-          className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all border ${
-            pathname?.includes("settings")
-              ? "bg-[#964407] text-white border-[#964407] shadow-sm"
-              : "bg-white text-[#201a17] border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] shadow-2xs"
-          }`}
-        >
-          <Settings className={`w-4 h-4 ${pathname?.includes("settings") ? "text-amber-300" : "text-[#964407]"}`} />
-          <span>Settings</span>
-        </Link>
+        {activeRole !== "receptionist" && (
+          <Link
+            href={`/p/${propertyId}/settings`}
+            onClick={() => onMobileClose && onMobileClose()}
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition-all border ${
+              pathname?.includes("settings")
+                ? "bg-[#964407] text-white border-[#964407] shadow-sm"
+                : "bg-white text-[#201a17] border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] shadow-2xs"
+            }`}
+          >
+            <Settings className={`w-4 h-4 ${pathname?.includes("settings") ? "text-amber-300" : "text-[#964407]"}`} />
+            <span>Settings</span>
+          </Link>
+        )}
 
         <a
           href="mailto:support@tenopilot.com"

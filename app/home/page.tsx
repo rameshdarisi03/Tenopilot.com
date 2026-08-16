@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ShieldCheck,
   User,
+  Users,
   LogOut,
   LayoutDashboard,
   FileText,
@@ -21,6 +22,9 @@ import {
   MapPin,
   Verified,
   X,
+  UserCheck,
+  Trash2,
+  Key,
 } from "lucide-react";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
@@ -32,6 +36,7 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { initializeCleanProperty } from "@/lib/accountInitializer";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 
 export interface PortfolioProperty {
   id: string;
@@ -51,6 +56,17 @@ export default function HomeWorkspacePage() {
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
+
+  // Global Team & Role Management State
+  const [showGlobalTeamModal, setShowGlobalTeamModal] = useState(false);
+  const [globalStaff, setGlobalStaff] = useState<StaffMember[]>(() => staffStore.getAllGlobalStaff());
+  const [teamModalTab, setTeamModalTab] = useState<"DIRECTORY" | "ADD">("DIRECTORY");
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffEmail, setNewStaffEmail] = useState("");
+  const [newStaffPhone, setNewStaffPhone] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState<UserRole>("admin");
+  const [newStaffPin, setNewStaffPin] = useState("123456");
+  const [assignedProperties, setAssignedProperties] = useState<string[]>(["*"]);
 
   // New property form state
   const [newPropName, setNewPropName] = useState("");
@@ -209,10 +225,15 @@ export default function HomeWorkspacePage() {
       }
     });
 
+    const unsubStaff = staffStore.subscribe(() => {
+      setGlobalStaff(staffStore.getAllGlobalStaff());
+    });
+
     return () => {
       unsubProperty();
       unsubOccupant();
       unsubSettings();
+      unsubStaff();
     };
   }, [profile]);
 
@@ -297,7 +318,19 @@ export default function HomeWorkspacePage() {
           </Link>
 
           {/* User Profile & Actions */}
-          <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Global Team & Role Management Button (Master Admin) */}
+            <button
+              onClick={() => {
+                setTeamModalTab("DIRECTORY");
+                setShowGlobalTeamModal(true);
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] text-[#201a17] font-bold text-xs shadow-2xs transition-all cursor-pointer"
+            >
+              <UserCheck className="w-4 h-4 text-[#964407]" />
+              <span className="hidden sm:inline">Estate Team & Roles 👥</span>
+            </button>
+
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -557,6 +590,329 @@ export default function HomeWorkspacePage() {
         </div>
       )}
 
+      {/* 👥 GLOBAL ESTATE TEAM & MULTI-PROPERTY ROLE MANAGEMENT MODAL */}
+      {showGlobalTeamModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setShowGlobalTeamModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-[#d7c2b9] shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#f8ede3] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[#f8ede3] text-[#964407]">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                    Estate Team & Role Governance
+                  </h3>
+                  <p className="text-xs text-[#554339] font-medium">
+                    Assign and manage Admins & Receptionists across your entire PG network
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowGlobalTeamModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tab Selector */}
+            <div className="flex bg-[#f8ede3]/70 p-1 rounded-2xl gap-1 font-bold text-xs">
+              <button
+                type="button"
+                onClick={() => setTeamModalTab("DIRECTORY")}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 ${
+                  teamModalTab === "DIRECTORY"
+                    ? "bg-white text-[#964407] shadow-xs"
+                    : "text-[#554339] hover:text-[#201a17]"
+                }`}
+              >
+                <Users className="w-4 h-4" /> Global Team Directory ({globalStaff.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTeamModalTab("ADD")}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 ${
+                  teamModalTab === "ADD"
+                    ? "bg-[#964407] text-white shadow-xs"
+                    : "text-[#554339] hover:text-[#201a17]"
+                }`}
+              >
+                <Plus className="w-4 h-4" /> Add Team Member
+              </button>
+            </div>
+
+            {teamModalTab === "DIRECTORY" ? (
+              /* DIRECTORY TAB */
+              <div className="space-y-3">
+                {globalStaff.map((member) => (
+                  <div
+                    key={member.id}
+                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white text-xs ${
+                          member.role === "master_admin"
+                            ? "bg-[#964407]"
+                            : member.role === "admin"
+                            ? "bg-blue-700"
+                            : "bg-purple-700"
+                        }`}
+                      >
+                        {member.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-gray-900 text-sm">{member.name}</h4>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              member.role === "master_admin"
+                                ? "bg-amber-100 text-amber-900 border-amber-300"
+                                : member.role === "admin"
+                                ? "bg-blue-100 text-blue-900 border-blue-300"
+                                : "bg-purple-100 text-purple-900 border-purple-300"
+                            }`}
+                          >
+                            {member.role === "master_admin"
+                              ? "Master Admin 👑"
+                              : member.role === "admin"
+                              ? "Admin 🏢"
+                              : "Receptionist 🔑"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 font-mono mt-0.5">
+                          {member.email} • {member.phone}
+                        </p>
+                        <p className="text-[10px] text-gray-600 font-semibold mt-1">
+                          🏢 Assigned:{" "}
+                          <span className="text-[#964407]">
+                            {member.assignedPropertyIds?.includes("*")
+                              ? "All Current & Future Buildings (Global)"
+                              : member.assignedPropertyIds?.length
+                              ? member.assignedPropertyIds.join(", ")
+                              : member.propertyName}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-[10px] font-mono bg-white px-2 py-1 rounded-lg border border-gray-200 text-gray-600">
+                        PIN: {member.securityPin || "123456"}
+                      </span>
+                      {member.role !== "master_admin" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Remove staff member ${member.name}?`)) {
+                              staffStore.deleteGlobalStaff(member.id);
+                              triggerToast(`✓ Removed ${member.name} from team.`);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-rose-100 text-rose-600 transition-colors"
+                          title="Remove Staff"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* ADD NEW STAFF FORM */
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newStaffName || !newStaffEmail) return;
+
+                  const newMember: StaffMember = {
+                    id: `staff-${Date.now()}`,
+                    name: newStaffName.trim(),
+                    email: newStaffEmail.trim().toLowerCase(),
+                    phone: newStaffPhone.trim() || "+91 98000 00000",
+                    role: newStaffRole,
+                    assignedPropertyId: assignedProperties.includes("*")
+                      ? "sunshine-pg"
+                      : assignedProperties[0] || "sunshine-pg",
+                    assignedPropertyIds: assignedProperties,
+                    propertyName: assignedProperties.includes("*")
+                      ? "All Properties"
+                      : properties.find((p) => assignedProperties.includes(p.id))?.name || "Sunshine Heights PG",
+                    status: "Active",
+                    joinedDate: new Date().toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    }),
+                    securityPin: newStaffPin || "123456",
+                  };
+
+                  staffStore.addGlobalStaff(newMember);
+                  triggerToast(`✓ Added ${newMember.name} as ${newMember.role}!`);
+                  setTeamModalTab("DIRECTORY");
+                  setNewStaffName("");
+                  setNewStaffEmail("");
+                  setNewStaffPhone("");
+                }}
+                className="space-y-4"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Kumar"
+                      value={newStaffName}
+                      onChange={(e) => setNewStaffName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Work Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. ramesh.warden@sunshinepg.com"
+                      value={newStaffEmail}
+                      onChange={(e) => setNewStaffEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Mobile Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={newStaffPhone}
+                      onChange={(e) => setNewStaffPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Assigned Role *
+                    </label>
+                    <select
+                      value={newStaffRole}
+                      onChange={(e) => setNewStaffRole(e.target.value as UserRole)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold bg-[#fff8f6]"
+                    >
+                      <option value="admin">Admin 🏢 (Property Manager / Operating Partner)</option>
+                      <option value="receptionist">Receptionist 🔑 (Front Desk Counter Staff)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    Initial 6-Digit Security PIN *
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    required
+                    placeholder="123456"
+                    value={newStaffPin}
+                    onChange={(e) => setNewStaffPin(e.target.value.replace(/\D/g, ""))}
+                    className="w-full max-w-xs px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest bg-[#fff8f6]"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Staff member will use this 6-digit PIN to unlock the app on their device.
+                  </p>
+                </div>
+
+                {/* Multi-Property Assignment Checkboxes */}
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1.5">
+                    Assigned Properties (Multi-Building Access) *
+                  </label>
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                    <label className="flex items-center gap-2.5 font-bold text-xs text-gray-900 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={assignedProperties.includes("*")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssignedProperties(["*"]);
+                          } else {
+                            setAssignedProperties(["sunshine-pg"]);
+                          }
+                        }}
+                        className="rounded text-[#964407]"
+                      />
+                      <span>🌐 All Current & Future Buildings (Global Multi-Branch Admin)</span>
+                    </label>
+
+                    {!assignedProperties.includes("*") && (
+                      <div className="pl-6 pt-1 space-y-1.5 border-t border-gray-200">
+                        {properties.map((prop) => (
+                          <label
+                            key={prop.id}
+                            className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={assignedProperties.includes(prop.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setAssignedProperties([...assignedProperties, prop.id]);
+                                } else {
+                                  setAssignedProperties(
+                                    assignedProperties.filter((id) => id !== prop.id)
+                                  );
+                                }
+                              }}
+                              className="rounded text-[#964407]"
+                            />
+                            <span>{prop.name} ({prop.location})</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setTeamModalTab("DIRECTORY")}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold shadow-md"
+                  >
+                    + Register Team Member
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="py-6 border-t border-[#d7c2b9]/40 text-center text-xs text-[#554339]">
         © 2026 TenoPilot Inc. Single Source of Truth for Property Management.
@@ -564,3 +920,4 @@ export default function HomeWorkspacePage() {
     </div>
   );
 }
+
