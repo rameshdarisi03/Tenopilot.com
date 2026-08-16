@@ -183,7 +183,7 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
                   const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
                   const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-                  const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
+                  const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
 
                   const explicitSharing = Number(item.sharingType);
                   const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
@@ -370,7 +370,7 @@ OUTPUT JSON SCHEMA ONLY (No markdown formatting, no commentary):
                   const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
                   const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-                  const deposit = Number(item.securityDeposit) || (Number(item.rentAmount) ? Number(item.rentAmount) * 2 : 24000);
+                  const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
 
                   const explicitSharing = Number(item.sharingType);
                   const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);

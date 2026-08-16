@@ -89,6 +89,7 @@ export default function OnboardTenantPage({
   });
   const [monthlyRent, setMonthlyRent] = useState<number>(12500);
   const [depositAmount, setDepositAmount] = useState<number>(25000);
+  const [depositCustomized, setDepositCustomized] = useState<boolean>(false);
   const [rentDueDate, setRentDueDate] = useState<string>("1st of month");
 
   // Form State — Step 2: Bed Allocation & Desired Sharing Filter (Defaults to 2 Sharing)
@@ -366,7 +367,7 @@ export default function OnboardTenantPage({
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
         aadhaarPdfUrl: aadhaarDoc?.previewUrl || aadhaarUrl || undefined,
       },
-      securityDeposit: depositAmount || 25000,
+      securityDeposit: depositAmount !== undefined ? depositAmount : (monthlyRent ? monthlyRent * 2 : 0),
       depositStatus: "PENDING",
       partialPaidThisCycle: 0,
       arrearsBalance: 0,
@@ -685,6 +686,7 @@ export default function OnboardTenantPage({
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, "");
                       setDepositAmount(val === "" ? 0 : parseInt(val, 10));
+                      setDepositCustomized(true);
                     }}
                     className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
                   />
@@ -831,7 +833,9 @@ export default function OnboardTenantPage({
                                         });
                                         const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
                                         setMonthlyRent(autoRent);
-                                        setDepositAmount(settings.defaultSecurityDeposit || autoRent * 2);
+                                        if (!depositCustomized) {
+                                          setDepositAmount(autoRent * 2);
+                                        }
                                       }}
                                       className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
                                         isSelected
@@ -867,7 +871,7 @@ export default function OnboardTenantPage({
                 </div>
               )}
 
-              {/* 💡 AUTO-FILLED EDITABLE MONTHLY RENT TARIFF INPUT */}
+              {/* 💡 AUTO-FILLED EDITABLE MONTHLY RENT & SECURITY DEPOSIT INPUTS */}
               {selectedBed && (
                 <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3 animate-in fade-in">
                   {selectedBed.isVacating && selectedBed.vacatingDate && (
@@ -878,27 +882,59 @@ export default function OnboardTenantPage({
                       </span>
                     </div>
                   )}
+
                   <div className="flex items-center justify-between">
-                    <label className="block font-bold text-gray-900 text-xs flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-[#c2652a]" /> Monthly Rent Tariff for {selectedBed.roomNumber} ({selectedBed.bedCode}) *
-                    </label>
+                    <span className="font-bold text-gray-900 text-xs flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-[#c2652a]" /> Financial Terms for Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                    </span>
                     <span className="text-[10px] bg-orange-100 text-[#c2652a] font-extrabold px-2.5 py-0.5 rounded-full">
-                      ✓ Auto-filled from Room Config (Editable)
+                      ✓ Auto-calculated (Editable)
                     </span>
                   </div>
-                  <input
-                    type="number"
-                    required
-                    value={monthlyRent ? monthlyRent : ""}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "");
-                      setMonthlyRent(val === "" ? 0 : parseInt(val, 10));
-                    }}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
-                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block font-bold text-gray-700 text-xs mb-1">
+                        Monthly Rent (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={monthlyRent ? monthlyRent : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          const newRent = val === "" ? 0 : parseInt(val, 10);
+                          setMonthlyRent(newRent);
+                          if (!depositCustomized) {
+                            setDepositAmount(newRent * 2);
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-700 text-xs mb-1">
+                        Security Deposit (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={depositAmount ? depositAmount : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setDepositAmount(val === "" ? 0 : parseInt(val, 10));
+                          setDepositCustomized(true);
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
                   <p className="text-[10px] text-gray-500 font-medium">
-                    Owner Flexibility: You can edit or give a special discount to this tenant.
+                    Owner Flexibility: You can adjust the rent tariff or deposit amount for this specific tenant anytime.
                   </p>
                 </div>
               )}
