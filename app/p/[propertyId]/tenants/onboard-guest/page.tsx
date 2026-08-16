@@ -306,9 +306,26 @@ export default function OnboardGuestPage({
     const isFutureCheckIn = targetCheckIn > today;
 
     const initialLifecycleStatus: "Active" | "Booked" = isFutureCheckIn ? "Booked" : "Active";
-    const initialPaymentStatus: "Due" = "Due"; // Tariff + Deposit is RECEIVABLE upon onboarding!
+    const initialPaymentStatus: "Due" = "Due";
 
-    const isIdProvided = Boolean(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc);
+    // Strict 3-Way KYC Validation
+    if (idUploadMode === "IMAGES") {
+      const hasFront = Boolean(aadhaarFrontUrl || aadhaarFrontDoc);
+      const hasBack = Boolean(aadhaarBackUrl || aadhaarBackDoc);
+
+      // Incomplete 1-sided document upload
+      if ((hasFront && !hasBack) || (!hasFront && hasBack)) {
+        alert("⚠️ Incomplete ID Document: Please upload BOTH Front and Back photos of the ID proof, or remove the single photo to skip for now.");
+        return;
+      }
+    }
+
+    let isIdProvided = false;
+    if (idUploadMode === "IMAGES") {
+      isIdProvided = Boolean((aadhaarFrontUrl || aadhaarFrontDoc) && (aadhaarBackUrl || aadhaarBackDoc));
+    } else {
+      isIdProvided = Boolean(aadhaarDoc);
+    }
     const isVerified = isIdProvided;
     const finalAadhaarNumber = isIdProvided ? "XXXX-XXXX-8811" : "Skipped";
 
@@ -329,7 +346,7 @@ export default function OnboardGuestPage({
       roomNumber: selectedBed ? selectedBed.roomNumber : "101",
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedCheckIn,
-      avatar: photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
+      avatar: photoUrl || photoDoc?.previewUrl || "",
       kycVerified: isVerified,
       hasPdfAgreement: false,
       workplace: undefined,
@@ -343,7 +360,7 @@ export default function OnboardGuestPage({
       },
       kycDocs: {
         idMode: idUploadMode,
-        photoUrl: photoUrl || photoDoc?.previewUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
+        photoUrl: photoUrl || photoDoc?.previewUrl || undefined,
         aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || undefined,
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
       },

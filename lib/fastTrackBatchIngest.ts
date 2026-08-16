@@ -163,8 +163,8 @@ export async function executeFastTrackBatchIngest(
       .toUpperCase()
       .slice(0, 2) || "TP";
 
-    // Random pleasant pastel avatar background
-    const avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(row.fullName)}&backgroundColor=c2652a,8a4216,4f46e5,059669,d97706`;
+    // Default neutral empty avatar (No cartoon stickers)
+    const avatarUrl = "";
 
     const occ: Occupant = {
       id: occupantId,

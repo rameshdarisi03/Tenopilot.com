@@ -858,15 +858,15 @@ export default function TenantsDirectoryPage({
                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
-                              {occ.avatar ? (
+                            <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-xs shrink-0 overflow-hidden border border-gray-200">
+                              {occ.avatar && occ.avatar.length > 0 && !occ.avatar.includes("dicebear") ? (
                                 <img
                                   src={occ.avatar}
                                   alt={occ.name}
                                   className="w-8 h-8 rounded-full object-cover"
                                 />
                               ) : (
-                                occ.name.charAt(0)
+                                <User className="w-4 h-4 text-gray-400" />
                               )}
                             </div>
                             <div>
@@ -1132,11 +1132,17 @@ export default function TenantsDirectoryPage({
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                          <img
-                            src={occ.avatar}
-                            alt={occ.name}
-                            className="w-11 h-11 rounded-full border border-gray-200 object-cover"
-                          />
+                          <div className="w-11 h-11 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {occ.avatar && occ.avatar.length > 0 && !occ.avatar.includes("dicebear") ? (
+                              <img
+                                src={occ.avatar}
+                                alt={occ.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <User className="w-6 h-6 text-gray-400" />
+                            )}
+                          </div>
                           {isSelected && (
                             <div className="absolute inset-0 bg-[#c2652a] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md animate-in zoom-in-50">
                               ✓

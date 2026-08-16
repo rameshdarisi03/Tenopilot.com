@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
+import { saveOccupantToFirestore } from "@/lib/firestoreService";
 
 interface GuestProfileViewProps {
   occupantState: Occupant;
@@ -61,6 +62,7 @@ export function GuestProfileView({
     docType: "photo" | "front" | "back" | "pdf" | "";
   }>({ open: false, title: "", docType: "" });
   const [showUploadKycModal, setShowUploadKycModal] = useState<boolean>(false);
+  const [showAvatarModal, setShowAvatarModal] = useState<boolean>(false);
   const [guestPhotoUrl, setGuestPhotoUrl] = useState<string>(occupantState.avatar || "");
   const [guestAadhaarNum, setGuestAadhaarNum] = useState<string>(
     occupantState.aadhaarNumber !== "Skipped" ? occupantState.aadhaarNumber || "" : ""
@@ -125,11 +127,24 @@ export function GuestProfileView({
       {/* 👤 Guest Header Card */}
       <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <img
-            src={occupantState.kycDocs?.photoUrl || occupantState.avatar}
-            alt={occupantState.name}
-            className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-200 shadow-xs shrink-0"
-          />
+          <div
+            onClick={() => setShowAvatarModal(true)}
+            className="relative w-16 h-16 rounded-2xl border-2 border-purple-200 hover:border-purple-500 overflow-hidden shadow-xs cursor-pointer group shrink-0 bg-gray-100 flex items-center justify-center transition-all"
+            title="Click to view or change profile photo"
+          >
+            {occupantState.avatar && occupantState.avatar.length > 0 && !occupantState.avatar.includes("dicebear") ? (
+              <img
+                src={occupantState.avatar}
+                alt={occupantState.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <User className="w-8 h-8 text-gray-400 group-hover:text-gray-600 transition-colors" />
+            )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <Camera className="w-5 h-5 text-white" />
+            </div>
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-serif text-2xl font-bold text-gray-900">
@@ -783,6 +798,81 @@ export function GuestProfileView({
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* 📷 INTERACTIVE AVATAR / PROFILE PHOTO MODAL */}
+          {showAvatarModal && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-sm w-full p-6 space-y-5 animate-in zoom-in-95 text-center">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                  <span className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-purple-700" /> Guest Profile Photo
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarModal(false)}
+                    className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Large Photo Display */}
+                <div className="flex flex-col items-center justify-center">
+                  <div className="w-40 h-40 rounded-3xl border-2 border-gray-200 bg-gray-50 overflow-hidden shadow-inner flex items-center justify-center">
+                    {occupantState.avatar && occupantState.avatar.length > 0 && !occupantState.avatar.includes("dicebear") ? (
+                      <img
+                        src={occupantState.avatar}
+                        alt={occupantState.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center p-4">
+                        <User className="w-16 h-16 text-gray-300 mx-auto mb-1" />
+                        <span className="text-[10px] text-gray-400 font-bold block">No Photo Uploaded</span>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-serif font-bold text-gray-900 text-base mt-3">{occupantState.name}</h3>
+                  <p className="text-[11px] text-gray-500 font-mono">{occupantState.phone}</p>
+                </div>
+
+                {/* Upload / Change & Remove Controls */}
+                <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <UnifiedPhotoUploadSlot
+                    label={occupantState.avatar ? "Change Profile Photo" : "Upload Profile Photo"}
+                    aspectRatio="headshot"
+                    value={occupantState.avatar}
+                    onChange={(base64) => {
+                      const updated: Occupant = {
+                        ...occupantState,
+                        avatar: base64,
+                        kycDocs: {
+                          ...(occupantState.kycDocs || { idMode: "IMAGES" }),
+                          photoUrl: base64 || undefined,
+                        },
+                      };
+                      occupantStore.updateOccupant(updated, propertyId);
+                      saveOccupantToFirestore(propertyId, updated);
+                      setShowAvatarModal(false);
+                    }}
+                    onRemove={() => {
+                      const updated: Occupant = {
+                        ...occupantState,
+                        avatar: "",
+                        kycDocs: {
+                          ...(occupantState.kycDocs || { idMode: "IMAGES" }),
+                          photoUrl: undefined,
+                        },
+                      };
+                      occupantStore.updateOccupant(updated, propertyId);
+                      saveOccupantToFirestore(propertyId, updated);
+                      setShowAvatarModal(false);
+                    }}
+                  />
+                </div>
               </div>
             </div>
           )}

@@ -99,7 +99,7 @@ export function generateMockOccupants(count = 25): Occupant[] {
     {
       id: "og-tenant-1786316000001",
       name: "Aarav Sengupta",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=AaravSengupta",
+      avatar: "",
       phone: "+91 99001 12233",
       email: "aarav.sengupta@example.com",
       stayType: "Tenant",
@@ -129,7 +129,7 @@ export function generateMockOccupants(count = 25): Occupant[] {
     {
       id: "og-tenant-1786316000002",
       name: "Sneha Kulkarni",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=SnehaKulkarni",
+      avatar: "",
       phone: "+91 99002 23344",
       email: "sneha.kulkarni@example.com",
       stayType: "Tenant",
@@ -159,7 +159,7 @@ export function generateMockOccupants(count = 25): Occupant[] {
     {
       id: "og-tenant-1786316000003",
       name: "Rahul Deshmukh",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RahulDeshmukh",
+      avatar: "",
       phone: "+91 99003 34455",
       email: "rahul.deshmukh@example.com",
       stayType: "Tenant",
@@ -195,7 +195,7 @@ export const MOCK_SEQUENTIAL_GUESTS_BED_101_A: Occupant[] = [
   {
     id: "mock-guest-03",
     name: "Mock Guest 3 (VVS Laxman)",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VVSLaxman",
+    avatar: "",
     phone: "+91 98001 00003",
     email: "vvs.laxman@mock.com",
     stayType: "Guest",
@@ -224,7 +224,7 @@ export const MOCK_SEQUENTIAL_GUESTS_BED_101_A: Occupant[] = [
   {
     id: "mock-guest-04",
     name: "Mock Guest 4 (Javagal Srinath)",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=JavagalSrinath",
+    avatar: "",
     phone: "+91 98001 00004",
     email: "javagal.srinath@mock.com",
     stayType: "Guest",
@@ -253,7 +253,7 @@ export const MOCK_SEQUENTIAL_GUESTS_BED_101_A: Occupant[] = [
   {
     id: "mock-guest-05",
     name: "Mock Guest 5 (Venkatesh Prasad)",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VenkateshPrasad",
+    avatar: "",
     phone: "+91 98001 00005",
     email: "venkatesh.prasad@mock.com",
     stayType: "Guest",

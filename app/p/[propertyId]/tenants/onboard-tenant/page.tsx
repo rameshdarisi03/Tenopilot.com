@@ -257,6 +257,17 @@ export default function OnboardTenantPage({
   };
 
   const handleStep3Next = () => {
+    // Strict 3-Way KYC Validation
+    if (idUploadMode === "IMAGES") {
+      const hasFront = Boolean(aadhaarFrontUrl || aadhaarFrontDoc);
+      const hasBack = Boolean(aadhaarBackUrl || aadhaarBackDoc);
+
+      // Incomplete 1-sided document upload
+      if ((hasFront && !hasBack) || (!hasFront && hasBack)) {
+        alert("⚠️ Incomplete ID Document: Please upload BOTH Front and Back photos of the ID proof, or remove the single photo to skip for now.");
+        return;
+      }
+    }
     setCurrentStep(4);
   };
 
@@ -318,7 +329,12 @@ export default function OnboardTenantPage({
       ? `${emergencyCountryCode} ${emergencyPhone.trim()}`
       : "+91 98000 11122";
 
-    const isIdProvided = Boolean(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc);
+    let isIdProvided = false;
+    if (idUploadMode === "IMAGES") {
+      isIdProvided = Boolean((aadhaarFrontUrl || aadhaarFrontDoc) && (aadhaarBackUrl || aadhaarBackDoc));
+    } else {
+      isIdProvided = Boolean(aadhaarDoc);
+    }
     const isVerified = isIdProvided;
     const finalAadhaarNumber = isIdProvided ? "XXXX-XXXX-9012" : "Skipped";
 
@@ -349,7 +365,7 @@ export default function OnboardTenantPage({
       roomNumber: selectedBed ? selectedBed.roomNumber : "101",
       bedCode: selectedBed ? selectedBed.bedCode : "BED A",
       joiningDate: formattedJoiningDate,
-      avatar: photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
+      avatar: photoUrl || photoDoc?.previewUrl || "",
       kycVerified: isVerified,
       hasPdfAgreement: true,
       workplace: workplace.trim(),
@@ -362,7 +378,7 @@ export default function OnboardTenantPage({
       },
       kycDocs: {
         idMode: idUploadMode,
-        photoUrl: photoUrl || photoDoc?.previewUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
+        photoUrl: photoUrl || photoDoc?.previewUrl || undefined,
         aadhaarFrontUrl: aadhaarFrontDoc?.previewUrl || aadhaarUrl || undefined,
         aadhaarBackUrl: aadhaarBackDoc?.previewUrl || undefined,
         aadhaarPdfUrl: aadhaarDoc?.previewUrl || aadhaarUrl || undefined,
@@ -871,7 +887,7 @@ export default function OnboardTenantPage({
                 </div>
               )}
 
-              {/* 💡 AUTO-FILLED EDITABLE MONTHLY RENT & SECURITY DEPOSIT INPUTS */}
+              {/* 💡 AUTO-FILLED EDITABLE MONTHLY RENT TARIFF INPUT (Single Clean Input in Step 2) */}
               {selectedBed && (
                 <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3 animate-in fade-in">
                   {selectedBed.isVacating && selectedBed.vacatingDate && (
@@ -884,57 +900,29 @@ export default function OnboardTenantPage({
                   )}
 
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-gray-900 text-xs flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-[#c2652a]" /> Financial Terms for Room {selectedBed.roomNumber} ({selectedBed.bedCode})
-                    </span>
+                    <label className="block font-bold text-gray-900 text-xs flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-[#c2652a]" /> Monthly Rent Tariff for Room {selectedBed.roomNumber} ({selectedBed.bedCode}) *
+                    </label>
                     <span className="text-[10px] bg-orange-100 text-[#c2652a] font-extrabold px-2.5 py-0.5 rounded-full">
-                      ✓ Auto-calculated (Editable)
+                      ✓ Auto-filled from Room Config (Editable)
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block font-bold text-gray-700 text-xs mb-1">
-                        Monthly Rent (₹) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={monthlyRent ? monthlyRent : ""}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          const newRent = val === "" ? 0 : parseInt(val, 10);
-                          setMonthlyRent(newRent);
-                          if (!depositCustomized) {
-                            setDepositAmount(newRent * 2);
-                          }
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-gray-700 text-xs mb-1">
-                        Security Deposit (₹) *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={depositAmount ? depositAmount : ""}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setDepositAmount(val === "" ? 0 : parseInt(val, 10));
-                          setDepositCustomized(true);
-                        }}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
-                      />
-                    </div>
-                  </div>
+                  <input
+                    type="number"
+                    required
+                    value={monthlyRent ? monthlyRent : ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      const newRent = val === "" ? 0 : parseInt(val, 10);
+                      setMonthlyRent(newRent);
+                    }}
+                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-base md:text-sm focus:ring-1 focus:ring-[#c2652a] bg-white shadow-2xs"
+                  />
 
                   <p className="text-[10px] text-gray-500 font-medium">
-                    Owner Flexibility: You can adjust the rent tariff or deposit amount for this specific tenant anytime.
+                    Owner Flexibility: You can edit or provide a custom tariff for this tenant.
                   </p>
                 </div>
               )}

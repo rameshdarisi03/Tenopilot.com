@@ -7,7 +7,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
-import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, saveOccupantToFirestore } from "@/lib/firestoreService";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
@@ -241,6 +241,7 @@ export default function IndividualTenantProfilePage({
 
   // In-Profile Upload KYC Modal State
   const [showUploadKycModal, setShowUploadKycModal] = useState<boolean>(false);
+  const [showAvatarModal, setShowAvatarModal] = useState<boolean>(false);
   const [kycInputAadhaar, setKycInputAadhaar] = useState<string>("");
   const [kycInputPhotoUrl, setKycInputPhotoUrl] = useState<string>("");
   const [isKycPhotoSaved, setIsKycPhotoSaved] = useState<boolean>(false);
@@ -1105,11 +1106,24 @@ export default function IndividualTenantProfilePage({
               {/* Profile Hero Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs">
             <div className="flex items-center gap-4">
-              <img
-                src={occupantState.avatar}
-                alt={occupantState.name}
-                className="w-16 h-16 rounded-full border-2 border-[#c2652a]/30 object-cover shadow-sm"
-              />
+              <div
+                onClick={() => setShowAvatarModal(true)}
+                className="relative w-16 h-16 rounded-2xl border-2 border-gray-200 hover:border-[#c2652a] overflow-hidden shadow-xs cursor-pointer group shrink-0 bg-gray-100 flex items-center justify-center transition-all"
+                title="Click to view or change profile photo"
+              >
+                {occupantState.avatar && occupantState.avatar.length > 0 && !occupantState.avatar.includes("dicebear") ? (
+                  <img
+                    src={occupantState.avatar}
+                    alt={occupantState.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-8 h-8 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Camera className="w-5 h-5 text-white" />
+                </div>
+              </div>
               <div>
                 <h1 suppressHydrationWarning className="font-serif text-3xl font-bold text-gray-900">
                   {occupantState.name}
@@ -1507,15 +1521,8 @@ export default function IndividualTenantProfilePage({
                 </div>
               )}
 
-              {/* 🪪 Granular Real-Time KYC Verification Card for Tenants */}
+              {/* 🪪 Government ID & KYC Verification Card for Tenants */}
               {(() => {
-                const hasPhoto = Boolean(
-                  occupantState.kycDocs?.photoUrl ||
-                  (occupantState.avatar &&
-                    occupantState.avatar.length > 0 &&
-                    !occupantState.avatar.includes("dicebear") &&
-                    !occupantState.avatar.includes("api.dicebear.com"))
-                );
                 const hasAadhaar = Boolean(
                   occupantState.kycDocs?.aadhaarFrontUrl ||
                   occupantState.kycDocs?.aadhaarPdfUrl ||
@@ -1525,76 +1532,42 @@ export default function IndividualTenantProfilePage({
                     occupantState.aadhaarNumber !== "Skipped" &&
                     occupantState.aadhaarNumber !== "XXXX-XXXX-8811")
                 );
-                const isKycVerified = occupantState.kycVerified === true || (hasPhoto && hasAadhaar);
+                const isKycVerified = occupantState.kycVerified === true || hasAadhaar;
 
                 return (
                   <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs space-y-4 text-xs">
                     <div className="pb-3 border-b border-gray-100 flex justify-between items-center">
                       <div>
                         <span className="font-bold text-gray-900 text-sm block">
-                          Identity & KYC Verification
+                          Government ID & KYC Verification
                         </span>
                         <span className="text-[10px] text-gray-400 font-medium">
-                          🔒 Real-time Granular Verification Checklist
+                          🔒 Official Identity Verification
                         </span>
                       </div>
                       <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                         isKycVerified
                           ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                          : (hasPhoto || hasAadhaar)
-                          ? "bg-orange-100 text-orange-800 border-orange-300"
                           : "bg-amber-100 text-amber-800 border-amber-300"
                       }`}>
-                        {isKycVerified ? "VERIFIED 🟢" : (hasPhoto || hasAadhaar) ? "PARTIAL / PENDING 🟧" : "SKIPPED / PENDING 🔴"}
+                        {isKycVerified ? "VERIFIED 🟢" : "PENDING 🟡"}
                       </span>
                     </div>
 
                     <div className="space-y-3">
-                      {/* Itemized Checklist */}
-                      <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                      <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
                         <div className="flex justify-between items-center">
-                          <div>
-                            <span className="text-gray-900 font-bold flex items-center gap-1.5">
-                              <Camera className="w-3.5 h-3.5 text-[#c2652a]" /> Tenant Profile Photo
-                            </span>
-                            <p className="text-[10px] text-gray-500">
-                              {hasPhoto ? "Uploaded & Locked in Database 🟢" : "Pending Upload 🔴"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasPhoto ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
-                              {hasPhoto ? "COMPLETED ✅" : "PENDING 🔴"}
-                            </span>
-                            {hasPhoto && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setViewKycModal({
-                                    open: true,
-                                    title: "Tenant Profile Headshot",
-                                    docType: "photo",
-                                  })
-                                }
-                                className="px-2.5 py-1 rounded-lg bg-white border border-gray-300 text-gray-800 font-bold hover:bg-gray-100 text-[10px] flex items-center gap-1 cursor-pointer"
-                              >
-                                <Eye className="w-3 h-3 text-[#c2652a]" /> View Photo
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200/60">
                           <div>
                             <span className="text-gray-900 font-bold flex items-center gap-1.5">
                               <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Aadhaar / Govt ID Proof
                             </span>
-                            <p className="text-[10px] text-gray-500 font-mono">
-                              {hasAadhaar ? occupantState.aadhaarNumber : "Pending Upload / Not Uploaded"}
+                            <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                              {hasAadhaar ? (occupantState.aadhaarNumber || "Document Attached") : "Pending Upload / Not Uploaded"}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${hasAadhaar ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                              {hasAadhaar ? "COMPLETED ✅" : "SKIPPED / PENDING 🔴"}
+                              {hasAadhaar ? "COMPLETED ✅" : "PENDING 🔴"}
                             </span>
                             {hasAadhaar && (
                               <div className="flex gap-1">
@@ -1636,15 +1609,15 @@ export default function IndividualTenantProfilePage({
 
                       {isKycVerified ? (
                         <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-center font-bold text-xs">
-                          ✓ All Identity & KYC Documents Verified 🟢
+                          ✓ Government ID Verified 🟢
                         </div>
                       ) : (
                         <button
                           type="button"
                           onClick={() => setShowUploadKycModal(true)}
-                          className="w-full py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                          className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-95 transition-all"
                         >
-                          <ShieldCheck className="w-4 h-4" /> + Upload & Complete Remaining KYC Documents
+                          <ShieldCheck className="w-4 h-4" /> + Upload & Verify KYC Document
                         </button>
                       )}
                     </div>
@@ -3028,6 +3001,85 @@ export default function IndividualTenantProfilePage({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* 📷 INTERACTIVE AVATAR / PROFILE PHOTO MODAL */}
+        {showAvatarModal && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-sm w-full p-6 space-y-5 animate-in zoom-in-95 text-center">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <span className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-[#c2652a]" /> Profile Photo
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarModal(false)}
+                  className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Large Photo Display */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-40 h-40 rounded-3xl border-2 border-gray-200 bg-gray-50 overflow-hidden shadow-inner flex items-center justify-center">
+                  {occupantState.avatar && occupantState.avatar.length > 0 && !occupantState.avatar.includes("dicebear") ? (
+                    <img
+                      src={occupantState.avatar}
+                      alt={occupantState.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center p-4">
+                      <User className="w-16 h-16 text-gray-300 mx-auto mb-1" />
+                      <span className="text-[10px] text-gray-400 font-bold block">No Photo Uploaded</span>
+                    </div>
+                  )}
+                </div>
+                <h3 className="font-serif font-bold text-gray-900 text-base mt-3">{occupantState.name}</h3>
+                <p className="text-[11px] text-gray-500 font-mono">{occupantState.phone}</p>
+              </div>
+
+              {/* Upload / Change & Remove Controls */}
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <UnifiedPhotoUploadSlot
+                  label={occupantState.avatar ? "Change Profile Photo" : "Upload Profile Photo"}
+                  aspectRatio="headshot"
+                  value={occupantState.avatar}
+                  onChange={(base64) => {
+                    const updated: Occupant = {
+                      ...occupantState,
+                      avatar: base64,
+                      kycDocs: {
+                        ...(occupantState.kycDocs || { idMode: "IMAGES" }),
+                        photoUrl: base64 || undefined,
+                      },
+                    };
+                    setOccupantState(updated);
+                    occupantStore.updateOccupant(updated, propertyId);
+                    saveOccupantToFirestore(propertyId, updated);
+                    triggerToast("✓ Profile photo updated!");
+                    setShowAvatarModal(false);
+                  }}
+                  onRemove={() => {
+                    const updated: Occupant = {
+                      ...occupantState,
+                      avatar: "",
+                      kycDocs: {
+                        ...(occupantState.kycDocs || { idMode: "IMAGES" }),
+                        photoUrl: undefined,
+                      },
+                    };
+                    setOccupantState(updated);
+                    occupantStore.updateOccupant(updated, propertyId);
+                    saveOccupantToFirestore(propertyId, updated);
+                    triggerToast("Profile photo removed.");
+                    setShowAvatarModal(false);
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}
