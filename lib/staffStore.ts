@@ -156,7 +156,9 @@ class StaffStore {
     const target = all.find((s) => s.id === staffId);
 
     // Update global memory & localStorage
-    this.globalStaffList = all.map((s) => (s.id === staffId ? { ...s, securityPin: newPin } : s));
+    this.globalStaffList = all.map((s) =>
+      s.id === staffId ? { ...s, securityPin: newPin, hasSetPin: true } : s
+    );
     this.saveGlobalStaffToStorage();
 
     // If updating currently logged in session, update session store too
@@ -165,19 +167,30 @@ class StaffStore {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (target && (parsed.email?.toLowerCase() === target.email.toLowerCase() || target.role === "master_admin")) {
+          if (
+            target &&
+            (parsed.email?.toLowerCase() === target.email.toLowerCase() ||
+              target.role === "master_admin")
+          ) {
             parsed.securityPin = newPin;
+            parsed.hasSetPin = true;
             localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
           }
         } catch {}
       }
     }
 
-    // Save to Firestore
-    if (target && target.assignedPropertyId) {
+    // Save to Firestore properties and staff_accounts
+    if (target) {
       try {
-        const docRef = doc(db, "properties", target.assignedPropertyId, "staff", staffId);
-        await setDoc(docRef, { securityPin: newPin }, { merge: true });
+        if (target.assignedPropertyId) {
+          const docRef = doc(db, "properties", target.assignedPropertyId, "staff", staffId);
+          await setDoc(docRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
+        }
+        if (target.email) {
+          const staffAccRef = doc(db, "staff_accounts", target.email.toLowerCase());
+          await setDoc(staffAccRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
+        }
       } catch (e) {
         console.warn("Firestore setSecurityPin fallback:", e);
       }

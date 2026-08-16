@@ -575,10 +575,16 @@ export default function LoginPage() {
                       maxLength={6}
                       required
                       value={firstTimePin}
-                      onChange={(e) => setFirstTimePin(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setFirstTimePin(val);
+                      }}
                       placeholder="••••••"
                       className="w-full max-w-[200px] mx-auto px-4 py-3 rounded-2xl border-2 border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-200 focus:outline-hidden"
                     />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Enter 6 digits and click save below
+                    </p>
                   </div>
 
                   <button
@@ -589,6 +595,17 @@ export default function LoginPage() {
                     <span>{isLoading ? "Setting PIN..." : "Save PIN & Open Workspace"}</span>
                     <Sparkles className="w-4 h-4" />
                   </button>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSwitchAccount}
+                      className="text-gray-500 hover:text-gray-900 text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>← Back to Sign In with Password</span>
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
@@ -655,7 +672,7 @@ export default function LoginPage() {
                     className="text-gray-500 hover:text-gray-900 cursor-pointer flex items-center gap-1"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Switch Account</span>
+                    <span>Switch Account / Sign In with Password</span>
                   </button>
                 </div>
               </div>
@@ -663,24 +680,19 @@ export default function LoginPage() {
 
             {/* PWA 1-Click Install Card */}
             <div className="p-4 rounded-3xl bg-orange-50/50 border border-orange-100 flex items-center gap-4 text-xs">
-              <div className="w-16 h-16 bg-white p-1 rounded-2xl border border-orange-200 shrink-0 flex items-center justify-center">
-                <Image
-                  src="/tenopilot-qr.png"
-                  alt="Install App QR"
-                  width={56}
-                  height={56}
-                  className="rounded-lg"
-                />
+              <div className="w-14 h-14 bg-white p-2.5 rounded-2xl border border-orange-200 shrink-0 flex items-center justify-center shadow-xs">
+                <QrCode className="w-8 h-8 text-[#c2652a]" />
               </div>
               <div className="space-y-1.5 flex-1 min-w-0">
                 <p className="font-bold text-gray-900 leading-tight">Install TenoPilot App</p>
-                <p className="text-[10px] text-gray-500">Scan QR code or click below to install directly to home screen.</p>
+                <p className="text-[10px] text-gray-500">Fast 1-click access directly from your mobile or desktop home screen.</p>
                 <div className="flex gap-2 pt-0.5">
                   <Link
                     href="/install"
-                    className="px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-[10px] hover:bg-[#a65420] transition-colors"
+                    className="px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-[10px] hover:bg-[#a65420] transition-colors flex items-center gap-1"
                   >
-                    Install App →
+                    <Smartphone className="w-3 h-3" />
+                    <span>Install App →</span>
                   </Link>
                 </div>
               </div>
