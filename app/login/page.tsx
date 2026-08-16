@@ -19,7 +19,6 @@ import {
 import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
-import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { CompactPwaInstallCard } from "@/components/pwa/CompactPwaInstallCard";
 
 interface SavedSession {
@@ -28,6 +27,35 @@ interface SavedSession {
   role: UserRole;
   avatarUrl?: string;
   propertyName?: string;
+}
+
+// Standalone T Emblem (No background box)
+function StandaloneTLogo({ className = "w-11 h-11" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 100 100"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Clean T Bar */}
+      <path
+        d="M18 22H82V35H59V86H41V35H18V22Z"
+        fill="#201a17"
+      />
+      {/* Intertwined Ribbon & Star in Terracotta */}
+      <path
+        d="M34 28C34 28 46 40 50 54C54 68 50 82 50 82"
+        stroke="#c2652a"
+        strokeWidth="6"
+        strokeLinecap="round"
+      />
+      <polygon
+        points="50,42 53.5,49 61,50 55.5,55 57,63 50,58.5 43,63 44.5,55 39,50 46.5,49"
+        fill="#c2652a"
+      />
+    </svg>
+  );
 }
 
 export default function LoginPage() {
@@ -270,7 +298,7 @@ export default function LoginPage() {
         <PwaBootSplashScreen onComplete={() => setShowBootSplash(false)} durationMs={1100} />
       )}
 
-      <div className="min-h-screen bg-[#140e0c] text-[#201a17] flex relative overflow-hidden font-sans">
+      <div className="min-h-screen bg-[#fbf8f5] text-[#201a17] flex relative overflow-hidden font-sans">
         
         {/* ========================================================================= */}
         {/* 📱 MOBILE BACKGROUND (35% Opacity Leather Emblem Artwork + Backdrop Blur) */}
@@ -281,37 +309,39 @@ export default function LoginPage() {
             alt="TenoPilot Leather Emblem"
             fill
             priority
-            className="object-cover object-center opacity-35 scale-105 filter blur-xs"
+            className="object-cover object-center opacity-30 scale-105 filter blur-xs"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#140e0c]/80 via-[#140e0c]/90 to-[#140e0c]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#fbf8f5]/85 via-[#fbf8f5]/90 to-[#fbf8f5]" />
         </div>
 
         {/* ========================================================================= */}
-        {/* 🖥️ DESKTOP LEFT COLUMN: Full Glory Edge-to-Edge 3D Leather Emblem Artwork  */}
+        {/* 🖥️ DESKTOP LEFT COLUMN: Exact Full Resolution Framing (Zero Cropping)     */}
         {/* ========================================================================= */}
-        <div className="hidden lg:block lg:w-1/2 relative min-h-screen bg-[#1c1513] overflow-hidden border-r border-[#3d2a22]">
-          <Image
-            src="/tenopilot-leather-emblem.jpg"
-            alt="TenoPilot 3D Leather Emblem & Keys"
-            fill
-            priority
-            className="object-cover object-center"
-          />
+        <div className="hidden lg:flex lg:w-1/2 relative min-h-screen bg-[#fbf8f5] items-center justify-center p-6 xl:p-10 overflow-hidden border-r border-[#e8dfd8]">
+          <div className="relative w-full h-full max-w-lg aspect-[9/16] max-h-[92vh]">
+            <Image
+              src="/tenopilot-leather-emblem.jpg"
+              alt="TenoPilot 3D Leather Emblem Artwork"
+              fill
+              priority
+              className="object-contain object-center drop-shadow-xl"
+            />
+          </div>
         </div>
 
         {/* ========================================================================= */}
         {/* 🔑 RIGHT COLUMN: Ultra-Clean Magnific-Style Minimalist Auth Card           */}
         {/* ========================================================================= */}
-        <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white/95 lg:bg-white min-h-screen">
+        <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white min-h-screen">
           <div className="w-full max-w-md space-y-6">
 
-            {/* Header Logo & Title */}
-            <div className="text-center space-y-2">
+            {/* Header: Pure Standalone "T" Logo (No Box) & Title */}
+            <div className="text-center space-y-2.5">
               <div className="inline-flex justify-center mb-1">
-                <TenoPilotLogo size="md" />
+                <StandaloneTLogo className="w-12 h-12" />
               </div>
-              <h1 className="font-serif font-bold text-2xl sm:text-3xl text-[#201a17]">
-                {authStep === "PIN_PROMPT" ? "Enter Security PIN" : "Welcome to TenoPilot"}
+              <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] tracking-tight">
+                {authStep === "PIN_PROMPT" ? "Enter Security PIN" : "Welcome to TenoPilot.com"}
               </h1>
               <p className="text-xs text-gray-500 font-medium">
                 {authStep === "PIN_PROMPT"
