@@ -93,7 +93,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(fallbackProf);
         }
       } else {
-        setProfile(null);
+        // Hydrate from verified local PIN session if present
+        if (typeof window !== "undefined") {
+          const saved = localStorage.getItem("tenopilot_saved_session");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              const fallbackProf: UserProfile = {
+                uid: `local_${parsed.email || "user"}`,
+                email: parsed.email || "owner@tenopilot.com",
+                displayName: sanitizeTitleCase(parsed.name || "Estate Master Admin"),
+                organizationId: "org_estate_01",
+                role: parsed.role || "master_admin",
+                assignedPropertyId: parsed.role === "master_admin" ? "" : "sunshine-pg",
+              };
+              setProfile(fallbackProf);
+            } catch {
+              setProfile(null);
+            }
+          } else {
+            setProfile(null);
+          }
+        } else {
+          setProfile(null);
+        }
       }
 
       setLoading(false);
@@ -102,56 +125,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Strict Access Guard — Protect dashboard routes & enforce Email Verification Gatekeeper
+  // Dual-Tier Access Guard — Protect dashboard routes with Firebase Auth OR PIN Fast-Session
   useEffect(() => {
     if (!loading) {
       const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
       const isAuthPage = pathname === "/login" || pathname === "/signup";
 
+      const hasLocalSession =
+        typeof window !== "undefined" && Boolean(localStorage.getItem("tenopilot_saved_session"));
       const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
       const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
       if (isProtectedPage) {
-        if (!user) {
+        // If neither a Firebase token nor a local unlocked PIN session exists
+        if (!user && !hasLocalSession) {
           router.push("/login");
-        } else if (isEmailUnverified) {
+        } else if (user && isEmailUnverified && !hasLocalSession) {
           router.push("/signup?verify=true");
         }
-      } else if (isAuthPage && user && !isEmailUnverified) {
-        router.push("/home");
+      } else if (isAuthPage && (user || hasLocalSession) && !isEmailUnverified) {
+        // Auto-navigate to home if already authenticated
+        if (pathname === "/login" && !hasLocalSession) {
+          router.push("/home");
+        }
       }
     }
   }, [user, loading, pathname, router]);
 
   // Update Profile Name function with Real-time propagation & Title-Case Sanitization
   const updateProfileName = async (newName: string) => {
-    if (!user || !newName.trim()) return;
     const cleanName = sanitizeTitleCase(newName);
+    const targetUid = user?.uid || profile?.uid || "local_owner";
+    const currentEmail = user?.email || profile?.email || "owner@tenopilot.com";
+    const currentOrgId = profile?.organizationId || `org_${targetUid}`;
+    const currentRole = profile?.role || "master_admin";
 
     const updatedProfile: UserProfile = {
-      ...(profile || {
-        uid: user.uid,
-        email: user.email || "",
-        organizationId: `org_${user.uid}`,
-        role: "master_admin",
-        assignedPropertyId: "",
-      }),
+      uid: targetUid,
+      email: currentEmail,
+      organizationId: currentOrgId,
+      role: currentRole,
+      assignedPropertyId: profile?.assignedPropertyId || "",
       displayName: cleanName,
       isNewUser: false,
     };
 
     setProfile(updatedProfile);
 
-    try {
-      const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, { displayName: cleanName, isNewUser: false }, { merge: true });
-    } catch (e) {
-      console.warn("Firestore profile name update fallback:", e);
+    // Also update local device cache
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tenopilot_saved_session");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          parsed.name = cleanName;
+          localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
+        } catch {}
+      }
+    }
+
+    if (user) {
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        await setDoc(userDocRef, { displayName: cleanName, isNewUser: false }, { merge: true });
+      } catch (e) {
+        console.warn("Firestore profile name update fallback:", e);
+      }
     }
   };
 
   const logout = async () => {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch {}
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_active_role");
+    }
     setUser(null);
     setProfile(null);
     router.push("/login");
