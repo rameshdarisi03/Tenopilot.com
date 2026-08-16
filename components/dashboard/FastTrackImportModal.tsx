@@ -31,6 +31,7 @@ import {
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 
@@ -84,6 +85,7 @@ export function FastTrackImportModal({
 
   // Options
   const [autoProvisionBuilding, setAutoProvisionBuilding] = useState<boolean>(true);
+  const [importMode, setImportMode] = useState<"MERGE" | "REBUILD">("MERGE");
   const [markDepositsPaid, setMarkDepositsPaid] = useState<boolean>(true);
   const [markCurrentMonthRentPaid, setMarkCurrentMonthRentPaid] = useState<boolean>(false);
 
@@ -925,7 +927,8 @@ export function FastTrackImportModal({
     setIsSubmitting(true);
     try {
       const result = await executeFastTrackBatchIngest(propertyId, editableRows, {
-        autoProvisionBuilding,
+        autoProvisionBuilding: true,
+        rebuildLayout: importMode === "REBUILD",
         markDepositsPaid,
         markCurrentMonthRentPaid,
       });
@@ -1355,19 +1358,64 @@ Priya Verma    9855667788   Room 201   22000"
               </div>
             </div>
 
+            {/* 🌟 Simple Room Setup Option for PG Owners */}
+            {typeof window !== "undefined" && (propertyStore.getStructure(propertyId)?.length || 0) > 0 && (
+              <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-200 space-y-2.5">
+                <p className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-[#c2652a]" />
+                  <span>How should we set up your rooms for these tenants?</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <label
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                      importMode === "MERGE"
+                        ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-xs"
+                        : "bg-white/60 border-gray-200 hover:bg-white text-gray-600"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="importMode"
+                      checked={importMode === "MERGE"}
+                      onChange={() => setImportMode("MERGE")}
+                      className="mt-0.5 text-[#c2652a] focus:ring-[#c2652a]"
+                    />
+                    <div>
+                      <p className="font-bold text-gray-900">✨ Keep My Existing Rooms & Add Tenants</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Keeps your current room names, floors, and prices. Tenants from your list will be placed into matching rooms. Extra beds are added automatically if needed.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                      importMode === "REBUILD"
+                        ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-xs"
+                        : "bg-white/60 border-gray-200 hover:bg-white text-gray-600"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="importMode"
+                      checked={importMode === "REBUILD"}
+                      onChange={() => setImportMode("REBUILD")}
+                      className="mt-0.5 text-[#c2652a] focus:ring-[#c2652a]"
+                    />
+                    <div>
+                      <p className="font-bold text-gray-900">🔄 Rebuild Rooms from Uploaded Sheet</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Clears any test or dummy rooms and creates fresh floors and rooms exactly as written in your uploaded sheet.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             {/* Ingestion Options Bar & Auto-Fix Banner */}
             <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-gray-700">
               <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={autoProvisionBuilding}
-                    onChange={(e) => setAutoProvisionBuilding(e.target.checked)}
-                    className="rounded text-[#c2652a] focus:ring-[#c2652a]"
-                  />
-                  <span>✨ Auto-generate Floors & Rooms in Property Setup if missing</span>
-                </label>
-
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"

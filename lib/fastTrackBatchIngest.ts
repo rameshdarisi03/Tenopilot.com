@@ -12,6 +12,7 @@ import { saveOccupantToFirestore } from "./firestoreService";
 
 export interface BatchIngestOptions {
   autoProvisionBuilding: boolean;
+  rebuildLayout?: boolean; // When true, clears dummy rooms and generates fresh from sheet
   markDepositsPaid?: boolean;
   markCurrentMonthRentPaid?: boolean;
 }
@@ -45,12 +46,14 @@ export async function executeFastTrackBatchIngest(
     };
   }
 
-  // 1. Auto-Provision Building Structure if requested
+  // 1. Auto-Provision or Smart-Merge Building Structure
   let createdRoomsCount = 0;
   let createdBedsCount = 0;
   if (options.autoProvisionBuilding) {
     try {
-      const provResult = autoProvisionBuildingFromRoster(propertyId, rows);
+      const provResult = autoProvisionBuildingFromRoster(propertyId, rows, {
+        rebuildLayout: options.rebuildLayout,
+      });
       createdRoomsCount = provResult.createdRoomsCount;
       createdBedsCount = provResult.createdBedsCount;
     } catch (e: any) {
@@ -158,35 +161,32 @@ export async function executeFastTrackBatchIngest(
 
     const initials = row.fullName
       .split(" ")
-      .map((w) => w.charAt(0))
+      .map((n) => n[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2) || "TP";
-
-    // Default neutral empty avatar (No cartoon stickers)
-    const avatarUrl = "";
+      .slice(0, 2) || "TN";
 
     const occ: Occupant = {
       id: occupantId,
       name: row.fullName,
-      avatar: avatarUrl,
-      phone: row.phone || "9876543210",
-      email: `${row.fullName.toLowerCase().replace(/[^a-z0-9]/g, "")}${idx + 1}@gmail.com`,
-      stayType: "Tenant",
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row.fullName)}`,
       roomNumber: rawRoom,
       bedCode: finalBedCode,
+      rentAmount: rent,
       joiningDate: row.joiningDate || now.toISOString().split("T")[0],
-      lastPaidDate: isRentPaid ? `01 ${currentMonthStr}` : "—",
+      lastPaidDate: isRentPaid ? currentMonthStr : "—",
       dueDate: dueDateStr,
       dueDay,
       daysRemainingText: rowDaysRemainingText,
-      daysDiff,
-      rentAmount: rent,
+      daysDiff: isRentPaid ? 30 : daysDiff,
       paymentStatus: rowPaymentStatus,
       lifecycleStatus: "Active",
-      aadhaarNumber: "",
+      stayType: "Tenant",
+      phone: row.phone || "9876543210",
+      email: `${row.fullName.toLowerCase().replace(/[^a-z0-9]/g, "")}@resident.tenopilot.com`,
+      aadhaarNumber: "XXXX-XXXX-XXXX",
       emergencyContact: {
-        name: "Family Contact",
+        name: `${row.fullName} Guardian`,
         phone: row.phone || "9876543210",
         relation: "Guardian",
       },
@@ -213,25 +213,39 @@ export async function executeFastTrackBatchIngest(
     );
   });
 
-  // 5. Synchronize Room Bed Occupancies in Property Layout Store
+  // 5. Synchronize Room Bed Occupancies in Property Layout Store (Fuzzy Slot Index Matching)
   const currentStructure = propertyStore.getStructure(propertyId);
   if (currentStructure && currentStructure.length > 0) {
     let structureUpdated = false;
+
+    // Group active occupants by room number
+    const activeOccupantsByRoom = new Map<string, Occupant[]>();
+    mergedOccupants
+      .filter((o) => o.lifecycleStatus !== "Past")
+      .forEach((occ) => {
+        const rm = occ.roomNumber.toUpperCase().trim();
+        const list = activeOccupantsByRoom.get(rm) || [];
+        list.push(occ);
+        activeOccupantsByRoom.set(rm, list);
+      });
+
     currentStructure.forEach((floor) => {
       floor.rooms.forEach((room) => {
-        room.beds.forEach((bed) => {
-          const matchingOcc = mergedOccupants.find(
-            (o) =>
-              o.roomNumber.toUpperCase() === room.roomNumber.toUpperCase() &&
-              o.bedCode.toUpperCase() === bed.bedCode.toUpperCase() &&
-              o.lifecycleStatus !== "Past"
-          );
+        const roomOccupants = activeOccupantsByRoom.get(room.roomNumber.toUpperCase().trim()) || [];
+
+        room.beds.forEach((bed, bedIdx) => {
+          const matchingOcc = roomOccupants[bedIdx];
           if (matchingOcc) {
-            bed.status = matchingOcc.lifecycleStatus === "Notice" ? "Vacating" : matchingOcc.stayType === "Guest" ? "Guest" : "Occupied";
+            bed.status =
+              matchingOcc.lifecycleStatus === "Notice"
+                ? "Vacating"
+                : matchingOcc.stayType === "Guest"
+                ? "Guest"
+                : "Occupied";
             bed.occupant = matchingOcc;
+            matchingOcc.bedCode = bed.bedCode; // Align bed code to physical layout
             structureUpdated = true;
           } else {
-            // Explicitly ensure vacant / unassigned beds are Available
             bed.status = "Available";
             bed.occupant = undefined;
             bed.vacatingDate = undefined;
@@ -244,6 +258,7 @@ export async function executeFastTrackBatchIngest(
 
     if (structureUpdated) {
       propertyStore.updateStructure(currentStructure, propertyId);
+      occupantStore.updateOccupants(mergedOccupants, propertyId);
     }
   }
 
