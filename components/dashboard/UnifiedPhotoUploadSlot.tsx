@@ -4,6 +4,48 @@ import { useState, useRef, useEffect } from "react";
 import { Camera, Upload, Check, Trash2, RefreshCw, FileText, Monitor, Smartphone } from "lucide-react";
 import { WebcamCaptureModal } from "./WebcamCaptureModal";
 
+async function compressImageToJpeg(fileOrBase64: File | string, maxDim = 600, quality = 0.82): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(typeof fileOrBase64 === "string" ? fileOrBase64 : "");
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      resolve(typeof fileOrBase64 === "string" ? fileOrBase64 : "");
+    };
+
+    if (typeof fileOrBase64 === "string") {
+      img.src = fileOrBase64;
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(fileOrBase64);
+    }
+  });
+}
+
 export function UnifiedPhotoUploadSlot({
   label = "Profile Photo",
   aspectRatio = "headshot", // "headshot" | "idcard"
@@ -37,8 +79,8 @@ export function UnifiedPhotoUploadSlot({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle standard file input change (gallery or camera chooser)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle standard file input change (gallery or camera chooser) with auto-compression
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -47,12 +89,21 @@ export function UnifiedPhotoUploadSlot({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Url = event.target?.result as string;
-      onChange(base64Url);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageToJpeg(
+        file,
+        aspectRatio === "headshot" ? 500 : 800,
+        0.82
+      );
+      onChange(compressed);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Url = event.target?.result as string;
+        onChange(base64Url);
+      };
+      reader.readAsDataURL(file);
+    }
     setShowChoiceDropdown(false);
   };
 
@@ -195,7 +246,10 @@ export function UnifiedPhotoUploadSlot({
         aspectRatio={aspectRatio}
         isOpen={showWebcamModal}
         onClose={() => setShowWebcamModal(false)}
-        onCapture={(imgData) => onChange(imgData)}
+        onCapture={async (imgData) => {
+          const compressed = await compressImageToJpeg(imgData, aspectRatio === "headshot" ? 500 : 800, 0.82);
+          onChange(compressed);
+        }}
       />
     </div>
   );

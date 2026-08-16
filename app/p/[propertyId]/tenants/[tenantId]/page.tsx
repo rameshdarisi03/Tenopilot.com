@@ -186,10 +186,12 @@ export default function IndividualTenantProfilePage({
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showDeleteGuestModal, setShowDeleteGuestModal] = useState(false);
   const [showGuestCheckoutConfirmModal, setShowGuestCheckoutConfirmModal] = useState(false);
-  const [showEditCheckInModal, setShowEditCheckInModal] = useState(false);
-
-  // Edit Check-In Date Inputs
+  const [showRescheduleCancelModal, setShowRescheduleCancelModal] = useState<boolean>(false);
+  const [rescheduleModalTab, setRescheduleModalTab] = useState<"RESCHEDULE" | "CANCEL">("RESCHEDULE");
   const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
+  const [cancellationRetentionFee, setCancellationRetentionFee] = useState<number>(0);
+  const [cancellationReason, setCancellationReason] = useState<string>("Tenant No-Show (Did not appear on joining date)");
+  const [cancellationNotes, setCancellationNotes] = useState<string>("");
 
   // Collect Rent Form Inputs
   const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
@@ -1239,22 +1241,26 @@ export default function IndividualTenantProfilePage({
               {/* Row 2: Balanced Side-by-Side Clean Layout */}
               {occupantState.lifecycleStatus === "Booked" ? (
                 <>
-                  {/* 5. Edit Check-In Date (Reschedule Move-In) */}
+                  {/* 5. Reschedule / Cancel Check-in */}
                   <button
                     type="button"
-                    onClick={() => setShowEditCheckInModal(true)}
+                    onClick={() => {
+                      setRescheduleModalTab("RESCHEDULE");
+                      setShowRescheduleCancelModal(true);
+                    }}
                     className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
                   >
-                    <Clock className="w-4 h-4" /> 📅 Edit Check-In Date (Reschedule)
+                    <Clock className="w-4 h-4" /> 📅 Reschedule / Cancel Check-in
                   </button>
 
-                  {/* 6. Formal Check-Out & Deposit Settlement (Cancel Booking) */}
+                  {/* 6. Formal Check-Out & Settlement (Disabled for Booked) */}
                   <button
                     type="button"
-                    onClick={() => setShowCheckOutModal(true)}
-                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                    disabled
+                    title="Resident has not checked in yet. To cancel before move-in, please use 'Reschedule / Cancel Check-in'."
+                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 border border-gray-200 text-gray-400 rounded-xl text-xs font-bold shadow-none cursor-not-allowed opacity-75"
                   >
-                    🔑 Check-Out / Cancel Booking
+                    🔑 Formal Check-Out & Settlement
                   </button>
                 </>
               ) : occupantState.lifecycleStatus !== "Past" ? (
@@ -3264,92 +3270,287 @@ export default function IndividualTenantProfilePage({
 
 
 
-        {/* EDIT CHECK-IN DATE DATEPICKER MODAL */}
-        {showEditCheckInModal && (
+        {/* 📅 RESCHEDULE / CANCEL CHECK-IN & NO-SHOW SETTLEMENT MODAL */}
+        {showRescheduleCancelModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95">
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
-                    <Clock className="w-5 h-5" />
+                  <div className={`p-2 rounded-xl ${rescheduleModalTab === "RESCHEDULE" ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"}`}>
+                    {rescheduleModalTab === "RESCHEDULE" ? <Clock className="w-5 h-5" /> : <LogOut className="w-5 h-5" />}
                   </div>
                   <div>
                     <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Edit Check-In Move-In Date
+                      {rescheduleModalTab === "RESCHEDULE" ? "Reschedule Check-In Date" : "Cancel Booking & Settle Advance"}
                     </h3>
                     <p className="text-[10px] text-gray-400 font-semibold">
-                      TENANT: {occupantState.name}
+                      TENANT: {occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})
                     </p>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setShowEditCheckInModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                  onClick={() => setShowRescheduleCancelModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  // Format postponed date
-                  const dParts = postponedCheckInDate.split("-");
-                  const formattedDate = `${dParts[2]} ${
-                    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
-                      parseInt(dParts[1], 10) - 1
-                    ] || "Aug"
-                  } ${dParts[0]}`;
+              {/* Tab Selector */}
+              <div className="flex bg-gray-100 p-1 rounded-2xl gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModalTab("RESCHEDULE")}
+                  className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                    rescheduleModalTab === "RESCHEDULE"
+                      ? "bg-white text-blue-700 shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" /> 📅 Reschedule Date
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModalTab("CANCEL")}
+                  className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                    rescheduleModalTab === "CANCEL"
+                      ? "bg-white text-rose-700 shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <LogOut className="w-3.5 h-3.5" /> ❌ Cancel Booking / No-Show
+                </button>
+              </div>
 
-                  setOccupantState((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          joiningDate: formattedDate,
-                          dueDate: formattedDate,
-                        }
-                      : null
+              {rescheduleModalTab === "RESCHEDULE" ? (
+                /* TAB 1: RESCHEDULE DATE FORM */
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const dParts = postponedCheckInDate.split("-");
+                    const formattedDate = `${dParts[2]} ${
+                      ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
+                        parseInt(dParts[1], 10) - 1
+                      ] || "Aug"
+                    } ${dParts[0]}`;
+
+                    const updated: Occupant = {
+                      ...occupantState,
+                      joiningDate: formattedDate,
+                      dueDate: formattedDate,
+                    };
+
+                    setOccupantState(updated);
+                    occupantStore.updateOccupant(updated, propertyId);
+                    saveOccupantToFirestore(propertyId, updated);
+
+                    triggerToast(`✓ Updated check-in move-in date for ${occupantState.name} to ${formattedDate}`);
+                    setShowRescheduleCancelModal(false);
+                  }}
+                  className="space-y-4 text-xs"
+                >
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      New Target Move-in Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={postponedCheckInDate}
+                      onChange={(e) => setPostponedCheckInDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700 bg-white"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      The booking remains active and the bed stays reserved until this new date arrives.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowRescheduleCancelModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
+                    >
+                      Confirm & Update Date
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* TAB 2: CANCEL BOOKING & ADVANCE RETENTION SETTLEMENT */
+                (() => {
+                  const statement = calculateOccupantFinancialStatement(occupantState);
+                  const totalAdvanceCollected = Number(statement.totalPaid) || (occupantState.depositStatus === "PAID" ? Number(occupantState.securityDeposit) || 0 : 0);
+                  const netRefund = Math.max(0, totalAdvanceCollected - cancellationRetentionFee);
+
+                  return (
+                    <div className="space-y-4 text-xs">
+                      {/* Financial Settlement Card */}
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
+                        <div className="flex justify-between items-center font-semibold text-gray-700 pb-2 border-b border-gray-200">
+                          <span>💰 Advance Collected:</span>
+                          <span className="font-bold text-gray-900 text-sm font-mono">
+                            ₹{totalAdvanceCollected.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-700 mb-1">
+                            ✂️ Cancellation / Retention Fee (₹):
+                          </label>
+                          <input
+                            type="number"
+                            value={cancellationRetentionFee ? cancellationRetentionFee : ""}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              setCancellationRetentionFee(val === "" ? 0 : parseInt(val, 10));
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold font-mono text-gray-900 focus:ring-1 focus:ring-rose-600 bg-white"
+                          />
+                          <p className="text-[10px] text-gray-500 mt-1">
+                            Owner Retention: Enter amount retained for holding the room or ₹0 for full refund.
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-emerald-100/70 border border-emerald-300 rounded-xl flex justify-between items-center text-emerald-950 font-bold">
+                          <span>🟢 Net Refund to Tenant:</span>
+                          <span className="text-base font-mono font-extrabold text-emerald-900">
+                            ₹{netRefund.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Cancellation Reason Selector */}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Cancellation / No-Show Reason *
+                        </label>
+                        <select
+                          value={cancellationReason}
+                          onChange={(e) => setCancellationReason(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-1 focus:ring-rose-600 bg-white"
+                        >
+                          <option value="Tenant No-Show (Did not appear on joining date)">
+                            Tenant No-Show (Did not appear on joining date)
+                          </option>
+                          <option value="Tenant cancelled move-in (Job / Personal plans changed)">
+                            Tenant cancelled move-in (Job / Personal plans changed)
+                          </option>
+                          <option value="Found alternative accommodation">
+                            Found alternative accommodation
+                          </option>
+                          <option value="Other Custom Reason">
+                            Other Custom Reason
+                          </option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Optional Notes / Comments
+                        </label>
+                        <input
+                          type="text"
+                          value={cancellationNotes}
+                          onChange={(e) => setCancellationNotes(e.target.value)}
+                          placeholder="e.g. Informed via WhatsApp, refunded token via GPay"
+                          className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-gray-800 bg-white"
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => setShowRescheduleCancelModal(false)}
+                          className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+                        >
+                          Keep Booking
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // 1. Release bed in propertyStore (Bed returns to Available 🟢)
+                            const currentStructure = propertyStore.getStructure(propertyId);
+                            const updatedStructure = currentStructure.map((floor) => ({
+                              ...floor,
+                              rooms: floor.rooms.map((room) => {
+                                if (room.roomNumber !== occupantState.roomNumber) return room;
+                                return {
+                                  ...room,
+                                  beds: room.beds.map((bed) => {
+                                    if (bed.bedCode !== occupantState.bedCode) return bed;
+                                    return {
+                                      ...bed,
+                                      status: "Available" as const,
+                                      occupant: undefined,
+                                      vacatingDate: undefined,
+                                    };
+                                  }),
+                                };
+                              }),
+                            }));
+                            propertyStore.updateStructure(updatedStructure, propertyId);
+
+                            // 2. Mark tenant as Past (Cancelled Booking)
+                            const todayStr = new Date().toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            });
+
+                            const updated: Occupant = {
+                              ...occupantState,
+                              lifecycleStatus: "Past",
+                              paymentStatus: "Due",
+                              vacatingDate: todayStr,
+                            };
+
+                            setOccupantState(updated);
+                            occupantStore.updateOccupant(updated, propertyId);
+                            saveOccupantToFirestore(propertyId, updated);
+
+                            // 3. Log into Compliance Log Store
+                            const sanitizedComplianceEntry = sanitizeOccupantForCompliance({
+                              propertyId,
+                              occupantId: occupantState.id,
+                              name: occupantState.name,
+                              phone: occupantState.phone,
+                              stayType: "Tenant",
+                              roomNumber: occupantState.roomNumber,
+                              bedCode: occupantState.bedCode,
+                              checkInDate: occupantState.joiningDate,
+                              checkOutDate: todayStr,
+                              totalDaysStayed: 0,
+                              purposeOfVisit: "Standard Long-Term Stay",
+                              exitCategory: "Other",
+                              exitReason: cancellationReason,
+                              totalPaid: totalAdvanceCollected,
+                              depositRefunded: netRefund,
+                              penaltyPaid: cancellationRetentionFee,
+                              kycVerified: Boolean(occupantState.kycVerified),
+                            });
+                            complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
+
+                            triggerToast(`✓ Booking cancelled. Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now Available 🟢`);
+                            setShowRescheduleCancelModal(false);
+                          }}
+                          className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md cursor-pointer active:scale-95 transition-all"
+                        >
+                          Confirm Cancellation & Release Bed 🟢
+                        </button>
+                      </div>
+                    </div>
                   );
-
-                  triggerToast(`✓ Updated check-in move-in date for ${occupantState.name} to ${formattedDate}`);
-                  setShowEditCheckInModal(false);
-                }}
-                className="space-y-4 text-xs"
-              >
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    New Target Move-in Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={postponedCheckInDate}
-                    onChange={(e) => setPostponedCheckInDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    The silent auto-checkin engine will automatically transition status to Active when this date arrives.
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditCheckInModal(false)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold shadow-md"
-                  >
-                    Confirm & Update Date
-                  </button>
-                </div>
-              </form>
+                })()
+              )}
             </div>
           </div>
         )}
