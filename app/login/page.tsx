@@ -23,6 +23,7 @@ import {
   HelpCircle,
   X,
   UserCheck,
+  ShieldAlert,
 } from "lucide-react";
 import {
   loginWithGoogle,
@@ -43,6 +44,7 @@ interface SavedSession {
   propertyName?: string;
   securityPin?: string;
   assignedPropertyId?: string;
+  hasSetPin?: boolean;
 }
 
 export default function LoginPage() {
@@ -67,6 +69,12 @@ export default function LoginPage() {
   const [lockoutExpiry, setLockoutExpiry] = useState<number | null>(null);
   const [lockoutCountdown, setLockoutCountdown] = useState<number>(0);
 
+  // Reset PIN with Password Modal State
+  const [showPasswordResetPinModal, setShowPasswordResetPinModal] = useState(false);
+  const [verifyPasswordForPin, setVerifyPasswordForPin] = useState("");
+  const [verifyPasswordError, setVerifyPasswordError] = useState<string | null>(null);
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+
   // Forgot Password Modal State
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -85,7 +93,11 @@ export default function LoginPage() {
           const parsed = JSON.parse(saved) as SavedSession;
           setSavedSession(parsed);
           setEmail(parsed.email);
-          setAuthStep("PIN_PROMPT");
+          if (parsed.hasSetPin === false || !parsed.securityPin) {
+            setAuthStep("FIRST_TIME_SET_PIN");
+          } else {
+            setAuthStep("PIN_PROMPT");
+          }
         } catch {
           setSavedSession(null);
         }
@@ -152,21 +164,24 @@ export default function LoginPage() {
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === cleanEmail);
 
+      const hasUserSetPin = staffData?.hasSetPin === true || (match && match.hasSetPin === true);
+
       const session: SavedSession = {
         email: cleanEmail,
         name: staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner",
         role: staffData?.role || match?.role || (cleanEmail.includes("rec") ? "receptionist" : "master_admin"),
         propertyName: staffData?.propertyName || match?.propertyName || "Sunshine Heights PG",
         assignedPropertyId: staffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
-        securityPin: staffData?.securityPin || match?.securityPin || "123456",
+        securityPin: hasUserSetPin ? (staffData?.securityPin || match?.securityPin) : undefined,
+        hasSetPin: hasUserSetPin,
       };
 
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
       staffStore.setActiveRole(session.role);
 
-      // Check if this is a first-time login where staff needs to set their PIN
-      if (staffData && staffData.hasSetPin === false) {
+      // Route directly to FIRST_TIME_SET_PIN if user has not set their PIN yet!
+      if (!hasUserSetPin) {
         setAuthStep("FIRST_TIME_SET_PIN");
         setFirstTimePin("");
       } else {
@@ -192,20 +207,23 @@ export default function LoginPage() {
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === userEmail);
 
+      const hasUserSetPin = result.profile.hasSetPin === true || (match && match.hasSetPin === true);
+
       const session: SavedSession = {
         email: userEmail,
         name: result.profile.displayName || match?.name || "Estate Master Admin",
         role: result.profile.role || match?.role || "master_admin",
         propertyName: match?.propertyName || "All Properties",
         assignedPropertyId: result.profile.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
-        securityPin: result.profile.securityPin || match?.securityPin || "123456",
+        securityPin: hasUserSetPin ? (result.profile.securityPin || match?.securityPin) : undefined,
+        hasSetPin: hasUserSetPin,
       };
 
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
       staffStore.setActiveRole(session.role);
 
-      if (result.profile.hasSetPin === false) {
+      if (!hasUserSetPin) {
         setAuthStep("FIRST_TIME_SET_PIN");
       } else {
         setAuthStep("PIN_PROMPT");
@@ -219,8 +237,8 @@ export default function LoginPage() {
     }
   };
 
-  // Handle First Time PIN Creation & Instant Workspace Entry
-  const handleSaveFirstTimePin = async (e: React.FormEvent) => {
+  // Handle Setting Personal 6-Digit PIN (First-Time or Reset)
+  const handleSavePersonalPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (firstTimePin.length !== 6) {
       setError("Please enter a valid 6-digit security PIN.");
@@ -248,7 +266,7 @@ export default function LoginPage() {
       } catch {}
 
       if (savedSession) {
-        const updated = { ...savedSession, securityPin: firstTimePin };
+        const updated: SavedSession = { ...savedSession, securityPin: firstTimePin, hasSetPin: true };
         setSavedSession(updated);
         localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
       }
@@ -298,10 +316,32 @@ export default function LoginPage() {
         const expiry = Date.now() + 15 * 60 * 1000;
         setLockoutExpiry(expiry);
         localStorage.setItem("tenopilot_pin_lockout", expiry.toString());
-        setError("🔒 Account locked due to 5 incorrect attempts. Please wait 15 minutes.");
+        setError("🔒 Account locked due to 5 incorrect attempts. Please wait 15 minutes or verify with password.");
       } else {
         setError(`Incorrect 6-digit PIN. (${5 - newAttempts} attempts remaining)`);
       }
+    }
+  };
+
+  // Handle Verify Password to Reset PIN
+  const handleVerifyPasswordForPinReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyPasswordError(null);
+    setIsVerifyingPassword(true);
+
+    try {
+      const targetEmail = savedSession?.email || email;
+      await loginWithEmailPassword(targetEmail, verifyPasswordForPin);
+
+      // Password verified! Open the PIN creation screen
+      setShowPasswordResetPinModal(false);
+      setVerifyPasswordForPin("");
+      setAuthStep("FIRST_TIME_SET_PIN");
+      setFirstTimePin("");
+    } catch (err: any) {
+      setVerifyPasswordError("Incorrect account password. Please try again.");
+    } finally {
+      setIsVerifyingPassword(false);
     }
   };
 
@@ -525,7 +565,7 @@ export default function LoginPage() {
                   </p>
                 </div>
 
-                <form onSubmit={handleSaveFirstTimePin} className="space-y-4">
+                <form onSubmit={handleSavePersonalPin} className="space-y-4">
                   <div>
                     <input
                       ref={pinInputRef}
@@ -597,14 +637,25 @@ export default function LoginPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-center gap-4 text-xs font-bold">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs font-bold pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordResetPinModal(true)}
+                    className="text-[#c2652a] hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Forgot PIN? Reset with Password</span>
+                  </button>
+
+                  <span className="hidden sm:inline text-gray-300">•</span>
+
                   <button
                     type="button"
                     onClick={handleSwitchAccount}
-                    className="text-[#c2652a] hover:underline cursor-pointer flex items-center gap-1"
+                    className="text-gray-500 hover:text-gray-900 cursor-pointer flex items-center gap-1"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Switch Account / Sign In with Password</span>
+                    <span>Switch Account</span>
                   </button>
                 </div>
               </div>
@@ -639,6 +690,68 @@ export default function LoginPage() {
         </div>
 
       </div>
+
+      {/* 🔐 Password Verification Modal to Reset PIN */}
+      {showPasswordResetPinModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2 text-gray-900">
+                <Lock className="w-4 h-4 text-[#c2652a]" />
+                <h3 className="font-serif font-bold text-base">Verify Password</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPasswordResetPinModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-gray-500 text-[11px] leading-relaxed">
+              Enter your account password to verify identity before creating a new 6-digit Security PIN.
+            </p>
+
+            <form onSubmit={handleVerifyPasswordForPinReset} className="space-y-3">
+              {verifyPasswordError && (
+                <div className="p-2 bg-rose-50 border border-rose-200 text-rose-900 rounded-lg font-semibold">
+                  {verifyPasswordError}
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Account Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={verifyPasswordForPin}
+                  onChange={(e) => setVerifyPasswordForPin(e.target.value)}
+                  placeholder="Enter your account password"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordResetPinModal(false)}
+                  className="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingPassword || !verifyPasswordForPin}
+                  className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50"
+                >
+                  {isVerifyingPassword ? "Verifying..." : "Verify & Set PIN"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Forgot Password Modal */}
       {showResetModal && (

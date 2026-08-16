@@ -23,6 +23,7 @@ export interface StaffMember {
   joinedDate: string;
   avatarUrl?: string;
   securityPin?: string; // 6-Digit security PIN
+  hasSetPin?: boolean;
 }
 
 // 100% Clean Seed - Zero Mock Accounts (Empty Array)

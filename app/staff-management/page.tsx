@@ -24,6 +24,8 @@ import {
   Eye,
   EyeOff,
   Copy,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { useAuth } from "@/providers/AuthProvider";
@@ -41,8 +43,9 @@ export default function StaffManagementPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState<UserRole>("receptionist");
+  const [role, setRole] = useState<UserRole>("admin");
   const [assignedPropertyId, setAssignedPropertyId] = useState("sunshine-pg");
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [password, setPassword] = useState("Pass@1234");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -51,10 +54,12 @@ export default function StaffManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedNotice, setCopiedNotice] = useState(false);
 
-  // Reset PIN Modal State
+  // Reset PIN Modal State (For Master Admin's own account)
   const [resetTargetMember, setResetTargetMember] = useState<StaffMember | null>(null);
+  const [resetMasterPassword, setResetMasterPassword] = useState("");
   const [resetNewPin, setResetNewPin] = useState("");
   const [isResettingPin, setIsResettingPin] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   // Password Deletion Modal State
   const [deleteTargetMember, setDeleteTargetMember] = useState<StaffMember | null>(null);
@@ -73,8 +78,10 @@ export default function StaffManagementPage() {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setProperties(parsed.map((p: any) => ({ id: p.id, name: p.name })));
-            setAssignedPropertyId(parsed[0].id);
+            const propList = parsed.map((p: any) => ({ id: p.id, name: p.name }));
+            setProperties(propList);
+            setAssignedPropertyId(propList[0].id);
+            setSelectedPropertyIds(propList.map((p: any) => p.id)); // Default admin to all
           }
         } catch {}
       }
@@ -105,11 +112,6 @@ export default function StaffManagementPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleGenerateRandomPin = () => {
-    const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
-    setResetNewPin(randomPin);
-  };
-
   const handleGenerateRandomPassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";
     let res = "";
@@ -117,6 +119,22 @@ export default function StaffManagementPage() {
       res += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setPassword(res);
+  };
+
+  const togglePropertySelection = (propId: string) => {
+    if (selectedPropertyIds.includes(propId)) {
+      setSelectedPropertyIds(selectedPropertyIds.filter((id) => id !== propId));
+    } else {
+      setSelectedPropertyIds([...selectedPropertyIds, propId]);
+    }
+  };
+
+  const toggleSelectAllProperties = () => {
+    if (selectedPropertyIds.length === properties.length) {
+      setSelectedPropertyIds([]);
+    } else {
+      setSelectedPropertyIds(properties.map((p) => p.id));
+    }
   };
 
   const handleCreateStaff = async (e: React.FormEvent) => {
@@ -139,6 +157,11 @@ export default function StaffManagementPage() {
       return;
     }
 
+    if (role === "admin" && selectedPropertyIds.length === 0) {
+      setErrorMessage("Please select at least one building to assign this Admin to.");
+      return;
+    }
+
     // Permission Check
     if (activeRole === "admin" && role !== "receptionist") {
       setErrorMessage("As a Property Admin, you can only create Receptionist accounts.");
@@ -148,16 +171,27 @@ export default function StaffManagementPage() {
     setIsSubmitting(true);
 
     try {
-      const selectedProp = properties.find((p) => p.id === assignedPropertyId);
-      
+      const primaryPropId = role === "admin" ? selectedPropertyIds[0] : assignedPropertyId;
+      const selectedProps = properties.filter((p) =>
+        role === "admin" ? selectedPropertyIds.includes(p.id) : p.id === assignedPropertyId
+      );
+
+      const propDisplayName =
+        role === "admin"
+          ? selectedPropertyIds.length === properties.length
+            ? "All Properties"
+            : selectedProps.map((p) => p.name).join(", ")
+          : selectedProps[0]?.name || "Assigned PG";
+
       const newStaff = await provisionStaffFirebaseAccount({
         id: `staff-${Date.now()}`,
         name: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim() || "+91 98000 00000",
         role: role,
-        assignedPropertyId: assignedPropertyId,
-        propertyName: selectedProp?.name || "Assigned PG",
+        assignedPropertyId: primaryPropId,
+        assignedPropertyIds: role === "admin" ? selectedPropertyIds : [assignedPropertyId],
+        propertyName: propDisplayName,
         password: password,
       });
 
@@ -174,32 +208,36 @@ export default function StaffManagementPage() {
     }
   };
 
-  // Open Reset PIN Dialog
-  const handleOpenResetPin = (member: StaffMember) => {
+  // Open Reset Master PIN Dialog
+  const handleOpenResetMasterPin = (member: StaffMember) => {
     setResetTargetMember(member);
     setResetNewPin("");
-    setSuccessMessage(null);
-    setErrorMessage(null);
+    setResetMasterPassword("");
+    setResetError(null);
   };
 
-  // Confirm Reset PIN
-  const handleConfirmResetPin = async (e: React.FormEvent) => {
+  // Confirm Reset Master PIN with Password Verification
+  const handleConfirmResetMasterPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetTargetMember) return;
 
     if (resetNewPin.length !== 6) {
-      setErrorMessage("New security PIN must be exactly 6 digits.");
+      setResetError("New security PIN must be exactly 6 digits.");
       return;
     }
 
     setIsResettingPin(true);
+    setResetError(null);
+
     try {
+      await reauthenticateCurrentAccount(resetMasterPassword);
       await staffStore.setSecurityPin(resetTargetMember.id, resetNewPin);
-      setSuccessMessage(`✅ Security PIN for ${resetTargetMember.name} updated to ${resetNewPin}!`);
+      setSuccessMessage(`✅ Your Master Security PIN has been updated successfully!`);
       setResetTargetMember(null);
       setResetNewPin("");
+      setResetMasterPassword("");
     } catch (err: any) {
-      setErrorMessage("Failed to update PIN. Please try again.");
+      setResetError(err?.message || "Password verification failed. PIN was not updated.");
     } finally {
       setIsResettingPin(false);
     }
@@ -270,7 +308,7 @@ export default function StaffManagementPage() {
 
             <p className="text-xs text-gray-500 font-medium">
               {activeRole === "master_admin"
-                ? "Assign and manage Property Admins & Receptionists across your entire PG network."
+                ? "Assign and manage Property Admins across single or multiple buildings, and Receptionists."
                 : "Manage Front Desk Receptionists for your assigned building."}
             </p>
           </div>
@@ -374,6 +412,16 @@ export default function StaffManagementPage() {
                   const isAdmin = member.role === "admin";
                   const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role) && !isMaster;
 
+                  // Property Display String
+                  const assignedCount = member.assignedPropertyIds?.length || 1;
+                  const propertyDisplay = isMaster
+                    ? "All Properties (Global)"
+                    : member.assignedPropertyIds?.includes("*") || assignedCount >= properties.length
+                    ? "All Buildings (Global Admin)"
+                    : assignedCount > 1
+                    ? `${member.propertyName || "Assigned Buildings"} (${assignedCount} Buildings)`
+                    : member.propertyName || "Assigned Building";
+
                   return (
                     <div
                       key={member.id}
@@ -426,29 +474,45 @@ export default function StaffManagementPage() {
                             )}
                             <span className="flex items-center gap-1 text-[#c2652a] font-semibold">
                               <Building2 className="w-3.5 h-3.5" />
-                              {isMaster ? "All Properties (Global)" : member.propertyName}
+                              {propertyDisplay}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Right Action: PIN & Reset & Delete */}
+                      {/* Right Action: Privacy-First PIN Badge & Actions */}
                       <div className="flex items-center gap-2.5 self-end sm:self-auto">
-                        <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 font-mono font-bold text-xs text-gray-700 flex items-center gap-1.5">
-                          <Key className="w-3 h-3 text-[#c2652a]" />
-                          <span>PIN: {member.securityPin || "123456"}</span>
-                        </div>
-
-                        {/* Reset PIN Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenResetPin(member)}
-                          className="px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#c2652a] border border-orange-200 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                          title="Reset 6-Digit Security PIN"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>Reset PIN</span>
-                        </button>
+                        {isMaster ? (
+                          <>
+                            <div className="px-3 py-1.5 rounded-xl bg-orange-50 border border-orange-200 font-mono font-bold text-xs text-[#964407] flex items-center gap-1.5">
+                              <Key className="w-3 h-3 text-[#c2652a]" />
+                              <span>PIN: {member.securityPin || "123456"}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenResetMasterPin(member)}
+                              className="px-3 py-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-[#964407] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                              title="Reset Master PIN (Requires password verification)"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Reset My PIN</span>
+                            </button>
+                          </>
+                        ) : (
+                          <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 flex items-center gap-1.5">
+                            {member.hasSetPin ? (
+                              <>
+                                <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-700 font-bold">PIN: Active (Staff Managed)</span>
+                              </>
+                            ) : (
+                              <>
+                                <Key className="w-3.5 h-3.5 text-amber-600" />
+                                <span className="text-amber-700 font-bold">PIN: Pending (1st Login)</span>
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {/* Delete Account (Requires Password) */}
                         {canDelete && (
@@ -518,30 +582,71 @@ export default function StaffManagementPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Role Selection */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Assigned Role *</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as UserRole)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
-                  >
-                    {activeRole === "master_admin" && (
-                      <option value="admin">🏢 Property Admin</option>
-                    )}
-                    <option value="receptionist">🔑 Receptionist (Front Desk)</option>
-                  </select>
-                  {activeRole === "admin" && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Admins can create Receptionists for their property.
-                    </p>
+              {/* Role Selection */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Assigned Role *</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
+                >
+                  {activeRole === "master_admin" && (
+                    <option value="admin">🏢 Property Admin (Can manage single or multiple buildings)</option>
                   )}
-                </div>
+                  <option value="receptionist">🔑 Receptionist (Front Desk Single Building)</option>
+                </select>
+              </div>
 
-                {/* Assigned Property */}
+              {/* Building Assignment: Multi-Building Checkboxes for Admin vs Single Dropdown for Receptionist */}
+              {role === "admin" ? (
+                <div className="space-y-2 p-4 bg-orange-50/50 rounded-2xl border border-orange-200/70">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-gray-800">
+                      🏢 Assign Buildings to this Admin * ({selectedPropertyIds.length} Selected)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllProperties}
+                      className="text-[11px] font-bold text-[#c2652a] hover:underline"
+                    >
+                      {selectedPropertyIds.length === properties.length ? "Deselect All" : "Select All Buildings"}
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] text-gray-500">
+                    Select all the PG/Hostel properties this Admin is authorized to manage:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {properties.map((p) => {
+                      const isChecked = selectedPropertyIds.includes(p.id);
+                      return (
+                        <button
+                          type="button"
+                          key={p.id}
+                          onClick={() => togglePropertySelection(p.id)}
+                          className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                            isChecked
+                              ? "bg-white border-[#c2652a] text-gray-900 shadow-2xs"
+                              : "bg-white/60 border-gray-200 text-gray-500 hover:bg-white"
+                          }`}
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 text-[#c2652a] shrink-0" />
+                          ) : (
+                            <Square className="w-4 h-4 text-gray-400 shrink-0" />
+                          )}
+                          <span className="font-semibold text-xs truncate">{p.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">Assigned Building *</label>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Assigned Front Desk Building *
+                  </label>
                   <select
                     value={assignedPropertyId}
                     onChange={(e) => setAssignedPropertyId(e.target.value)}
@@ -554,7 +659,7 @@ export default function StaffManagementPage() {
                     ))}
                   </select>
                 </div>
-              </div>
+              )}
 
               {/* Handover Password */}
               <div>
@@ -607,7 +712,7 @@ export default function StaffManagementPage() {
           </div>
         )}
 
-        {/* 🔑 RESET 6-DIGIT PIN MODAL */}
+        {/* 🔑 RESET MASTER PIN MODAL (Requires Master Account Password Verification) */}
         {resetTargetMember && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
@@ -618,10 +723,10 @@ export default function StaffManagementPage() {
                   </div>
                   <div>
                     <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Reset Security PIN
+                      Reset Master Security PIN
                     </h3>
                     <p className="text-[11px] text-gray-500 font-medium">
-                      Updating PIN for {resetTargetMember.name} ({resetTargetMember.role})
+                      Update your 6-digit access code
                     </p>
                   </div>
                 </div>
@@ -634,22 +739,32 @@ export default function StaffManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleConfirmResetPin} className="space-y-4">
-                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs">
-                  💡 <strong>Immediate Sync:</strong> Setting a new PIN will immediately update the database and become active for unlocking on all devices.
+              <form onSubmit={handleConfirmResetMasterPin} className="space-y-4">
+                {resetError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-bold">
+                    {resetError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Master Account Password *
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      required
+                      value={resetMasterPassword}
+                      onChange={(e) => setResetMasterPassword(e.target.value)}
+                      placeholder="Enter your account password"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-gray-700">New 6-Digit PIN *</label>
-                    <button
-                      type="button"
-                      onClick={handleGenerateRandomPin}
-                      className="text-[11px] font-bold text-[#c2652a] hover:underline"
-                    >
-                      🎲 Generate Random PIN
-                    </button>
-                  </div>
+                  <label className="block font-bold text-gray-700 mb-1">New 6-Digit PIN *</label>
                   <input
                     type="text"
                     maxLength={6}
@@ -671,10 +786,10 @@ export default function StaffManagementPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isResettingPin || resetNewPin.length !== 6}
+                    disabled={isResettingPin || resetNewPin.length !== 6 || !resetMasterPassword}
                     className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                   >
-                    {isResettingPin ? "Updating..." : "Update Security PIN"}
+                    {isResettingPin ? "Verifying & Updating..." : "Update Master PIN"}
                     <CheckCircle2 className="w-4 h-4" />
                   </button>
                 </div>

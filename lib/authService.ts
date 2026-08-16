@@ -278,6 +278,7 @@ export async function provisionStaffFirebaseAccount(staff: {
   phone: string;
   role: UserRole;
   assignedPropertyId: string;
+  assignedPropertyIds?: string[];
   propertyName: string;
   password: string;
 }): Promise<StaffMember> {
@@ -312,6 +313,10 @@ export async function provisionStaffFirebaseAccount(staff: {
     console.warn("Secondary Firebase Auth app fallback:", secErr);
   }
 
+  const assignedIds = staff.assignedPropertyIds && staff.assignedPropertyIds.length > 0
+    ? staff.assignedPropertyIds
+    : [staff.assignedPropertyId];
+
   const staffRecord: StaffMember = {
     id: staff.id || staffUid,
     name: staff.name.trim(),
@@ -319,7 +324,7 @@ export async function provisionStaffFirebaseAccount(staff: {
     phone: staff.phone.trim() || "+91 98000 00000",
     role: staff.role,
     assignedPropertyId: staff.assignedPropertyId,
-    assignedPropertyIds: [staff.assignedPropertyId],
+    assignedPropertyIds: assignedIds,
     propertyName: staff.propertyName,
     status: "Active",
     joinedDate: new Date().toLocaleDateString("en-GB", {
@@ -327,7 +332,7 @@ export async function provisionStaffFirebaseAccount(staff: {
       month: "short",
       year: "numeric",
     }),
-    securityPin: "123456", // Default baseline PIN until first login
+    hasSetPin: false,
   };
 
   // 1. Save in staff_accounts collection in Firestore
@@ -340,7 +345,9 @@ export async function provisionStaffFirebaseAccount(staff: {
     }, { merge: true });
 
     // 2. Save under property staff
-    await setDoc(doc(db, "properties", staff.assignedPropertyId, "staff", staffRecord.id), staffRecord, { merge: true });
+    if (staff.assignedPropertyId) {
+      await setDoc(doc(db, "properties", staff.assignedPropertyId, "staff", staffRecord.id), staffRecord, { merge: true });
+    }
   } catch (fsErr) {
     console.warn("Firestore staff save notice:", fsErr);
   }
