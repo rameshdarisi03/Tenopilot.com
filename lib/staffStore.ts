@@ -1,13 +1,12 @@
-// TenoPilot Staff Management & Multi-Property RBAC Store with Cloud Firestore Sync
 import { db } from "./firebase";
 import {
   collection,
   doc,
   setDoc,
+  getDocs,
   deleteDoc,
   onSnapshot,
 } from "firebase/firestore";
-import { sanitizeForFirestore } from "./firestoreService";
 
 export type UserRole = "master_admin" | "admin" | "receptionist";
 
@@ -26,39 +25,12 @@ export interface StaffMember {
   securityPin?: string; // 6-Digit security PIN
 }
 
-// Initial Mock Staff Seed for Instant Testing
-export const INITIAL_STAFF: StaffMember[] = [
-  {
-    id: "staff-admin-01",
-    name: "Vikram Sharma",
-    email: "vikram.owner@sunshinepg.com",
-    phone: "+91 9812345678",
-    role: "admin",
-    assignedPropertyId: "sunshine-pg",
-    assignedPropertyIds: ["sunshine-pg"],
-    propertyName: "Sunshine Heights PG",
-    status: "Active",
-    joinedDate: "15 Jan 2026",
-    securityPin: "123456",
-  },
-  {
-    id: "staff-rec-01",
-    name: "Priya Sundaram",
-    email: "priya.desk@sunshinepg.com",
-    phone: "+91 9789012345",
-    role: "receptionist",
-    assignedPropertyId: "sunshine-pg",
-    assignedPropertyIds: ["sunshine-pg"],
-    propertyName: "Sunshine Heights PG",
-    status: "Active",
-    joinedDate: "01 Feb 2026",
-    securityPin: "123456",
-  },
-];
+// 100% Clean Seed - Zero Mock Accounts (Empty Array)
+export const INITIAL_STAFF: StaffMember[] = [];
 
 class StaffStore {
   private staffList: Map<string, StaffMember[]> = new Map();
-  private globalStaffList: StaffMember[] = [...INITIAL_STAFF];
+  private globalStaffList: StaffMember[] = [];
   private listeners: Set<() => void> = new Set();
   private activeRole: UserRole = "master_admin";
 
@@ -71,9 +43,21 @@ class StaffStore {
       const savedGlobal = localStorage.getItem("tenopilot_global_staff");
       if (savedGlobal) {
         try {
-          this.globalStaffList = JSON.parse(savedGlobal);
+          const parsed = JSON.parse(savedGlobal) as StaffMember[];
+          // Clean out any legacy mock items
+          const cleaned = (parsed || []).filter(
+            (s) =>
+              s.id !== "staff-master-01" &&
+              s.id !== "staff-admin-01" &&
+              s.id !== "staff-rec-01" &&
+              s.email !== "ramesh@tenopilot.com" &&
+              s.email !== "vikram.owner@sunshinepg.com" &&
+              s.email !== "priya.desk@sunshinepg.com"
+          );
+          this.globalStaffList = cleaned;
+          localStorage.setItem("tenopilot_global_staff", JSON.stringify(cleaned));
         } catch {
-          this.globalStaffList = [...INITIAL_STAFF];
+          this.globalStaffList = [];
         }
       }
     }
@@ -134,14 +118,11 @@ class StaffStore {
                 joinedDate: "Today",
                 securityPin: pin,
               };
-              // Add to store so future lookups succeed
               this.addGlobalStaff(localMember);
               return { valid: true, member: localMember };
             }
           }
-        } catch {
-          // Ignore parse errors
-        }
+        } catch {}
       }
     }
 
@@ -157,7 +138,7 @@ class StaffStore {
           role: "master_admin",
           assignedPropertyId: "sunshine-pg",
           assignedPropertyIds: ["*"],
-          propertyName: "Sunshine Heights PG",
+          propertyName: "All Properties",
           status: "Active",
           joinedDate: "Today",
           securityPin: "123456",
@@ -178,13 +159,17 @@ class StaffStore {
   }
 
   // RBAC Permission Checks
+  canUserAccessStaffManagement(role: UserRole): boolean {
+    return role === "master_admin" || role === "admin";
+  }
+
   canUserAccessPage(page: string): boolean {
     if (this.activeRole === "master_admin" || this.activeRole === "admin") {
       return true;
     }
-    // Receptionist Restrictions (Cannot view revenues, staff, or settings)
+    // Receptionist Restrictions (Cannot view staff or settings)
     if (this.activeRole === "receptionist") {
-      const restrictedPages = ["staff", "settings", "reports"];
+      const restrictedPages = ["staff", "settings", "reports", "staff-management"];
       return !restrictedPages.includes(page);
     }
     return true;
@@ -194,65 +179,73 @@ class StaffStore {
     if (this.activeRole === "master_admin" || this.activeRole === "admin") {
       return true;
     }
-    // Receptionist can ONLY access operational Expenses, NOT Revenues or Partner Settlements
     if (this.activeRole === "receptionist") {
       return tab === "Expenses" || tab === "all";
     }
     return true;
   }
 
-  canUserDeleteStaff(targetRole: UserRole): boolean {
-    if (this.activeRole === "master_admin") {
-      return true; // Master Admin can delete anyone
+  canUserDeleteStaff(callerRole: UserRole, targetRole: UserRole): boolean {
+    if (callerRole === "master_admin") {
+      return true; // Master Admin can delete any staff member
     }
-    if (this.activeRole === "admin") {
+    if (callerRole === "admin") {
       return targetRole === "receptionist"; // Admin can ONLY delete Receptionists (not other Admins)
     }
     return false; // Receptionist cannot delete anyone
   }
 
-  canUserCreateRole(targetRole: UserRole): boolean {
-    if (this.activeRole === "master_admin") {
-      return true; // Master Admin can create any role
+  canUserCreateRole(callerRole: UserRole, targetRole: UserRole): boolean {
+    if (callerRole === "master_admin") {
+      return true; // Master Admin can create any role (Admin or Receptionist)
     }
-    if (this.activeRole === "admin") {
-      return targetRole === "receptionist"; // Admin can ONLY create Receptionists (not Admins)
+    if (callerRole === "admin") {
+      return targetRole === "receptionist"; // Admin can ONLY create Receptionists
     }
     return false;
   }
 
   // Global Staff Query across All Properties
   getAllGlobalStaff(): StaffMember[] {
-    let list = this.globalStaffList.length > 0 ? this.globalStaffList : INITIAL_STAFF;
+    let list = [...this.globalStaffList];
 
-    // Filter out any stale legacy hardcoded master admin records
-    list = list.filter((s) => s.id !== "staff-master-01" && s.email !== "ramesh@tenopilot.com");
+    // Filter out any stale legacy mock accounts
+    list = list.filter(
+      (s) =>
+        s.id !== "staff-master-01" &&
+        s.id !== "staff-admin-01" &&
+        s.id !== "staff-rec-01" &&
+        s.email !== "ramesh@tenopilot.com" &&
+        s.email !== "vikram.owner@sunshinepg.com" &&
+        s.email !== "priya.desk@sunshinepg.com"
+    );
 
-    // Dynamically inject the active registered user as the Master Admin
+    // Dynamically inject the active registered user as the sole Master Admin if not present
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tenopilot_saved_session");
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.name && parsed.email) {
-            const currentMaster: StaffMember = {
-              id: `staff-master-active`,
-              name: parsed.name,
-              email: parsed.email,
-              phone: parsed.phone || "+91 98000 00000",
-              role: "master_admin",
-              assignedPropertyId: "sunshine-pg",
-              assignedPropertyIds: ["*"],
-              propertyName: "All Properties",
-              status: "Active",
-              joinedDate: "Today",
-              securityPin: parsed.securityPin || "123456",
-            };
-            list = [currentMaster, ...list.filter((s) => s.role !== "master_admin")];
+            const hasMaster = list.some((s) => s.email.toLowerCase() === parsed.email.toLowerCase());
+            if (!hasMaster) {
+              const currentMaster: StaffMember = {
+                id: `staff-master-${parsed.email.replace(/[^a-zA-Z0-9]/g, "")}`,
+                name: parsed.name,
+                email: parsed.email,
+                phone: parsed.phone || "+91 98000 00000",
+                role: "master_admin",
+                assignedPropertyId: "sunshine-pg",
+                assignedPropertyIds: ["*"],
+                propertyName: "All Properties",
+                status: "Active",
+                joinedDate: "Owner",
+                securityPin: parsed.securityPin || "123456",
+              };
+              list = [currentMaster, ...list.filter((s) => s.role !== "master_admin")];
+            }
           }
-        } catch {
-          // Ignore parse error
-        }
+        } catch {}
       }
     }
     return list;
@@ -263,7 +256,7 @@ class StaffStore {
     this.saveGlobalStaffToStorage();
     this.notify();
 
-    // Also sync to assigned property buckets
+    // Also sync to assigned property buckets in Firestore
     if (member.assignedPropertyId) {
       await this.addStaff(member.assignedPropertyId, member);
     }
@@ -291,10 +284,9 @@ class StaffStore {
   // Firestore Real-Time Listener per property
   initFirebaseListener(propertyId: string) {
     if (typeof window === "undefined") return;
-    const isMasterDemo = propertyId === "sunshine-pg";
 
     if (!this.staffList.has(propertyId)) {
-      this.staffList.set(propertyId, isMasterDemo ? [...INITIAL_STAFF] : []);
+      this.staffList.set(propertyId, []);
     }
 
     try {
@@ -315,7 +307,7 @@ class StaffStore {
           });
           this.saveGlobalStaffToStorage();
           this.notify();
-        } else if (!isMasterDemo) {
+        } else {
           this.staffList.set(propertyId, []);
           this.notify();
         }
@@ -326,7 +318,6 @@ class StaffStore {
   }
 
   getStaff(propertyId: string): StaffMember[] {
-    const isMasterDemo = propertyId === "sunshine-pg";
     const propertySpecific = this.staffList.get(propertyId);
     if (propertySpecific && propertySpecific.length > 0) return propertySpecific;
 
@@ -339,7 +330,7 @@ class StaffStore {
     );
     if (fromGlobal.length > 0) return fromGlobal;
 
-    return isMasterDemo ? INITIAL_STAFF : [];
+    return [];
   }
 
   async addStaff(propertyId: string, member: StaffMember): Promise<boolean> {
@@ -410,6 +401,16 @@ class StaffStore {
   private notify() {
     this.listeners.forEach((l) => l());
   }
+}
+
+function sanitizeForFirestore(obj: any): any {
+  const clean: any = {};
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      clean[key] = obj[key];
+    }
+  });
+  return clean;
 }
 
 export const staffStore = new StaffStore();

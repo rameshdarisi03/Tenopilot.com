@@ -22,8 +22,6 @@ import {
   MapPin,
   Verified,
   X,
-  UserCheck,
-  Trash2,
   Key,
 } from "lucide-react";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -36,7 +34,7 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { initializeCleanProperty } from "@/lib/accountInitializer";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
-import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
+import { staffStore, UserRole } from "@/lib/staffStore";
 
 export interface PortfolioProperty {
   id: string;
@@ -56,17 +54,7 @@ export default function HomeWorkspacePage() {
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
-
-  // Global Team & Role Management State
-  const [showGlobalTeamModal, setShowGlobalTeamModal] = useState(false);
-  const [globalStaff, setGlobalStaff] = useState<StaffMember[]>(() => staffStore.getAllGlobalStaff());
-  const [teamModalTab, setTeamModalTab] = useState<"DIRECTORY" | "ADD">("DIRECTORY");
-  const [newStaffName, setNewStaffName] = useState("");
-  const [newStaffEmail, setNewStaffEmail] = useState("");
-  const [newStaffPhone, setNewStaffPhone] = useState("");
-  const [newStaffRole, setNewStaffRole] = useState<UserRole>("admin");
-  const [newStaffPin, setNewStaffPin] = useState("123456");
-  const [assignedProperties, setAssignedProperties] = useState<string[]>(["*"]);
+  const [activeRole, setActiveRole] = useState<UserRole>("master_admin");
 
   // New property form state
   const [newPropName, setNewPropName] = useState("");
@@ -108,93 +96,90 @@ export default function HomeWorkspacePage() {
   const computeLiveSunshineMetrics = (): PortfolioProperty => {
     const structure = propertyStore.getStructure();
     let totalBeds = 0;
-    let occupiedBeds = 0;
-
-    structure.forEach((floor) => {
-      floor.rooms.forEach((room) => {
-        room.beds.forEach((bed) => {
-          totalBeds++;
-          if (bed.status === "Occupied" || bed.status === "Vacating" || bed.status === "Guest" || bed.occupant) {
-            occupiedBeds++;
-          }
-        });
+    structure.forEach((f) => {
+      f.rooms.forEach((r) => {
+        totalBeds += r.beds.length;
       });
     });
 
-    const occPct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) + "%" : "0%";
+    const occupants = occupantStore.getOccupants("sunshine-pg");
+    const activeOccupants = occupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+    const occupiedCount = activeOccupants.length;
+    const occRateNum = totalBeds > 0 ? (occupiedCount / totalBeds) * 100 : 0;
+    const occRate = occRateNum.toFixed(1) + "%";
 
-    const occupants = occupantStore.getOccupants();
-    let totalPaid = 0;
-    let totalDue = 0;
-
+    let expectedTotal = 0;
+    let paidTotal = 0;
     occupants.forEach((occ) => {
-      if (occ.lifecycleStatus !== "Past") {
-        const stmt = calculateOccupantFinancialStatement(occ);
-        totalPaid += stmt.totalPaid;
-        totalDue += stmt.totalGrossDue;
-      }
+      const stmt = calculateOccupantFinancialStatement(occ);
+      expectedTotal += stmt.totalGrossDue;
+      paidTotal += stmt.totalPaid;
     });
 
-    const colPct = totalDue > 0 ? Math.min(100, Math.round((totalPaid / totalDue) * 100)) + "%" : "100%";
-
-    let liveName = "Sunshine Heights PG";
-    let liveLocation = "Hitech City, Hyderabad";
-    try {
-      const settings = propertySettingsStore.getSettings("sunshine-pg");
-      if (settings?.propertyName) liveName = settings.propertyName;
-      if (settings?.propertyAddress) liveLocation = settings.propertyAddress;
-    } catch (e) {
-      console.error("Failed reading sunshine-pg settings", e);
-    }
+    const collRateNum = expectedTotal > 0 ? Math.min(100, Math.round((paidTotal / expectedTotal) * 100)) : 0;
+    const collRate = collRateNum + "%";
 
     return {
       id: "sunshine-pg",
-      name: liveName,
-      location: liveLocation,
-      bedsCount: totalBeds || 52,
-      occupancyRate: occPct,
-      collectionRate: colPct,
+      name: "Sunshine Luxury PG",
+      location: "Koramangala, Bengaluru",
+      bedsCount: totalBeds || 120,
+      occupancyRate: occRate,
+      collectionRate: collRate,
       status: "HEALTHY",
     };
   };
 
-  // Load live properties & subscribe to real-time store changes
+  // Load properties dynamically
   useEffect(() => {
-    const isMasterTest = profile?.organizationId === "org_demo_meghana";
-    if (isMasterTest) {
-      propertySettingsStore.initFirebaseListener("sunshine-pg");
-    }
-    const liveSunshine = isMasterTest ? computeLiveSunshineMetrics() : null;
-    let customProps: PortfolioProperty[] = [];
-    try {
-      const orgId = profile?.organizationId || (profile?.uid ? `org_${profile.uid}` : "org_default");
-      const savedKey = `tenopilot_portfolio_${orgId}`;
-      const saved = localStorage.getItem(savedKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          customProps = parsed
-            .filter((p: PortfolioProperty) => p.id !== "sunshine-pg")
-            .map((p: PortfolioProperty) => {
-              const setting = propertySettingsStore.getSettings(p.id);
-              const struct = propertyStore.getStructure(p.id);
-              const occs = occupantStore.getOccupants(p.id).filter((o) => o.lifecycleStatus !== "Past");
-              const totalBeds = struct.reduce((acc, fl) => acc + fl.rooms.reduce((rAcc, rm) => rAcc + rm.beds.length, 0), 0);
-              const occupiedBeds = occs.length;
-              const occPct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) + "%" : "0.0%";
+    const role = staffStore.getActiveRole();
+    setActiveRole(role);
 
-              return {
-                ...p,
-                name: setting?.propertyName || p.name,
-                location: setting?.propertyAddress || p.location,
-                bedsCount: totalBeds || p.bedsCount || 0,
-                occupancyRate: occPct,
-              };
-            });
+    const email = profile?.email?.toLowerCase() || "";
+    const isMasterTest = email === "isharapandey01@gmail.com";
+
+    // 1. Check custom dynamically added properties from LocalStorage
+    let customProps: PortfolioProperty[] = [];
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tenopilot_portfolio_properties");
+      if (saved) {
+        try {
+          customProps = JSON.parse(saved);
+        } catch {
+          customProps = [];
         }
       }
-    } catch (e) {
-      console.error("Failed to load portfolio properties", e);
+    }
+
+    // 2. If newly registered tenant owner has NO properties yet, automatically provision their first building!
+    if (!isMasterTest && customProps.length === 0) {
+      const initialOwnerBuildingName = `${profile?.displayName || "Main"} Executive PG`;
+      const initialSlug = initialOwnerBuildingName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const defaultOwnerBuilding: PortfolioProperty = {
+        id: initialSlug || "my-first-pg",
+        name: initialOwnerBuildingName,
+        location: "Bengaluru, Karnataka",
+        bedsCount: 100,
+        occupancyRate: "0.0%",
+        collectionRate: "0%",
+        status: "HEALTHY",
+      };
+
+      // Provision clean isolated state
+      initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name);
+
+      customProps = [defaultOwnerBuilding];
+      localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(customProps));
+    }
+
+    // Compute live real-time metrics
+    let liveSunshine: PortfolioProperty | null = null;
+    if (isMasterTest) {
+      liveSunshine = computeLiveSunshineMetrics();
     }
 
     if (isMasterTest && liveSunshine) {
@@ -203,7 +188,7 @@ export default function HomeWorkspacePage() {
       setProperties(customProps);
     }
 
-    // Reactive subscription to real-time propertyStore, occupantStore & propertySettingsStore!
+    // Reactive subscriptions
     const unsubProperty = propertyStore.subscribe(() => {
       if (isMasterTest) {
         const updatedLive = computeLiveSunshineMetrics();
@@ -225,15 +210,10 @@ export default function HomeWorkspacePage() {
       }
     });
 
-    const unsubStaff = staffStore.subscribe(() => {
-      setGlobalStaff(staffStore.getAllGlobalStaff());
-    });
-
     return () => {
       unsubProperty();
       unsubOccupant();
       unsubSettings();
-      unsubStaff();
     };
   }, [profile]);
 
@@ -257,39 +237,30 @@ export default function HomeWorkspacePage() {
       status: "HEALTHY",
     };
 
-    // Initialize clean zero-data state with zero spillovers for this property
     initializeCleanProperty(newBuilding.id, newBuilding.name);
 
-    // Save initial property settings SSOT profile in Firestore & local store
-    propertySettingsStore.updateSettings({
-      propertyName: newBuilding.name,
-      propertyAddress: newBuilding.location,
-    }, newBuilding.id);
+    const updated = [...properties, newBuilding];
+    setProperties(updated);
 
-    const updatedProps = [...properties, newBuilding];
-    setProperties(updatedProps);
+    const email = profile?.email?.toLowerCase() || "";
+    const isMasterTest = email === "isharapandey01@gmail.com";
+    const customOnly = isMasterTest ? updated.filter((p) => p.id !== "sunshine-pg") : updated;
+    localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(customOnly));
 
-    try {
-      const orgId = profile?.organizationId || (profile?.uid ? `org_${profile.uid}` : "org_default");
-      const savedKey = `tenopilot_portfolio_${orgId}`;
-      localStorage.setItem(savedKey, JSON.stringify(updatedProps));
-    } catch (err) {
-      console.error("Failed to persist new property", err);
-    }
-
+    setShowAddPropertyModal(false);
     setNewPropName("");
     setNewPropLocation("");
     setNewPropBeds(30);
-    setShowAddPropertyModal(false);
 
-    triggerToast(`🏢 Successfully onboarded building "${newBuilding.name}" into portfolio!`);
+    triggerToast(`✓ Successfully onboarded "${newBuilding.name}"!`);
   };
 
-  const hour = new Date().getHours();
+  // Dynamic Time-Aware Greeting
+  const currentHour = new Date().getHours();
   let greetingText = "Good morning";
-  if (hour >= 12 && hour < 17) greetingText = "Good afternoon";
-  else if (hour >= 17 && hour < 22) greetingText = "Good evening";
-  else if (hour >= 22 || hour < 5) greetingText = "Good night";
+  if (currentHour >= 12 && currentHour < 17) greetingText = "Good afternoon";
+  else if (currentHour >= 17 && currentHour < 22) greetingText = "Good evening";
+  else if (currentHour >= 22 || currentHour < 5) greetingText = "Good night";
 
   const userDisplayName = profile?.displayName || "Property Owner";
   const userInitials = userDisplayName
@@ -317,19 +288,18 @@ export default function HomeWorkspacePage() {
             <TenoPilotLogo size="sm" />
           </Link>
 
-          {/* User Profile & Actions */}
+          {/* User Profile & Staff Management Actions */}
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* Global Team & Role Management Button (Master Admin) */}
-            <button
-              onClick={() => {
-                setTeamModalTab("DIRECTORY");
-                setShowGlobalTeamModal(true);
-              }}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] text-[#201a17] font-bold text-xs shadow-2xs transition-all cursor-pointer"
-            >
-              <UserCheck className="w-4 h-4 text-[#964407]" />
-              <span className="hidden sm:inline">Estate Team & Roles 👥</span>
-            </button>
+            {/* Staff Management Link (Hidden for Receptionists) */}
+            {activeRole !== "receptionist" && (
+              <Link
+                href="/staff-management"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] text-[#201a17] font-bold text-xs shadow-2xs transition-all cursor-pointer"
+              >
+                <Users className="w-4 h-4 text-[#964407]" />
+                <span className="hidden sm:inline">Staff Management 👥</span>
+              </Link>
+            )}
 
             <div className="relative">
               <button
@@ -342,7 +312,7 @@ export default function HomeWorkspacePage() {
                 <div className="hidden lg:flex flex-col text-left">
                   <span className="text-xs font-bold text-[#201a17]">{userDisplayName}</span>
                   <span className="text-[10px] text-[#554339] uppercase font-bold tracking-wider">
-                    Property Owner
+                    {activeRole === "master_admin" ? "Property Owner" : activeRole === "admin" ? "Property Admin" : "Receptionist"}
                   </span>
                 </div>
               </button>
@@ -358,7 +328,8 @@ export default function HomeWorkspacePage() {
                     onClick={() => logout()}
                     className="w-full text-left flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-[#ba1a1a] transition-colors cursor-pointer"
                   >
-                    <LogOut className="w-4 h-4" /> Sign Out
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               )}
@@ -367,124 +338,125 @@ export default function HomeWorkspacePage() {
         </div>
       </header>
 
-      {/* Main Mobile-Optimized Body */}
-      <main className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-10 flex-1 space-y-6 sm:space-y-10 w-full">
-        {/* Welcome Greeting */}
-        <section className="max-w-3xl animate-fadeIn">
-          <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl font-bold text-[#201a17] leading-[1.1] tracking-tight">
-            <span className="block">{greetingText}, {userDisplayName}.</span>
-            <span className="text-[#a69a8e] font-normal italic block mt-1">Your organization portfolio is calling.</span>
+      {/* Main Content Area */}
+      <main className="max-w-[1240px] mx-auto px-4 sm:px-8 py-8 w-full">
+        {/* Welcome Headline */}
+        <div className="mb-8 sm:mb-10 text-left">
+          <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-[#201a17]">
+            {greetingText},{" "}
+            <span className="text-[#964407]">
+              {userDisplayName.split(" ")[0]}
+            </span>
+            .
           </h1>
-          <p className="text-sm sm:text-base text-[#5b5049] mt-4 font-sans font-normal leading-relaxed max-w-xl">
+          <p className="font-serif italic text-2xl sm:text-3xl text-[#554339] mt-1 font-normal opacity-90">
+            Your organization portfolio is calling.
+          </p>
+          <p className="text-xs sm:text-sm text-[#554339] mt-2 font-medium">
             {properties.length} {properties.length === 1 ? "property" : "properties"} active in your organization. Tap a building card below to launch its operational dashboard.
           </p>
-        </section>
+        </div>
 
-        {/* Empty Portfolio Visual State for New Master Admin Organizations */}
+        {/* 3D Property Cards Grid */}
         {properties.length === 0 ? (
-          <div className="bg-white border-2 border-dashed border-[#d7c2b9] rounded-3xl p-8 md:p-12 text-center max-w-2xl mx-auto space-y-5 shadow-sm my-8">
-            <div className="w-20 h-20 bg-[#f8ede3] rounded-3xl flex items-center justify-center mx-auto text-[#964407] border border-[#d7c2b9]">
-              <Building2 className="w-10 h-10" />
-            </div>
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407] bg-[#f8ede3] px-3 py-1 rounded-full border border-[#d7c2b9]">
-                New Organization Portfolio
-              </span>
-              <h3 className="font-serif text-2xl md:text-3xl font-bold text-[#201a17] mt-3">
-                Welcome to TenoPilot!
-              </h3>
-              <p className="text-sm text-[#554339] max-w-md mx-auto mt-2 leading-relaxed">
-                You are logged in as <strong>Master Admin</strong> of your new organization. You haven't onboarded any properties or buildings yet.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowAddPropertyModal(true)}
-              className="px-6 py-3.5 rounded-2xl bg-[#964407] hover:bg-[#7e3905] text-white font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 mx-auto cursor-pointer active:scale-95"
-            >
-              <Plus className="w-5 h-5" /> Add First Building / Property
-            </button>
+          <div className="text-center py-16 bg-white/60 rounded-3xl border border-dashed border-[#d7c2b9] p-8">
+            <Building2 className="w-12 h-12 text-[#964407] mx-auto mb-3 opacity-60" />
+            <h3 className="font-serif font-bold text-lg text-[#201a17]">No Properties Yet</h3>
+            <p className="text-xs text-[#554339] mt-1 mb-4">Click below to onboard your first PG or Hostel.</p>
+            {activeRole === "master_admin" && (
+              <button
+                onClick={() => setShowAddPropertyModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs shadow-md"
+              >
+                + Add First Property
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 perspective-[1200px] transform-style-3d">
-            {/* Dynamic Active Property Cards */}
-          {properties.map((prop, idx) => (
-            <div
-              key={prop.id}
-              onMouseMove={handleCardMouseMove}
-              onMouseLeave={handleCardMouseLeave}
-              className={`group relative rounded-3xl border border-[#d7c2b9] overflow-hidden min-h-[340px] flex flex-col justify-end shadow-md transition-all duration-300 bg-gradient-to-b from-[#2e241d] to-[#241c17] cursor-pointer transform-style-3d ${
-                idx === 0 ? "animate-3d-card-2" : idx === 1 ? "animate-3d-card-3" : "animate-3d-card-4"
-              }`}
-            >
-              {/* Cursor-Tracked Radial Spotlight Backdrop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            {properties.map((prop, idx) => (
               <div
-                className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-[1]"
+                key={prop.id}
+                onMouseMove={handleCardMouseMove}
+                onMouseLeave={handleCardMouseLeave}
+                className="relative rounded-3xl p-6 sm:p-7 transition-all duration-300 group overflow-hidden border border-white/10 text-white cursor-pointer select-none"
                 style={{
-                  background: "radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(232,161,92,0.2), transparent 60%)",
+                  background: idx % 2 === 0
+                    ? "linear-gradient(135deg, #241b16 0%, #17110e 100%)"
+                    : "linear-gradient(135deg, #1f1713 0%, #140e0b 100%)",
                 }}
-              />
+              >
+                {/* Radial Glow Spotlight */}
+                <div
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-3xl"
+                  style={{
+                    background: "radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(232, 161, 92, 0.15) 0%, transparent 60%)",
+                  }}
+                />
 
-              <div className="relative z-10 p-6 text-white space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="bg-[#2e9e63]/20 border border-[#5fe3a0]/40 text-[#5fe3a0] text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 tracking-wider uppercase">
-                    ✓ {prop.status}
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#c9beb3]">
-                    {prop.bedsCount} BEDS
-                  </span>
-                </div>
+                <div className="relative z-10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
+                      ✓ {prop.status}
+                    </span>
+                    <span className="text-xs font-bold text-[#b7ab9f]">
+                      {prop.bedsCount} BEDS
+                    </span>
+                  </div>
 
-                <div>
-                  <h3 className="font-serif text-2xl font-bold text-white">
-                    {prop.name}
-                  </h3>
-                  <p className="text-xs text-[#b7ab9f] flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#e8a15c]" /> {prop.location}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-left">
                   <div>
-                    <p className="text-[#9a8e82] text-[10px] font-bold uppercase tracking-widest">
-                      Occupancy
-                    </p>
-                    <p className="font-serif text-xl font-bold text-[#e8a15c]">
-                      <DigitRollingOdometer value={parseFloat(prop.occupancyRate)} suffix="%" decimals={1} />
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[#9a8e82] text-[10px] font-bold uppercase tracking-widest">
-                      Rent Collection
-                    </p>
-                    <p className="font-serif text-xl font-bold text-[#5fe3a0]">
-                      <DigitRollingOdometer value={parseFloat(prop.collectionRate)} suffix="%" decimals={0} />
+                    <h3 className="font-serif font-bold text-2xl text-white tracking-tight group-hover:text-[#e8a15c] transition-colors line-clamp-1">
+                      {prop.name}
+                    </h3>
+                    <p className="text-xs text-[#b7ab9f] flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#e8a15c]" /> {prop.location}
                     </p>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-left">
+                    <div>
+                      <p className="text-[#9a8e82] text-[10px] font-bold uppercase tracking-widest">
+                        Occupancy
+                      </p>
+                      <p className="font-serif text-xl font-bold text-[#e8a15c]">
+                        <DigitRollingOdometer value={parseFloat(prop.occupancyRate)} suffix="%" decimals={1} />
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[#9a8e82] text-[10px] font-bold uppercase tracking-widest">
+                        Rent Collection
+                      </p>
+                      <p className="font-serif text-xl font-bold text-[#5fe3a0]">
+                        <DigitRollingOdometer value={parseFloat(prop.collectionRate)} suffix="%" decimals={0} />
+                      </p>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/p/${prop.id}/overview`}
+                    className="w-full py-3.5 px-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/15 text-white font-bold text-xs transition-all flex items-center justify-between gap-1.5 active:scale-95 shadow-sm group-hover:translate-x-1"
+                  >
+                    <span>View Dashboard</span> <ChevronRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform" />
+                  </Link>
                 </div>
-
-                <Link
-                  href={`/p/${prop.id}/overview`}
-                  className="w-full py-3.5 px-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/15 text-white font-bold text-xs transition-all flex items-center justify-between gap-1.5 active:scale-95 shadow-sm group-hover:translate-x-1"
-                >
-                  <span>View Dashboard</span> <ChevronRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform" />
-                </Link>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Card 3: Add New Property Card Trigger */}
-          <button
-            onClick={() => setShowAddPropertyModal(true)}
-            className="animate-3d-card-4 group border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl"
-          >
-            <div className="w-14 h-14 bg-[#f1e7dd] rounded-full flex items-center justify-center mb-4 text-[#241b16] group-hover:bg-[#c6572a]/15 group-hover:text-[#c6572a] transition-all transform group-hover:rotate-90 duration-300 shadow-xs">
-              <Plus className="w-7 h-7" />
-            </div>
-            <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-[#c6572a] transition-colors">
-              Add New Property
-            </span>
-            <p className="text-xs text-[#8a7f74] mt-1">Expand your PG or Hostel portfolio</p>
-          </button>
+            {/* Add New Property Card Trigger (Master Admin Only) */}
+            {activeRole === "master_admin" && (
+              <button
+                onClick={() => setShowAddPropertyModal(true)}
+                className="group border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl"
+              >
+                <div className="w-14 h-14 bg-[#f1e7dd] rounded-full flex items-center justify-center mb-4 text-[#241b16] group-hover:bg-[#c6572a]/15 group-hover:text-[#c6572a] transition-all transform group-hover:rotate-90 duration-300 shadow-xs">
+                  <Plus className="w-7 h-7" />
+                </div>
+                <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-[#c6572a] transition-colors">
+                  Add New Property
+                </span>
+                <p className="text-xs text-[#8a7f74] mt-1">Expand your PG or Hostel portfolio</p>
+              </button>
+            )}
           </div>
         )}
       </main>
@@ -580,335 +552,12 @@ export default function HomeWorkspacePage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold cursor-pointer shadow-md transition-all"
+                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold shadow-md cursor-pointer"
                 >
-                  + Create & Register Property
+                  Onboard Building
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* 👥 GLOBAL ESTATE TEAM & MULTI-PROPERTY ROLE MANAGEMENT MODAL */}
-      {showGlobalTeamModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setShowGlobalTeamModal(false)}
-        >
-          <div
-            className="bg-white rounded-3xl border border-[#d7c2b9] shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17] max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#f8ede3] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[#f8ede3] text-[#964407]">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-xl text-[#201a17]">
-                    Estate Team & Role Governance
-                  </h3>
-                  <p className="text-xs text-[#554339] font-medium">
-                    Assign and manage Admins & Receptionists across your entire PG network
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowGlobalTeamModal(false)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Tab Selector */}
-            <div className="flex bg-[#f8ede3]/70 p-1 rounded-2xl gap-1 font-bold text-xs">
-              <button
-                type="button"
-                onClick={() => setTeamModalTab("DIRECTORY")}
-                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 ${
-                  teamModalTab === "DIRECTORY"
-                    ? "bg-white text-[#964407] shadow-xs"
-                    : "text-[#554339] hover:text-[#201a17]"
-                }`}
-              >
-                <Users className="w-4 h-4" /> Global Team Directory ({globalStaff.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setTeamModalTab("ADD")}
-                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 ${
-                  teamModalTab === "ADD"
-                    ? "bg-[#964407] text-white shadow-xs"
-                    : "text-[#554339] hover:text-[#201a17]"
-                }`}
-              >
-                <Plus className="w-4 h-4" /> Add Team Member
-              </button>
-            </div>
-
-            {teamModalTab === "DIRECTORY" ? (
-              /* DIRECTORY TAB */
-              <div className="space-y-3">
-                {globalStaff.map((member) => (
-                  <div
-                    key={member.id}
-                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white text-xs ${
-                          member.role === "master_admin"
-                            ? "bg-[#964407]"
-                            : member.role === "admin"
-                            ? "bg-blue-700"
-                            : "bg-purple-700"
-                        }`}
-                      >
-                        {member.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-gray-900 text-sm">{member.name}</h4>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              member.role === "master_admin"
-                                ? "bg-amber-100 text-amber-900 border-amber-300"
-                                : member.role === "admin"
-                                ? "bg-blue-100 text-blue-900 border-blue-300"
-                                : "bg-purple-100 text-purple-900 border-purple-300"
-                            }`}
-                          >
-                            {member.role === "master_admin"
-                              ? "Master Admin 👑"
-                              : member.role === "admin"
-                              ? "Admin 🏢"
-                              : "Receptionist 🔑"}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 font-mono mt-0.5">
-                          {member.email} • {member.phone}
-                        </p>
-                        <p className="text-[10px] text-gray-600 font-semibold mt-1">
-                          🏢 Assigned:{" "}
-                          <span className="text-[#964407]">
-                            {member.assignedPropertyIds?.includes("*")
-                              ? "All Current & Future Buildings (Global)"
-                              : member.assignedPropertyIds?.length
-                              ? member.assignedPropertyIds.join(", ")
-                              : member.propertyName}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      <span className="text-[10px] font-mono bg-white px-2 py-1 rounded-lg border border-gray-200 text-gray-600">
-                        PIN: {member.securityPin || "123456"}
-                      </span>
-                      {member.role !== "master_admin" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`Remove staff member ${member.name}?`)) {
-                              staffStore.deleteGlobalStaff(member.id);
-                              triggerToast(`✓ Removed ${member.name} from team.`);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-rose-100 text-rose-600 transition-colors"
-                          title="Remove Staff"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* ADD NEW STAFF FORM */
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newStaffName || !newStaffEmail) return;
-
-                  const newMember: StaffMember = {
-                    id: `staff-${Date.now()}`,
-                    name: newStaffName.trim(),
-                    email: newStaffEmail.trim().toLowerCase(),
-                    phone: newStaffPhone.trim() || "+91 98000 00000",
-                    role: newStaffRole,
-                    assignedPropertyId: assignedProperties.includes("*")
-                      ? "sunshine-pg"
-                      : assignedProperties[0] || "sunshine-pg",
-                    assignedPropertyIds: assignedProperties,
-                    propertyName: assignedProperties.includes("*")
-                      ? "All Properties"
-                      : properties.find((p) => assignedProperties.includes(p.id))?.name || "Sunshine Heights PG",
-                    status: "Active",
-                    joinedDate: new Date().toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    }),
-                    securityPin: newStaffPin || "123456",
-                  };
-
-                  staffStore.addGlobalStaff(newMember);
-                  triggerToast(`✓ Added ${newMember.name} as ${newMember.role}!`);
-                  setTeamModalTab("DIRECTORY");
-                  setNewStaffName("");
-                  setNewStaffEmail("");
-                  setNewStaffPhone("");
-                }}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Anand Kumar"
-                      value={newStaffName}
-                      onChange={(e) => setNewStaffName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Work Email *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. anand.warden@sunshinepg.com"
-                      value={newStaffEmail}
-                      onChange={(e) => setNewStaffEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Mobile Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="+91 98765 43210"
-                      value={newStaffPhone}
-                      onChange={(e) => setNewStaffPhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium bg-[#fff8f6]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                      Assigned Role *
-                    </label>
-                    <select
-                      value={newStaffRole}
-                      onChange={(e) => setNewStaffRole(e.target.value as UserRole)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold bg-[#fff8f6]"
-                    >
-                      <option value="admin">Admin 🏢 (Property Manager / Operating Partner)</option>
-                      <option value="receptionist">Receptionist 🔑 (Front Desk Counter Staff)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                    Initial 6-Digit Security PIN *
-                  </label>
-                  <input
-                    type="password"
-                    maxLength={6}
-                    required
-                    placeholder="123456"
-                    value={newStaffPin}
-                    onChange={(e) => setNewStaffPin(e.target.value.replace(/\D/g, ""))}
-                    className="w-full max-w-xs px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest bg-[#fff8f6]"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    Staff member will use this 6-digit PIN to unlock the app on their device.
-                  </p>
-                </div>
-
-                {/* Multi-Property Assignment Checkboxes */}
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1.5">
-                    Assigned Properties (Multi-Building Access) *
-                  </label>
-                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                    <label className="flex items-center gap-2.5 font-bold text-xs text-gray-900 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={assignedProperties.includes("*")}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setAssignedProperties(["*"]);
-                          } else {
-                            setAssignedProperties(["sunshine-pg"]);
-                          }
-                        }}
-                        className="rounded text-[#964407]"
-                      />
-                      <span>🌐 All Current & Future Buildings (Global Multi-Branch Admin)</span>
-                    </label>
-
-                    {!assignedProperties.includes("*") && (
-                      <div className="pl-6 pt-1 space-y-1.5 border-t border-gray-200">
-                        {properties.map((prop) => (
-                          <label
-                            key={prop.id}
-                            className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={assignedProperties.includes(prop.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setAssignedProperties([...assignedProperties, prop.id]);
-                                } else {
-                                  setAssignedProperties(
-                                    assignedProperties.filter((id) => id !== prop.id)
-                                  );
-                                }
-                              }}
-                              className="rounded text-[#964407]"
-                            />
-                            <span>{prop.name} ({prop.location})</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-3 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => setTeamModalTab("DIRECTORY")}
-                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold shadow-md"
-                  >
-                    + Register Team Member
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
         </div>
       )}
@@ -920,4 +569,3 @@ export default function HomeWorkspacePage() {
     </div>
   );
 }
-

@@ -103,7 +103,7 @@ export default function StaffManagementPage({
   };
 
   const initiateDeleteStaff = (member: StaffMember) => {
-    if (!staffStore.canUserDeleteStaff(member.role)) {
+    if (!staffStore.canUserDeleteStaff(activeRole, member.role)) {
       alert(`Access Forbidden: As an ${activeRole.toUpperCase()}, you cannot delete a ${member.role.toUpperCase()} account.`);
       return;
     }
@@ -280,7 +280,7 @@ export default function StaffManagementPage({
             {/* Staff Member Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredStaff.map((member) => {
-                const canDelete = staffStore.canUserDeleteStaff(member.role);
+                const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role);
 
                 return (
                   <div
