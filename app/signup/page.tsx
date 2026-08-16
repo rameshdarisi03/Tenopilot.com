@@ -261,8 +261,8 @@ function SignUpPageContent() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#f7f4ee]/85 via-[#f7f4ee]/90 to-[#f7f4ee]" />
       </div>
 
-      {/* 🖥️ DESKTOP LEFT COLUMN: Edge-to-Edge Extended 3D Artwork Panel */}
-      <div className="hidden lg:block lg:flex-1 relative min-h-screen bg-[#f7f4ee] overflow-hidden border-r border-[#e8dfd8]">
+      {/* 🖥️ DESKTOP LEFT 40%: Capped Artwork Panel (Zero Emblem Clipping) */}
+      <div className="hidden lg:block lg:w-[40%] xl:w-[38%] 2xl:max-w-[580px] shrink-0 relative min-h-screen bg-[#f7f4ee] overflow-hidden border-r border-[#e8dfd8]">
         <Image
           src="/tenopilot-leather-emblem.jpg"
           alt="TenoPilot 3D Leather Emblem Artwork"
@@ -272,8 +272,8 @@ function SignUpPageContent() {
         />
       </div>
 
-      {/* 🔑 RIGHT COLUMN: Ultra-Clean Magnific-Style Signup Card */}
-      <div className="w-full lg:w-[480px] xl:w-[520px] shrink-0 flex flex-col justify-center items-center p-6 sm:p-10 relative z-10 bg-white min-h-screen overflow-y-auto">
+      {/* 🔑 RIGHT 60%: Responsive White Portal (Expands on Widescreens) */}
+      <div className="w-full lg:flex-1 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white min-h-screen overflow-y-auto">
         <div className="w-full max-w-md space-y-5 my-auto">
 
           {/* Header: Official Terracotta TenoPilot App Icon & Title */}
