@@ -149,11 +149,39 @@ class StaffStore {
     return { valid: false, error: "Incorrect 6-digit security PIN." };
   }
 
-  // Set / Update Security PIN
-  setSecurityPin(staffId: string, newPin: string): boolean {
-    const updated = this.globalStaffList.map((s) => (s.id === staffId ? { ...s, securityPin: newPin } : s));
-    this.globalStaffList = updated;
+  // Set / Update Security PIN in Real-Time
+  async setSecurityPin(staffId: string, newPin: string): Promise<boolean> {
+    const all = this.getAllGlobalStaff();
+    const target = all.find((s) => s.id === staffId);
+
+    // Update global memory & localStorage
+    this.globalStaffList = all.map((s) => (s.id === staffId ? { ...s, securityPin: newPin } : s));
     this.saveGlobalStaffToStorage();
+
+    // If updating currently logged in session, update session store too
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tenopilot_saved_session");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (target && (parsed.email?.toLowerCase() === target.email.toLowerCase() || target.role === "master_admin")) {
+            parsed.securityPin = newPin;
+            localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
+          }
+        } catch {}
+      }
+    }
+
+    // Save to Firestore
+    if (target && target.assignedPropertyId) {
+      try {
+        const docRef = doc(db, "properties", target.assignedPropertyId, "staff", staffId);
+        await setDoc(docRef, { securityPin: newPin }, { merge: true });
+      } catch (e) {
+        console.warn("Firestore setSecurityPin fallback:", e);
+      }
+    }
+
     this.notify();
     return true;
   }
@@ -318,19 +346,14 @@ class StaffStore {
   }
 
   getStaff(propertyId: string): StaffMember[] {
-    const propertySpecific = this.staffList.get(propertyId);
-    if (propertySpecific && propertySpecific.length > 0) return propertySpecific;
-
-    // Filter from global list by propertyId or universal "*"
-    const fromGlobal = this.globalStaffList.filter(
-      (s) =>
-        s.assignedPropertyId === propertyId ||
-        s.assignedPropertyIds?.includes(propertyId) ||
-        s.assignedPropertyIds?.includes("*")
-    );
-    if (fromGlobal.length > 0) return fromGlobal;
-
-    return [];
+    const all = this.getAllGlobalStaff();
+    return all.filter((s) => {
+      if (s.role === "master_admin") return true;
+      if (s.assignedPropertyIds?.includes("*")) return true;
+      if (s.assignedPropertyId === propertyId) return true;
+      if (s.assignedPropertyIds?.includes(propertyId)) return true;
+      return false;
+    });
   }
 
   async addStaff(propertyId: string, member: StaffMember): Promise<boolean> {

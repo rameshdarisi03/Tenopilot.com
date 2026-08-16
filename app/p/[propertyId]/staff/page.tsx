@@ -13,17 +13,18 @@ import {
   Shield,
   ShieldCheck,
   ShieldAlert,
-  Plus,
   Trash2,
   Phone,
   Mail,
   UserCheck,
   X,
   Lock,
-  Copy,
   CheckCircle2,
   AlertCircle,
   Key,
+  RotateCcw,
+  Building2,
+  ArrowRight,
 } from "lucide-react";
 
 export default function StaffManagementPage({
@@ -39,24 +40,26 @@ export default function StaffManagementPage({
   const [staffList, setStaffList] = useState<StaffMember[]>(() => staffStore.getStaff(propertyId));
   const [filterRole, setFilterRole] = useState<string>("all");
 
-  // Add Staff Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newRole, setNewRole] = useState<UserRole>("receptionist");
-  const [newPassword, setNewPassword] = useState("TenoPilot@2026");
-  const [copiedAlert, setCopiedAlert] = useState(false);
-
   // Password Deletion Modal State
   const [deleteTargetStaff, setDeleteTargetStaff] = useState<StaffMember | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Reset PIN Modal State
+  const [resetTargetStaff, setResetTargetStaff] = useState<StaffMember | null>(null);
+  const [resetNewPin, setResetNewPin] = useState("");
+  const [isResettingPin, setIsResettingPin] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const [propertySettings] = useState(() =>
     propertySettingsStore.getSettings(propertyId)
   );
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   useEffect(() => {
     staffStore.initFirebaseListener(propertyId);
@@ -69,37 +72,38 @@ export default function StaffManagementPage({
     return unsubscribe;
   }, [propertyId]);
 
-  // Handle Add Staff Submission
-  const handleAddStaffSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName || !newEmail || !newPhone) return;
-
-    const newMember: StaffMember = {
-      id: `staff-${Date.now()}`,
-      name: newName,
-      email: newEmail,
-      phone: newPhone,
-      role: newRole,
-      assignedPropertyId: propertyId,
-      propertyName: propertySettings.propertyName,
-      status: "Active",
-      joinedDate: new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-    };
-
-    await staffStore.addStaff(propertyId, newMember);
-    setShowAddModal(false);
-    resetForm();
+  const handleGenerateRandomPin = () => {
+    const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+    setResetNewPin(randomPin);
   };
 
-  const resetForm = () => {
-    setNewName("");
-    setNewEmail("");
-    setNewPhone("");
-    setNewRole("receptionist");
+  // Open Reset PIN Dialog
+  const handleOpenResetPin = (member: StaffMember) => {
+    setResetTargetStaff(member);
+    setResetNewPin("");
+  };
+
+  // Confirm Reset PIN
+  const handleConfirmResetPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTargetStaff) return;
+
+    if (resetNewPin.length !== 6) {
+      alert("Security PIN must be exactly 6 digits.");
+      return;
+    }
+
+    setIsResettingPin(true);
+    try {
+      await staffStore.setSecurityPin(resetTargetStaff.id, resetNewPin);
+      triggerToast(`✅ Security PIN for ${resetTargetStaff.name} updated to ${resetNewPin}!`);
+      setResetTargetStaff(null);
+      setResetNewPin("");
+    } catch (err: any) {
+      alert("Failed to update security PIN. Please try again.");
+    } finally {
+      setIsResettingPin(false);
+    }
   };
 
   const initiateDeleteStaff = (member: StaffMember) => {
@@ -126,7 +130,8 @@ export default function StaffManagementPage({
         console.warn("Re-authentication check fallback for testing:", reauthErr);
       }
 
-      await staffStore.deleteStaff(propertyId, deleteTargetStaff.id);
+      await staffStore.deleteGlobalStaff(deleteTargetStaff.id);
+      triggerToast(`✓ Removed ${deleteTargetStaff.name} from team.`);
       setDeleteTargetStaff(null);
       setDeletePassword("");
     } catch (err: any) {
@@ -149,6 +154,14 @@ export default function StaffManagementPage({
 
   return (
     <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17] select-none">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#201a17] text-white px-5 py-3 rounded-2xl shadow-2xl border border-[#964407]/40 text-xs font-bold flex items-center gap-2.5 animate-in slide-in-from-bottom-5">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Sidebar */}
       <PropertySidebar
         propertyId={propertyId}
@@ -198,18 +211,41 @@ export default function StaffManagementPage({
                   Staff Access & Team Permissions
                 </h2>
                 <p className="text-xs text-white/70 mt-1">
-                  Manage Property Owners, Equity Partners, and Front-Desk Receptionists for {propertySettings.propertyName}.
+                  Assigned Property Owners, Admins, and Front-Desk Receptionists for {propertySettings.propertyName}.
                 </p>
               </div>
 
-              {/* Action Desktop Button */}
-              <button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className="hidden md:flex px-5 py-3 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] text-white text-xs font-bold transition-all shadow-lg hover:shadow-orange-950/50 items-center gap-2 active:scale-95 cursor-pointer"
+              <Link
+                href="/staff-management"
+                className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] text-white text-xs font-bold transition-all shadow-lg hover:shadow-orange-950/50 flex items-center gap-2 active:scale-95 cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Add New Staff Account
-              </button>
+                <Users className="w-4 h-4" /> Manage Organization Staff →
+              </Link>
+            </div>
+
+            {/* Centralized Staff Management Notice */}
+            <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl border border-orange-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#201a17]">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a] shrink-0 mt-0.5 sm:mt-0">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">
+                    Centralized Staff Management
+                  </p>
+                  <p className="text-gray-600 text-[11px]">
+                    New staff accounts are centrally created and managed at the Organization level in <strong>Staff Management</strong>. This page displays the team members assigned to <strong>{propertySettings.propertyName}</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href="/staff-management"
+                className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white font-bold text-xs shadow-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto transition-all"
+              >
+                <span>Go to Staff Management</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             {/* KPI Cards */}
@@ -280,7 +316,7 @@ export default function StaffManagementPage({
             {/* Staff Member Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredStaff.map((member) => {
-                const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role);
+                const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role) && member.role !== "master_admin";
 
                 return (
                   <div
@@ -344,32 +380,37 @@ export default function StaffManagementPage({
                     </div>
 
                     {/* Action Bar */}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                      <a
-                        href={`tel:${member.phone}`}
-                        className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                      >
-                        <Phone className="w-3.5 h-3.5" /> Call
-                      </a>
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`tel:${member.phone}`}
+                          className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Phone className="w-3.5 h-3.5" /> Call
+                        </a>
 
-                      {/* Delete Account Button */}
-                      <button
-                        type="button"
-                        onClick={() => initiateDeleteStaff(member)}
-                        disabled={!canDelete}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                          canDelete
-                            ? "bg-red-50 hover:bg-red-100 text-red-600 cursor-pointer active:scale-95"
-                            : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
-                        }`}
-                        title={
-                          canDelete
-                            ? "Delete staff account (Requires password confirmation)"
-                            : `As an ${activeRole.toUpperCase()}, you cannot delete a ${member.role.toUpperCase()} account.`
-                        }
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Delete Account
-                      </button>
+                        {/* Reset Security PIN Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenResetPin(member)}
+                          className="px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-[#c2652a] text-xs font-bold flex items-center gap-1 border border-orange-200 transition-colors cursor-pointer"
+                          title="Reset 6-Digit Security PIN"
+                        >
+                          <RotateCcw className="w-3 h-3" /> PIN: {member.securityPin || "123456"}
+                        </button>
+                      </div>
+
+                      {/* Delete Account Button (Protected with Password) */}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => initiateDeleteStaff(member)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer active:scale-95 transition-all"
+                          title="Delete staff account (Requires password confirmation)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -379,157 +420,75 @@ export default function StaffManagementPage({
         )}
       </div>
 
-      {/* PINNED SINGLE-HANDED MOBILE BOTTOM ACTION BAR */}
-      {!isReceptionistBlocked && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 shadow-2xl flex items-center justify-center">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="w-full max-w-md py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] text-white font-bold text-sm shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
-          >
-            <Plus className="w-5 h-5" /> Add Staff Member
-          </button>
-        </div>
-      )}
-
-      {/* SLIDE-UP PROVISIONING MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
-          <div className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 space-y-6 animate-in slide-in-from-bottom duration-300">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-              <div>
-                <h3 className="font-serif font-bold text-xl text-gray-900">
-                  Provision New Staff Account
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Create account credentials directly for {propertySettings.propertyName}.
-                </p>
+      {/* 🔑 RESET 6-DIGIT PIN MODAL */}
+      {resetTargetStaff && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
+            <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Reset Security PIN
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Updating PIN for {resetTargetStaff.name} ({resetTargetStaff.role})
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => setShowAddModal(false)}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                type="button"
+                onClick={() => setResetTargetStaff(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddStaffSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handleConfirmResetPin} className="space-y-4">
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs">
+                💡 <strong>Immediate Sync:</strong> Setting a new PIN will immediately update the database and become active for unlocking on all devices.
+              </div>
+
               <div>
-                <label className="font-bold text-gray-700 block mb-1">
-                  Full Name *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-gray-700">New 6-Digit PIN *</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateRandomPin}
+                    className="text-[11px] font-bold text-[#c2652a] hover:underline"
+                  >
+                    🎲 Generate Random PIN
+                  </button>
+                </div>
                 <input
                   type="text"
+                  maxLength={6}
                   required
-                  placeholder="e.g. Rahul Sharma"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                  value={resetNewPin}
+                  onChange={(e) => setResetNewPin(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Enter new 6 digits"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-lg bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="rahul@sunshinepg.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">
-                    Mobile Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 9876543210"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">
-                  Select Role & Permissions *
-                </label>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setNewRole("admin")}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      newRole === "admin"
-                        ? "border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-500/20"
-                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                    }`}
-                  >
-                    <div className="font-bold text-xs">Admin (Owner) 🏢</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
-                      Full property operations, revenue & partner settlements
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewRole("receptionist")}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      newRole === "receptionist"
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20"
-                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                    }`}
-                  >
-                    <div className="font-bold text-xs">Receptionist 🔑</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
-                      Front desk, tenant check-in & logging expenses only
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
-                <div className="flex items-center justify-between text-gray-700">
-                  <span className="font-bold text-xs flex items-center gap-1.5">
-                    <Key className="w-4 h-4 text-amber-600" /> Temporary Login Credentials
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`Email: ${newEmail}\nPassword: ${newPassword}`);
-                      setCopiedAlert(true);
-                      setTimeout(() => setCopiedAlert(false), 2000);
-                    }}
-                    className="text-[11px] font-bold text-[#c2652a] hover:underline flex items-center gap-1"
-                  >
-                    {copiedAlert ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedAlert ? "Copied!" : "Copy"}
-                  </button>
-                </div>
-                <div className="font-mono text-xs text-gray-800 bg-white p-2 rounded-lg border border-gray-200 flex justify-between">
-                  <span>Password: {newPassword}</span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-3">
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold transition-all"
+                  onClick={() => setResetTargetStaff(null)}
+                  className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] text-white font-bold transition-all shadow-md active:scale-95"
+                  disabled={isResettingPin || resetNewPin.length !== 6}
+                  className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                 >
-                  Create & Provision Account
+                  {isResettingPin ? "Updating..." : "Update Security PIN"}
+                  <CheckCircle2 className="w-4 h-4" />
                 </button>
               </div>
             </form>
@@ -537,65 +496,75 @@ export default function StaffManagementPage({
         </div>
       )}
 
-      {/* 🔐 SECOND-LAYER PASSWORD CONFIRMATION DELETION MODAL */}
+      {/* 🔐 PASSWORD CONFIRMATION MODAL FOR DELETION */}
       {deleteTargetStaff && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-gray-200 animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-serif font-bold text-lg text-red-600 flex items-center gap-2">
-                <Trash2 className="w-5 h-5" /> Confirm Account Deletion
-              </h3>
+              <div className="flex items-center gap-2.5 text-red-600">
+                <div className="p-2 rounded-xl bg-red-100">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Delete Staff Account
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    Permanently delete {deleteTargetStaff.name} ({deleteTargetStaff.role})
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setDeleteTargetStaff(null)}
-                className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-3.5 bg-red-50 border border-red-200 text-red-800 rounded-2xl text-xs space-y-1">
-              <div className="font-bold text-sm">Security Password Check Required</div>
-              <p>
-                You are about to permanently delete the account for <strong>{deleteTargetStaff.name}</strong> ({deleteTargetStaff.role.toUpperCase()}). Please re-enter your password to authorize this action.
-              </p>
-            </div>
-
-            {deleteError && (
-              <div className="p-3 rounded-xl bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{deleteError}</span>
-              </div>
-            )}
-
             <form onSubmit={confirmDeleteStaffWithPassword} className="space-y-4 text-xs">
+              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-red-700 leading-relaxed">
+                ⚠️ <strong>Security Check:</strong> Please enter your password to authorize permanent deletion of this account.
+              </div>
+
+              {deleteError && (
+                <div className="p-3 bg-red-100 border border-red-300 rounded-xl text-red-900 font-bold">
+                  {deleteError}
+                </div>
+              )}
+
               <div>
                 <label className="font-bold text-gray-700 block mb-1">
-                  Your Security Password *
+                  Account Password *
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  placeholder="Re-enter your password to confirm"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter your account password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-xs"
+                  />
+                </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-3">
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setDeleteTargetStaff(null)}
-                  className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-bold"
+                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isDeleting}
-                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                  disabled={isDeleting || !deletePassword}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
-                  {isDeleting ? "Verifying..." : "Confirm & Delete Account"}
+                  {isDeleting ? "Verifying & Deleting..." : "Permanently Delete"}
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </form>

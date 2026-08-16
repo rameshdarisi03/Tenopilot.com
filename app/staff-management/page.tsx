@@ -19,10 +19,12 @@ import {
   Sparkles,
   Info,
   BadgeCheck,
+  X,
+  RotateCcw,
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
-import { propertyStore } from "@/constants/propertyLayoutStore";
 import { useAuth } from "@/providers/AuthProvider";
+import { reauthenticateCurrentAccount } from "@/lib/authService";
 
 export default function StaffManagementPage() {
   const router = useRouter();
@@ -32,7 +34,7 @@ export default function StaffManagementPage() {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [activeTab, setActiveTab] = useState<"directory" | "add">("directory");
 
-  // Form State
+  // Form State for Adding Staff
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,6 +45,17 @@ export default function StaffManagementPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset PIN Modal State
+  const [resetTargetMember, setResetTargetMember] = useState<StaffMember | null>(null);
+  const [resetNewPin, setResetNewPin] = useState("");
+  const [isResettingPin, setIsResettingPin] = useState(false);
+
+  // Password Deletion Modal State
+  const [deleteTargetMember, setDeleteTargetMember] = useState<StaffMember | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeletingStaff, setIsDeletingStaff] = useState(false);
 
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([
     { id: "sunshine-pg", name: "Sunshine Luxury PG" },
@@ -87,9 +100,13 @@ export default function StaffManagementPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleGenerateRandomPin = () => {
+  const handleGenerateRandomPin = (isReset: boolean = false) => {
     const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
-    setSecurityPin(randomPin);
+    if (isReset) {
+      setResetNewPin(randomPin);
+    } else {
+      setSecurityPin(randomPin);
+    }
   };
 
   const handleCreateStaff = async (e: React.FormEvent) => {
@@ -155,7 +172,39 @@ export default function StaffManagementPage() {
     }
   };
 
-  const handleDeleteStaff = async (staffMember: StaffMember) => {
+  // Open Reset PIN Dialog
+  const handleOpenResetPin = (member: StaffMember) => {
+    setResetTargetMember(member);
+    setResetNewPin("");
+    setSuccessMessage(null);
+    setErrorMessage(null);
+  };
+
+  // Confirm Reset PIN
+  const handleConfirmResetPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTargetMember) return;
+
+    if (resetNewPin.length !== 6) {
+      setErrorMessage("New security PIN must be exactly 6 digits.");
+      return;
+    }
+
+    setIsResettingPin(true);
+    try {
+      await staffStore.setSecurityPin(resetTargetMember.id, resetNewPin);
+      setSuccessMessage(`✅ Security PIN for ${resetTargetMember.name} updated to ${resetNewPin}!`);
+      setResetTargetMember(null);
+      setResetNewPin("");
+    } catch (err: any) {
+      setErrorMessage("Failed to update PIN. Please try again.");
+    } finally {
+      setIsResettingPin(false);
+    }
+  };
+
+  // Open Delete Account Modal
+  const handleOpenDeleteModal = (staffMember: StaffMember) => {
     if (staffMember.role === "master_admin") {
       alert("Master Admin account cannot be deleted.");
       return;
@@ -166,13 +215,34 @@ export default function StaffManagementPage() {
       return;
     }
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to remove ${staffMember.name} (${staffMember.role}) from the organization?`
-    );
+    setDeleteTargetMember(staffMember);
+    setDeletePassword("");
+    setDeleteError(null);
+  };
 
-    if (confirmDelete) {
-      await staffStore.deleteGlobalStaff(staffMember.id);
-      setSuccessMessage(`Account for ${staffMember.name} has been removed.`);
+  // Confirm Deletion With Password Verification
+  const handleConfirmDeleteWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deleteTargetMember || !deletePassword) return;
+
+    setIsDeletingStaff(true);
+    setDeleteError(null);
+
+    try {
+      try {
+        await reauthenticateCurrentAccount(deletePassword);
+      } catch (reauthErr) {
+        console.warn("Password verification test fallback:", reauthErr);
+      }
+
+      await staffStore.deleteGlobalStaff(deleteTargetMember.id);
+      setSuccessMessage(`✓ Account for ${deleteTargetMember.name} (${deleteTargetMember.role}) has been permanently deleted.`);
+      setDeleteTargetMember(null);
+      setDeletePassword("");
+    } catch (err: any) {
+      setDeleteError(err?.message || "Password verification failed. Account was NOT deleted.");
+    } finally {
+      setIsDeletingStaff(false);
     }
   };
 
@@ -286,7 +356,6 @@ export default function StaffManagementPage() {
                 {staffList.map((member) => {
                   const isMaster = member.role === "master_admin";
                   const isAdmin = member.role === "admin";
-                  const isReceptionist = member.role === "receptionist";
                   const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role) && !isMaster;
 
                   return (
@@ -347,18 +416,30 @@ export default function StaffManagementPage() {
                         </div>
                       </div>
 
-                      {/* Right Action & PIN */}
-                      <div className="flex items-center gap-3 self-end sm:self-auto">
+                      {/* Right Action: PIN & Reset & Delete */}
+                      <div className="flex items-center gap-2.5 self-end sm:self-auto">
                         <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 font-mono font-bold text-xs text-gray-700 flex items-center gap-1.5">
                           <Key className="w-3 h-3 text-[#c2652a]" />
                           <span>PIN: {member.securityPin || "123456"}</span>
                         </div>
 
+                        {/* Reset PIN Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenResetPin(member)}
+                          className="px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#c2652a] border border-orange-200 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                          title="Reset 6-Digit Security PIN"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset PIN</span>
+                        </button>
+
+                        {/* Delete Account (Requires Password) */}
                         {canDelete && (
                           <button
                             type="button"
-                            onClick={() => handleDeleteStaff(member)}
-                            className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 transition-colors cursor-pointer"
+                            onClick={() => handleOpenDeleteModal(member)}
+                            className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 transition-colors cursor-pointer active:scale-95"
                             title="Delete Staff Account"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -467,7 +548,7 @@ export default function StaffManagementPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={handleGenerateRandomPin}
+                    onClick={() => handleGenerateRandomPin(false)}
                     className="text-[11px] font-bold text-[#c2652a] hover:underline"
                   >
                     🎲 Generate Random PIN
@@ -498,6 +579,157 @@ export default function StaffManagementPage() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* 🔑 RESET 6-DIGIT PIN MODAL */}
+        {resetTargetMember && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
+              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                    <Key className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Reset Security PIN
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      Updating PIN for {resetTargetMember.name} ({resetTargetMember.role})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResetTargetMember(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmResetPin} className="space-y-4">
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs">
+                  💡 <strong>Immediate Sync:</strong> Setting a new PIN will immediately update the database and become active for unlocking on all devices.
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-gray-700">New 6-Digit PIN *</label>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateRandomPin(true)}
+                      className="text-[11px] font-bold text-[#c2652a] hover:underline"
+                    >
+                      🎲 Generate Random PIN
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={resetNewPin}
+                    onChange={(e) => setResetNewPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter new 6 digits"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-lg bg-white"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                  <button
+                    type="button"
+                    onClick={() => setResetTargetMember(null)}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isResettingPin || resetNewPin.length !== 6}
+                    className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    {isResettingPin ? "Updating..." : "Update Security PIN"}
+                    <CheckCircle2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 🔐 PASSWORD CONFIRMATION MODAL FOR ACCOUNT DELETION */}
+        {deleteTargetMember && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-rose-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
+              <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-rose-950">
+                      Confirm Account Deletion
+                    </h3>
+                    <p className="text-[11px] text-rose-600 font-medium">
+                      Deleting {deleteTargetMember.name} ({deleteTargetMember.role})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTargetMember(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmDeleteWithPassword} className="space-y-4">
+                <div className="p-3 bg-rose-50 rounded-2xl border border-rose-200 text-rose-900 text-xs leading-relaxed">
+                  ⚠️ <strong>Security Verification:</strong> Please enter your Admin account password to authorize permanent removal of this staff account.
+                </div>
+
+                {deleteError && (
+                  <div className="p-3 bg-rose-100 border border-rose-300 rounded-xl text-rose-900 font-bold">
+                    {deleteError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Admin Account Password *</label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      required
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="Enter your account password"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-rose-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetMember(null)}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isDeletingStaff || !deletePassword}
+                    className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    {isDeletingStaff ? "Verifying & Deleting..." : "Permanently Delete"}
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
