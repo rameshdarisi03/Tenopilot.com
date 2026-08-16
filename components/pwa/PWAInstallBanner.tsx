@@ -29,9 +29,9 @@ export const PWAInstallBanner: React.FC = () => {
     await promptInstall();
   };
 
-  // Real, 100% scannable QR Code URL
+  // Real, 100% scannable QR Code URL pointing to direct App Installation Portal
   const qrCodeImageUrl =
-    "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://tenopilot-com.vercel.app/home&color=201a17&bgcolor=ffffff";
+    "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://www.tenopilot.com/install&color=201a17&bgcolor=ffffff";
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#201812] via-[#2a1e16] to-[#140F0B] text-white p-6 sm:p-8 shadow-2xl border border-amber-500/30">

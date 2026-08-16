@@ -17,9 +17,9 @@ export function AuthPwaInstallSection() {
     await promptInstall();
   };
 
-  // Real, 100% scannable QR Code URL that opens the live web app on mobile
+  // Real, 100% scannable QR Code URL that opens the direct App Installation page on mobile
   const qrCodeImageUrl =
-    "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://tenopilot-com.vercel.app/home&color=201a17&bgcolor=ffffff";
+    "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://www.tenopilot.com/install&color=201a17&bgcolor=ffffff";
 
   return (
     <div className="w-full pt-2">

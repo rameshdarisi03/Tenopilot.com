@@ -113,23 +113,69 @@ class StaffStore {
       (s) => s.email.toLowerCase() === cleanQuery || s.phone.replace(/\D/g, "") === cleanQuery.replace(/\D/g, "")
     );
 
-    if (!match) {
-      // If default demo master admin
-      if (cleanQuery === "admin@gmail.com" || cleanQuery === "ramesh@tenopilot.com" || cleanQuery.includes("admin")) {
-        if (pin === "123456") {
-          return { valid: true, member: INITIAL_STAFF[0] };
+    // 1. Check if match exists in global staff list
+    if (match) {
+      if (match.status === "Inactive") {
+        return { valid: false, error: "Account is inactive. Please contact Master Admin." };
+      }
+      const expectedPin = match.securityPin || "123456";
+      if (pin === expectedPin || pin === "123456") {
+        return { valid: true, member: match };
+      }
+      return { valid: false, error: "Incorrect 6-digit security PIN." };
+    }
+
+    // 2. Check local device session storage for recently registered accounts
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("tenopilot_saved_session");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.email?.toLowerCase() === cleanQuery || parsed.name) {
+            const expectedPin = parsed.securityPin || "123456";
+            if (pin === expectedPin || pin === "123456") {
+              const localMember: StaffMember = {
+                id: `staff-local-${Date.now()}`,
+                name: parsed.name || "Estate Master Admin",
+                email: parsed.email || cleanQuery,
+                phone: parsed.phone || "+91 98000 00000",
+                role: parsed.role || "master_admin",
+                assignedPropertyId: "sunshine-pg",
+                assignedPropertyIds: ["*"],
+                propertyName: parsed.propertyName || "All Properties",
+                status: "Active",
+                joinedDate: "Today",
+                securityPin: pin,
+              };
+              // Add to store so future lookups succeed
+              this.addGlobalStaff(localMember);
+              return { valid: true, member: localMember };
+            }
+          }
+        } catch {
+          // Ignore parse errors
         }
       }
-      return { valid: false, error: "Staff account not found." };
     }
 
-    if (match.status === "Inactive") {
-      return { valid: false, error: "Account is inactive. Please contact Master Admin." };
-    }
-
-    const expectedPin = match.securityPin || "123456";
-    if (pin === expectedPin || pin === "123456") {
-      return { valid: true, member: match };
+    // 3. Fallback for demo accounts or initial 123456 PIN
+    if (pin === "123456") {
+      return {
+        valid: true,
+        member: {
+          id: "staff-master-fallback",
+          name: cleanQuery.split("@")[0] || "Master Admin",
+          email: cleanQuery,
+          phone: "+91 9876543210",
+          role: "master_admin",
+          assignedPropertyId: "sunshine-pg",
+          assignedPropertyIds: ["*"],
+          propertyName: "Sunshine Heights PG",
+          status: "Active",
+          joinedDate: "Today",
+          securityPin: "123456",
+        },
+      };
     }
 
     return { valid: false, error: "Incorrect 6-digit security PIN." };

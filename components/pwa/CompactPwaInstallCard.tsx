@@ -19,7 +19,7 @@ export function CompactPwaInstallCard() {
   };
 
   const qrCodeImageUrl =
-    "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://tenopilot-com.vercel.app/home&color=201a17&bgcolor=ffffff";
+    "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://www.tenopilot.com/install&color=201a17&bgcolor=ffffff";
 
   return (
     <>
