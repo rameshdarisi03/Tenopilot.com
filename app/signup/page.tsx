@@ -153,7 +153,7 @@ function SignUpPageContent() {
     setError(null);
     setIsLoading(true);
     try {
-      await loginWithGoogle();
+      await loginWithGoogle(true);
       staffStore.setActiveRole("master_admin");
       setShowSecuritySetupModal(true);
     } catch (err: any) {

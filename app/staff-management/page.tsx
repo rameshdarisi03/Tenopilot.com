@@ -21,10 +21,13 @@ import {
   BadgeCheck,
   X,
   RotateCcw,
+  Eye,
+  EyeOff,
+  Copy,
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { useAuth } from "@/providers/AuthProvider";
-import { reauthenticateCurrentAccount } from "@/lib/authService";
+import { reauthenticateCurrentAccount, provisionStaffFirebaseAccount } from "@/lib/authService";
 
 export default function StaffManagementPage() {
   const router = useRouter();
@@ -40,11 +43,13 @@ export default function StaffManagementPage() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("receptionist");
   const [assignedPropertyId, setAssignedPropertyId] = useState("sunshine-pg");
-  const [securityPin, setSecurityPin] = useState("123456");
+  const [password, setPassword] = useState("Pass@1234");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
   // Reset PIN Modal State
   const [resetTargetMember, setResetTargetMember] = useState<StaffMember | null>(null);
@@ -100,13 +105,18 @@ export default function StaffManagementPage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleGenerateRandomPin = (isReset: boolean = false) => {
+  const handleGenerateRandomPin = () => {
     const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
-    if (isReset) {
-      setResetNewPin(randomPin);
-    } else {
-      setSecurityPin(randomPin);
+    setResetNewPin(randomPin);
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";
+    let res = "";
+    for (let i = 0; i < 10; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
     }
+    setPassword(res);
   };
 
   const handleCreateStaff = async (e: React.FormEvent) => {
@@ -124,8 +134,8 @@ export default function StaffManagementPage() {
       return;
     }
 
-    if (securityPin.length !== 6) {
-      setErrorMessage("Security PIN must be exactly 6 digits.");
+    if (password.length < 6) {
+      setErrorMessage("Password must be at least 6 characters.");
       return;
     }
 
@@ -139,31 +149,23 @@ export default function StaffManagementPage() {
 
     try {
       const selectedProp = properties.find((p) => p.id === assignedPropertyId);
-      const newStaff: StaffMember = {
+      
+      const newStaff = await provisionStaffFirebaseAccount({
         id: `staff-${Date.now()}`,
         name: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim() || "+91 98000 00000",
         role: role,
         assignedPropertyId: assignedPropertyId,
-        assignedPropertyIds: [assignedPropertyId],
         propertyName: selectedProp?.name || "Assigned PG",
-        status: "Active",
-        joinedDate: new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-        securityPin: securityPin,
-      };
+        password: password,
+      });
 
-      await staffStore.addGlobalStaff(newStaff);
-
-      setSuccessMessage(`✅ Account for ${name.trim()} created successfully! PIN: ${securityPin}`);
+      setSuccessMessage(`✅ Account for ${name.trim()} created! Work Email: ${email.trim().toLowerCase()} | Handover Password: ${password}`);
       setName("");
       setEmail("");
       setPhone("");
-      setSecurityPin("123456");
+      setPassword("Pass@1234");
       setActiveTab("directory");
     } catch (err: any) {
       setErrorMessage("Failed to create staff account. Please try again.");
@@ -296,9 +298,23 @@ export default function StaffManagementPage() {
 
         {/* Success / Error Banners */}
         {successMessage && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs text-emerald-900 font-semibold animate-in fade-in">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>{successMessage}</span>
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-emerald-900 font-semibold animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(successMessage);
+                setCopiedNotice(true);
+                setTimeout(() => setCopiedNotice(false), 2500);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+            >
+              <Copy className="w-3 h-3" />
+              <span>{copiedNotice ? "Copied!" : "Copy"}</span>
+            </button>
           </div>
         )}
 
@@ -461,7 +477,7 @@ export default function StaffManagementPage() {
               Add New Staff Account
             </h2>
             <p className="text-xs text-gray-500 mb-6">
-              Create a secure account with a 6-digit PIN for device unlocking.
+              Create credentials for your team. You will handover this email and password for their first login.
             </p>
 
             <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
@@ -472,7 +488,7 @@ export default function StaffManagementPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Anand Kumar"
+                  placeholder="e.g. Saikumar Reddy"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                 />
               </div>
@@ -540,31 +556,40 @@ export default function StaffManagementPage() {
                 </div>
               </div>
 
-              {/* 6-Digit Security PIN */}
+              {/* Handover Password */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block font-bold text-gray-700">
-                    Set 6-Digit App Security PIN *
+                    Initial Handover Password *
                   </label>
                   <button
                     type="button"
-                    onClick={() => handleGenerateRandomPin(false)}
+                    onClick={handleGenerateRandomPassword}
                     className="text-[11px] font-bold text-[#c2652a] hover:underline"
                   >
-                    🎲 Generate Random PIN
+                    🎲 Generate Strong Password
                   </button>
                 </div>
-                <input
-                  type="text"
-                  maxLength={6}
-                  required
-                  value={securityPin}
-                  onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, ""))}
-                  placeholder="123456"
-                  className="w-full max-w-[180px] px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-base bg-white"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Used by this staff member to unlock the app on their phone or desk terminal.
+                <div className="relative max-w-sm">
+                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter handover password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 font-mono text-sm bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  💡 Hand over this email and password to the staff member. Upon login, they will set their personal 6-digit PIN.
                 </p>
               </div>
 
@@ -574,7 +599,7 @@ export default function StaffManagementPage() {
                   disabled={isSubmitting}
                   className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                 >
-                  {isSubmitting ? "Creating Account..." : "Create Staff Account"}
+                  {isSubmitting ? "Provisioning Account..." : "Create Staff Account & Generate Credentials"}
                   <CheckCircle2 className="w-4 h-4" />
                 </button>
               </div>
@@ -619,7 +644,7 @@ export default function StaffManagementPage() {
                     <label className="block font-bold text-gray-700">New 6-Digit PIN *</label>
                     <button
                       type="button"
-                      onClick={() => handleGenerateRandomPin(true)}
+                      onClick={handleGenerateRandomPin}
                       className="text-[11px] font-bold text-[#c2652a] hover:underline"
                     >
                       🎲 Generate Random PIN

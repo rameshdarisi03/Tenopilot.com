@@ -1,42 +1,56 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
-  Lock,
   Mail,
-  ArrowRight,
-  Sparkles,
-  AlertCircle,
+  Lock,
   Eye,
   EyeOff,
-  CheckCircle2,
-  X,
+  ArrowRight,
+  ShieldCheck,
+  Building2,
+  Key,
   RotateCcw,
-  KeyRound,
+  Sparkles,
+  Smartphone,
+  Monitor,
+  QrCode,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  X,
+  UserCheck,
 } from "lucide-react";
-import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage, sanitizeTitleCase } from "@/lib/authService";
-import { staffStore, UserRole } from "@/lib/staffStore";
+import {
+  loginWithGoogle,
+  loginWithEmailPassword,
+  sendPasswordReset,
+  getCleanAuthErrorMessage,
+  sanitizeTitleCase,
+} from "@/lib/authService";
+import { staffStore, StaffMember } from "@/lib/staffStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
-import { AuthPwaInstallSection } from "@/components/pwa/AuthPwaInstallSection";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface SavedSession {
   email: string;
   name: string;
-  role: UserRole;
-  avatarUrl?: string;
+  role: "master_admin" | "admin" | "receptionist";
   propertyName?: string;
   securityPin?: string;
+  assignedPropertyId?: string;
 }
 
 export default function LoginPage() {
   const router = useRouter();
   const [showBootSplash, setShowBootSplash] = useState(true);
 
-  // Auth Flow Steps: "CREDENTIALS" | "PIN_PROMPT"
-  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PIN_PROMPT">("CREDENTIALS");
+  // Auth Flow Steps: "CREDENTIALS" | "PIN_PROMPT" | "FIRST_TIME_SET_PIN"
+  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PIN_PROMPT" | "FIRST_TIME_SET_PIN">("CREDENTIALS");
   const [savedSession, setSavedSession] = useState<SavedSession | null>(null);
 
   // Form Inputs
@@ -48,6 +62,7 @@ export default function LoginPage() {
 
   // 6-Digit PIN Keyboard State
   const [pinValue, setPinValue] = useState("");
+  const [firstTimePin, setFirstTimePin] = useState("");
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [lockoutExpiry, setLockoutExpiry] = useState<number | null>(null);
   const [lockoutCountdown, setLockoutCountdown] = useState<number>(0);
@@ -58,6 +73,8 @@ export default function LoginPage() {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Check for saved local device session on mount (Fintech Quick Unlock)
   useEffect(() => {
@@ -79,6 +96,9 @@ export default function LoginPage() {
         const expiry = parseInt(lockout, 10);
         if (expiry > Date.now()) {
           setLockoutExpiry(expiry);
+          setWrongAttempts(5);
+        } else {
+          localStorage.removeItem("tenopilot_pin_lockout");
         }
       }
     }
@@ -99,45 +119,60 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [lockoutExpiry]);
 
-  // Handle Step 1 (Email/Password or Google)
+  // Focus PIN input on PIN_PROMPT
+  useEffect(() => {
+    if (authStep === "PIN_PROMPT" || authStep === "FIRST_TIME_SET_PIN") {
+      pinInputRef.current?.focus();
+    }
+  }, [authStep]);
+
+  // Handle Step 1: Email + Handover Password Authentication
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      // Sign in with Firebase Auth or staff credentials
+      await loginWithEmailPassword(cleanEmail, password);
+
+      // Check staff_accounts collection in Firestore
+      let staffData: any = null;
       try {
-        await loginWithEmailPassword(email, password);
-      } catch (authErr: any) {
-        // Support demo owner & staff accounts
-        const isDemoAdmin = email.trim().toLowerCase() === "admin@gmail.com" && password === "admin123";
-        const isDemoMaster = email.trim().toLowerCase() === "ramesh@tenopilot.com";
-        const isDemoStaff = email.trim().toLowerCase().includes("sunshinepg.com");
-        
-        if (!isDemoAdmin && !isDemoMaster && !isDemoStaff) {
-          throw authErr;
+        const staffSnap = await getDoc(doc(db, "staff_accounts", cleanEmail));
+        if (staffSnap.exists()) {
+          staffData = staffSnap.data();
         }
+      } catch (fsErr) {
+        console.warn("Firestore staff check fallback:", fsErr);
       }
 
-      // Query staff or establish session
       const allStaff = staffStore.getAllGlobalStaff();
-      const match = allStaff.find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
+      const match = allStaff.find((s) => s.email.toLowerCase() === cleanEmail);
 
       const session: SavedSession = {
-        email: email.trim().toLowerCase(),
-        name: match?.name || sanitizeTitleCase(email.split("@")[0]) || "Property Owner",
-        role: match?.role || (email.includes("rec") ? "receptionist" : "master_admin"),
-        propertyName: match?.propertyName || "Sunshine Heights PG",
-        securityPin: match?.securityPin || "123456",
+        email: cleanEmail,
+        name: staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner",
+        role: staffData?.role || match?.role || (cleanEmail.includes("rec") ? "receptionist" : "master_admin"),
+        propertyName: staffData?.propertyName || match?.propertyName || "Sunshine Heights PG",
+        assignedPropertyId: staffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
+        securityPin: staffData?.securityPin || match?.securityPin || "123456",
       };
 
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
       staffStore.setActiveRole(session.role);
 
-      // Transition to Step 2 (PIN Prompt)
-      setAuthStep("PIN_PROMPT");
-      setPinValue("");
+      // Check if this is a first-time login where staff needs to set their PIN
+      if (staffData && staffData.hasSetPin === false) {
+        setAuthStep("FIRST_TIME_SET_PIN");
+        setFirstTimePin("");
+      } else {
+        setAuthStep("PIN_PROMPT");
+        setPinValue("");
+      }
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
     } finally {
@@ -145,28 +180,90 @@ export default function LoginPage() {
     }
   };
 
+  // Handle Step 1: Sign in with Google (Strict Login Mode)
   const handleGoogleSignIn = async () => {
     setError(null);
     setIsLoading(true);
     try {
-      await loginWithGoogle();
+      const result = await loginWithGoogle(false); // isSignUpMode = false
+      if (!result) return;
+
+      const userEmail = result.user.email?.toLowerCase() || "";
+      const allStaff = staffStore.getAllGlobalStaff();
+      const match = allStaff.find((s) => s.email.toLowerCase() === userEmail);
+
       const session: SavedSession = {
-        email: "owner@tenopilot.com",
-        name: "Estate Master Admin",
-        role: "master_admin",
-        propertyName: "Sunshine Heights PG",
-        securityPin: "123456",
+        email: userEmail,
+        name: result.profile.displayName || match?.name || "Estate Master Admin",
+        role: result.profile.role || match?.role || "master_admin",
+        propertyName: match?.propertyName || "All Properties",
+        assignedPropertyId: result.profile.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
+        securityPin: result.profile.securityPin || match?.securityPin || "123456",
       };
+
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
-      staffStore.setActiveRole("master_admin");
+      staffStore.setActiveRole(session.role);
 
-      // Transition to Step 2 (PIN Prompt)
-      setAuthStep("PIN_PROMPT");
-      setPinValue("");
+      if (result.profile.hasSetPin === false) {
+        setAuthStep("FIRST_TIME_SET_PIN");
+      } else {
+        setAuthStep("PIN_PROMPT");
+        setPinValue("");
+      }
     } catch (err: any) {
       console.error("Google Login Error:", err);
       setError(getCleanAuthErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle First Time PIN Creation & Instant Workspace Entry
+  const handleSaveFirstTimePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (firstTimePin.length !== 6) {
+      setError("Please enter a valid 6-digit security PIN.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const targetEmail = savedSession?.email || email;
+      const allStaff = staffStore.getAllGlobalStaff();
+      const match = allStaff.find((s) => s.email.toLowerCase() === targetEmail.toLowerCase());
+
+      if (match) {
+        await staffStore.setSecurityPin(match.id, firstTimePin);
+      }
+
+      // Mark hasSetPin in Firestore
+      try {
+        await setDoc(doc(db, "staff_accounts", targetEmail.toLowerCase()), {
+          hasSetPin: true,
+          securityPin: firstTimePin,
+        }, { merge: true });
+      } catch {}
+
+      if (savedSession) {
+        const updated = { ...savedSession, securityPin: firstTimePin };
+        setSavedSession(updated);
+        localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
+      }
+
+      const role = savedSession?.role || "master_admin";
+      staffStore.setActiveRole(role);
+      const targetProp = savedSession?.assignedPropertyId || "sunshine-pg";
+      const targetPath = role === "master_admin" ? "/home" : `/p/${targetProp}/overview`;
+
+      router.push(targetPath);
+      if (typeof window !== "undefined") {
+        window.location.href = targetPath;
+      }
+    } catch (err: any) {
+      setError("Failed to save PIN. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -184,7 +281,7 @@ export default function LoginPage() {
       const role = verification.member?.role || savedSession?.role || "master_admin";
       staffStore.setActiveRole(role);
 
-      const targetProperty = verification.member?.assignedPropertyId || "sunshine-pg";
+      const targetProperty = verification.member?.assignedPropertyId || savedSession?.assignedPropertyId || "sunshine-pg";
       const targetPath = role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`;
 
       router.push(targetPath);
@@ -243,9 +340,7 @@ export default function LoginPage() {
 
       <div className="min-h-screen bg-[#f7f4ee] text-[#201a17] flex relative overflow-hidden font-sans">
         
-        {/* ========================================================================= */}
-        {/* 📱 MOBILE BACKGROUND (30% Opacity Leather Emblem Artwork + Backdrop Blur) */}
-        {/* ========================================================================= */}
+        {/* MOBILE BACKGROUND */}
         <div className="lg:hidden absolute inset-0 z-0 overflow-hidden pointer-events-none">
           <Image
             src="/tenopilot-leather-emblem.jpg"
@@ -257,9 +352,7 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-gradient-to-b from-[#f7f4ee]/85 via-[#f7f4ee]/90 to-[#f7f4ee]" />
         </div>
 
-        {/* ========================================================================= */}
-        {/* 🖥️ DESKTOP LEFT 40%: Capped Artwork Panel (Zero Emblem Clipping)            */}
-        {/* ========================================================================= */}
+        {/* DESKTOP LEFT 40%: Capped Artwork Panel */}
         <div className="hidden lg:block lg:w-[40%] xl:w-[38%] 2xl:max-w-[580px] shrink-0 relative min-h-screen bg-[#f7f4ee] overflow-hidden border-r border-[#e8dfd8]">
           <Image
             src="/tenopilot-leather-emblem.jpg"
@@ -270,13 +363,11 @@ export default function LoginPage() {
           />
         </div>
 
-        {/* ========================================================================= */}
-        {/* 🔑 RIGHT 60%: Responsive White Portal (Expands on Widescreens)             */}
-        {/* ========================================================================= */}
+        {/* RIGHT 60%: Responsive White Portal */}
         <div className="w-full lg:flex-1 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white min-h-screen overflow-y-auto">
           <div className="w-full max-w-md space-y-5 my-auto">
 
-            {/* Header: Official Terracotta TenoPilot App Icon & Title */}
+            {/* Header: App Icon & Title */}
             <div className="text-center space-y-2">
               <div className="inline-flex justify-center mb-0.5">
                 <Image
@@ -289,34 +380,38 @@ export default function LoginPage() {
                 />
               </div>
               <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] tracking-tight">
-                {authStep === "PIN_PROMPT" ? "Enter Security PIN" : "Welcome to TenoPilot.com"}
+                {authStep === "FIRST_TIME_SET_PIN"
+                  ? "Set Your Security PIN"
+                  : authStep === "PIN_PROMPT"
+                  ? "Enter Security PIN"
+                  : "Welcome to TenoPilot.com"}
               </h1>
               <p className="text-xs text-gray-500 font-medium">
-                {authStep === "PIN_PROMPT"
+                {authStep === "FIRST_TIME_SET_PIN"
+                  ? "Create your personal 6-digit PIN for rapid device unlock"
+                  : authStep === "PIN_PROMPT"
                   ? "Enter your 6-digit access code to unlock workspace"
                   : "Sign in to manage your properties & residents"}
               </p>
             </div>
 
-            {/* Error Alert Box */}
+            {/* Error Banner */}
             {error && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-semibold animate-in fade-in">
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-xs text-rose-900 font-semibold animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span className="flex-1">{error}</span>
+                <span>{error}</span>
               </div>
             )}
 
-            {/* =================================================================== */}
-            {/* TIER 1: CREDENTIALS AUTHENTICATION (Google / Email & Password)      */}
-            {/* =================================================================== */}
-            {authStep === "CREDENTIALS" ? (
-              <div className="space-y-4 animate-in fade-in">
-                {/* 1. Google Sign In Button */}
+            {/* STEP 1: INITIAL CREDENTIALS (Email & Handover Password or Google) */}
+            {authStep === "CREDENTIALS" && (
+              <div className="space-y-4">
+                {/* Sign in with Google */}
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
                   disabled={isLoading}
-                  className="w-full py-3 px-4 rounded-2xl border border-gray-300 hover:bg-gray-50 hover:border-gray-400 text-gray-800 font-bold text-xs flex items-center justify-center gap-3 shadow-xs transition-all cursor-pointer active:scale-98 disabled:opacity-50"
+                  className="w-full py-2.5 px-4 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700 flex items-center justify-center gap-2.5 transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24">
                     <path
@@ -336,22 +431,19 @@ export default function LoginPage() {
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                   </svg>
-                  <span>Sign in with Google</span>
+                  <span>Sign In with Google</span>
                 </button>
 
-                {/* Divider */}
                 <div className="relative flex items-center justify-center my-3">
                   <div className="border-t border-gray-200 w-full" />
-                  <span className="bg-white px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 shrink-0">
-                    Or continue with email
+                  <span className="bg-white px-3 text-[10px] uppercase font-bold tracking-widest text-gray-400">
+                    Or Continue with Email
                   </span>
-                  <div className="border-t border-gray-200 w-full" />
                 </div>
 
-                {/* Email + Password Form */}
-                <form onSubmit={handleCredentialsSubmit} className="space-y-3 text-xs">
+                <form onSubmit={handleCredentialsSubmit} className="space-y-3.5">
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
                       Work Email / Staff ID
                     </label>
                     <div className="relative">
@@ -361,15 +453,15 @@ export default function LoginPage() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="e.g. owner@property.com or priya.desk@sunshinepg.com"
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all bg-white"
+                        placeholder="e.g. staff@ranapg.com"
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-[#c2652a] focus:outline-hidden bg-white text-gray-900"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block font-bold text-gray-700">Password</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-gray-700">Password</label>
                       <button
                         type="button"
                         onClick={() => setShowResetModal(true)}
@@ -385,13 +477,13 @@ export default function LoginPage() {
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter password"
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all bg-white"
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-[#c2652a] focus:outline-hidden bg-white text-gray-900"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -401,191 +493,197 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2"
+                    className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2"
                   >
-                    {isLoading ? "Verifying..." : "Continue to Security PIN"}
+                    <span>{isLoading ? "Authenticating..." : "Continue to Workspace"}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>
 
-                {/* Sign up Link */}
-                <div className="text-center pt-1">
-                  <span className="text-xs text-gray-500 font-medium">
-                    Don&apos;t have an account?{" "}
-                    <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
-                      Sign up
-                    </Link>
-                  </span>
+                <div className="text-center text-xs text-gray-500 pt-2">
+                  Don&apos;t have an account?{" "}
+                  <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
+                    Sign up
+                  </Link>
                 </div>
               </div>
-            ) : (
-              /* =================================================================== */
-              /* TIER 2: 6-DIGIT FINTECH SECURITY PIN UNLOCK FORM                    */
-              /* =================================================================== */
-              <div className="space-y-4 animate-in zoom-in-95">
-                {/* User Identification Header */}
-                <div className="p-3 bg-orange-50/60 rounded-2xl border border-orange-200/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-xs border border-amber-300">
-                      {savedSession?.name?.charAt(0) || "U"}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-xs">{savedSession?.name || "Property Owner"}</h4>
-                      <p className="text-[10px] text-gray-500 font-semibold">
-                        {savedSession?.role === "master_admin"
-                          ? "Master Admin 👑 • All Properties"
-                          : savedSession?.role === "admin"
-                          ? "Admin 🏢 • " + savedSession.propertyName
-                          : "Receptionist 🔑 • Front Desk"}
-                      </p>
-                    </div>
-                  </div>
+            )}
 
-                  <button
-                    type="button"
-                    onClick={handleSwitchAccount}
-                    className="p-1.5 text-gray-400 hover:text-gray-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                    title="Switch Account"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Switch
-                  </button>
+            {/* STEP 2A: FIRST TIME LOGIN - SET PERSONAL 6-DIGIT PIN */}
+            {authStep === "FIRST_TIME_SET_PIN" && (
+              <div className="space-y-5 bg-orange-50/50 p-6 rounded-3xl border border-orange-200 text-center animate-in fade-in">
+                <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto shadow-xs">
+                  <Key className="w-6 h-6" />
                 </div>
 
-                {/* 6-Digit PIN Keyboard Input Form */}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (pinValue.length === 6) {
-                      verifyAndRedirect(pinValue);
-                    }
-                  }}
-                  className="space-y-4 text-center"
-                >
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">
-                      Enter 6-Digit Security PIN
-                    </label>
-                    <div className="relative max-w-xs mx-auto">
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        autoFocus
-                        value={pinValue}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setPinValue(val);
-                          if (val.length === 6) {
-                            verifyAndRedirect(val);
-                          }
-                        }}
-                        placeholder="••••••"
-                        className="w-full py-3 px-4 rounded-2xl border-2 border-gray-300 focus:border-[#c2652a] focus:ring-2 focus:ring-[#c2652a]/20 font-mono text-center font-bold tracking-[0.6em] text-2xl text-gray-900 bg-white transition-all shadow-xs"
-                      />
-                    </div>
-                    <p className="text-[11px] text-gray-400 mt-1.5 font-medium">
-                      Type with your keyboard or phone keypad (Demo PIN: <strong className="text-gray-700 font-mono">123456</strong>)
-                    </p>
-                  </div>
+                <div className="space-y-1">
+                  <h2 className="font-serif font-bold text-xl text-gray-900">
+                    Welcome, {savedSession?.name || "Team Member"}! 🎉
+                  </h2>
+                  <p className="text-xs text-gray-600">
+                    Please create your personal 6-digit Security PIN for rapid device unlock.
+                  </p>
+                </div>
 
-                  {/* Lockout Countdown Timer */}
-                  {lockoutExpiry && (
-                    <div className="text-center p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs">
-                      ⏳ Locked out. Retry in {Math.floor(lockoutCountdown / 60)}m {lockoutCountdown % 60}s
-                    </div>
-                  )}
+                <form onSubmit={handleSaveFirstTimePin} className="space-y-4">
+                  <div>
+                    <input
+                      ref={pinInputRef}
+                      type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      required
+                      value={firstTimePin}
+                      onChange={(e) => setFirstTimePin(e.target.value.replace(/\D/g, ""))}
+                      placeholder="••••••"
+                      className="w-full max-w-[200px] mx-auto px-4 py-3 rounded-2xl border-2 border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-200 focus:outline-hidden"
+                    />
+                  </div>
 
                   <button
                     type="submit"
-                    disabled={pinValue.length !== 6 || Boolean(lockoutExpiry) || isLoading}
-                    className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                    disabled={isLoading || firstTimePin.length !== 6}
+                    className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                   >
-                    {isLoading ? "Unlocking Workspace..." : "Unlock Workspace"}
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{isLoading ? "Setting PIN..." : "Save PIN & Open Workspace"}</span>
+                    <Sparkles className="w-4 h-4" />
                   </button>
                 </form>
               </div>
             )}
 
-            {/* =================================================================== */}
-            {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP SECTION                 */}
-            {/* =================================================================== */}
-            <AuthPwaInstallSection />
+            {/* STEP 2B: RETURNING USER - 6-DIGIT QUICK UNLOCK PIN */}
+            {authStep === "PIN_PROMPT" && (
+              <div className="space-y-5 text-center animate-in fade-in">
+                {/* Account Profile Pill */}
+                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-2xl bg-gray-50 border border-gray-200 text-xs text-gray-700">
+                  <div className="w-8 h-8 rounded-full bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs">
+                    {savedSession?.name?.charAt(0) || "U"}
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900 leading-tight">
+                      {savedSession?.name || "Estate Admin"}
+                    </p>
+                    <p className="text-[11px] text-gray-500">{savedSession?.email || email}</p>
+                  </div>
+                </div>
+
+                {/* Direct 6-Digit Keyboard Input with Auto-Submit */}
+                <div className="space-y-2 max-w-xs mx-auto">
+                  <label className="block text-xs font-bold text-gray-600">
+                    Enter 6-Digit Security PIN
+                  </label>
+                  <input
+                    ref={pinInputRef}
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    disabled={lockoutExpiry !== null || isLoading}
+                    value={pinValue}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setPinValue(val);
+                      if (val.length === 6) {
+                        verifyAndRedirect(val);
+                      }
+                    }}
+                    placeholder="••••••"
+                    className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-100 focus:outline-hidden"
+                  />
+                  <p className="text-[10px] text-gray-400">
+                    {lockoutExpiry ? `Locked: ${lockoutCountdown}s remaining` : "Auto-submits on 6th digit"}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-center gap-4 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={handleSwitchAccount}
+                    className="text-[#c2652a] hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Switch Account / Sign In with Password</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PWA 1-Click Install Card */}
+            <div className="p-4 rounded-3xl bg-orange-50/50 border border-orange-100 flex items-center gap-4 text-xs">
+              <div className="w-16 h-16 bg-white p-1 rounded-2xl border border-orange-200 shrink-0 flex items-center justify-center">
+                <Image
+                  src="/tenopilot-qr.png"
+                  alt="Install App QR"
+                  width={56}
+                  height={56}
+                  className="rounded-lg"
+                />
+              </div>
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <p className="font-bold text-gray-900 leading-tight">Install TenoPilot App</p>
+                <p className="text-[10px] text-gray-500">Scan QR code or click below to install directly to home screen.</p>
+                <div className="flex gap-2 pt-0.5">
+                  <Link
+                    href="/install"
+                    className="px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-[10px] hover:bg-[#a65420] transition-colors"
+                  >
+                    Install App →
+                  </Link>
+                </div>
+              </div>
+            </div>
 
           </div>
         </div>
 
       </div>
 
-      {/* Forgot Password Reset Modal */}
+      {/* Forgot Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <h3 className="font-serif font-bold text-base text-gray-900">
-                Reset Account Password
-              </h3>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-serif font-bold text-lg text-gray-900">Reset Password</h3>
               <button
                 type="button"
                 onClick={() => setShowResetModal(false)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-full"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {resetSuccess ? (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 space-y-2">
-                <div className="flex items-center gap-2 font-bold text-xs">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Password Reset Link Sent!</span>
-                </div>
-                <p className="text-[11px] text-emerald-800 font-medium">
-                  We have dispatched password recovery instructions to <strong>{resetEmail}</strong>.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowResetModal(false)}
-                  className="w-full mt-2 py-2 bg-emerald-700 text-white rounded-xl font-bold"
-                >
-                  Return to Login
-                </button>
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl font-medium">
+                ✅ Password reset email sent! Check your inbox.
               </div>
             ) : (
               <form onSubmit={handleResetSubmit} className="space-y-3">
-                <p className="text-gray-500 text-[11px]">
-                  Enter your registered work email to receive a password recovery link.
-                </p>
                 {resetError && (
-                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-semibold">
+                  <div className="p-2 bg-rose-50 border border-rose-200 text-rose-900 rounded-lg">
                     {resetError}
                   </div>
                 )}
-                <input
-                  type="email"
-                  required
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="name@property.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 bg-white"
-                />
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowResetModal(false)}
-                    className="px-3.5 py-2 rounded-xl border border-gray-300 font-bold text-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isResetting}
-                    className="px-4 py-2 rounded-xl bg-[#c2652a] text-white font-bold shadow-xs disabled:opacity-50"
-                  >
-                    {isResetting ? "Sending..." : "Send Reset Link"}
-                  </button>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Your Work Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="you@domain.com"
+                    className="w-full px-3.5 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#c2652a] text-xs bg-white text-gray-900"
+                  />
                 </div>
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className="w-full py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs"
+                >
+                  {isResetting ? "Sending..." : "Send Reset Link"}
+                </button>
               </form>
             )}
           </div>
