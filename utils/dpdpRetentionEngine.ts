@@ -93,6 +93,7 @@ export function sanitizeOccupantForCompliance(params: {
   totalPaid: number;
   depositRefunded: number;
   penaltyPaid?: number;
+  maintenancePaid?: number;
   kycVerified: boolean;
 }): Omit<ComplianceLogEntry, "id" | "timestamp"> {
   const retention = calculateRetentionTimestamps(params.checkOutDate);
@@ -121,6 +122,7 @@ export function sanitizeOccupantForCompliance(params: {
     totalPaid: params.totalPaid,
     depositRefunded: params.depositRefunded,
     penaltyPaid: params.penaltyPaid || 0,
+    maintenancePaid: params.maintenancePaid || 0,
     kycVerified: params.kycVerified,
     // DPDP Act 2023 Statutory Metadata
     dpdpStatus: "PHOTO_PURGED",

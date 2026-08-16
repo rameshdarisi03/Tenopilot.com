@@ -125,7 +125,8 @@ export function CheckOutSettlementModal({
         exitReason: settlementNotes.trim() || `Formal check-out & deposit settlement executed. Room inspected, keys returned. Deductions: ₹${totalDeductions.toLocaleString("en-IN")}.`,
         totalPaid: occupant.rentAmount || 0,
         depositRefunded: netRefundableAmount,
-        penaltyPaid: totalDeductions,
+        penaltyPaid: repairDeductions,
+        maintenancePaid: maintenanceExpenses,
         kycVerified: Boolean(occupant.kycVerified),
       });
 

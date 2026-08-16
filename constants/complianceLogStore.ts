@@ -38,6 +38,7 @@ export interface ComplianceLogEntry {
   totalPaid: number;
   depositRefunded: number;
   penaltyPaid?: number;
+  maintenancePaid?: number;
   timestamp: number;
   kycVerified: boolean;
 

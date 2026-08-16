@@ -49,6 +49,7 @@ import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { complianceLogStore } from "@/constants/complianceLogStore";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
 
@@ -219,6 +220,18 @@ export default function FinancialHubPage({
       });
     });
 
+    // Query check-out and cancellation logs for penalties, damages, and maintenance deductions
+    const complianceLogs = complianceLogStore.getLogs(propertyId);
+    let penaltyDamageStream = 0;
+    let maintenanceStream = 0;
+
+    complianceLogs.forEach((log) => {
+      penaltyDamageStream += (log.penaltyPaid || 0);
+      maintenanceStream += (log.maintenancePaid || 0);
+    });
+
+    totalGrossRevenue += (penaltyDamageStream + maintenanceStream);
+
     const collectionEfficiency = totalBilledRent > 0
       ? Math.min(100, (totalGrossRevenue / totalBilledRent) * 100).toFixed(1)
       : "100.0";
@@ -232,9 +245,11 @@ export default function FinancialHubPage({
     const upiPct = Math.round((onlineTotal / totalChannel) * 100) || 85;
     const cashPct = 100 - upiPct;
 
-    const totalStreams = (rentStream + depositStream) || 1;
-    const rentPct = Math.round((rentStream / totalStreams) * 100) || 75;
-    const depositPct = 100 - rentPct;
+    const totalStreams = (rentStream + depositStream + maintenanceStream + penaltyDamageStream) || 1;
+    const rentPct = Math.round((rentStream / totalStreams) * 100);
+    const depositPct = Math.round((depositStream / totalStreams) * 100);
+    const maintenancePct = Math.round((maintenanceStream / totalStreams) * 100);
+    const penaltyDamagePct = Math.max(0, 100 - rentPct - depositPct - maintenancePct);
 
     return {
       totalGrossRevenue,
@@ -244,8 +259,12 @@ export default function FinancialHubPage({
       arpb,
       rentStream,
       depositStream,
+      maintenanceStream,
+      penaltyDamageStream,
       rentPct,
       depositPct,
+      maintenancePct,
+      penaltyDamagePct,
       onlineTotal,
       cashAmount,
       upiPct,
@@ -295,6 +314,7 @@ export default function FinancialHubPage({
     const unsubRecurring = recurringBillStore.subscribe(updateRecurringBillsState);
     const unsubOccupants = occupantStore.subscribe(updateRevenuesState);
     const unsubProperty = propertyStore.subscribe(updateRevenuesState);
+    const unsubCompliance = complianceLogStore.subscribe(updateRevenuesState);
 
     return () => {
       unsubPartners();
@@ -302,6 +322,7 @@ export default function FinancialHubPage({
       unsubRecurring();
       unsubOccupants();
       unsubProperty();
+      unsubCompliance();
     };
   }, [propertyId]);
 
@@ -782,7 +803,7 @@ export default function FinancialHubPage({
                         </span>
                       </div>
                       <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#c2652a] rounded-full" style={{ width: `${Math.min(100, revenueMetrics.rentPct)}%` }}></div>
+                        <div className="h-full bg-[#c2652a] rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.rentPct)}%` }}></div>
                       </div>
                     </div>
 
@@ -797,7 +818,37 @@ export default function FinancialHubPage({
                         </span>
                       </div>
                       <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, revenueMetrics.depositPct)}%` }}></div>
+                        <div className="h-full bg-emerald-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.depositPct)}%` }}></div>
+                      </div>
+                    </div>
+
+                    {/* Stream 3: Maintenance Charges */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-gray-800 flex items-center gap-2">
+                          🧹 Maintenance & Utility Charges
+                        </span>
+                        <span className="text-blue-700 font-mono tabular-nums">
+                          ₹{revenueMetrics.maintenanceStream.toLocaleString("en-IN")} ({revenueMetrics.maintenancePct}%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.maintenancePct)}%` }}></div>
+                      </div>
+                    </div>
+
+                    {/* Stream 4: Cancellations, Penalties & Damages */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-gray-800 flex items-center gap-2">
+                          ⚖️ Cancellations, Penalties & Damages
+                        </span>
+                        <span className="text-purple-700 font-mono tabular-nums">
+                          ₹{revenueMetrics.penaltyDamageStream.toLocaleString("en-IN")} ({revenueMetrics.penaltyDamagePct}%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.penaltyDamagePct)}%` }}></div>
                       </div>
                     </div>
                   </div>
