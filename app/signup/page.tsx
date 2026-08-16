@@ -240,10 +240,14 @@ function SignUpPageContent() {
         name: currentName,
         role: "master_admin",
         propertyName: "All Properties",
+        securityPin: newPin,
       })
     );
 
     router.push("/home");
+    if (typeof window !== "undefined") {
+      window.location.href = "/home";
+    }
   };
 
   return (

@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   X,
   RotateCcw,
+  KeyRound,
 } from "lucide-react";
 import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { staffStore, UserRole } from "@/lib/staffStore";
@@ -27,6 +28,7 @@ interface SavedSession {
   role: UserRole;
   avatarUrl?: string;
   propertyName?: string;
+  securityPin?: string;
 }
 
 export default function LoginPage() {
@@ -44,8 +46,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 6-Digit PIN Keypad State
-  const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  // 6-Digit PIN Keyboard State
+  const [pinValue, setPinValue] = useState("");
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [lockoutExpiry, setLockoutExpiry] = useState<number | null>(null);
   const [lockoutCountdown, setLockoutCountdown] = useState<number>(0);
@@ -126,6 +128,7 @@ export default function LoginPage() {
         name: match?.name || (email.includes("ramesh") ? "Ramesh Darisi" : "Estate Admin"),
         role: match?.role || (email.includes("rec") ? "receptionist" : "master_admin"),
         propertyName: match?.propertyName || "Sunshine Heights PG",
+        securityPin: match?.securityPin || "123456",
       };
 
       setSavedSession(session);
@@ -134,7 +137,7 @@ export default function LoginPage() {
 
       // Transition to Step 2 (PIN Prompt)
       setAuthStep("PIN_PROMPT");
-      setPinDigits(["", "", "", "", "", ""]);
+      setPinValue("");
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
     } finally {
@@ -152,6 +155,7 @@ export default function LoginPage() {
         name: "Estate Master Admin",
         role: "master_admin",
         propertyName: "Sunshine Heights PG",
+        securityPin: "123456",
       };
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
@@ -159,45 +163,13 @@ export default function LoginPage() {
 
       // Transition to Step 2 (PIN Prompt)
       setAuthStep("PIN_PROMPT");
-      setPinDigits(["", "", "", "", "", ""]);
+      setPinValue("");
     } catch (err: any) {
       console.error("Google Login Error:", err);
       setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Handle PIN Digit Keypad Entry
-  const handlePinInput = (digit: string) => {
-    if (lockoutExpiry) return;
-    const nextEmptyIndex = pinDigits.findIndex((d) => d === "");
-    if (nextEmptyIndex === -1) return;
-
-    const newDigits = [...pinDigits];
-    newDigits[nextEmptyIndex] = digit;
-    setPinDigits(newDigits);
-
-    // If 6 digits completed, verify automatically
-    if (nextEmptyIndex === 5) {
-      const fullPin = newDigits.join("");
-      verifyAndRedirect(fullPin);
-    }
-  };
-
-  const handlePinBackspace = () => {
-    const lastFilledIndex = [...pinDigits].reverse().findIndex((d) => d !== "");
-    if (lastFilledIndex === -1) return;
-    const targetIndex = 5 - lastFilledIndex;
-    const newDigits = [...pinDigits];
-    newDigits[targetIndex] = "";
-    setPinDigits(newDigits);
-    setError(null);
-  };
-
-  const handlePinClear = () => {
-    setPinDigits(["", "", "", "", "", ""]);
-    setError(null);
   };
 
   // Verify PIN & Smart Redirection
@@ -213,17 +185,17 @@ export default function LoginPage() {
       staffStore.setActiveRole(role);
 
       const targetProperty = verification.member?.assignedPropertyId || "sunshine-pg";
+      const targetPath = role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`;
 
-      if (role === "master_admin") {
-        router.push("/home");
-      } else {
-        router.push(`/p/${targetProperty}/overview`);
+      router.push(targetPath);
+      if (typeof window !== "undefined") {
+        window.location.href = targetPath;
       }
     } else {
       setIsLoading(false);
       const newAttempts = wrongAttempts + 1;
       setWrongAttempts(newAttempts);
-      setPinDigits(["", "", "", "", "", ""]);
+      setPinValue("");
 
       if (newAttempts >= 5) {
         const expiry = Date.now() + 15 * 60 * 1000;
@@ -240,7 +212,7 @@ export default function LoginPage() {
     localStorage.removeItem("tenopilot_saved_session");
     setSavedSession(null);
     setAuthStep("CREDENTIALS");
-    setPinDigits(["", "", "", "", "", ""]);
+    setPinValue("");
     setEmail("");
     setPassword("");
     setError(null);
@@ -321,7 +293,7 @@ export default function LoginPage() {
               </h1>
               <p className="text-xs text-gray-500 font-medium">
                 {authStep === "PIN_PROMPT"
-                  ? "Enter your 6-digit access code to unlock"
+                  ? "Enter your 6-digit access code to unlock workspace"
                   : "Sign in to manage your properties & residents"}
               </p>
             </div>
@@ -448,9 +420,9 @@ export default function LoginPage() {
               </div>
             ) : (
               /* =================================================================== */
-              /* TIER 2: 6-DIGIT FINTECH SECURITY PIN UNLOCK KEYPAD                  */
+              /* TIER 2: 6-DIGIT FINTECH SECURITY PIN UNLOCK FORM                    */
               /* =================================================================== */
-              <div className="space-y-5 animate-in zoom-in-95">
+              <div className="space-y-4 animate-in zoom-in-95">
                 {/* User Identification Header */}
                 <div className="p-3 bg-orange-50/60 rounded-2xl border border-orange-200/60 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -479,74 +451,60 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                {/* 6 Visual PIN Dots */}
-                <div className="flex justify-center items-center gap-3 py-1">
-                  {pinDigits.map((digit, idx) => (
-                    <div
-                      key={idx}
-                      className={`w-4 h-4 rounded-full transition-all duration-200 ${
-                        digit !== ""
-                          ? "bg-[#c2652a] scale-110 shadow-xs shadow-orange-500"
-                          : "border-2 border-gray-300 bg-gray-100"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Lockout Countdown Timer */}
-                {lockoutExpiry && (
-                  <div className="text-center p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs">
-                    ⏳ Locked out. Retry in {Math.floor(lockoutCountdown / 60)}m {lockoutCountdown % 60}s
+                {/* 6-Digit PIN Keyboard Input Form */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (pinValue.length === 6) {
+                      verifyAndRedirect(pinValue);
+                    }
+                  }}
+                  className="space-y-4 text-center"
+                >
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">
+                      Enter 6-Digit Security PIN
+                    </label>
+                    <div className="relative max-w-xs mx-auto">
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        autoFocus
+                        value={pinValue}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setPinValue(val);
+                          if (val.length === 6) {
+                            verifyAndRedirect(val);
+                          }
+                        }}
+                        placeholder="••••••"
+                        className="w-full py-3 px-4 rounded-2xl border-2 border-gray-300 focus:border-[#c2652a] focus:ring-2 focus:ring-[#c2652a]/20 font-mono text-center font-bold tracking-[0.6em] text-2xl text-gray-900 bg-white transition-all shadow-xs"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1.5 font-medium">
+                      Type with your keyboard or phone keypad (Demo PIN: <strong className="text-gray-700 font-mono">123456</strong>)
+                    </p>
                   </div>
-                )}
 
-                {/* Interactive Number Keypad */}
-                <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      disabled={Boolean(lockoutExpiry) || isLoading}
-                      onClick={() => handlePinInput(num)}
-                      className="h-12 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
-                    >
-                      {num}
-                    </button>
-                  ))}
+                  {/* Lockout Countdown Timer */}
+                  {lockoutExpiry && (
+                    <div className="text-center p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs">
+                      ⏳ Locked out. Retry in {Math.floor(lockoutCountdown / 60)}m {lockoutCountdown % 60}s
+                    </div>
+                  )}
 
                   <button
-                    type="button"
-                    disabled={Boolean(lockoutExpiry) || isLoading}
-                    onClick={handlePinClear}
-                    className="h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                    type="submit"
+                    disabled={pinValue.length !== 6 || Boolean(lockoutExpiry) || isLoading}
+                    className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                   >
-                    Clear
+                    {isLoading ? "Unlocking Workspace..." : "Unlock Workspace"}
+                    <ArrowRight className="w-4 h-4" />
                   </button>
-
-                  <button
-                    type="button"
-                    disabled={Boolean(lockoutExpiry) || isLoading}
-                    onClick={() => handlePinInput("0")}
-                    className="h-12 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
-                  >
-                    0
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={Boolean(lockoutExpiry) || isLoading}
-                    onClick={handlePinBackspace}
-                    className="h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
-                  >
-                    ⌫
-                  </button>
-                </div>
-
-                <div className="text-center">
-                  <p className="text-[11px] text-gray-400 font-medium">
-                    Demo PIN: <strong className="text-gray-700 font-mono">123456</strong>
-                  </p>
-                </div>
+                </form>
               </div>
             )}
 
