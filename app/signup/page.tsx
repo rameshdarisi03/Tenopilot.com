@@ -18,6 +18,8 @@ import {
   Clock,
   RefreshCw,
   LogOut,
+  ShieldCheck,
+  Key,
 } from "lucide-react";
 import {
   loginWithGoogle,
@@ -28,36 +30,7 @@ import {
 } from "@/lib/authService";
 import { useAuth } from "@/providers/AuthProvider";
 import { staffStore } from "@/lib/staffStore";
-import { CompactPwaInstallCard } from "@/components/pwa/CompactPwaInstallCard";
-
-// Standalone T Emblem (No background box)
-function StandaloneTLogo({ className = "w-11 h-11" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Clean T Bar */}
-      <path
-        d="M18 22H82V35H59V86H41V35H18V22Z"
-        fill="#201a17"
-      />
-      {/* Intertwined Ribbon & Star in Terracotta */}
-      <path
-        d="M34 28C34 28 46 40 50 54C54 68 50 82 50 82"
-        stroke="#c2652a"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-      <polygon
-        points="50,42 53.5,49 61,50 55.5,55 57,63 50,58.5 43,63 44.5,55 39,50 46.5,49"
-        fill="#c2652a"
-      />
-    </svg>
-  );
-}
+import { AuthPwaInstallSection } from "@/components/pwa/AuthPwaInstallSection";
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -66,12 +39,17 @@ function SignUpPageContent() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [securityPin, setSecurityPin] = useState("123456");
   const [showPassword, setShowPassword] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(true);
+
+  // Security Setup Modal State (Post-Signup / Email Verification)
+  const [showSecuritySetupModal, setShowSecuritySetupModal] = useState(false);
+  const [setupPhone, setSetupPhone] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +69,7 @@ function SignUpPageContent() {
         try {
           await user.reload();
           if (user.emailVerified) {
-            router.push("/home");
+            setShowSecuritySetupModal(true);
           }
         } catch {
           // Silent polling
@@ -101,7 +79,7 @@ function SignUpPageContent() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [user, isGoogleUser, router]);
+  }, [user, isGoogleUser]);
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,22 +105,17 @@ function SignUpPageContent() {
       return;
     }
 
-    if (securityPin.length !== 6) {
-      setError("Please set a 6-digit security PIN.");
-      return;
-    }
-
     setIsLoading(true);
 
     try {
       await registerWithEmailPassword(email, password, fullName);
 
-      // Register master admin staff record
+      // Register initial master admin staff record
       staffStore.addGlobalStaff({
         id: `staff-master-${Date.now()}`,
         name: fullName.trim(),
         email: email.trim().toLowerCase(),
-        phone: phone.trim() || "+91 98000 00000",
+        phone: "+91 98000 00000",
         role: "master_admin",
         assignedPropertyId: "sunshine-pg",
         assignedPropertyIds: ["*"],
@@ -153,7 +126,7 @@ function SignUpPageContent() {
           month: "short",
           year: "numeric",
         }),
-        securityPin: securityPin || "123456",
+        securityPin: "123456",
       });
 
       // Save local device session
@@ -182,7 +155,7 @@ function SignUpPageContent() {
     try {
       await loginWithGoogle();
       staffStore.setActiveRole("master_admin");
-      router.push("/home");
+      setShowSecuritySetupModal(true);
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
     } finally {
@@ -206,7 +179,7 @@ function SignUpPageContent() {
       if (user) {
         await user.reload();
         if (user.emailVerified) {
-          router.push("/home");
+          setShowSecuritySetupModal(true);
         } else {
           setError("Email not verified yet. Please check your inbox or spam folder.");
         }
@@ -218,10 +191,65 @@ function SignUpPageContent() {
     }
   };
 
+  const handleSaveSecuritySetup = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError(null);
+
+    if (newPin.length !== 6) {
+      setSetupError("Security PIN must be exactly 6 digits.");
+      return;
+    }
+
+    if (newPin !== confirmPin) {
+      setSetupError("Security PIN entries do not match.");
+      return;
+    }
+
+    const currentEmail = user?.email || email || "owner@tenopilot.com";
+    const currentName = user?.displayName || fullName || "Ramesh Darisi";
+
+    // Update global staff record PIN
+    const all = staffStore.getAllGlobalStaff();
+    const existing = all.find((s) => s.email.toLowerCase() === currentEmail.toLowerCase());
+    if (existing) {
+      staffStore.setSecurityPin(existing.id, newPin);
+    } else {
+      staffStore.addGlobalStaff({
+        id: `staff-master-${Date.now()}`,
+        name: currentName,
+        email: currentEmail,
+        phone: setupPhone || "+91 98000 00000",
+        role: "master_admin",
+        assignedPropertyId: "sunshine-pg",
+        assignedPropertyIds: ["*"],
+        propertyName: "All Properties",
+        status: "Active",
+        joinedDate: new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        securityPin: newPin,
+      });
+    }
+
+    localStorage.setItem(
+      "tenopilot_saved_session",
+      JSON.stringify({
+        email: currentEmail,
+        name: currentName,
+        role: "master_admin",
+        propertyName: "All Properties",
+      })
+    );
+
+    router.push("/home");
+  };
+
   return (
-    <div className="min-h-screen bg-[#fbf8f5] text-[#201a17] flex relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#f7f4ee] text-[#201a17] flex relative overflow-hidden font-sans">
       
-      {/* 📱 MOBILE BACKGROUND (35% Opacity Leather Emblem Artwork + Backdrop Blur) */}
+      {/* 📱 MOBILE BACKGROUND (30% Opacity Leather Emblem Artwork + Backdrop Blur) */}
       <div className="lg:hidden absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <Image
           src="/tenopilot-leather-emblem.jpg"
@@ -230,12 +258,12 @@ function SignUpPageContent() {
           priority
           className="object-cover object-center opacity-30 scale-105 filter blur-xs"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#fbf8f5]/85 via-[#fbf8f5]/90 to-[#fbf8f5]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#f7f4ee]/85 via-[#f7f4ee]/90 to-[#f7f4ee]" />
       </div>
 
       {/* 🖥️ DESKTOP LEFT COLUMN: Exact Full Resolution Framing (Zero Cropping) */}
-      <div className="hidden lg:flex lg:w-1/2 relative min-h-screen bg-[#fbf8f5] items-center justify-center p-6 xl:p-10 overflow-hidden border-r border-[#e8dfd8]">
-        <div className="relative w-full h-full max-w-lg aspect-[9/16] max-h-[92vh]">
+      <div className="hidden lg:flex flex-1 relative min-h-screen bg-[#f7f4ee] items-center justify-center p-6 xl:p-10 overflow-hidden border-r border-[#e8dfd8]">
+        <div className="relative w-full h-full max-w-lg aspect-[9/16] max-h-[88vh] flex items-center justify-center">
           <Image
             src="/tenopilot-leather-emblem.jpg"
             alt="TenoPilot 3D Leather Emblem Artwork"
@@ -247,13 +275,20 @@ function SignUpPageContent() {
       </div>
 
       {/* 🔑 RIGHT COLUMN: Ultra-Clean Magnific-Style Signup Card */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white min-h-screen overflow-y-auto">
+      <div className="w-full lg:w-[480px] xl:w-[520px] shrink-0 flex flex-col justify-center items-center p-6 sm:p-10 relative z-10 bg-white min-h-screen overflow-y-auto">
         <div className="w-full max-w-md space-y-5 my-auto">
 
-          {/* Header: Pure Standalone "T" Logo (No Box) & Title */}
-          <div className="text-center space-y-2.5">
-            <div className="inline-flex justify-center mb-1">
-              <StandaloneTLogo className="w-12 h-12" />
+          {/* Header: Official Terracotta TenoPilot App Icon & Title */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex justify-center mb-0.5">
+              <Image
+                src="/tenopilot-app-icon.png"
+                alt="TenoPilot App Icon"
+                width={48}
+                height={48}
+                className="rounded-2xl shadow-sm hover:scale-105 transition-transform"
+                priority
+              />
             </div>
             <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] tracking-tight">
               {isGatekeeperActive ? "Verify Your Email" : "Join TenoPilot.com"}
@@ -319,9 +354,9 @@ function SignUpPageContent() {
               </div>
             </div>
           ) : (
-            /* Signup Form */
+            /* Streamlined Initial Signup Form */
             <div className="space-y-4 animate-in fade-in">
-              {/* Google Sign In */}
+              {/* Google Sign Up Button */}
               <button
                 type="button"
                 onClick={handleGoogleSignUp}
@@ -346,7 +381,7 @@ function SignUpPageContent() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>Continue with Google</span>
+                <span>Sign up with Google</span>
               </button>
 
               <div className="relative flex items-center justify-center my-3">
@@ -380,34 +415,18 @@ function SignUpPageContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1">Work Email *</label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="owner@property.com"
-                        className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-[11px]"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1">Phone Number</label>
-                    <div className="relative">
-                      <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+91 98765 43210"
-                        className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-[11px]"
-                      />
-                    </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Work Email *</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="owner@property.com"
+                      className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
+                    />
                   </div>
                 </div>
 
@@ -447,25 +466,6 @@ function SignUpPageContent() {
                   </div>
                 </div>
 
-                {/* 6-Digit Security PIN Setup */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Set 6-Digit App Security PIN *
-                  </label>
-                  <input
-                    type="password"
-                    maxLength={6}
-                    required
-                    placeholder="123456"
-                    value={securityPin}
-                    onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, ""))}
-                    className="w-full max-w-[180px] px-3.5 py-2 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest bg-white"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Used for instant 2-second banking-grade unlocking on your device.
-                  </p>
-                </div>
-
                 <label className="flex items-start gap-2 pt-1 text-[11px] text-gray-600 cursor-pointer">
                   <input
                     type="checkbox"
@@ -478,18 +478,19 @@ function SignUpPageContent() {
                   </span>
                 </label>
 
+                {/* Button: "Create Account" */}
                 <button
                   type="submit"
                   disabled={isLoading}
                   className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2"
                 >
-                  {isLoading ? "Creating Account..." : "Create Master Account"}
+                  {isLoading ? "Creating Account..." : "Create Account"}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
 
               {/* Log in Link */}
-              <div className="text-center pt-2">
+              <div className="text-center pt-1">
                 <span className="text-xs text-gray-500 font-medium">
                   Already have an account?{" "}
                   <Link href="/login" className="font-bold text-[#c2652a] hover:underline">
@@ -500,13 +501,101 @@ function SignUpPageContent() {
             </div>
           )}
 
-          {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP (COMPACT & THEMED) */}
-          <div className="pt-2">
-            <CompactPwaInstallCard />
-          </div>
+          {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP SECTION */}
+          <AuthPwaInstallSection />
 
         </div>
       </div>
+
+      {/* ✨ POST-SIGNUP / VERIFICATION MASTER SECURITY SETUP MODAL */}
+      {showSecuritySetupModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17]">
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+              <div className="w-11 h-11 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-lg text-gray-900">
+                  Complete Master Security Setup
+                </h3>
+                <p className="text-[11px] text-gray-500 font-medium">
+                  Set your 6-digit PIN for instant banking-grade unlocking
+                </p>
+              </div>
+            </div>
+
+            {setupError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{setupError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveSecuritySetup} className="space-y-4">
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  Mobile Phone Number <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="tel"
+                    value={setupPhone}
+                    onChange={(e) => setSetupPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Set 6-Digit PIN *
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    required
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="••••••"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-base bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Confirm 6-Digit PIN *
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    required
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="••••••"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-base bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 leading-relaxed font-medium">
+                🔒 <strong>Fintech Security:</strong> This PIN enables 2-second daily unlock on your phone & desktop without re-entering passwords.
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+              >
+                <span>Save Security PIN & Launch TenoPilot</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -514,7 +603,7 @@ function SignUpPageContent() {
 
 export default function SignUpPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#fbf8f5]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f4ee]" />}>
       <SignUpPageContent />
     </Suspense>
   );

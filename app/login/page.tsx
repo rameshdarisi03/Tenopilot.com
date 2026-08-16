@@ -19,7 +19,7 @@ import {
 import { loginWithGoogle, loginWithEmailPassword, sendPasswordReset, getCleanAuthErrorMessage } from "@/lib/authService";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
-import { CompactPwaInstallCard } from "@/components/pwa/CompactPwaInstallCard";
+import { AuthPwaInstallSection } from "@/components/pwa/AuthPwaInstallSection";
 
 interface SavedSession {
   email: string;
@@ -27,35 +27,6 @@ interface SavedSession {
   role: UserRole;
   avatarUrl?: string;
   propertyName?: string;
-}
-
-// Standalone T Emblem (No background box)
-function StandaloneTLogo({ className = "w-11 h-11" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Clean T Bar */}
-      <path
-        d="M18 22H82V35H59V86H41V35H18V22Z"
-        fill="#201a17"
-      />
-      {/* Intertwined Ribbon & Star in Terracotta */}
-      <path
-        d="M34 28C34 28 46 40 50 54C54 68 50 82 50 82"
-        stroke="#c2652a"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-      <polygon
-        points="50,42 53.5,49 61,50 55.5,55 57,63 50,58.5 43,63 44.5,55 39,50 46.5,49"
-        fill="#c2652a"
-      />
-    </svg>
-  );
 }
 
 export default function LoginPage() {
@@ -298,10 +269,10 @@ export default function LoginPage() {
         <PwaBootSplashScreen onComplete={() => setShowBootSplash(false)} durationMs={1100} />
       )}
 
-      <div className="min-h-screen bg-[#fbf8f5] text-[#201a17] flex relative overflow-hidden font-sans">
+      <div className="min-h-screen bg-[#f7f4ee] text-[#201a17] flex relative overflow-hidden font-sans">
         
         {/* ========================================================================= */}
-        {/* 📱 MOBILE BACKGROUND (35% Opacity Leather Emblem Artwork + Backdrop Blur) */}
+        {/* 📱 MOBILE BACKGROUND (30% Opacity Leather Emblem Artwork + Backdrop Blur) */}
         {/* ========================================================================= */}
         <div className="lg:hidden absolute inset-0 z-0 overflow-hidden pointer-events-none">
           <Image
@@ -311,14 +282,14 @@ export default function LoginPage() {
             priority
             className="object-cover object-center opacity-30 scale-105 filter blur-xs"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#fbf8f5]/85 via-[#fbf8f5]/90 to-[#fbf8f5]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#f7f4ee]/85 via-[#f7f4ee]/90 to-[#f7f4ee]" />
         </div>
 
         {/* ========================================================================= */}
         {/* 🖥️ DESKTOP LEFT COLUMN: Exact Full Resolution Framing (Zero Cropping)     */}
         {/* ========================================================================= */}
-        <div className="hidden lg:flex lg:w-1/2 relative min-h-screen bg-[#fbf8f5] items-center justify-center p-6 xl:p-10 overflow-hidden border-r border-[#e8dfd8]">
-          <div className="relative w-full h-full max-w-lg aspect-[9/16] max-h-[92vh]">
+        <div className="hidden lg:flex flex-1 relative min-h-screen bg-[#f7f4ee] items-center justify-center p-6 xl:p-10 overflow-hidden border-r border-[#e8dfd8]">
+          <div className="relative w-full h-full max-w-lg aspect-[9/16] max-h-[88vh] flex items-center justify-center">
             <Image
               src="/tenopilot-leather-emblem.jpg"
               alt="TenoPilot 3D Leather Emblem Artwork"
@@ -332,13 +303,20 @@ export default function LoginPage() {
         {/* ========================================================================= */}
         {/* 🔑 RIGHT COLUMN: Ultra-Clean Magnific-Style Minimalist Auth Card           */}
         {/* ========================================================================= */}
-        <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 relative z-10 bg-white min-h-screen">
-          <div className="w-full max-w-md space-y-6">
+        <div className="w-full lg:w-[480px] xl:w-[520px] shrink-0 flex flex-col justify-center items-center p-6 sm:p-10 relative z-10 bg-white min-h-screen">
+          <div className="w-full max-w-md space-y-5">
 
-            {/* Header: Pure Standalone "T" Logo (No Box) & Title */}
-            <div className="text-center space-y-2.5">
-              <div className="inline-flex justify-center mb-1">
-                <StandaloneTLogo className="w-12 h-12" />
+            {/* Header: Official Terracotta TenoPilot App Icon & Title */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex justify-center mb-0.5">
+                <Image
+                  src="/tenopilot-app-icon.png"
+                  alt="TenoPilot App Icon"
+                  width={48}
+                  height={48}
+                  className="rounded-2xl shadow-sm hover:scale-105 transition-transform"
+                  priority
+                />
               </div>
               <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] tracking-tight">
                 {authStep === "PIN_PROMPT" ? "Enter Security PIN" : "Welcome to TenoPilot.com"}
@@ -352,7 +330,7 @@ export default function LoginPage() {
 
             {/* Error Alert Box */}
             {error && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-semibold animate-in fade-in">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-semibold animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span className="flex-1">{error}</span>
               </div>
@@ -363,7 +341,7 @@ export default function LoginPage() {
             {/* =================================================================== */}
             {authStep === "CREDENTIALS" ? (
               <div className="space-y-4 animate-in fade-in">
-                {/* 1. Google OAuth One-Tap */}
+                {/* 1. Google Sign In Button */}
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
@@ -388,11 +366,11 @@ export default function LoginPage() {
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                   </svg>
-                  <span>Continue with Google</span>
+                  <span>Sign in with Google</span>
                 </button>
 
                 {/* Divider */}
-                <div className="relative flex items-center justify-center my-4">
+                <div className="relative flex items-center justify-center my-3">
                   <div className="border-t border-gray-200 w-full" />
                   <span className="bg-white px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 shrink-0">
                     Or continue with email
@@ -401,7 +379,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Email + Password Form */}
-                <form onSubmit={handleCredentialsSubmit} className="space-y-3.5 text-xs">
+                <form onSubmit={handleCredentialsSubmit} className="space-y-3 text-xs">
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
                       Work Email / Staff ID
@@ -461,7 +439,7 @@ export default function LoginPage() {
                 </form>
 
                 {/* Sign up Link */}
-                <div className="text-center pt-2">
+                <div className="text-center pt-1">
                   <span className="text-xs text-gray-500 font-medium">
                     Don&apos;t have an account?{" "}
                     <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
@@ -474,9 +452,9 @@ export default function LoginPage() {
               /* =================================================================== */
               /* TIER 2: 6-DIGIT FINTECH SECURITY PIN UNLOCK KEYPAD                  */
               /* =================================================================== */
-              <div className="space-y-6 animate-in zoom-in-95">
+              <div className="space-y-5 animate-in zoom-in-95">
                 {/* User Identification Header */}
-                <div className="p-3.5 bg-orange-50/60 rounded-2xl border border-orange-200/60 flex items-center justify-between">
+                <div className="p-3 bg-orange-50/60 rounded-2xl border border-orange-200/60 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-[#964407] text-white font-bold flex items-center justify-center text-xs border border-amber-300">
                       {savedSession?.name?.charAt(0) || "U"}
@@ -504,7 +482,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* 6 Visual PIN Dots */}
-                <div className="flex justify-center items-center gap-3 py-2">
+                <div className="flex justify-center items-center gap-3 py-1">
                   {pinDigits.map((digit, idx) => (
                     <div
                       key={idx}
@@ -519,20 +497,20 @@ export default function LoginPage() {
 
                 {/* Lockout Countdown Timer */}
                 {lockoutExpiry && (
-                  <div className="text-center p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs">
+                  <div className="text-center p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 font-bold text-xs">
                     ⏳ Locked out. Retry in {Math.floor(lockoutCountdown / 60)}m {lockoutCountdown % 60}s
                   </div>
                 )}
 
                 {/* Interactive Number Keypad */}
-                <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto">
+                <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
                     <button
                       key={num}
                       type="button"
                       disabled={Boolean(lockoutExpiry) || isLoading}
                       onClick={() => handlePinInput(num)}
-                      className="h-13 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
+                      className="h-12 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
                     >
                       {num}
                     </button>
@@ -542,7 +520,7 @@ export default function LoginPage() {
                     type="button"
                     disabled={Boolean(lockoutExpiry) || isLoading}
                     onClick={handlePinClear}
-                    className="h-13 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                    className="h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
                   >
                     Clear
                   </button>
@@ -551,7 +529,7 @@ export default function LoginPage() {
                     type="button"
                     disabled={Boolean(lockoutExpiry) || isLoading}
                     onClick={() => handlePinInput("0")}
-                    className="h-13 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
+                    className="h-12 rounded-2xl bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-[#c2652a] text-gray-900 font-bold text-lg flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-40"
                   >
                     0
                   </button>
@@ -560,7 +538,7 @@ export default function LoginPage() {
                     type="button"
                     disabled={Boolean(lockoutExpiry) || isLoading}
                     onClick={handlePinBackspace}
-                    className="h-13 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
+                    className="h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-sm flex items-center justify-center transition-all active:scale-95 cursor-pointer disabled:opacity-40"
                   >
                     ⌫
                   </button>
@@ -568,18 +546,16 @@ export default function LoginPage() {
 
                 <div className="text-center">
                   <p className="text-[11px] text-gray-400 font-medium">
-                    Demo PIN for testing: <strong className="text-gray-700 font-mono">123456</strong>
+                    Demo PIN: <strong className="text-gray-700 font-mono">123456</strong>
                   </p>
                 </div>
               </div>
             )}
 
             {/* =================================================================== */}
-            {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP (COMPACT & THEMED)      */}
+            {/* 📲 PWA SCAN TO INSTALL MOBILE & DESKTOP APP SECTION                 */}
             {/* =================================================================== */}
-            <div className="pt-2">
-              <CompactPwaInstallCard />
-            </div>
+            <AuthPwaInstallSection />
 
           </div>
         </div>
