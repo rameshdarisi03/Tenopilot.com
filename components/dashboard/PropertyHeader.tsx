@@ -102,7 +102,11 @@ export function PropertyHeader({
           <Menu className="w-5 h-5" />
         </button>
 
-        <Link href="/home" className="lg:hidden shrink-0 cursor-pointer" title="Return to Multi-Property Portfolio Welcome Screen">
+        <Link
+          href={profile?.role === "receptionist" ? `/p/${propertyId}/overview` : "/home"}
+          className="lg:hidden shrink-0 cursor-pointer"
+          title={profile?.role === "receptionist" ? "Front Desk Dashboard" : "Return to Multi-Property Portfolio Welcome Screen"}
+        >
           <TenoPilotLogo size="sm" />
         </Link>
 
@@ -120,15 +124,21 @@ export function PropertyHeader({
           </div>
         ) : (
           <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-gray-500">
-            <Link
-              href="/home"
-              className="font-serif font-bold text-sm text-gray-900 hover:text-[#964407] transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Return to Multi-Property Portfolio Welcome Screen"
-            >
-              <span>Portfolio</span>
-            </Link>
+            {profile?.role !== "receptionist" ? (
+              <Link
+                href="/home"
+                className="font-serif font-bold text-sm text-gray-900 hover:text-[#964407] transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Return to Multi-Property Portfolio Welcome Screen"
+              >
+                <span>Portfolio</span>
+              </Link>
+            ) : (
+              <span className="font-serif font-bold text-sm text-gray-900">
+                Front Desk
+              </span>
+            )}
             <span>/</span>
-            <span className="font-bold text-gray-700">{title}</span>
+            <span className="text-gray-900 font-bold">{title}</span>
           </div>
         )}
       </div>

@@ -262,29 +262,37 @@ class StaffStore {
         s.email !== "priya.desk@sunshinepg.com"
     );
 
-    // Dynamically inject the active registered user as the sole Master Admin if not present
+    // Dynamically inject the active registered user if not present, preserving their true role
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tenopilot_saved_session");
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.name && parsed.email) {
-            const hasMaster = list.some((s) => s.email.toLowerCase() === parsed.email.toLowerCase());
-            if (!hasMaster) {
-              const currentMaster: StaffMember = {
-                id: `staff-master-${parsed.email.replace(/[^a-zA-Z0-9]/g, "")}`,
+            const hasUser = list.some((s) => s.email.toLowerCase() === parsed.email.toLowerCase());
+            if (!hasUser) {
+              const userRole: UserRole = (parsed.role as UserRole) || "admin";
+              const currentMember: StaffMember = {
+                id: `staff-${userRole}-${parsed.email.replace(/[^a-zA-Z0-9]/g, "")}`,
                 name: parsed.name,
                 email: parsed.email,
                 phone: parsed.phone || "+91 98000 00000",
-                role: "master_admin",
-                assignedPropertyId: "sunshine-pg",
-                assignedPropertyIds: ["*"],
-                propertyName: "All Properties",
+                role: userRole,
+                assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
+                assignedPropertyIds:
+                  parsed.assignedPropertyIds ||
+                  (userRole === "master_admin" ? ["*"] : [parsed.assignedPropertyId || "sunshine-pg"]),
+                propertyName: parsed.propertyName || (userRole === "master_admin" ? "All Properties" : "Assigned Property"),
                 status: "Active",
-                joinedDate: "Owner",
+                joinedDate: userRole === "master_admin" ? "Owner" : "Staff",
                 securityPin: parsed.securityPin || "123456",
+                hasSetPin: parsed.hasSetPin ?? true,
               };
-              list = [currentMaster, ...list.filter((s) => s.role !== "master_admin")];
+              if (userRole === "master_admin") {
+                list = [currentMember, ...list.filter((s) => s.role !== "master_admin")];
+              } else {
+                list = [...list, currentMember];
+              }
             }
           }
         } catch {}

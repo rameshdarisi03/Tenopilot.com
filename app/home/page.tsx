@@ -24,6 +24,7 @@ import {
   X,
   Key,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
@@ -49,6 +50,7 @@ export interface PortfolioProperty {
 }
 
 export default function HomeWorkspacePage() {
+  const router = useRouter();
   const { profile, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
@@ -130,13 +132,22 @@ export default function HomeWorkspacePage() {
     };
   };
 
-  // Load properties dynamically
+  // Load properties dynamically with STRICT RBAC ISOLATION
   useEffect(() => {
     const role = staffStore.getActiveRole();
     setActiveRole(role);
 
     const email = profile?.email?.toLowerCase() || "";
     const isMasterTest = email === "isharapandey01@gmail.com";
+
+    // 🔒 STRICT RBAC GUARD 1: Receptionists are NEVER allowed on the multi-building portfolio page!
+    if (role === "receptionist") {
+      const allStaff = staffStore.getAllGlobalStaff();
+      const match = allStaff.find((s) => s.email.toLowerCase() === email);
+      const targetProperty = match?.assignedPropertyId || profile?.assignedPropertyId || "sunshine-pg";
+      router.replace(`/p/${targetProperty}/overview`);
+      return;
+    }
 
     // 1. Check custom dynamically added properties from LocalStorage
     let customProps: PortfolioProperty[] = [];
@@ -152,7 +163,7 @@ export default function HomeWorkspacePage() {
     }
 
     // 2. If newly registered tenant owner has NO properties yet, automatically provision their first building!
-    if (!isMasterTest && customProps.length === 0) {
+    if (!isMasterTest && customProps.length === 0 && role === "master_admin") {
       const initialOwnerBuildingName = `${profile?.displayName || "Main"} Executive PG`;
       const initialSlug = initialOwnerBuildingName
         .toLowerCase()
@@ -174,6 +185,20 @@ export default function HomeWorkspacePage() {
 
       customProps = [defaultOwnerBuilding];
       localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(customProps));
+    }
+
+    // 🔒 STRICT RBAC GUARD 2: Property Admins only see their explicitly assigned buildings
+    if (role === "admin") {
+      const allStaff = staffStore.getAllGlobalStaff();
+      const match = allStaff.find((s) => s.email.toLowerCase() === email);
+      const assignedIds =
+        match?.assignedPropertyIds ||
+        (match?.assignedPropertyId ? [match.assignedPropertyId] : []) ||
+        (profile?.assignedPropertyId ? [profile.assignedPropertyId] : []);
+
+      if (assignedIds.length > 0 && !assignedIds.includes("*")) {
+        customProps = customProps.filter((p) => assignedIds.includes(p.id));
+      }
     }
 
     // Compute live real-time metrics
@@ -215,7 +240,7 @@ export default function HomeWorkspacePage() {
       unsubOccupant();
       unsubSettings();
     };
-  }, [profile]);
+  }, [profile, router]);
 
   const handleCreateProperty = (e: React.FormEvent) => {
     e.preventDefault();
@@ -365,10 +390,13 @@ export default function HomeWorkspacePage() {
             .
           </h1>
           <p className="font-serif italic text-2xl sm:text-3xl text-[#554339] mt-1 font-normal opacity-90">
-            Your organization portfolio is calling.
+            {activeRole === "master_admin"
+              ? "Your organization portfolio is calling."
+              : "Your assigned property portfolio is ready."}
           </p>
           <p className="text-xs sm:text-sm text-[#554339] mt-2 font-medium">
-            {properties.length} {properties.length === 1 ? "property" : "properties"} active in your organization. Tap a building card below to launch its operational dashboard.
+            {properties.length} {properties.length === 1 ? "property" : "properties"} active in your{" "}
+            {activeRole === "master_admin" ? "organization" : "assigned portfolio"}. Tap a building card below to launch its operational dashboard.
           </p>
         </div>
 

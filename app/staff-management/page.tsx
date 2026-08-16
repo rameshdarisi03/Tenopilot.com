@@ -90,15 +90,37 @@ export default function StaffManagementPage() {
     const currentRole = staffStore.getActiveRole();
     setActiveRole(currentRole);
 
-    // If Receptionist tries to access staff management, kick them back to /home
+    // 🔒 If Receptionist tries to access staff management, immediately redirect to their assigned building
     if (currentRole === "receptionist") {
-      router.push("/home");
+      const allStaff = staffStore.getAllGlobalStaff();
+      let userEmail = "";
+      if (typeof window !== "undefined") {
+        try {
+          userEmail = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}")?.email || "";
+        } catch {}
+      }
+      const match = allStaff.find((s) => s.email.toLowerCase() === userEmail.toLowerCase());
+      const targetProp = match?.assignedPropertyId || "sunshine-pg";
+      router.replace(`/p/${targetProp}/overview`);
       return;
     }
 
     // Default form role selection
     if (currentRole === "admin") {
       setRole("receptionist");
+      // Filter accessible properties to Admin's assigned buildings only
+      const allStaff = staffStore.getAllGlobalStaff();
+      let userEmail = "";
+      if (typeof window !== "undefined") {
+        try {
+          userEmail = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}")?.email || "";
+        } catch {}
+      }
+      const match = allStaff.find((s) => s.email.toLowerCase() === userEmail.toLowerCase());
+      const assignedIds = match?.assignedPropertyIds || (match?.assignedPropertyId ? [match.assignedPropertyId] : []);
+      if (assignedIds.length > 0 && !assignedIds.includes("*")) {
+        setProperties((prev) => prev.filter((p) => assignedIds.includes(p.id)));
+      }
     } else {
       setRole("admin");
     }

@@ -92,9 +92,9 @@ export function PropertySidebar({
       {/* Sidebar Header */}
       <div className="p-5 border-b border-[#d7c2b9]/40 flex items-center justify-between">
         <Link
-          href="/home"
+          href={activeRole === "receptionist" ? `/p/${propertyId}/overview` : "/home"}
           className="cursor-pointer transition-transform hover:scale-[1.02] block"
-          title="Return to Multi-Property Portfolio Welcome Screen"
+          title={activeRole === "receptionist" ? "Front Desk Dashboard" : "Return to Multi-Property Portfolio Welcome Screen"}
         >
           <TenoPilotLogo size="sm" />
         </Link>
