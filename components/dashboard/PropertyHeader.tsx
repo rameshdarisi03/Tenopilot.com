@@ -285,8 +285,18 @@ export function PropertyHeader({
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-gray-900 text-sm truncate">{displayName}</p>
                   <p className="text-[10px] text-gray-400 font-medium truncate">{userEmail}</p>
-                  <span className="inline-block mt-0.5 text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
-                    SUPER ADMIN • OWNER
+                  <span className={`inline-block mt-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                    profile?.role === "master_admin"
+                      ? "bg-purple-100 text-purple-800 border-purple-200"
+                      : profile?.role === "admin"
+                      ? "bg-blue-100 text-blue-800 border-blue-200"
+                      : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                  }`}>
+                    {profile?.role === "master_admin"
+                      ? "MASTER ADMIN 👑"
+                      : profile?.role === "admin"
+                      ? "PROPERTY ADMIN 🏢"
+                      : "RECEPTIONIST 🔑"}
                   </span>
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import { sanitizeTitleCase } from "@/lib/authService";
+import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 
 export interface UserProfile {
   uid: string;
@@ -53,44 +54,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const isMasterTest = email === "isharapandey01@gmail.com";
         const orgId = isMasterTest ? "org_demo_meghana" : `org_${currentUser.uid}`;
 
+        // Check local saved session first for freshest name & role
+        let savedSessionName = "";
+        let savedSessionRole: UserRole | undefined;
+        let savedAssignedProp = "";
+
+        if (typeof window !== "undefined") {
+          const saved = localStorage.getItem("tenopilot_saved_session");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed.email?.toLowerCase() === email) {
+                savedSessionName = parsed.name || "";
+                savedSessionRole = parsed.role;
+                savedAssignedProp = parsed.assignedPropertyId || "";
+              }
+            } catch {}
+          }
+        }
+
+        // Check staff registry
+        const allStaff = staffStore.getAllGlobalStaff();
+        const staffMatch = allStaff.find((s) => s.email.toLowerCase() === email);
+
+        // Check Firestore staff_accounts collection
+        let staffAccountDoc: any = null;
+        try {
+          const staffSnap = await getDoc(doc(db, "staff_accounts", email));
+          if (staffSnap.exists()) {
+            staffAccountDoc = staffSnap.data();
+          }
+        } catch {}
+
+        const resolvedRole: UserRole =
+          staffAccountDoc?.role ||
+          staffMatch?.role ||
+          savedSessionRole ||
+          (email.includes("rec") ? "receptionist" : email.includes("admin") && !email.includes("master") ? "admin" : "master_admin");
+
+        const resolvedName =
+          staffAccountDoc?.name ||
+          staffMatch?.name ||
+          savedSessionName ||
+          currentUser.displayName ||
+          sanitizeTitleCase(email.split("@")[0]) ||
+          (resolvedRole === "master_admin" ? "Master Admin" : "Team Member");
+
+        const resolvedProp =
+          staffAccountDoc?.assignedPropertyId ||
+          staffMatch?.assignedPropertyId ||
+          savedAssignedProp ||
+          "sunshine-pg";
+
         const userDocRef = doc(db, "users", currentUser.uid);
         try {
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
-            data.organizationId = data.organizationId || orgId;
-            if (!isMasterTest && data.assignedPropertyId === "sunshine-pg") {
-              data.assignedPropertyId = "";
-            }
-            if (data.displayName) {
-              data.displayName = sanitizeTitleCase(data.displayName);
-            }
+            data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
+            data.role = data.role || resolvedRole;
+            data.assignedPropertyId = data.assignedPropertyId || resolvedProp;
             setProfile(data);
+            staffStore.setActiveRole(data.role);
           } else {
-            const rawName = currentUser.displayName || (isMasterTest ? "Ishara Pandey" : "Property Owner");
             const newProf: UserProfile = {
               uid: currentUser.uid,
               email: email,
-              displayName: sanitizeTitleCase(rawName),
+              displayName: sanitizeTitleCase(resolvedName),
               organizationId: orgId,
-              role: "master_admin",
-              assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
+              role: resolvedRole,
+              assignedPropertyId: resolvedProp,
               isNewUser: false,
             };
             await setDoc(userDocRef, newProf, { merge: true });
             setProfile(newProf);
+            staffStore.setActiveRole(newProf.role);
           }
         } catch (e) {
           console.warn("Auth profile fetch fallback:", e);
           const fallbackProf: UserProfile = {
             uid: currentUser.uid,
             email: email,
-            displayName: isMasterTest ? "Ishara Pandey" : (currentUser.displayName || "Property Owner"),
+            displayName: sanitizeTitleCase(resolvedName),
             organizationId: orgId,
-            role: "master_admin",
-            assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
+            role: resolvedRole,
+            assignedPropertyId: resolvedProp,
           };
           setProfile(fallbackProf);
+          staffStore.setActiveRole(resolvedRole);
         }
       } else {
         // Hydrate from verified local PIN session if present
@@ -101,13 +152,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const parsed = JSON.parse(saved);
               const fallbackProf: UserProfile = {
                 uid: `local_${parsed.email || "user"}`,
-                email: parsed.email || "owner@tenopilot.com",
-                displayName: sanitizeTitleCase(parsed.name || "Estate Master Admin"),
+                email: parsed.email || "staff@tenopilot.com",
+                displayName: sanitizeTitleCase(parsed.name || parsed.email?.split("@")[0] || "Team Member"),
                 organizationId: "org_estate_01",
-                role: parsed.role || "master_admin",
-                assignedPropertyId: parsed.role === "master_admin" ? "" : "sunshine-pg",
+                role: (parsed.role as UserRole) || "admin",
+                assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
               };
               setProfile(fallbackProf);
+              staffStore.setActiveRole(fallbackProf.role);
             } catch {
               setProfile(null);
             }
@@ -140,70 +192,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // If neither a Firebase token nor a local unlocked PIN session exists
         if (!user && !hasLocalSession) {
           router.push("/login");
-        } else if (user && isEmailUnverified && !hasLocalSession) {
-          router.push("/signup?verify=true");
-        }
-      } else if (isAuthPage && (user || hasLocalSession) && !isEmailUnverified) {
-        // Auto-navigate to home if already authenticated
-        if (pathname === "/login" && !hasLocalSession) {
-          router.push("/home");
         }
       }
-    }
-  }, [user, loading, pathname, router]);
 
-  // Update Profile Name function with Real-time propagation & Title-Case Sanitization
+      if (isAuthPage && user && !isEmailUnverified) {
+        const dest = profile?.role === "master_admin" ? "/home" : `/p/${profile?.assignedPropertyId || "sunshine-pg"}/overview`;
+        router.push(dest);
+      }
+    }
+  }, [user, profile, loading, pathname, router]);
+
+  // Update Profile Name Function
   const updateProfileName = async (newName: string) => {
     const cleanName = sanitizeTitleCase(newName);
-    const targetUid = user?.uid || profile?.uid || "local_owner";
-    const currentEmail = user?.email || profile?.email || "owner@tenopilot.com";
-    const currentOrgId = profile?.organizationId || `org_${targetUid}`;
-    const currentRole = profile?.role || "master_admin";
+    if (!cleanName) return;
 
-    const updatedProfile: UserProfile = {
-      uid: targetUid,
-      email: currentEmail,
-      organizationId: currentOrgId,
-      role: currentRole,
-      assignedPropertyId: profile?.assignedPropertyId || "",
-      displayName: cleanName,
-      isNewUser: false,
-    };
+    if (profile) {
+      const updated = { ...profile, displayName: cleanName };
+      setProfile(updated);
 
-    setProfile(updatedProfile);
-
-    // Also update local device cache
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tenopilot_saved_session");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          parsed.name = cleanName;
-          localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
-        } catch {}
+      // Also sync to local saved session
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("tenopilot_saved_session");
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            parsed.name = cleanName;
+            localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
+          } catch {}
+        }
       }
-    }
 
-    if (user) {
-      try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, { displayName: cleanName, isNewUser: false }, { merge: true });
-      } catch (e) {
-        console.warn("Firestore profile name update fallback:", e);
+      if (user) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          await setDoc(userDocRef, { displayName: cleanName }, { merge: true });
+        } catch (e) {
+          console.warn("Update profile name Firestore error:", e);
+        }
       }
     }
   };
 
+  // Sign Out / Logout Function
   const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch {}
     if (typeof window !== "undefined") {
       localStorage.removeItem("tenopilot_saved_session");
       localStorage.removeItem("tenopilot_active_role");
     }
-    setUser(null);
     setProfile(null);
+    setUser(null);
+    await signOut(auth);
     router.push("/login");
   };
 

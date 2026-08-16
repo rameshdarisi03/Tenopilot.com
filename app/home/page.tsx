@@ -262,14 +262,20 @@ export default function HomeWorkspacePage() {
   else if (currentHour >= 17 && currentHour < 22) greetingText = "Good evening";
   else if (currentHour >= 22 || currentHour < 5) greetingText = "Good night";
 
-  const userDisplayName = profile?.displayName || "Property Owner";
+  const userDisplayName =
+    profile?.displayName ||
+    (typeof window !== "undefined"
+      ? JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}")?.name
+      : "") ||
+    (activeRole === "master_admin" ? "Master Admin" : "Property Admin");
+
   const userInitials = userDisplayName
     .split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .filter(Boolean)
     .join("")
     .toUpperCase()
-    .slice(0, 2) || "PO";
+    .slice(0, 2) || (activeRole === "master_admin" ? "MA" : "PA");
 
   return (
     <div className="min-h-screen bg-[#fff8f6] text-[#201a17] flex flex-col justify-between selection:bg-[#964407] selection:text-white pb-12">
@@ -312,7 +318,7 @@ export default function HomeWorkspacePage() {
                 <div className="hidden lg:flex flex-col text-left">
                   <span className="text-xs font-bold text-[#201a17]">{userDisplayName}</span>
                   <span className="text-[10px] text-[#554339] uppercase font-bold tracking-wider">
-                    {activeRole === "master_admin" ? "Property Owner" : activeRole === "admin" ? "Property Admin" : "Receptionist"}
+                    {activeRole === "master_admin" ? "Master Admin 👑" : activeRole === "admin" ? "Property Admin 🏢" : "Receptionist 🔑"}
                   </span>
                 </div>
               </button>
@@ -322,7 +328,16 @@ export default function HomeWorkspacePage() {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-[#d7c2b9] shadow-xl py-2 z-50 text-xs font-medium text-[#201a17]">
                   <div className="px-4 py-2 border-b border-[#f8ede3]">
                     <p className="font-bold text-sm">{userDisplayName}</p>
-                    <p className="text-xs text-[#554339]">{profile?.email || "Property Owner"}</p>
+                    <p className="text-xs text-[#554339]">{profile?.email || (activeRole === "master_admin" ? "admin@tenopilot.com" : "staff@tenopilot.com")}</p>
+                    <span className={`inline-block mt-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                      activeRole === "master_admin"
+                        ? "bg-purple-100 text-purple-800 border-purple-200"
+                        : activeRole === "admin"
+                        ? "bg-blue-100 text-blue-800 border-blue-200"
+                        : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                    }`}>
+                      {activeRole === "master_admin" ? "MASTER ADMIN 👑" : activeRole === "admin" ? "PROPERTY ADMIN 🏢" : "RECEPTIONIST 🔑"}
+                    </span>
                   </div>
                   <button
                     onClick={() => logout()}

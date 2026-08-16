@@ -60,7 +60,12 @@ export default function PropertyOverviewPage({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { profile } = useAuth();
-  const userName = profile?.displayName || "Property Owner";
+  const userName =
+    profile?.displayName ||
+    (typeof window !== "undefined"
+      ? JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}")?.name
+      : "") ||
+    "Admin";
   const greetingText = `${getTimeAwareGreeting()}, ${userName}!`;
 
   const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));

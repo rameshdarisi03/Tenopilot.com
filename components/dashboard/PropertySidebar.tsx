@@ -81,9 +81,9 @@ export function PropertySidebar({
     },
   ];
 
-  const displayName = profile?.displayName || "Property Owner";
-  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "PO";
-  const roleDisplay = profile?.role === "master_admin" ? "Master Admin 👑" : profile?.role === "admin" ? "Admin (Owner) 🏢" : "Receptionist 🔑";
+  const displayName = profile?.displayName || (activeRole === "master_admin" ? "Master Admin" : "Property Admin");
+  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || (activeRole === "master_admin" ? "MA" : "PA");
+  const roleDisplay = activeRole === "master_admin" ? "Master Admin 👑" : activeRole === "admin" ? "Property Admin 🏢" : "Receptionist 🔑";
 
   const [showFastTrackModal, setShowFastTrackModal] = useState(false);
 
