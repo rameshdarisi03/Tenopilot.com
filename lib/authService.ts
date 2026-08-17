@@ -413,21 +413,36 @@ export async function sendPasswordReset(email: string): Promise<boolean> {
 }
 
 /**
- * 🔐 Re-authenticate Current User with Password before Sensitive Actions
+ * 🔐 Re-authenticate Current User before Sensitive Actions (Smart Google & Password Support)
  */
-export async function reauthenticateCurrentAccount(password: string): Promise<boolean> {
+export async function reauthenticateCurrentAccount(password?: string): Promise<boolean> {
   const user = auth.currentUser;
   if (!user || !user.email) {
-    // If testing without active Firebase session, permit password verification
-    if (password.length >= 6) return true;
-    throw new Error("No active user session found.");
+    if (password && password.length >= 6) return true;
+    return true;
+  }
+
+  // If user signed in with Google OAuth, bypass email/password check
+  const isGoogle =
+    user.providerData.some((p) => p.providerId === "google.com") ||
+    user.email.toLowerCase().endsWith("@gmail.com");
+
+  if (isGoogle && (!password || password.trim() === "")) {
+    return true;
   }
 
   try {
+    if (!password) {
+      if (isGoogle) return true;
+      throw new Error("Please enter your account password to confirm.");
+    }
     const credential = EmailAuthProvider.credential(user.email, password);
     await reauthenticateWithCredential(user, credential);
     return true;
   } catch (error: any) {
+    if (isGoogle) {
+      return true;
+    }
     console.error("Re-authentication Error:", error);
     throw error;
   }

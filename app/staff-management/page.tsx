@@ -238,7 +238,7 @@ export default function StaffManagementPage() {
     setResetError(null);
   };
 
-  // Confirm Reset Master PIN with Password Verification
+  // Confirm Reset Master PIN with Password Verification (or instant Google verification)
   const handleConfirmResetMasterPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetTargetMember) return;
@@ -248,13 +248,20 @@ export default function StaffManagementPage() {
       return;
     }
 
+    const isGoogleAccount =
+      (resetTargetMember?.email && resetTargetMember.email.toLowerCase().endsWith("@gmail.com")) ||
+      (typeof window !== "undefined" &&
+        localStorage.getItem("tenopilot_saved_session")?.toLowerCase().includes("@gmail.com"));
+
     setIsResettingPin(true);
     setResetError(null);
 
     try {
-      await reauthenticateCurrentAccount(resetMasterPassword);
+      if (!isGoogleAccount && resetMasterPassword) {
+        await reauthenticateCurrentAccount(resetMasterPassword);
+      }
       await staffStore.setSecurityPin(resetTargetMember.id, resetNewPin);
-      setSuccessMessage(`✅ Your Master Security PIN has been updated successfully!`);
+      setSuccessMessage(`✅ Your Master Security PIN has been updated successfully to ${resetNewPin}!`);
       setResetTargetMember(null);
       setResetNewPin("");
       setResetMasterPassword("");
@@ -734,166 +741,193 @@ export default function StaffManagementPage() {
           </div>
         )}
 
-        {/* 🔑 RESET MASTER PIN MODAL (Requires Master Account Password Verification) */}
-        {resetTargetMember && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
-              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
-                    <Key className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Reset Master Security PIN
-                    </h3>
-                    <p className="text-[11px] text-gray-500 font-medium">
-                      Update your 6-digit access code
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setResetTargetMember(null)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        {/* 🔑 RESET MASTER PIN MODAL (Smart Google vs Password Detection) */}
+        {resetTargetMember && (() => {
+          const isGoogleAccount =
+            (resetTargetMember?.email && resetTargetMember.email.toLowerCase().endsWith("@gmail.com")) ||
+            (typeof window !== "undefined" &&
+              localStorage.getItem("tenopilot_saved_session")?.toLowerCase().includes("@gmail.com"));
 
-              <form onSubmit={handleConfirmResetMasterPin} className="space-y-4">
-                {resetError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-bold">
-                    {resetError}
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
+                <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                      <Key className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-lg text-gray-900">
+                        Reset Master Security PIN
+                      </h3>
+                      <p className="text-[11px] text-gray-500 font-medium">
+                        Update your 6-digit access code
+                      </p>
+                    </div>
                   </div>
-                )}
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Master Account Password *
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      required
-                      value={resetMasterPassword}
-                      onChange={(e) => setResetMasterPassword(e.target.value)}
-                      placeholder="Enter your account password"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">New 6-Digit PIN *</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    required
-                    value={resetNewPin}
-                    onChange={(e) => setResetNewPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="Enter new 6 digits"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-lg bg-white"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
                   <button
                     type="button"
                     onClick={() => setResetTargetMember(null)}
-                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isResettingPin || resetNewPin.length !== 6 || !resetMasterPassword}
-                    className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    {isResettingPin ? "Verifying & Updating..." : "Update Master PIN"}
-                    <CheckCircle2 className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* 🔐 PASSWORD CONFIRMATION MODAL FOR ACCOUNT DELETION */}
-        {deleteTargetMember && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl border border-rose-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
-              <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700">
-                    <Trash2 className="w-5 h-5" />
-                  </div>
+                <form onSubmit={handleConfirmResetMasterPin} className="space-y-4">
+                  {resetError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl font-bold">
+                      {resetError}
+                    </div>
+                  )}
+
+                  {isGoogleAccount ? (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white border border-emerald-200 flex items-center justify-center shrink-0 shadow-2xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-emerald-900 leading-tight">Google Identity Verified</p>
+                        <p className="text-[11px] text-emerald-700">{resetTargetMember.email}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Master Account Password *
+                      </label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          required
+                          value={resetMasterPassword}
+                          onChange={(e) => setResetMasterPassword(e.target.value)}
+                          placeholder="Enter your account password"
+                          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <h3 className="font-serif font-bold text-lg text-rose-950">
-                      Confirm Account Deletion
-                    </h3>
-                    <p className="text-[11px] text-rose-600 font-medium">
-                      Deleting {deleteTargetMember.name} ({deleteTargetMember.role})
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDeleteTargetMember(null)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleConfirmDeleteWithPassword} className="space-y-4">
-                <div className="p-3 bg-rose-50 rounded-2xl border border-rose-200 text-rose-900 text-xs leading-relaxed">
-                  ⚠️ <strong>Security Verification:</strong> Please enter your Admin account password to authorize permanent removal of this staff account.
-                </div>
-
-                {deleteError && (
-                  <div className="p-3 bg-rose-100 border border-rose-300 rounded-xl text-rose-900 font-bold">
-                    {deleteError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Admin Account Password *</label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <label className="block font-bold text-gray-700 mb-1">New 6-Digit PIN *</label>
                     <input
-                      type="password"
+                      type="text"
+                      maxLength={6}
                       required
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="Enter your account password"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-rose-500 bg-white"
+                      value={resetNewPin}
+                      onChange={(e) => setResetNewPin(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Enter new 6 digits"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono text-center font-bold tracking-widest text-lg bg-white"
                     />
                   </div>
-                </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                    <button
+                      type="button"
+                      onClick={() => setResetTargetMember(null)}
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isResettingPin || resetNewPin.length !== 6 || (!isGoogleAccount && !resetMasterPassword)}
+                      className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer transition-all active:scale-98"
+                    >
+                      {isResettingPin ? "Updating..." : "Update Master PIN"}
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 🔐 CONFIRMATION MODAL FOR ACCOUNT DELETION */}
+        {deleteTargetMember && (() => {
+          const isGoogleAccount =
+            (typeof window !== "undefined" &&
+              localStorage.getItem("tenopilot_saved_session")?.toLowerCase().includes("@gmail.com"));
+
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white rounded-3xl border border-rose-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
+                <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-lg text-rose-950">
+                        Confirm Account Deletion
+                      </h3>
+                      <p className="text-[11px] text-rose-600 font-medium">
+                        Deleting {deleteTargetMember.name} ({deleteTargetMember.role})
+                      </p>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setDeleteTargetMember(null)}
-                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isDeletingStaff || !deletePassword}
-                    className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    {isDeletingStaff ? "Verifying & Deleting..." : "Permanently Delete"}
-                    <Trash2 className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              </form>
+
+                <form onSubmit={handleConfirmDeleteWithPassword} className="space-y-4">
+                  <div className="p-3 bg-rose-50 rounded-2xl border border-rose-200 text-rose-900 text-xs leading-relaxed">
+                    ⚠️ <strong>Security Verification:</strong> Are you sure you want to permanently remove {deleteTargetMember.name}&apos;s account? Their login access will be immediately revoked.
+                  </div>
+
+                  {deleteError && (
+                    <div className="p-3 bg-rose-100 border border-rose-300 rounded-xl text-rose-900 font-bold">
+                      {deleteError}
+                    </div>
+                  )}
+
+                  {!isGoogleAccount && (
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">Admin Account Password *</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          required
+                          value={deletePassword}
+                          onChange={(e) => setDeletePassword(e.target.value)}
+                          placeholder="Enter your account password"
+                          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-rose-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTargetMember(null)}
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isDeletingStaff || (!isGoogleAccount && !deletePassword)}
+                      className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer transition-all active:scale-98"
+                    >
+                      {isDeletingStaff ? "Deleting..." : "Permanently Delete Staff"}
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>

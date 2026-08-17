@@ -497,80 +497,89 @@ export default function StaffManagementPage({
       )}
 
       {/* 🔐 PASSWORD CONFIRMATION MODAL FOR DELETION */}
-      {deleteTargetStaff && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2.5 text-red-600">
-                <div className="p-2 rounded-xl bg-red-100">
-                  <Trash2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-lg text-gray-900">
-                    Delete Staff Account
-                  </h3>
-                  <p className="text-[11px] text-gray-500">
-                    Permanently delete {deleteTargetStaff.name} ({deleteTargetStaff.role})
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDeleteTargetStaff(null)}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {deleteTargetStaff && (() => {
+        const isGoogleAccount =
+          (typeof window !== "undefined" &&
+            localStorage.getItem("tenopilot_saved_session")?.toLowerCase().includes("@gmail.com"));
 
-            <form onSubmit={confirmDeleteStaffWithPassword} className="space-y-4 text-xs">
-              <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-red-700 leading-relaxed">
-                ⚠️ <strong>Security Check:</strong> Please enter your password to authorize permanent deletion of this account.
-              </div>
-
-              {deleteError && (
-                <div className="p-3 bg-red-100 border border-red-300 rounded-xl text-red-900 font-bold">
-                  {deleteError}
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-red-100 text-red-600">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-gray-900">
+                      Confirm Permanent Deletion
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Deleting {deleteTargetStaff.name} ({deleteTargetStaff.role})
+                    </p>
+                  </div>
                 </div>
-              )}
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">
-                  Account Password *
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Enter your account password"
-                    value={deletePassword}
-                    onChange={(e) => setDeletePassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setDeleteTargetStaff(null)}
-                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
+                  className="p-1 rounded-full text-gray-400 hover:text-gray-600 cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isDeleting || !deletePassword}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-                >
-                  {isDeleting ? "Verifying & Deleting..." : "Permanently Delete"}
-                  <Trash2 className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={confirmDeleteStaffWithPassword} className="space-y-4 text-xs">
+                <div className="p-3 bg-red-50 rounded-xl border border-red-200 text-red-700 leading-relaxed">
+                  ⚠️ <strong>Security Check:</strong> Are you sure you want to permanently delete {deleteTargetStaff.name}&apos;s account? Their login access will be immediately revoked.
+                </div>
+
+                {deleteError && (
+                  <div className="p-3 bg-red-100 border border-red-300 rounded-xl text-red-900 font-bold">
+                    {deleteError}
+                  </div>
+                )}
+
+                {!isGoogleAccount && (
+                  <div>
+                    <label className="font-bold text-gray-700 block mb-1">
+                      Account Password *
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="Enter your account password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTargetStaff(null)}
+                    className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isDeleting || (!isGoogleAccount && !deletePassword)}
+                    className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-98"
+                  >
+                    {isDeleting ? "Deleting..." : "Permanently Delete Staff"}
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
