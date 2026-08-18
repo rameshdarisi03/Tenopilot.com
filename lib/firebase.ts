@@ -1,7 +1,20 @@
 // TenoPilot Firebase Client Initialization (TAS Chapter 4 & 9)
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
+  getAuth,
+  Auth,
+} from "firebase/auth";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  getFirestore,
+  Firestore,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -17,7 +30,43 @@ const firebaseConfig = {
 // Prevent duplicate initialization during Hot Module Replacement (HMR)
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// 🛡️ Resilient Auth Multi-Persistence Fallback Chain
+// Prevents "Database is closing / hidden" errors by automatically falling back to localStorage/inMemory
+let authInstance: Auth;
+try {
+  if (typeof window !== "undefined") {
+    authInstance = initializeAuth(app, {
+      persistence: [
+        indexedDBLocalPersistence,
+        browserLocalPersistence,
+        inMemoryPersistence,
+      ],
+    });
+  } else {
+    authInstance = getAuth(app);
+  }
+} catch {
+  authInstance = getAuth(app);
+}
+
+// 🏢 Multi-Tab Resilient Firestore Cache
+// Supports multiple concurrent tabs & backgrounded tabs on Desktop, Tablets & Smartphones
+let dbInstance: Firestore;
+try {
+  if (typeof window !== "undefined") {
+    dbInstance = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } else {
+    dbInstance = getFirestore(app);
+  }
+} catch {
+  dbInstance = getFirestore(app);
+}
+
+export const auth = authInstance;
+export const db = dbInstance;
 export const storage = getStorage(app);
 export default app;
