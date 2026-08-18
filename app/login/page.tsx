@@ -738,25 +738,27 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* PWA 1-Click Install Card */}
-            <div className="p-4 rounded-3xl bg-orange-50/50 border border-orange-100 flex items-center gap-4 text-xs">
-              <div className="w-14 h-14 bg-white p-2.5 rounded-2xl border border-orange-200 shrink-0 flex items-center justify-center shadow-xs">
-                <QrCode className="w-8 h-8 text-[#c2652a]" />
-              </div>
-              <div className="space-y-1.5 flex-1 min-w-0">
-                <p className="font-bold text-gray-900 leading-tight">Install TenoPilot App</p>
-                <p className="text-[10px] text-gray-500">Fast 1-click access directly from your mobile or desktop home screen.</p>
-                <div className="flex gap-2 pt-0.5">
-                  <Link
-                    href="/install"
-                    className="px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-[10px] hover:bg-[#a65420] transition-colors flex items-center gap-1"
-                  >
-                    <Smartphone className="w-3 h-3" />
-                    <span>Install App →</span>
-                  </Link>
+            {/* PWA 1-Click Install Card - Only on Fresh Credentials Step */}
+            {authStep === "CREDENTIALS" && (
+              <div className="p-4 rounded-3xl bg-orange-50/50 border border-orange-100 flex items-center gap-4 text-xs">
+                <div className="w-14 h-14 bg-white p-2.5 rounded-2xl border border-orange-200 shrink-0 flex items-center justify-center shadow-xs">
+                  <QrCode className="w-8 h-8 text-[#c2652a]" />
+                </div>
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 leading-tight">Install TenoPilot App</p>
+                  <p className="text-[10px] text-gray-500">Fast 1-click access directly from your mobile or desktop home screen.</p>
+                  <div className="flex gap-2 pt-0.5">
+                    <Link
+                      href="/install"
+                      className="px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-[10px] hover:bg-[#a65420] transition-colors flex items-center gap-1"
+                    >
+                      <Smartphone className="w-3 h-3" />
+                      <span>Install App →</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
           </div>
         </div>
