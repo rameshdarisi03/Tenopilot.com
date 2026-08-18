@@ -140,6 +140,7 @@ export default function HomeWorkspacePage() {
 
     // Initialize Real-Time Cloud Firestore Sync
     portfolioStore.initFirebaseListener(profile?.email);
+    propertyStore.initFirebaseListener("sunshine-pg");
 
     const syncAndRefreshProperties = () => {
       let customProps = portfolioStore.getProperties();
