@@ -525,28 +525,6 @@ export default function TenantsDirectoryPage({
             </div>
           )}
 
-          {/* Spring-Physics Gliding Status Filter Tabs */}
-          <div className="overflow-x-auto pb-1 max-w-4xl">
-            <GlidingTabs
-              tabs={[
-                { id: "All", label: "All", count: counts.All, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-900 font-bold" },
-                { id: "Booked", label: "Booked", count: counts.Booked, badgeColor: "bg-blue-100 text-blue-700", activeTextColor: "text-blue-700 font-bold" },
-                { id: "Active", label: "Active", count: counts.Active, badgeColor: "bg-green-600 text-white font-bold", activeTextColor: "text-green-700 font-bold" },
-                { id: "Notice", label: "Notice", count: counts.Notice, badgeColor: "bg-orange-100 text-orange-700", activeTextColor: "text-orange-700 font-bold" },
-                { id: "Past", label: "Past", count: counts.Past, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-800 font-bold" },
-                { id: "Guests", label: "Guests", count: counts.Guests, badgeColor: "bg-purple-100 text-purple-700", activeTextColor: "text-purple-700 font-bold" },
-              ]}
-              activeTab={activeFilterTab}
-              onChange={(newTab) => {
-                setActiveFilterTab(newTab);
-                if (newTab !== "Guests") {
-                  setTenantStatusFilter(newTab);
-                }
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-
           {/* Operational Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
@@ -616,6 +594,28 @@ export default function TenantsDirectoryPage({
                 </p>
               </div>
             </MagneticGlowCard>
+          </div>
+
+          {/* Spring-Physics Gliding Status Filter Tabs (Positioned directly below KPI cards) */}
+          <div className="overflow-x-auto pb-1 max-w-4xl pt-1">
+            <GlidingTabs
+              tabs={[
+                { id: "All", label: "All", count: counts.All, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-900 font-bold" },
+                { id: "Booked", label: "Booked", count: counts.Booked, badgeColor: "bg-blue-100 text-blue-700", activeTextColor: "text-blue-700 font-bold" },
+                { id: "Active", label: "Active", count: counts.Active, badgeColor: "bg-green-600 text-white font-bold", activeTextColor: "text-green-700 font-bold" },
+                { id: "Notice", label: "Notice", count: counts.Notice, badgeColor: "bg-orange-100 text-orange-700", activeTextColor: "text-orange-700 font-bold" },
+                { id: "Past", label: "Past", count: counts.Past, badgeColor: "bg-gray-200 text-gray-700", activeTextColor: "text-gray-800 font-bold" },
+                { id: "Guests", label: "Guests", count: counts.Guests, badgeColor: "bg-purple-100 text-purple-700", activeTextColor: "text-purple-700 font-bold" },
+              ]}
+              activeTab={activeFilterTab}
+              onChange={(newTab) => {
+                setActiveFilterTab(newTab);
+                if (newTab !== "Guests") {
+                  setTenantStatusFilter(newTab);
+                }
+                setCurrentPage(1);
+              }}
+            />
           </div>
 
           {/* Filters & Sorting Control Bar */}
