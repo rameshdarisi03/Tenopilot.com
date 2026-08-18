@@ -28,6 +28,7 @@ import {
   Square,
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
+import { portfolioStore } from "@/constants/portfolioStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { reauthenticateCurrentAccount, provisionStaffFirebaseAccount } from "@/lib/authService";
 
@@ -72,20 +73,24 @@ export default function StaffManagementPage() {
   ]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tenopilot_portfolio_properties");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const propList = parsed.map((p: any) => ({ id: p.id, name: p.name }));
-            setProperties(propList);
-            setAssignedPropertyId(propList[0].id);
-            setSelectedPropertyIds(propList.map((p: any) => p.id)); // Default admin to all
-          }
-        } catch {}
+    // Initialize Real-time Firestore Portfolio Listener
+    portfolioStore.initFirebaseListener(profile?.email);
+
+    const refreshProperties = () => {
+      const liveProps = portfolioStore.getProperties();
+      const defaultList = [{ id: "sunshine-pg", name: "Sunshine Luxury PG" }];
+      const combined = [
+        ...defaultList,
+        ...liveProps.filter((p) => p.id !== "sunshine-pg").map((p) => ({ id: p.id, name: p.name })),
+      ];
+      setProperties(combined);
+      if (combined.length > 0 && !assignedPropertyId) {
+        setAssignedPropertyId(combined[0].id);
       }
-    }
+    };
+
+    refreshProperties();
+    const unsubPortfolio = portfolioStore.subscribe(refreshProperties);
 
     const currentRole = staffStore.getActiveRole();
     setActiveRole(currentRole);
@@ -131,8 +136,12 @@ export default function StaffManagementPage() {
 
     refreshStaff();
     const unsubscribe = staffStore.subscribe(refreshStaff);
-    return () => unsubscribe();
-  }, [router]);
+
+    return () => {
+      unsubPortfolio();
+      unsubscribe();
+    };
+  }, [router, profile]);
 
   const handleGenerateRandomPassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";

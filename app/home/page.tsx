@@ -36,17 +36,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { staffStore, UserRole } from "@/lib/staffStore";
 
-export interface PortfolioProperty {
-  id: string;
-  name: string;
-  location: string;
-  bedsCount: number;
-  occupancyRate: string;
-  collectionRate: string;
-  status: "HEALTHY" | "TASKS PENDING";
-  tasksCount?: number;
-  gradient?: string;
-}
+import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
 
 export default function HomeWorkspacePage() {
   const router = useRouter();
@@ -130,13 +120,14 @@ export default function HomeWorkspacePage() {
     };
   };
 
-  // Load properties dynamically with STRICT RBAC ISOLATION
+  // Load properties dynamically with STRICT RBAC ISOLATION & Real-Time Cloud Firestore Sync
   useEffect(() => {
     const role = staffStore.getActiveRole();
     setActiveRole(role);
 
     const email = profile?.email?.toLowerCase() || "";
-    const isMasterTest = email === "isharapandey01@gmail.com";
+    const isMasterAccount = email === "isharapandey01@gmail.com";
+    const isMasterAdminRole = role === "master_admin";
 
     // 🔒 STRICT RBAC GUARD 1: Receptionists are NEVER allowed on the multi-building portfolio page!
     if (role === "receptionist") {
@@ -147,100 +138,101 @@ export default function HomeWorkspacePage() {
       return;
     }
 
-    // 1. Check custom dynamically added properties from LocalStorage
-    let customProps: PortfolioProperty[] = [];
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tenopilot_portfolio_properties");
-      if (saved) {
-        try {
-          customProps = JSON.parse(saved);
-        } catch {
-          customProps = [];
+    // Initialize Real-Time Cloud Firestore Sync
+    portfolioStore.initFirebaseListener(profile?.email);
+
+    const syncAndRefreshProperties = () => {
+      let customProps = portfolioStore.getProperties();
+
+      // If newly registered tenant owner has NO properties yet, automatically provision their first building!
+      if (!isMasterAccount && customProps.length === 0 && isMasterAdminRole) {
+        const initialOwnerBuildingName = `${profile?.displayName || "Main"} Executive PG`;
+        const initialSlug = initialOwnerBuildingName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+        const defaultOwnerBuilding: PortfolioProperty = {
+          id: initialSlug || "my-first-pg",
+          name: initialOwnerBuildingName,
+          location: "Bengaluru, Karnataka",
+          bedsCount: 100,
+          occupancyRate: "0.0%",
+          collectionRate: "0%",
+          status: "HEALTHY",
+          createdAt: new Date().toISOString(),
+          ownerEmail: profile?.email || "",
+        };
+
+        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name);
+        portfolioStore.addProperty(defaultOwnerBuilding, profile?.email);
+        customProps = [defaultOwnerBuilding];
+      }
+
+      // 🔒 STRICT RBAC GUARD 2: Property Admins only see their explicitly assigned buildings
+      if (role === "admin") {
+        const allStaff = staffStore.getAllGlobalStaff();
+        const match = allStaff.find((s) => s.email.toLowerCase() === email);
+        const assignedIds =
+          match?.assignedPropertyIds ||
+          (match?.assignedPropertyId ? [match.assignedPropertyId] : []) ||
+          (profile?.assignedPropertyId ? [profile.assignedPropertyId] : []);
+
+        if (assignedIds.length > 0 && !assignedIds.includes("*")) {
+          customProps = customProps.filter((p) => assignedIds.includes(p.id));
         }
       }
-    }
 
-    // 2. If newly registered tenant owner has NO properties yet, automatically provision their first building!
-    if (!isMasterTest && customProps.length === 0 && role === "master_admin") {
-      const initialOwnerBuildingName = `${profile?.displayName || "Main"} Executive PG`;
-      const initialSlug = initialOwnerBuildingName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-
-      const defaultOwnerBuilding: PortfolioProperty = {
-        id: initialSlug || "my-first-pg",
-        name: initialOwnerBuildingName,
-        location: "Bengaluru, Karnataka",
-        bedsCount: 100,
-        occupancyRate: "0.0%",
-        collectionRate: "0%",
-        status: "HEALTHY",
-      };
-
-      // Provision clean isolated state
-      initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name);
-
-      customProps = [defaultOwnerBuilding];
-      localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(customProps));
-    }
-
-    // 🔒 STRICT RBAC GUARD 2: Property Admins only see their explicitly assigned buildings
-    if (role === "admin") {
-      const allStaff = staffStore.getAllGlobalStaff();
-      const match = allStaff.find((s) => s.email.toLowerCase() === email);
-      const assignedIds =
-        match?.assignedPropertyIds ||
-        (match?.assignedPropertyId ? [match.assignedPropertyId] : []) ||
-        (profile?.assignedPropertyId ? [profile.assignedPropertyId] : []);
-
-      if (assignedIds.length > 0 && !assignedIds.includes("*")) {
-        customProps = customProps.filter((p) => assignedIds.includes(p.id));
+      // Compute live real-time metrics
+      let liveSunshine: PortfolioProperty | null = null;
+      if (isMasterAccount || isMasterAdminRole) {
+        liveSunshine = computeLiveSunshineMetrics();
       }
-    }
 
-    // Compute live real-time metrics
-    let liveSunshine: PortfolioProperty | null = null;
-    if (isMasterTest) {
-      liveSunshine = computeLiveSunshineMetrics();
-    }
+      if ((isMasterAccount || isMasterAdminRole) && liveSunshine) {
+        const customWithoutSunshine = customProps.filter((p) => p.id !== "sunshine-pg");
+        setProperties([liveSunshine, ...customWithoutSunshine]);
+      } else {
+        setProperties(customProps);
+      }
+    };
 
-    if (isMasterTest && liveSunshine) {
-      setProperties([liveSunshine, ...customProps]);
-    } else {
-      setProperties(customProps);
-    }
+    // Initial load
+    syncAndRefreshProperties();
 
     // Reactive subscriptions
+    const unsubPortfolio = portfolioStore.subscribe(syncAndRefreshProperties);
+
     const unsubProperty = propertyStore.subscribe(() => {
-      if (isMasterTest) {
+      if (isMasterAccount || isMasterAdminRole) {
         const updatedLive = computeLiveSunshineMetrics();
         setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
       }
     });
 
     const unsubOccupant = occupantStore.subscribe(() => {
-      if (isMasterTest) {
+      if (isMasterAccount || isMasterAdminRole) {
         const updatedLive = computeLiveSunshineMetrics();
         setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
       }
     });
 
     const unsubSettings = propertySettingsStore.subscribe(() => {
-      if (isMasterTest) {
+      if (isMasterAccount || isMasterAdminRole) {
         const updatedLive = computeLiveSunshineMetrics();
         setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
       }
     });
 
     return () => {
+      unsubPortfolio();
       unsubProperty();
       unsubOccupant();
       unsubSettings();
     };
   }, [profile, router]);
 
-  const handleCreateProperty = (e: React.FormEvent) => {
+  const handleCreateProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPropName.trim()) return;
 
@@ -258,24 +250,19 @@ export default function HomeWorkspacePage() {
       occupancyRate: "0.0%",
       collectionRate: "0%",
       status: "HEALTHY",
+      createdAt: new Date().toISOString(),
+      ownerEmail: profile?.email || "isharapandey01@gmail.com",
     };
 
-    initializeCleanProperty(newBuilding.id, newBuilding.name);
-
-    const updated = [...properties, newBuilding];
-    setProperties(updated);
-
-    const email = profile?.email?.toLowerCase() || "";
-    const isMasterTest = email === "isharapandey01@gmail.com";
-    const customOnly = isMasterTest ? updated.filter((p) => p.id !== "sunshine-pg") : updated;
-    localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(customOnly));
+    await initializeCleanProperty(newBuilding.id, newBuilding.name);
+    await portfolioStore.addProperty(newBuilding, profile?.email);
 
     setShowAddPropertyModal(false);
     setNewPropName("");
     setNewPropLocation("");
     setNewPropBeds(30);
 
-    triggerToast(`✓ Successfully onboarded "${newBuilding.name}"!`);
+    triggerToast(`✓ Successfully onboarded "${newBuilding.name}"! Synced to cloud 🟢`);
   };
 
   // Dynamic Time-Aware Greeting
