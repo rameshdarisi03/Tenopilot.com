@@ -741,21 +741,13 @@ export function GuestProfileView({
                     />
                   </div>
 
-                  {/* 2. Aadhaar / Govt ID Input & Photos */}
+                  {/* 2. Govt ID Photos */}
                   <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
                     <label className="block font-bold text-gray-800 text-xs">
-                      🪪 2. Aadhaar / Govt ID Number *
+                      🪪 2. Govt ID / Aadhaar Card Photos
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={guestAadhaarNum}
-                      onChange={(e) => setGuestAadhaarNum(e.target.value)}
-                      placeholder="e.g. 9812-4412-8811 or Govt ID Number"
-                      className="w-full px-3 py-2 rounded-xl border border-gray-300 font-mono text-xs font-bold text-gray-900 focus:ring-1 focus:ring-purple-600"
-                    />
 
-                    <div className="space-y-3 pt-1">
+                    <div className="space-y-3">
                       <div className="space-y-1 text-left">
                         <label className="block font-bold text-gray-900 text-xs">
                           💳 ID Card Front Photo

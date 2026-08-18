@@ -108,14 +108,15 @@ export function UnifiedPhotoUploadSlot({
   };
 
   const handleMainButtonClick = () => {
-    // Check if user is on mobile/tablet browser
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // Reset file input value so re-selecting same file triggers change
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
-      // On mobile, trigger file input directly (native OS opens Camera / Gallery sheet)
       fileInputRef.current?.click();
     } else {
-      // On desktop, toggle choice dropdown (Webcam vs Computer File)
-      setShowChoiceDropdown(!showChoiceDropdown);
+      setShowChoiceDropdown((prev) => !prev);
     }
   };
 
@@ -162,7 +163,7 @@ export function UnifiedPhotoUploadSlot({
             <button
               type="button"
               onClick={handleMainButtonClick}
-              className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 font-bold text-[10px] hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 font-bold text-[10px] hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-2xs"
               title="Change or Retake Photo"
             >
               <RefreshCw className="w-3 h-3 text-[#c2652a]" /> Change
@@ -181,62 +182,63 @@ export function UnifiedPhotoUploadSlot({
         </div>
       ) : (
         /* Empty Slot Button */
-        <div className="relative">
+        <button
+          type="button"
+          onClick={handleMainButtonClick}
+          className="w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50/70 hover:bg-orange-50/40 hover:border-[#c2652a] text-gray-700 font-bold text-xs transition-all flex items-center justify-center gap-2.5 group cursor-pointer shadow-2xs active:scale-98"
+        >
+          <div className="w-7 h-7 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Camera className="w-4 h-4" />
+          </div>
+          <span className="text-gray-900 font-bold">
+            📸 Take Live Photo / Choose File
+          </span>
+        </button>
+      )}
+
+      {/* Choice Dropdown Popup (Available in both Empty and Change states) */}
+      {showChoiceDropdown && (
+        <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-2xl p-2 space-y-1 animate-in zoom-in-95 text-xs">
+          <div className="px-3 py-1.5 border-b border-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Select Photo Method
+          </div>
+
           <button
             type="button"
-            onClick={handleMainButtonClick}
-            className="w-full py-3.5 px-4 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50/70 hover:bg-orange-50/40 hover:border-[#c2652a] text-gray-700 font-bold text-xs transition-all flex items-center justify-center gap-2.5 group cursor-pointer shadow-2xs active:scale-98"
+            onClick={() => {
+              setShowChoiceDropdown(false);
+              setShowWebcamModal(true);
+            }}
+            className="w-full p-2.5 rounded-xl hover:bg-orange-50 flex items-center gap-3 text-left transition-colors cursor-pointer"
           >
-            <div className="w-7 h-7 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center shrink-0">
               <Camera className="w-4 h-4" />
             </div>
-            <span className="text-gray-900 font-bold">
-              📸 Take Live Photo / Choose File
-            </span>
+            <div>
+              <span className="font-bold text-gray-900 block">📸 Take Snapshot with Webcam</span>
+              <span className="text-[10px] text-gray-500">Uses laptop or PC camera stream</span>
+            </div>
           </button>
 
-          {/* Desktop Choice Dropdown Popup */}
-          {showChoiceDropdown && (
-            <div className="absolute left-0 right-0 mt-2 z-40 bg-white border border-gray-200 rounded-2xl shadow-2xl p-2 space-y-1 animate-in zoom-in-95 text-xs">
-              <div className="px-3 py-1.5 border-b border-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                Select Photo Method
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowChoiceDropdown(false);
-                  setShowWebcamModal(true);
-                }}
-                className="w-full p-2.5 rounded-xl hover:bg-orange-50 flex items-center gap-3 text-left transition-colors cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center shrink-0">
-                  <Camera className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="font-bold text-gray-900 block">📸 Take Snapshot with Webcam</span>
-                  <span className="text-[10px] text-gray-500">Uses laptop or PC camera stream</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowChoiceDropdown(false);
-                  fileInputRef.current?.click();
-                }}
-                className="w-full p-2.5 rounded-xl hover:bg-gray-100 flex items-center gap-3 text-left transition-colors cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
-                  <Upload className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="font-bold text-gray-900 block">📁 Choose Photo File from Device</span>
-                  <span className="text-[10px] text-gray-500">Browse disk or photo gallery</span>
-                </div>
-              </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowChoiceDropdown(false);
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+              }
+              fileInputRef.current?.click();
+            }}
+            className="w-full p-2.5 rounded-xl hover:bg-gray-100 flex items-center gap-3 text-left transition-colors cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
+              <Upload className="w-4 h-4" />
             </div>
-          )}
+            <div>
+              <span className="font-bold text-gray-900 block">📁 Choose Photo File from Device</span>
+              <span className="text-[10px] text-gray-500">Browse disk or photo gallery</span>
+            </div>
+          </button>
         </div>
       )}
 
