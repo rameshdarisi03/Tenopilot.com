@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Dual-Tier Access Guard — Protect dashboard routes with Firebase Auth OR PIN Fast-Session
+  // Dual-Tier Access Guard — Protect dashboard routes with Firebase Auth OR PIN Fast-Session + Session PIN Lock
   useEffect(() => {
     if (!loading) {
       const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
@@ -185,17 +185,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const hasLocalSession =
         typeof window !== "undefined" && Boolean(localStorage.getItem("tenopilot_saved_session"));
+      const isSessionUnlocked =
+        typeof window !== "undefined" && sessionStorage.getItem("tenopilot_session_unlocked") === "true";
       const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
       const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
       if (isProtectedPage) {
-        // If neither a Firebase token nor a local unlocked PIN session exists
-        if (!user && !hasLocalSession) {
+        // 🔒 If session is locked on app re-open OR user is not authenticated -> route to /login PIN lock
+        if ((!user && !hasLocalSession) || !isSessionUnlocked) {
           router.push("/login");
         }
       }
 
-      if (isAuthPage && user && !isEmailUnverified) {
+      if (isAuthPage && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
         const dest = profile?.role === "master_admin" ? "/home" : `/p/${profile?.assignedPropertyId || "sunshine-pg"}/overview`;
         router.push(dest);
       }
@@ -237,6 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sign Out / Logout Function
   const logout = async () => {
     if (typeof window !== "undefined") {
+      sessionStorage.removeItem("tenopilot_session_unlocked");
       localStorage.removeItem("tenopilot_saved_session");
       localStorage.removeItem("tenopilot_active_role");
     }

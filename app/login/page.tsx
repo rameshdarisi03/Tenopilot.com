@@ -287,6 +287,10 @@ export default function LoginPage() {
         localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
       }
 
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("tenopilot_session_unlocked", "true");
+      }
+
       const role = savedSession?.role || "master_admin";
       staffStore.setActiveRole(role);
       const targetProp = savedSession?.assignedPropertyId || "sunshine-pg";
@@ -312,6 +316,10 @@ export default function LoginPage() {
     const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
 
     if (verification.valid) {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("tenopilot_session_unlocked", "true");
+      }
+
       const role = verification.member?.role || savedSession?.role || "master_admin";
       staffStore.setActiveRole(role);
 

@@ -233,6 +233,10 @@ function SignUpPageContent() {
       });
     }
 
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("tenopilot_session_unlocked", "true");
+    }
+
     localStorage.setItem(
       "tenopilot_saved_session",
       JSON.stringify({
