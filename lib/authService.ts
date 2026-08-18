@@ -14,6 +14,9 @@ import {
   User,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  setPersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { StaffMember, UserRole, staffStore } from "./staffStore";
@@ -75,10 +78,10 @@ export function getCleanAuthErrorMessage(err: any): string {
   if (code === "auth/too-many-requests") {
     return "Too many failed login attempts. Please wait a moment or reset your password.";
   }
-  if (code === "auth/email-already-in-use" || msg.includes("already registered")) {
+  if (code === "auth/email-already-in-use" || msg.includes("already registered") || msg.includes("already exists")) {
     return "An account with this email address already exists. Please sign in instead.";
   }
-  if (code === "auth/network-request-failed") {
+  if (code === "auth/network-request-failed" || msg.includes("network")) {
     return "Network connection error. Please check your internet connection and try again.";
   }
   if (code === "auth/popup-closed-by-user") {
@@ -93,13 +96,16 @@ export function getCleanAuthErrorMessage(err: any): string {
   if (code === "auth/invalid-email") {
     return "Please enter a valid email address.";
   }
+  if (msg.includes("already-initialized") || msg.includes("Database is closing") || msg.includes("closing")) {
+    return "Connecting to secure authentication session. Please try again.";
+  }
 
   let cleanMsg = msg
     .replace(/^Firebase:\s*Error\s*\(.*?\)\s*:?\s*/i, "")
     .replace(/\(auth\/.*?\)\.?/gi, "")
     .trim();
 
-  if (!cleanMsg || cleanMsg.startsWith("auth/")) {
+  if (!cleanMsg || cleanMsg.length <= 2 || cleanMsg.startsWith("auth/")) {
     return "Authentication failed. Please check your details and try again.";
   }
 
@@ -145,6 +151,16 @@ export async function loginWithGoogle(
   isSignUpMode: boolean = false
 ): Promise<{ user: User; profile: AuthUserProfile } | null> {
   try {
+    try {
+      if (typeof window !== "undefined") {
+        await setPersistence(auth, browserLocalPersistence);
+      }
+    } catch {
+      try {
+        await setPersistence(auth, inMemoryPersistence);
+      } catch {}
+    }
+
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     const email = user.email?.toLowerCase() || "";
@@ -222,6 +238,16 @@ export async function registerWithEmailPassword(
   displayName?: string
 ): Promise<{ user: User; profile: AuthUserProfile }> {
   try {
+    try {
+      if (typeof window !== "undefined") {
+        await setPersistence(auth, browserLocalPersistence);
+      }
+    } catch {
+      try {
+        await setPersistence(auth, inMemoryPersistence);
+      } catch {}
+    }
+
     const cleanEmail = email.trim().toLowerCase();
 
     // Check if email already exists as a provisioned staff member or customer
@@ -376,6 +402,16 @@ export async function loginWithEmailPassword(
   pass: string
 ): Promise<User | null> {
   try {
+    try {
+      if (typeof window !== "undefined") {
+        await setPersistence(auth, browserLocalPersistence);
+      }
+    } catch {
+      try {
+        await setPersistence(auth, inMemoryPersistence);
+      } catch {}
+    }
+
     const cleanEmail = email.trim().toLowerCase();
     const result = await signInWithEmailAndPassword(auth, cleanEmail, pass);
     return result.user;
