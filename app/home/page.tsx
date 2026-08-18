@@ -28,7 +28,6 @@ import { useRouter } from "next/navigation";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
-import { InstrumentIntroOverlay } from "@/components/motion/InstrumentIntroOverlay";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { DigitRollingOdometer } from "@/components/motion/DigitRollingOdometer";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -55,7 +54,6 @@ export default function HomeWorkspacePage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
-  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
   const [activeRole, setActiveRole] = useState<UserRole>("master_admin");
 
   // New property form state
