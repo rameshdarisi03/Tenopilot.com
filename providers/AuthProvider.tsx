@@ -179,28 +179,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Dual-Tier Access Guard — Protect dashboard routes with Firebase Auth OR PIN Fast-Session + Session PIN Lock
   useEffect(() => {
-    if (!loading) {
-      const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
-      const isAuthPage = pathname === "/login" || pathname === "/signup";
+    const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
+    const isAuthPage = pathname === "/login" || pathname === "/signup";
 
-      const hasLocalSession =
-        typeof window !== "undefined" && Boolean(localStorage.getItem("tenopilot_saved_session"));
-      const isSessionUnlocked =
-        typeof window !== "undefined" && sessionStorage.getItem("tenopilot_session_unlocked") === "true";
-      const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
-      const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
+    const hasLocalSession =
+      typeof window !== "undefined" && Boolean(localStorage.getItem("tenopilot_saved_session"));
+    const isSessionUnlocked =
+      typeof window !== "undefined" && sessionStorage.getItem("tenopilot_session_unlocked") === "true";
+    const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
+    const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
-      if (isProtectedPage) {
-        // 🔒 If session is locked on app re-open OR user is not authenticated -> route to /login PIN lock
-        if ((!user && !hasLocalSession) || !isSessionUnlocked) {
-          router.push("/login");
-        }
+    if (isProtectedPage) {
+      // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
+      if ((!user && !hasLocalSession) || !isSessionUnlocked) {
+        router.replace("/login");
       }
+    }
 
-      if (isAuthPage && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
-        const dest = profile?.role === "master_admin" ? "/home" : `/p/${profile?.assignedPropertyId || "sunshine-pg"}/overview`;
-        router.push(dest);
-      }
+    if (isAuthPage && !loading && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
+      const dest = profile?.role === "master_admin" ? "/home" : `/p/${profile?.assignedPropertyId || "sunshine-pg"}/overview`;
+      router.replace(dest);
     }
   }, [user, profile, loading, pathname, router]);
 
@@ -246,8 +244,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setUser(null);
     await signOut(auth);
-    router.push("/login");
+    router.replace("/login");
   };
+
+  // 🛡️ Zero-Flash Guard: Never render private dashboard pixels before session PIN unlock
+  const isProtected = pathname?.startsWith("/p/") || pathname === "/home";
+  const isUnlocked = typeof window !== "undefined" ? sessionStorage.getItem("tenopilot_session_unlocked") === "true" : true;
+
+  if (isProtected && !isUnlocked) {
+    return (
+      <div className="min-h-screen bg-[#fff8f6] flex items-center justify-center">
+        <div className="w-11 h-11 rounded-2xl bg-[#c2652a] text-white font-serif font-bold text-xl flex items-center justify-center animate-pulse shadow-md">
+          T
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, updateProfileName, logout }}>
