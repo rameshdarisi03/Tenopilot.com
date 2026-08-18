@@ -1,4 +1,4 @@
-﻿// TenoPilot Portfolio & Multi-Building Synchronization Store
+// TenoPilot Portfolio & Multi-Building Synchronization Store
 // 100% Direct Cloud Firestore Database Real-time Sync across all devices (Desktop, Mobile, Tablet)
 
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
@@ -89,7 +89,7 @@ export const portfolioStore = {
     }
 
     try {
-      const portfolioRef = doc(db, "portfolios", ownerKey);
+      const portfolioRef = doc(db, "users", `portfolio_${ownerKey}`);
 
       ACTIVE_PORTFOLIO_UNSUB = onSnapshot(
         portfolioRef,
@@ -193,7 +193,7 @@ export const portfolioStore = {
 
     // Persist directly to Cloud Firestore
     try {
-      const portfolioRef = doc(db, "portfolios", ownerKey);
+      const portfolioRef = doc(db, "users", `portfolio_${ownerKey}`);
       await setDoc(
         portfolioRef,
         {
@@ -226,7 +226,7 @@ export const portfolioStore = {
     portfolioStore.notify();
 
     try {
-      const portfolioRef = doc(db, "portfolios", ownerKey);
+      const portfolioRef = doc(db, "users", `portfolio_${ownerKey}`);
       await setDoc(
         portfolioRef,
         {
@@ -257,7 +257,7 @@ export const portfolioStore = {
     portfolioStore.notify();
 
     try {
-      const portfolioRef = doc(db, "portfolios", ownerKey);
+      const portfolioRef = doc(db, "users", `portfolio_${ownerKey}`);
       await setDoc(
         portfolioRef,
         {

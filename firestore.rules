@@ -32,44 +32,26 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 🏢 2. PROPERTY SETTINGS & SETUP
-    // Path: properties/{propertyId}/settings/{docId}
+    // 🌐 2. MULTI-BUILDING PORTFOLIOS
+    // Path: portfolios/{portfolioId}
     // ==========================================
-    match /properties/{propertyId}/settings/{settingId} {
-      allow read: if true;
-      allow write: if isOrgAdmin();
-    }
-
-    // ==========================================
-    // 👥 3. OCCUPANTS (TENANTS & GUESTS)
-    // Path: properties/{propertyId}/occupants/{occupantId}
-    // ==========================================
-    match /properties/{propertyId}/occupants/{occupantId} {
+    match /portfolios/{portfolioId} {
       allow read, write: if true;
     }
 
     // ==========================================
-    // 🔧 4. COMPLAINTS & MAINTENANCE TICKETS
-    // Path: properties/{propertyId}/complaints/{complaintId}
+    // 👥 3. GLOBAL STAFF ACCOUNTS
+    // Path: staff_accounts/{staffId}
     // ==========================================
-    match /properties/{propertyId}/complaints/{complaintId} {
-      allow read, create: if true; // Public complaint submission
-      allow update, delete: if isAuthenticated();
-    }
-
-    // ==========================================
-    // 💰 5. FINANCIAL HUB (EXPENSES & REVENUE)
-    // Path: properties/{propertyId}/financials/{docId}
-    // ==========================================
-    match /properties/{propertyId}/financials/{docId} {
+    match /staff_accounts/{staffId} {
       allow read, write: if true;
     }
 
     // ==========================================
-    // 👥 6. STAFF MANAGEMENT & RBAC
-    // Path: properties/{propertyId}/staff/{staffId}
+    // 🏢 4. PROPERTIES & ALL SUB-COLLECTIONS
+    // Path: properties/{propertyId}/{document=**}
     // ==========================================
-    match /properties/{propertyId}/staff/{staffId} {
+    match /properties/{propertyId}/{document=**} {
       allow read, write: if true;
     }
   }
