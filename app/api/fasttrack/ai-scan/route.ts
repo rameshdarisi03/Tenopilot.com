@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PDFDocument } from "pdf-lib";
 import { parseRawSpreadsheetText, FastTrackParsedRow, normalizeIndianPhoneNumber, normalizeBedCode } from "@/lib/fastTrackHeuristicParser";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,53 @@ interface AiScanRequest {
   };
 }
 
+// 📄 Helper: Split large multi-page PDFs into parallel 5-page sub-documents
+async function expandMultiPagePdfs(
+  rawImages: { data: string; mimeType: string }[]
+): Promise<{ data: string; mimeType: string }[]> {
+  const expanded: { data: string; mimeType: string }[] = [];
+
+  for (const item of rawImages) {
+    const isPdf =
+      item.mimeType === "application/pdf" ||
+      item.data.startsWith("data:application/pdf") ||
+      (typeof (item as any).name === "string" && (item as any).name.toLowerCase().endsWith(".pdf"));
+
+    if (isPdf) {
+      try {
+        const base64Data = item.data.replace(/^data:[a-z0-9\/\-\+\.]+;base64,/i, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        const srcDoc = await PDFDocument.load(buffer);
+        const pageCount = srcDoc.getPageCount();
+
+        if (pageCount > 5) {
+          const SUB_CHUNK_PAGES = 5;
+          for (let start = 0; start < pageCount; start += SUB_CHUNK_PAGES) {
+            const end = Math.min(start + SUB_CHUNK_PAGES, pageCount);
+            const subDoc = await PDFDocument.create();
+            const pageIndices = Array.from({ length: end - start }, (_, k) => start + k);
+            const copiedPages = await subDoc.copyPages(srcDoc, pageIndices);
+            copiedPages.forEach((p) => subDoc.addPage(p));
+            const subPdfBytes = await subDoc.save();
+            const subBase64 = Buffer.from(subPdfBytes).toString("base64");
+            expanded.push({
+              data: `data:application/pdf;base64,${subBase64}`,
+              mimeType: "application/pdf",
+            });
+          }
+          continue;
+        }
+      } catch (err) {
+        console.warn("Could not split multi-page PDF into sub-documents, processing full PDF:", err);
+      }
+    }
+
+    expanded.push(item);
+  }
+
+  return expanded;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: AiScanRequest = await req.json();
@@ -25,8 +73,11 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
       process.env.GOOGLE_API_KEY;
 
-    // If images are provided and Gemini API key is configured, invoke Gemini 2.5 Flash Vision
+    // If images or PDFs are provided and Gemini API key is configured, invoke Gemini Vision AI
     if (images.length > 0 && apiKey) {
+      // 📄 Step 1: Expand multi-page PDFs into parallel 5-page sub-chunks
+      const expandedImages = await expandMultiPagePdfs(images);
+
       const prompt = `
 You are TenoPilot's Enterprise Document & Ledger Ingestion AI for Indian PG (Paying Guest), Co-Living, and Hostel properties.
 Analyze the provided handwritten or printed ledger pages, diary registers, Excel printouts, or admission forms and extract every single tenant and room entry into a structured JSON list.
@@ -107,18 +158,6 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
 }
 `;
 
-      const contentsParts: any[] = [{ text: prompt }];
-
-      for (const img of images) {
-        const base64Data = img.data.replace(/^data:image\/[a-z]+;base64,/, "");
-        contentsParts.push({
-          inlineData: {
-            mimeType: img.mimeType || "image/jpeg",
-            data: base64Data,
-          },
-        });
-      }
-
       const modelsToTry = [
         "gemini-3.6-flash",
         "gemini-3.7-flash",
@@ -128,11 +167,28 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
 
       let lastError: string | null = null;
 
-      // 📦 Smart Multi-Batch Chunking: Process up to 5 images/pages per Gemini call in parallel
-      const CHUNK_SIZE = 5;
+      // 📦 Smart Multi-Batch Chunking: 1 sub-PDF per worker (or up to 5 photos per worker)
       const chunks: { data: string; mimeType: string }[][] = [];
-      for (let i = 0; i < images.length; i += CHUNK_SIZE) {
-        chunks.push(images.slice(i, i + CHUNK_SIZE));
+      let currentChunk: { data: string; mimeType: string }[] = [];
+
+      for (const item of expandedImages) {
+        const isPdf = item.mimeType === "application/pdf" || item.data.startsWith("data:application/pdf");
+        if (isPdf) {
+          if (currentChunk.length > 0) {
+            chunks.push(currentChunk);
+            currentChunk = [];
+          }
+          chunks.push([item]);
+        } else {
+          currentChunk.push(item);
+          if (currentChunk.length >= 5) {
+            chunks.push(currentChunk);
+            currentChunk = [];
+          }
+        }
+      }
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
       }
 
       async function scanChunkWithGemini(chunk: { data: string; mimeType: string }[]) {
