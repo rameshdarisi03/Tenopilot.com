@@ -233,6 +233,29 @@ export default function HomeWorkspacePage() {
     };
   }, [profile, router]);
 
+  // 🔒 Strict Zero-Leak Gate: If receptionist, block rendering of all building cards and redirect immediately
+  const localSaved = typeof window !== "undefined" ? localStorage.getItem("tenopilot_saved_session") : null;
+  let localRole = "master_admin";
+  let localProp = "sunshine-pg";
+  if (localSaved) {
+    try {
+      const p = JSON.parse(localSaved);
+      if (p.role) localRole = p.role;
+      if (p.assignedPropertyId) localProp = p.assignedPropertyId;
+    } catch {}
+  }
+  const isReceptionist = activeRole === "receptionist" || localRole === "receptionist" || profile?.role === "receptionist";
+
+  if (isReceptionist) {
+    return (
+      <div className="min-h-screen bg-[#fff8f6] flex items-center justify-center">
+        <div className="w-11 h-11 rounded-2xl bg-[#c2652a] text-white font-serif font-bold text-xl flex items-center justify-center animate-pulse shadow-md">
+          T
+        </div>
+      </div>
+    );
+  }
+
   const handleCreateProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPropName.trim()) return;
@@ -307,16 +330,14 @@ export default function HomeWorkspacePage() {
 
           {/* User Profile & Staff Management Actions */}
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* Staff Management Link (Hidden for Receptionists) */}
-            {activeRole !== "receptionist" && (
-              <Link
-                href="/staff-management"
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] text-[#201a17] font-bold text-xs shadow-2xs transition-all cursor-pointer"
-              >
-                <Users className="w-4 h-4 text-[#964407]" />
-                <span className="hidden sm:inline">Staff Management 👥</span>
-              </Link>
-            )}
+            {/* Staff Management Link */}
+            <Link
+              href="/staff-management"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:bg-[#f8ede3] hover:border-[#964407] text-[#201a17] font-bold text-xs shadow-2xs transition-all cursor-pointer"
+            >
+              <Users className="w-4 h-4 text-[#964407]" />
+              <span className="hidden sm:inline">Staff Management 👥</span>
+            </Link>
 
             <div className="relative">
               <button

@@ -574,8 +574,23 @@ export function FastTrackImportModal({
 
   if (!isOpen) return null;
 
-  // Helper: Client-side Image Optimizer (prevents huge payloads, zero storage in firebase)
+  // Helper: Client-side Image & PDF Optimizer (prevents huge payloads, zero storage in firebase)
   const compressImageForAi = async (file: File): Promise<{ name: string; base64: string }> => {
+    // Handle PDF files directly without image canvas conversion
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            name: file.name,
+            base64: e.target?.result as string,
+          });
+        };
+        reader.onerror = () => resolve({ name: file.name, base64: "" });
+        reader.readAsDataURL(file);
+      });
+    }
+
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -1189,11 +1204,11 @@ Priya Verma    9855667788   Room 201   22000"
                     </p>
                   </div>
 
-                  {/* Native OS Gallery & Media Picker (Triggers Android/iOS System Sheet with Gallery, Photos & Files) */}
+                  {/* Native OS Gallery & Media Picker (Supports Multi-Photos & PDF Documents) */}
                   <input
                     type="file"
                     ref={galleryInputRef}
-                    accept="image/*"
+                    accept="image/*,application/pdf,.pdf"
                     multiple
                     onChange={handleImageCapture}
                     className="hidden"
@@ -1217,7 +1232,7 @@ Priya Verma    9855667788   Room 201   22000"
                       className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer active:scale-98"
                     >
                       <ImageIcon className="w-4 h-4" />
-                      Choose from Gallery / Photos
+                      Choose Photos or PDF Document
                     </button>
 
                     <button

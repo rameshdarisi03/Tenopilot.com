@@ -197,7 +197,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isAuthPage && !loading && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
-      const dest = profile?.role === "master_admin" ? "/home" : `/p/${profile?.assignedPropertyId || "sunshine-pg"}/overview`;
+      let resolvedRole = profile?.role;
+      let resolvedProp = profile?.assignedPropertyId;
+      if (!resolvedRole && hasLocalSession) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+          resolvedRole = parsed.role;
+          resolvedProp = parsed.assignedPropertyId;
+        } catch {}
+      }
+      const dest = resolvedRole === "master_admin" ? "/home" : `/p/${resolvedProp || "sunshine-pg"}/overview`;
       router.replace(dest);
     }
   }, [user, profile, loading, pathname, router]);

@@ -120,117 +120,144 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       }
 
       const modelsToTry = [
-        "gemini-3.5-flash",
-        "gemini-3.7-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
         "gemini-flash-latest",
       ];
 
       let lastError: string | null = null;
 
-      for (const model of modelsToTry) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          const bodyPayload: any = {
-            contents: [{ parts: contentsParts }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1,
+      // 📦 Smart Multi-Batch Chunking: Process up to 5 images/pages per Gemini call in parallel
+      const CHUNK_SIZE = 5;
+      const chunks: { data: string; mimeType: string }[][] = [];
+      for (let i = 0; i < images.length; i += CHUNK_SIZE) {
+        chunks.push(images.slice(i, i + CHUNK_SIZE));
+      }
+
+      async function scanChunkWithGemini(chunk: { data: string; mimeType: string }[]) {
+        const parts: any[] = [{ text: prompt }];
+        for (const img of chunk) {
+          const base64Data = img.data.replace(/^data:[a-z\/\-\+]+;base64,/, "");
+          parts.push({
+            inlineData: {
+              mimeType: img.mimeType || "image/jpeg",
+              data: base64Data,
             },
-          };
-
-          if (model.includes("3.7")) {
-            bodyPayload.generationConfig.thinkingConfig = {
-              thinkingBudget: 0,
-            };
-          }
-
-          const geminiRes = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(bodyPayload),
           });
-
-          if (geminiRes.ok) {
-            const data = await geminiRes.json();
-            const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (rawContent) {
-              const cleanJson = rawContent
-                .replace(/^```json\s*/i, "")
-                .replace(/```\s*$/i, "")
-                .trim();
-              const parsed = JSON.parse(cleanJson);
-
-              if (Array.isArray(parsed.occupants) && parsed.occupants.length > 0) {
-                const roomOccupancyMap = new Map<string, number>();
-
-                const rows: FastTrackParsedRow[] = parsed.occupants.map((item: any, idx: number) => {
-                  const phone = normalizeIndianPhoneNumber(item.phone);
-                  const warnings: string[] = [];
-                  if (!phone || phone.length !== 10) {
-                    warnings.push("Verify 10-digit mobile number");
-                  }
-                  if (!item.fullName || item.fullName.trim().length === 0) {
-                    warnings.push("Missing full name");
-                  }
-
-                  const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
-
-                  // Room-scoped bed slot calculation:
-                  const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
-                  roomOccupancyMap.set(cleanRoom, currentCountInRoom);
-
-                  const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
-                  const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
-
-                  const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-                  const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
-
-                  const explicitSharing = Number(item.sharingType);
-                  const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
-                  const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
-
-                  return {
-                    id: `ft_ai_${Date.now()}_${idx}`,
-                    fullName: item.fullName || `Resident ${idx + 1}`,
-                    phone: phone || "",
-                    roomNumber: cleanRoom,
-                    bedCode: finalBedCode,
-                    sharingType: sharingCount,
-                    sharingLabel,
-                    rentAmount: rent,
-                    securityDeposit: deposit,
-                    joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
-                    paymentMode: item.paymentMode || "UPI",
-                    isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
-                    isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
-                    priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
-                    isValid: warnings.length === 0,
-                    warnings,
-                    rawSource: item.notes || "Extracted via Gemini 3.7 Flash Vision AI",
-                  };
-                });
-
-                return NextResponse.json({
-                  success: true,
-                  source: "AI_VISION",
-                  modelUsed: model,
-                  rows,
-                  totalDetected: rows.length,
-                  validCount: rows.filter((r) => r.isValid).length,
-                  warningCount: rows.filter((r) => !r.isValid).length,
-                  confidenceScore: 98,
-                });
-              }
-            }
-          } else {
-            const errJson = await geminiRes.json().catch(() => ({}));
-            lastError = `Google API Error (${geminiRes.status} on ${model}): ${errJson.error?.message || geminiRes.statusText}`;
-            console.warn(`Gemini model ${model} failed:`, lastError);
-          }
-        } catch (modelErr: any) {
-          lastError = `Model ${model} network error: ${modelErr.message}`;
-          console.warn(`Gemini model ${model} exception:`, modelErr);
         }
+
+        for (const model of modelsToTry) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const bodyPayload: any = {
+              contents: [{ parts }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+              },
+            };
+
+            const geminiRes = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(bodyPayload),
+            });
+
+            if (geminiRes.ok) {
+              const data = await geminiRes.json();
+              const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (rawContent) {
+                const cleanJson = rawContent
+                  .replace(/^```json\s*/i, "")
+                  .replace(/```\s*$/i, "")
+                  .trim();
+                const parsed = JSON.parse(cleanJson);
+                if (Array.isArray(parsed.occupants)) {
+                  return parsed.occupants;
+                }
+              }
+            } else {
+              const errJson = await geminiRes.json().catch(() => ({}));
+              lastError = `Google API Error (${geminiRes.status} on ${model}): ${errJson.error?.message || geminiRes.statusText}`;
+            }
+          } catch (e: any) {
+            lastError = `Model ${model} network error: ${e.message}`;
+            console.warn(`Chunk scan attempt on ${model} notice:`, e);
+          }
+        }
+        return [];
+      }
+
+      // Execute all chunks in parallel
+      const chunkResults = await Promise.allSettled(chunks.map((c) => scanChunkWithGemini(c)));
+      const rawExtractedOccupants: any[] = [];
+
+      for (const res of chunkResults) {
+        if (res.status === "fulfilled" && Array.isArray(res.value)) {
+          rawExtractedOccupants.push(...res.value);
+        }
+      }
+
+      if (rawExtractedOccupants.length > 0) {
+        const roomOccupancyMap = new Map<string, number>();
+
+        const rows: FastTrackParsedRow[] = rawExtractedOccupants.map((item: any, idx: number) => {
+          const phone = normalizeIndianPhoneNumber(item.phone);
+          const warnings: string[] = [];
+          if (!phone || phone.length !== 10) {
+            warnings.push("Verify 10-digit mobile number");
+          }
+          if (!item.fullName || item.fullName.trim().length === 0) {
+            warnings.push("Missing full name");
+          }
+
+          const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
+
+          // Room-scoped bed slot calculation:
+          const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
+          roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+
+          const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
+          const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
+
+          const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
+          const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
+
+          const explicitSharing = Number(item.sharingType);
+          const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
+          const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
+
+          return {
+            id: `ft_ai_${Date.now()}_${idx}`,
+            fullName: item.fullName || `Resident ${idx + 1}`,
+            phone: phone || "",
+            roomNumber: cleanRoom,
+            bedCode: finalBedCode,
+            sharingType: sharingCount,
+            sharingLabel,
+            rentAmount: rent,
+            securityDeposit: deposit,
+            joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
+            paymentMode: item.paymentMode || "UPI",
+            isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
+            isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
+            priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
+            isValid: warnings.length === 0,
+            warnings,
+            rawSource: item.notes || "Extracted via Gemini Vision AI (Multi-Batch)",
+          };
+        });
+
+        return NextResponse.json({
+          success: true,
+          source: "AI_VISION",
+          modelUsed: "gemini-2.0-flash",
+          rows,
+          totalDetected: rows.length,
+          validCount: rows.filter((r) => r.isValid).length,
+          warningCount: rows.filter((r) => !r.isValid).length,
+          confidenceScore: 98,
+        });
       }
 
       // If all models failed or returned non-200, return explicit error
