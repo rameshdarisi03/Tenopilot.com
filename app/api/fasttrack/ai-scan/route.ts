@@ -138,10 +138,16 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       async function scanChunkWithGemini(chunk: { data: string; mimeType: string }[]) {
         const parts: any[] = [{ text: prompt }];
         for (const img of chunk) {
-          const base64Data = img.data.replace(/^data:[a-z\/\-\+]+;base64,/, "");
+          const base64Data = img.data.replace(/^data:[a-z0-9\/\-\+\.]+;base64,/i, "");
+          const isPdf =
+            img.mimeType === "application/pdf" ||
+            img.data.startsWith("data:application/pdf") ||
+            (typeof (img as any).name === "string" && (img as any).name.toLowerCase().endsWith(".pdf"));
+          const cleanMime = isPdf ? "application/pdf" : (img.mimeType || "image/jpeg");
+
           parts.push({
             inlineData: {
-              mimeType: img.mimeType || "image/jpeg",
+              mimeType: cleanMime,
               data: base64Data,
             },
           });

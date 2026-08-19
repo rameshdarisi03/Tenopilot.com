@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import {
   X,
   Upload,
+  UploadCloud,
   Camera,
   FileSpreadsheet,
   CheckCircle2,
@@ -67,7 +68,7 @@ export function FastTrackImportModal({
   const [fileName, setFileName] = useState<string | null>(null);
 
   // Camera / Ledger images
-  const [selectedImages, setSelectedImages] = useState<{ name: string; base64: string }[]>([]);
+  const [selectedImages, setSelectedImages] = useState<{ name: string; base64: string; mimeType?: string; size?: number; isPdf?: boolean }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraDirectRef = useRef<HTMLInputElement>(null);
@@ -106,7 +107,7 @@ export function FastTrackImportModal({
   // Append Drawer state
   const [showAppendDrawer, setShowAppendDrawer] = useState<boolean>(false);
   const [appendMode, setAppendMode] = useState<"CAMERA" | "SHEET">("CAMERA");
-  const [appendImages, setAppendImages] = useState<{ name: string; base64: string }[]>([]);
+  const [appendImages, setAppendImages] = useState<{ name: string; base64: string; mimeType?: string; size?: number; isPdf?: boolean }[]>([]);
   const [appendText, setAppendText] = useState<string>("");
   const [isAppending, setIsAppending] = useState<boolean>(false);
   const [isDraggingAppendCamera, setIsDraggingAppendCamera] = useState<boolean>(false);
@@ -459,7 +460,7 @@ export function FastTrackImportModal({
           body: JSON.stringify({
             images: appendImages.map((img) => ({
               data: img.base64,
-              mimeType: "image/jpeg",
+              mimeType: img.mimeType || (img.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg"),
             })),
             propertyId,
             defaultRentalTiers: settings.rentalTiers,
@@ -575,7 +576,9 @@ export function FastTrackImportModal({
   if (!isOpen) return null;
 
   // Helper: Client-side Image & PDF Optimizer (prevents huge payloads, zero storage in firebase)
-  const compressImageForAi = async (file: File): Promise<{ name: string; base64: string }> => {
+  const compressImageForAi = async (
+    file: File
+  ): Promise<{ name: string; base64: string; mimeType: string; isPdf: boolean; size: number }> => {
     // Handle PDF files directly without image canvas conversion
     if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
       return new Promise((resolve) => {
@@ -584,9 +587,13 @@ export function FastTrackImportModal({
           resolve({
             name: file.name,
             base64: e.target?.result as string,
+            mimeType: "application/pdf",
+            isPdf: true,
+            size: file.size,
           });
         };
-        reader.onerror = () => resolve({ name: file.name, base64: "" });
+        reader.onerror = () =>
+          resolve({ name: file.name, base64: "", mimeType: "application/pdf", isPdf: true, size: file.size });
         reader.readAsDataURL(file);
       });
     }
@@ -615,7 +622,13 @@ export function FastTrackImportModal({
           canvas.height = height;
           const ctx = canvas.getContext("2d");
           if (!ctx) {
-            resolve({ name: file.name, base64: e.target?.result as string });
+            resolve({
+              name: file.name,
+              base64: e.target?.result as string,
+              mimeType: file.type || "image/jpeg",
+              isPdf: false,
+              size: file.size,
+            });
             return;
           }
 
@@ -624,18 +637,45 @@ export function FastTrackImportModal({
           resolve({
             name: file.name,
             base64: compressedBase64,
+            mimeType: "image/jpeg",
+            isPdf: false,
+            size: file.size,
           });
         };
         img.onerror = () => {
-          resolve({ name: file.name, base64: e.target?.result as string });
+          resolve({
+            name: file.name,
+            base64: e.target?.result as string,
+            mimeType: file.type || "image/jpeg",
+            isPdf: false,
+            size: file.size,
+          });
         };
         img.src = e.target?.result as string;
       };
       reader.onerror = () => {
-        resolve({ name: file.name, base64: "" });
+        resolve({
+          name: file.name,
+          base64: "",
+          mimeType: file.type || "image/jpeg",
+          isPdf: false,
+          size: file.size,
+        });
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  // Helper: File Type Detector
+  const isDocumentOrImage = (file: File) => {
+    const name = file.name.toLowerCase();
+    const type = file.type.toLowerCase();
+    return (
+      type.startsWith("image/") ||
+      type === "application/pdf" ||
+      name.endsWith(".pdf") ||
+      /\.(jpe?g|png|webp|heic|bmp|avif|gif)$/i.test(name)
+    );
   };
 
   // Helper: Native Spreadsheet / CSV / Excel reader
@@ -665,10 +705,17 @@ export function FastTrackImportModal({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (isDocumentOrImage(file)) {
+      setActiveTab("CAMERA");
+      compressImageForAi(file).then((opt) => {
+        if (opt.base64) setSelectedImages((prev) => [...prev, opt]);
+      });
+      return;
+    }
     processSpreadsheetFile(file);
   };
 
-  // 2. Handle Image Upload / Camera Capture
+  // 2. Handle Image / PDF Upload / Camera Capture
   const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -681,7 +728,7 @@ export function FastTrackImportModal({
     }
   };
 
-  // 3. Drag & Drop Handlers for Sheet & Camera
+  // 3. Drag & Drop Handlers for Sheet & Camera (Universal Router)
   const handleSheetDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -691,8 +738,8 @@ export function FastTrackImportModal({
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    // If dropped an image onto sheet tab, switch to camera tab seamlessly!
-    if (file.type.startsWith("image/")) {
+    // If dropped an image or PDF onto sheet tab, switch to camera/document tab seamlessly!
+    if (isDocumentOrImage(file)) {
       setActiveTab("CAMERA");
       for (const imgFile of Array.from(files)) {
         const optimized = await compressImageForAi(imgFile);
@@ -715,7 +762,7 @@ export function FastTrackImportModal({
     if (!files || files.length === 0) return;
 
     for (const file of Array.from(files)) {
-      if (file.type.startsWith("image/")) {
+      if (isDocumentOrImage(file)) {
         const optimized = await compressImageForAi(file);
         if (optimized.base64) {
           setSelectedImages((prev) => [...prev, optimized]);
@@ -738,10 +785,9 @@ export function FastTrackImportModal({
     const files = e.dataTransfer.files;
     if (!files || files.length === 0) return;
 
-    const newImages: { name: string; base64: string }[] = [];
+    const newImages: { name: string; base64: string; mimeType?: string; size?: number; isPdf?: boolean }[] = [];
     for (const file of Array.from(files)) {
-      const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|bmp|avif|gif)$/i.test(file.name);
-      if (isImage) {
+      if (isDocumentOrImage(file)) {
         const optimized = await compressImageForAi(file);
         if (optimized.base64) {
           newImages.push(optimized);
@@ -776,11 +822,10 @@ export function FastTrackImportModal({
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|bmp|avif|gif)$/i.test(file.name);
-    if (isImage) {
-      // Dropped image onto sheet tab in append drawer -> switch to camera tab!
+    if (isDocumentOrImage(file)) {
+      // Dropped image or PDF onto sheet tab in append drawer -> switch to camera tab!
       setAppendMode("CAMERA");
-      const newImages: { name: string; base64: string }[] = [];
+      const newImages: { name: string; base64: string; mimeType?: string; size?: number; isPdf?: boolean }[] = [];
       for (const imgFile of Array.from(files)) {
         const optimized = await compressImageForAi(imgFile);
         if (optimized.base64) newImages.push(optimized);
@@ -888,7 +933,7 @@ export function FastTrackImportModal({
           body: JSON.stringify({
             images: selectedImages.map((img) => ({
               data: img.base64,
-              mimeType: "image/jpeg",
+              mimeType: img.mimeType || (img.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg"),
             })),
             propertyId,
             defaultRentalTiers: settings.rentalTiers,
@@ -950,145 +995,100 @@ export function FastTrackImportModal({
 
       setIngestResult(result);
       setStep("SUCCESS");
-      handleClearDraft();
-      fireCelebrationConfetti();
-      if (onSuccess) onSuccess();
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
-      alert(`Ingest Error: ${err.message || "Failed to commit tenants."}`);
+      console.error("FastTrack commit error:", err);
+      alert(`FastTrack Import Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Generate WhatsApp Blast Text
+  // Stats calculation for review & success screens
   const totalTenantsCount = editableRows.length;
   const totalRentAmount = editableRows.reduce((acc, r) => acc + (Number(r.rentAmount) || 0), 0);
   const uniqueRoomsCount = new Set(editableRows.map((r) => r.roomNumber)).size;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 animate-in fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className={`bg-white rounded-3xl border border-gray-200 shadow-2xl flex flex-col overflow-hidden my-auto animate-in zoom-in-95 transition-all duration-200 ${
-          isMaximized ? "w-[98vw] h-[96vh] max-w-none" : "max-w-6xl w-full h-[90vh] max-h-[92vh]"
+        className={`bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden transition-all duration-300 ${
+          isMaximized ? "w-[98vw] h-[96vh]" : "w-full max-w-4xl max-h-[90vh]"
         }`}
       >
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50/50 via-white to-purple-50/40">
+        {/* MODAL HEADER */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50/50 via-white to-purple-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#c2652a] to-amber-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
+            <div className="w-9 h-9 rounded-xl bg-[#c2652a] text-white flex items-center justify-center shadow-sm">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-serif font-bold text-lg text-gray-900">FastTrack 1-Click Migration</h2>
-                <span className="bg-purple-100 text-purple-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> AI Powered
+                <h2 className="font-serif font-bold text-gray-900 text-base">FastTrack 1-Click Migration</h2>
+                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5" /> AI Powered
                 </span>
               </div>
-              <p className="text-xs text-gray-500">
-                Instantly import your existing tenants & auto-create your building in 10 seconds
-              </p>
+              <p className="text-xs text-gray-500">Instantly import your existing tenants & auto-create your building in 10 seconds</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+
+          <div className="flex items-center gap-2">
             <button
-              type="button"
               onClick={() => setIsMaximized(!isMaximized)}
-              className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
-              title={isMaximized ? "Restore window" : "Maximize window"}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title={isMaximized ? "Restore size" : "Maximize view"}
             >
-              {isMaximized ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* STEP 1: INPUT MODE */}
+        {/* STEP 1: INPUT MODE SELECTOR & DROPZONE */}
         {step === "INPUT" && (
           <div className="p-6 overflow-y-auto space-y-6 flex-1">
-            {/* Resume Draft Banner */}
-            {savedDraft && (
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 via-orange-50 to-amber-50 border border-purple-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs animate-in fade-in">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm shrink-0 shadow-inner">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-gray-900">
-                        Saved Draft Available ({savedDraft.rows.length} Residents)
-                      </h4>
-                      <span className="text-[9px] bg-purple-200/80 text-purple-800 font-extrabold px-2 py-0.5 rounded-full">
-                        In Progress
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      Last saved {new Date(savedDraft.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • Resume to continue editing, append next pages, or commit.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleClearDraft}
-                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
-                  >
-                    Discard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResumeDraft}
-                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Resume Draft ({savedDraft.rows.length})
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Mode Switcher Tabs */}
-            <div className="flex p-1 bg-gray-100 rounded-2xl max-w-md mx-auto">
+            {/* TAB SELECTOR */}
+            <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-2xl max-w-md mx-auto">
               <button
+                type="button"
                 onClick={() => setActiveTab("SHEET")}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === "SHEET"
                     ? "bg-white text-gray-900 shadow-xs"
-                    : "text-gray-500 hover:text-gray-900"
+                    : "text-gray-500 hover:text-gray-700"
                 }`}
               >
-                <FileSpreadsheet className="w-4 h-4 text-[#c2652a]" />
-                Excel / Google Sheet / Paste
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                Excel / CSV Sheet
               </button>
+
               <button
+                type="button"
                 onClick={() => setActiveTab("CAMERA")}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === "CAMERA"
-                    ? "bg-white text-gray-900 shadow-xs"
-                    : "text-gray-500 hover:text-gray-900"
+                    ? "bg-white text-purple-700 shadow-xs"
+                    : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 <Camera className="w-4 h-4 text-purple-600" />
-                AI Ledger Photo Scan
+                Photos / PDF Register
               </button>
             </div>
 
-            {/* TAB A: SPREADSHEET & CLIPBOARD PASTE */}
+            {/* TAB A: SPREADSHEET / CSV PASTE */}
             {activeTab === "SHEET" && (
               <div className="space-y-4">
-                {/* File Dropzone & Paste Area */}
                 <div
                   onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingSheet(true);
-                  }}
-                  onDragEnter={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingSheet(true);
@@ -1099,71 +1099,25 @@ export function FastTrackImportModal({
                     setIsDraggingSheet(false);
                   }}
                   onDrop={handleSheetDrop}
-                  className={`border-2 border-dashed rounded-2xl p-5 transition-all bg-gray-50/50 space-y-3 ${
+                  className={`border-2 border-dashed rounded-2xl p-4 sm:p-5 transition-all space-y-3 ${
                     isDraggingSheet
-                      ? "border-[#c2652a] bg-orange-50/60 ring-4 ring-orange-500/10 scale-[0.99]"
-                      : "border-gray-200 hover:border-[#c2652a]/50"
+                      ? "border-[#c2652a] bg-orange-50/70 ring-4 ring-orange-500/10 scale-[0.99]"
+                      : "border-gray-200 bg-gray-50/50"
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
-                        <Upload className="w-5 h-5" />
+                    <div className="flex items-center gap-3 text-center sm:text-left">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <UploadCloud className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-gray-800">
+                        <p className="text-xs font-bold text-gray-900">
                           {fileName ? `Selected File: ${fileName}` : "Drag & drop your CSV or Excel file here"}
                         </p>
                         <p className="text-[11px] text-gray-500">Supports .xlsx, .xls, .csv, or paste your copied table below</p>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept=".csv,.tsv,.txt,.xlsx,.xls"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-all shadow-2xs cursor-pointer"
-                      >
-                        Choose File
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPastedText(SAMPLE_PG_MESSY_SHEET);
-                          setFileName("sample_balaji_pg_sheet.tsv");
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-orange-50 border border-orange-200 text-xs font-bold text-[#c2652a] hover:bg-orange-100 transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" /> Try Sample Data
-                      </button>
-                    </div>
                   </div>
-
-                  <textarea
-                    rows={7}
-                    value={pastedText}
-                    onChange={(e) => setPastedText(e.target.value)}
-                    placeholder="Paste table cells here (e.g. from Google Sheets, Excel, or WhatsApp text)...
-Rahul Sharma   9876543210   Room 101   13500
-Suresh Reddy   9811223344   Room 101   13500
-Priya Verma    9855667788   Room 201   22000"
-                    className="w-full p-3.5 bg-white rounded-xl border border-gray-200 text-xs font-mono text-gray-800 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] transition-all resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-gray-500 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Auto-detects Name, Phone, Room & Rent even with messy or missing headers
-                  </span>
-                  <span>{pastedText.split("\n").filter((l) => l.trim()).length} rows detected</span>
                 </div>
               </div>
             )}
@@ -1173,11 +1127,6 @@ Priya Verma    9855667788   Room 201   22000"
               <div className="space-y-4">
                 <div
                   onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingCamera(true);
-                  }}
-                  onDragEnter={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingCamera(true);
@@ -1198,33 +1147,13 @@ Priya Verma    9855667788   Room 201   22000"
                     <Camera className="w-7 h-7" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">Drag & Drop or Snap Photos of Your Register</h3>
+                    <h3 className="font-bold text-sm text-gray-900">Drag & Drop Photos or Multi-Page PDF Document</h3>
                     <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
-                      Our Gemini 2.5 Vision AI reads handwritten tenant rows, room numbers, and advance deposits directly from physical registers. (Images are processed ephemerally in RAM and never stored in Firebase).
+                      Our Gemini Vision AI reads handwritten tenant rows, room numbers, and advance deposits directly from physical registers and PDFs.
                     </p>
                   </div>
 
                   {/* Native OS Gallery & Media Picker (Supports Multi-Photos & PDF Documents) */}
-                  <input
-                    type="file"
-                    ref={galleryInputRef}
-                    accept="image/*,application/pdf,.pdf"
-                    multiple
-                    onChange={handleImageCapture}
-                    className="hidden"
-                  />
-
-                  {/* Direct Hardware Camera Viewfinder (Forces Direct Snap) */}
-                  <input
-                    type="file"
-                    ref={cameraDirectRef}
-                    accept="image/*"
-                    capture="environment"
-                    multiple
-                    onChange={handleImageCapture}
-                    className="hidden"
-                  />
-
                   <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                     <button
                       type="button"
@@ -1243,44 +1172,41 @@ Priya Verma    9855667788   Room 201   22000"
                       <Camera className="w-4 h-4" />
                       Take Photo with Camera
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedImages([
-                          {
-                            name: "sample_handwritten_ledger_page.jpg",
-                            base64: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBD...",
-                          },
-                        ]);
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-white border border-purple-200 text-purple-700 text-xs font-bold hover:bg-purple-50 transition-all cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" /> Try Sample Ledger Photo
-                    </button>
                   </div>
                 </div>
 
                 {/* Uploaded Thumbnails */}
                 {selectedImages.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-bold text-gray-700">Ready to Scan ({selectedImages.length} Photos):</p>
+                    <p className="text-xs font-bold text-gray-700">
+                      Ready to Scan ({selectedImages.length} {selectedImages.some((i) => i.isPdf || i.name.toLowerCase().endsWith(".pdf")) ? "File(s) / Document" : "Photo(s)"}):
+                    </p>
                     <div className="flex flex-wrap gap-3">
-                      {selectedImages.map((img, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-gray-200 shadow-2xs text-xs font-semibold text-gray-800"
-                        >
-                          <FileText className="w-4 h-4 text-purple-600" />
-                          <span className="truncate max-w-[140px]">{img.name}</span>
-                          <button
-                            onClick={() => setSelectedImages((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="text-gray-400 hover:text-rose-500 cursor-pointer"
+                      {selectedImages.map((img, i) => {
+                        const isPdfFile = img.isPdf || img.name.toLowerCase().endsWith(".pdf");
+                        return (
+                          <div
+                            key={i}
+                            className={`flex items-center gap-2 px-3 py-2 bg-white rounded-xl border shadow-2xs text-xs font-semibold ${
+                              isPdfFile ? "border-red-200 text-red-900 bg-red-50/40" : "border-gray-200 text-gray-800"
+                            }`}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                            <FileText className={`w-4 h-4 ${isPdfFile ? "text-red-600" : "text-purple-600"}`} />
+                            <span className="truncate max-w-[180px]">{img.name}</span>
+                            {isPdfFile && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 font-bold uppercase">
+                                PDF
+                              </span>
+                            )}
+                            <button
+                              onClick={() => setSelectedImages((prev) => prev.filter((_, idx) => idx !== i))}
+                              className="text-gray-400 hover:text-rose-500 cursor-pointer ml-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
