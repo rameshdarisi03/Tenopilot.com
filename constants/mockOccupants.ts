@@ -38,6 +38,7 @@ export interface Occupant {
   kycVerified?: boolean;
   hasPdfAgreement?: boolean;
   workplace?: string;
+  occupation?: string;
   purposeOfVisit?: string;
   address?: string;
   kycDocs?: {

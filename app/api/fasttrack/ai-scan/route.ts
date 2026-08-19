@@ -126,6 +126,10 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
 10. "paymentMode" (string): "UPI", "Cash", or "Bank Transfer" (default "UPI").
 11. "isCurrentMonthRentPaid" (boolean): true if ledger says "Paid", "Cleared", "Done", false if "Due", "Unpaid", "Pending", or omitted (default false).
 12. "priorArrearsAmount" (number): Any previous balance/arrears/pending due written (e.g. 2000, 1500, default 0).
+13. "workplace" (string): Company, Office, Workplace, College, or University name (e.g. "Infosys Electronic City", "Wipro", "Christ University", "TCS"). If omitted, return "".
+14. "occupation" (string): Job title, profession, or role (e.g. "Software Engineer", "Student", "Analyst", "Doctor", "Lead"). If omitted, return "".
+15. "purposeOfVisit" (string): For short-stay guests or visitors: reason for visit (e.g. "Job Interview / Training", "Exam / College Admission", "Medical Visit", "Tourism"). If omitted, return "".
+16. "stayType" (string): "Tenant" (for monthly stays) or "Guest" (for short daily/weekly stays). Default "Tenant".
 
 ==================================================================
 4. STRICT ROW INTEGRITY
@@ -152,6 +156,10 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       "paymentMode": string,
       "isCurrentMonthRentPaid": boolean,
       "priorArrearsAmount": number,
+      "workplace": string,
+      "occupation": string,
+      "purposeOfVisit": string,
+      "stayType": string,
       "notes": string
     }
   ]
@@ -305,6 +313,10 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
             isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
             isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
             priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
+            workplace: item.workplace || "",
+            occupation: item.occupation || "",
+            purposeOfVisit: item.purposeOfVisit || "",
+            stayType: item.stayType === "Guest" ? "Guest" : "Tenant",
             isValid: warnings.length === 0,
             warnings,
             rawSource: item.notes || "Extracted via Gemini Vision AI (Multi-Batch)",

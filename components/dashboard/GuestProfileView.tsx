@@ -29,6 +29,7 @@ import {
   Camera,
   Lock,
   FileText,
+  Target,
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
@@ -157,6 +158,14 @@ export function GuestProfileView({
             <p className="text-xs text-gray-500 mt-0.5 font-medium">
               Room {occupantState.roomNumber} ({occupantState.bedCode}) • {propertySettings.propertyName}
             </p>
+
+            {/* 🎯 High-Priority Purpose of Visit Hero Badge */}
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-100/90 text-purple-900 text-xs font-extrabold border border-purple-300/80 shadow-2xs">
+                <Target className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                <span>Purpose of Visit: {occupantState.purposeOfVisit || occupantState.workplace || "Exam / Job Interview / Stay"}</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -347,7 +356,17 @@ export function GuestProfileView({
             </h3>
 
             <div className="space-y-3 divide-y divide-gray-100">
-              <div className="flex justify-between pt-1">
+              {/* 🎯 #1 Top Priority Metric: Purpose of Visit */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-purple-50 border border-purple-200/90 shadow-2xs">
+                <span className="text-purple-900 font-extrabold flex items-center gap-1.5 text-xs">
+                  <Target className="w-4 h-4 text-purple-700 shrink-0" /> Purpose of Visit
+                </span>
+                <span className="font-extrabold text-purple-950 bg-white px-2.5 py-1 rounded-lg border border-purple-200 text-xs shadow-2xs">
+                  {occupantState.purposeOfVisit || occupantState.workplace || "Short-Term Stay"}
+                </span>
+              </div>
+
+              <div className="flex justify-between pt-2">
                 <span className="text-gray-400">Property</span>
                 <span className="font-bold text-gray-900">{propertySettings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property")}</span>
               </div>
@@ -384,13 +403,6 @@ export function GuestProfileView({
               <div className="flex justify-between pt-2">
                 <span className="text-gray-400">Email</span>
                 <span className="font-bold text-gray-900">{occupantState.email}</span>
-              </div>
-
-              <div className="flex justify-between pt-2">
-                <span className="text-gray-400">Purpose of Visit</span>
-                <span className="font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-lg text-xs">
-                  {occupantState.purposeOfVisit || occupantState.workplace || "Short-Term Stay"}
-                </span>
               </div>
             </div>
           </div>

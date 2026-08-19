@@ -28,6 +28,8 @@ import {
   Save,
   Filter,
   ImageIcon,
+  FolderOpen,
+  FileCheck,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -710,9 +712,11 @@ export function FastTrackImportModal({
       compressImageForAi(file).then((opt) => {
         if (opt.base64) setSelectedImages((prev) => [...prev, opt]);
       });
+      e.target.value = "";
       return;
     }
     processSpreadsheetFile(file);
+    e.target.value = "";
   };
 
   // 2. Handle Image / PDF Upload / Camera Capture
@@ -726,6 +730,7 @@ export function FastTrackImportModal({
         setSelectedImages((prev) => [...prev, optimized]);
       }
     }
+    e.target.value = "";
   };
 
   // 3. Drag & Drop Handlers for Sheet & Camera (Universal Router)
@@ -1084,9 +1089,19 @@ export function FastTrackImportModal({
               </button>
             </div>
 
-            {/* TAB A: SPREADSHEET / CSV PASTE */}
+            {/* TAB A: SPREADSHEET / CSV / EXCEL */}
             {activeTab === "SHEET" && (
               <div className="space-y-4">
+                {/* Hidden Native File Input for Excel / CSV */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".xlsx,.xls,.csv,.tsv,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                {/* Dropzone & Direct Browse Card */}
                 <div
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -1099,25 +1114,104 @@ export function FastTrackImportModal({
                     setIsDraggingSheet(false);
                   }}
                   onDrop={handleSheetDrop}
-                  className={`border-2 border-dashed rounded-2xl p-4 sm:p-5 transition-all space-y-3 ${
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-5 transition-all text-center space-y-4 cursor-pointer ${
                     isDraggingSheet
-                      ? "border-[#c2652a] bg-orange-50/70 ring-4 ring-orange-500/10 scale-[0.99]"
-                      : "border-gray-200 bg-gray-50/50"
+                      ? "border-[#c2652a] bg-orange-50/80 ring-4 ring-orange-500/10 scale-[0.99]"
+                      : "border-emerald-200 bg-emerald-50/25 hover:bg-emerald-50/40 hover:border-emerald-300"
                   }`}
                 >
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 text-center sm:text-left">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                        <UploadCloud className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-900">
-                          {fileName ? `Selected File: ${fileName}` : "Drag & drop your CSV or Excel file here"}
-                        </p>
-                        <p className="text-[11px] text-gray-500">Supports .xlsx, .xls, .csv, or paste your copied table below</p>
-                      </div>
-                    </div>
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                    <UploadCloud className="w-6 h-6" />
                   </div>
+
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900">
+                      Upload Excel Sheet or CSV File
+                    </h3>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
+                      Drag & drop your file here, or tap the button below to browse from your device
+                    </p>
+                  </div>
+
+                  {/* Action buttons (Work flawlessly on phones, tablets, iPads, & PCs) */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Choose Excel or CSV File
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPastedText(SAMPLE_PG_MESSY_SHEET);
+                        setFileName("sample-balaji-pg.csv");
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      Load Sample PG Data
+                    </button>
+                  </div>
+                </div>
+
+                {/* Loaded / Selected File Notification Banner */}
+                {(fileName || pastedText.trim()) && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 animate-in fade-in">
+                    <div className="flex items-center gap-2.5 text-xs text-emerald-900 font-semibold truncate">
+                      <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        {fileName ? `Loaded: ${fileName}` : "Spreadsheet Data Ready"}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-800 font-mono font-bold shrink-0">
+                        {pastedText.trim().split("\n").filter((l) => l.trim().length > 0).length} Lines
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFileName(null);
+                        setPastedText("");
+                      }}
+                      className="text-emerald-700 hover:text-rose-600 text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                {/* Direct Textarea Paste Option */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-bold text-gray-700 flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-gray-500" />
+                      Or Paste Copied Table / Text Directly
+                    </label>
+                    <span className="text-[11px] text-gray-400">
+                      (Copy-pasted from WhatsApp, Excel, or Google Sheets)
+                    </span>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={pastedText}
+                    onChange={(e) => {
+                      setPastedText(e.target.value);
+                      if (!e.target.value.trim()) setFileName(null);
+                      else if (!fileName) setFileName("pasted-table-data.txt");
+                    }}
+                    placeholder={`Paste rows here, e.g.:\nRahul Sharma\t9876543210\t101\t13500\t27000\nSuresh Reddy\t9811223344\t101\t13500\t27000`}
+                    className="w-full p-3 rounded-xl border border-gray-200 font-mono text-xs focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] outline-hidden bg-gray-50/50"
+                  />
                 </div>
               </div>
             )}
@@ -1125,6 +1219,25 @@ export function FastTrackImportModal({
             {/* TAB B: AI LEDGER & NOTEBOOK PHOTO SCAN */}
             {activeTab === "CAMERA" && (
               <div className="space-y-4">
+                {/* Hidden Native File Inputs for Photos, PDFs & Camera */}
+                <input
+                  type="file"
+                  ref={galleryInputRef}
+                  accept="image/*,application/pdf"
+                  multiple
+                  onChange={handleImageCapture}
+                  className="hidden"
+                />
+
+                <input
+                  type="file"
+                  ref={cameraDirectRef}
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageCapture}
+                  className="hidden"
+                />
+
                 <div
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -1137,27 +1250,33 @@ export function FastTrackImportModal({
                     setIsDraggingCamera(false);
                   }}
                   onDrop={handleCameraDrop}
-                  className={`border-2 border-dashed rounded-2xl p-6 text-center space-y-4 transition-all ${
+                  onClick={() => galleryInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center space-y-4 transition-all cursor-pointer ${
                     isDraggingCamera
                       ? "border-purple-600 bg-purple-100/60 ring-4 ring-purple-500/10 scale-[0.99]"
-                      : "border-purple-200 bg-purple-50/30"
+                      : "border-purple-200 bg-purple-50/30 hover:bg-purple-50/50 hover:border-purple-300"
                   }`}
                 >
                   <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                     <Camera className="w-7 h-7" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">Drag & Drop Photos or Multi-Page PDF Document</h3>
+                    <h3 className="font-bold text-sm text-gray-900">
+                      Choose Photos or Multi-Page PDF Document
+                    </h3>
                     <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
                       Our Gemini Vision AI reads handwritten tenant rows, room numbers, and advance deposits directly from physical registers and PDFs.
                     </p>
                   </div>
 
-                  {/* Native OS Gallery & Media Picker (Supports Multi-Photos & PDF Documents) */}
+                  {/* Native OS Media Picker & Hardware Camera Buttons */}
                   <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={() => galleryInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        galleryInputRef.current?.click();
+                      }}
                       className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 flex items-center gap-2 cursor-pointer active:scale-98"
                     >
                       <ImageIcon className="w-4 h-4" />
@@ -1166,7 +1285,10 @@ export function FastTrackImportModal({
 
                     <button
                       type="button"
-                      onClick={() => cameraDirectRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cameraDirectRef.current?.click();
+                      }}
                       className="px-4 py-2.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-98"
                     >
                       <Camera className="w-4 h-4" />
@@ -1178,9 +1300,18 @@ export function FastTrackImportModal({
                 {/* Uploaded Thumbnails */}
                 {selectedImages.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-bold text-gray-700">
-                      Ready to Scan ({selectedImages.length} {selectedImages.some((i) => i.isPdf || i.name.toLowerCase().endsWith(".pdf")) ? "File(s) / Document" : "Photo(s)"}):
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-gray-700">
+                        Ready to Scan ({selectedImages.length} {selectedImages.some((i) => i.isPdf || i.name.toLowerCase().endsWith(".pdf")) ? "File(s) / Document" : "Photo(s)"}):
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedImages([])}
+                        className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Clear All
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-3">
                       {selectedImages.map((img, i) => {
                         const isPdfFile = img.isPdf || img.name.toLowerCase().endsWith(".pdf");
@@ -1771,6 +1902,9 @@ Anil Verma   9812345678   Room 103   12000"
                       <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
                       <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
                       <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
+                      <th className="py-2.5 px-3 min-w-[140px]">Workplace / College</th>
+                      <th className="py-2.5 px-3 min-w-[130px]">Profession / Role</th>
+                      <th className="py-2.5 px-3 min-w-[120px] text-center">Stay Type</th>
                       <th className="py-2.5 px-3 min-w-[150px]">
                         <div className="flex items-center justify-between gap-1.5">
                           <span>Joining Date</span>
@@ -1880,6 +2014,41 @@ Anil Verma   9812345678   Room 103   12000"
                             <option value={4}>4-Sharing</option>
                             <option value={5}>5-Sharing</option>
                             <option value={6}>6-Sharing</option>
+                          </select>
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="text"
+                            value={row.workplace || ""}
+                            onChange={(e) => updateRowField(idx, "workplace", e.target.value)}
+                            placeholder="e.g. Infosys / Christ Univ"
+                            title="Company, Workplace or College"
+                            className="w-36 px-2.5 py-1.5 rounded-lg border border-amber-200/80 bg-amber-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
+                          />
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="text"
+                            value={row.occupation || ""}
+                            onChange={(e) => updateRowField(idx, "occupation", e.target.value)}
+                            placeholder="e.g. Software Dev / Student"
+                            title="Profession or Role"
+                            className="w-32 px-2.5 py-1.5 rounded-lg border border-blue-200/80 bg-blue-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <select
+                            value={row.stayType || "Tenant"}
+                            onChange={(e) => updateRowField(idx, "stayType", e.target.value as any)}
+                            title="Stay Classification"
+                            className={`px-2 py-1.5 rounded-lg border text-xs font-bold cursor-pointer ${
+                              row.stayType === "Guest"
+                                ? "bg-purple-100 border-purple-300 text-purple-900"
+                                : "bg-gray-50 border-gray-200 text-gray-800"
+                            }`}
+                          >
+                            <option value="Tenant">Tenant</option>
+                            <option value="Guest">Guest</option>
                           </select>
                         </td>
                         <td className="py-2 px-3">

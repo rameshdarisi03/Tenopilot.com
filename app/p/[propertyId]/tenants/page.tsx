@@ -881,9 +881,19 @@ export default function TenantsDirectoryPage({
                                   </span>
                                 )}
                               </Link>
-                              <span className="text-[10px] text-gray-500 font-mono block">
-                                📞 {occ.phone}
-                              </span>
+                              {occ.stayType === "Guest" && (occ.purposeOfVisit || occ.workplace) ? (
+                                <span className="text-[10px] text-purple-700 font-semibold block truncate max-w-[180px]" title={occ.purposeOfVisit || occ.workplace}>
+                                  🎯 {occ.purposeOfVisit || occ.workplace}
+                                </span>
+                              ) : (occ.occupation || occ.workplace) ? (
+                                <span className="text-[10px] text-gray-600 font-medium block truncate max-w-[180px]" title={`${occ.occupation || ""} ${occ.workplace ? `@ ${occ.workplace}` : ""}`}>
+                                  {occ.occupation ? `${occ.occupation}${occ.workplace ? ` @ ${occ.workplace}` : ""}` : `🏢 ${occ.workplace}`}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-500 font-mono block">
+                                  📞 {occ.phone}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -1168,7 +1178,17 @@ export default function TenantsDirectoryPage({
                               </span>
                             )}
                           </h3>
-                          <p className="text-xs text-gray-500 font-mono truncate">{occ.phone}</p>
+                          {occ.stayType === "Guest" && (occ.purposeOfVisit || occ.workplace) ? (
+                            <p className="text-[11px] text-purple-700 font-semibold truncate">
+                              🎯 {occ.purposeOfVisit || occ.workplace}
+                            </p>
+                          ) : (occ.occupation || occ.workplace) ? (
+                            <p className="text-[11px] text-gray-600 font-medium truncate">
+                              {occ.occupation ? `${occ.occupation}${occ.workplace ? ` @ ${occ.workplace}` : ""}` : `🏢 ${occ.workplace}`}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-500 font-mono truncate">{occ.phone}</p>
+                          )}
                         </Link>
                       </div>
 

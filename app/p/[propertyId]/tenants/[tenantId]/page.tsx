@@ -42,6 +42,8 @@ import {
   Download,
   CheckCircle2,
   Check,
+  Briefcase,
+  MapPin,
   Camera,
   Clock,
   Trash2,
@@ -114,6 +116,9 @@ export default function IndividualTenantProfilePage({
       setEditPhone(existing.phone);
       setEditEmail(existing.email || "");
       setEditRent(existing.rentAmount);
+      setEditOccupation(existing.occupation || "");
+      setEditWorkplace(existing.workplace || "");
+      setEditPurposeOfVisit(existing.purposeOfVisit || "");
       if (existing.paymentHistory && Array.isArray(existing.paymentHistory)) {
         setPaymentHistory(existing.paymentHistory);
       }
@@ -127,6 +132,9 @@ export default function IndividualTenantProfilePage({
         setEditPhone(updated.phone);
         setEditEmail(updated.email || "");
         setEditRent(updated.rentAmount);
+        setEditOccupation(updated.occupation || "");
+        setEditWorkplace(updated.workplace || "");
+        setEditPurposeOfVisit(updated.purposeOfVisit || "");
         if (updated.paymentHistory && Array.isArray(updated.paymentHistory)) {
           setPaymentHistory(updated.paymentHistory);
         }
@@ -143,6 +151,9 @@ export default function IndividualTenantProfilePage({
           setEditPhone(updated.phone);
           setEditEmail(updated.email || "");
           setEditRent(updated.rentAmount);
+          setEditOccupation(updated.occupation || "");
+          setEditWorkplace(updated.workplace || "");
+          setEditPurposeOfVisit(updated.purposeOfVisit || "");
           if (updated.paymentHistory && Array.isArray(updated.paymentHistory)) {
             setPaymentHistory(updated.paymentHistory);
           }
@@ -228,6 +239,9 @@ export default function IndividualTenantProfilePage({
   const [editEmail, setEditEmail] = useState<string>(occupantState?.email || "");
   const [editRent, setEditRent] = useState<number>(occupantState?.rentAmount || 0);
   const [editDeposit, setEditDeposit] = useState<number>(occupantState?.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState?.rentAmount ? occupantState.rentAmount * 2 : 0));
+  const [editOccupation, setEditOccupation] = useState<string>(occupantState?.occupation || "");
+  const [editWorkplace, setEditWorkplace] = useState<string>(occupantState?.workplace || "");
+  const [editPurposeOfVisit, setEditPurposeOfVisit] = useState<string>(occupantState?.purposeOfVisit || "");
 
   // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -980,7 +994,21 @@ export default function IndividualTenantProfilePage({
     setShowGuestStayManagementModal(false);
   };
 
-  // 3. Edit Profile Submit Handler (Updates Name, Phone, Email, Rent, Deposit across state)
+  // 3. Open & Populate Edit Profile Modal Helper
+  const handleOpenEditProfileModal = () => {
+    if (!occupantState) return;
+    setEditName(occupantState.name);
+    setEditPhone(occupantState.phone);
+    setEditEmail(occupantState.email);
+    setEditRent(occupantState.rentAmount);
+    setEditDeposit(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
+    setEditOccupation(occupantState.occupation || "");
+    setEditWorkplace(occupantState.workplace || "");
+    setEditPurposeOfVisit(occupantState.purposeOfVisit || "");
+    setShowEditProfileModal(true);
+  };
+
+  // Edit Profile Submit Handler (Updates Name, Phone, Email, Rent, Deposit, Occupation, Workplace, Purpose across state)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
@@ -992,6 +1020,9 @@ export default function IndividualTenantProfilePage({
       email: editEmail.trim(),
       rentAmount: editRent,
       securityDeposit: editDeposit,
+      occupation: editOccupation.trim() || undefined,
+      workplace: editWorkplace.trim() || undefined,
+      purposeOfVisit: editPurposeOfVisit.trim() || undefined,
     };
 
     setOccupantState(updated);
@@ -1082,7 +1113,7 @@ export default function IndividualTenantProfilePage({
             <GuestProfileView
               occupantState={occupantState}
               propertyId={propertyId}
-              onEditProfile={() => setShowEditProfileModal(true)}
+              onEditProfile={handleOpenEditProfileModal}
               onCollectPayment={() => setShowCollectRentModal(true)}
               onTransferRoom={() => setShowTransferModal(true)}
               onDeleteGuest={handleDeleteGuest}
@@ -1165,6 +1196,24 @@ export default function IndividualTenantProfilePage({
                   )}
                 </div>
 
+                {/* 💼 Profession & Workplace Quick Badges (High-Priority Demographic Display) */}
+                {(occupantState.occupation || occupantState.workplace) && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                    {occupantState.occupation && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200/70 shadow-2xs">
+                        <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>{occupantState.occupation}</span>
+                      </span>
+                    )}
+                    {occupantState.workplace && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 text-xs font-semibold border border-amber-200/80 shadow-2xs">
+                        <Building2 className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>{occupantState.workplace}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Mobile Single-Handed Occupancy Quick Badge (Name + Room Integrated for Mobile) */}
                 <div className="md:hidden mt-3 p-2.5 bg-orange-50/90 rounded-xl border border-orange-200/90 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
@@ -1184,14 +1233,7 @@ export default function IndividualTenantProfilePage({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full md:w-auto">
               {/* 1. Edit Profile */}
               <button
-                onClick={() => {
-                  setEditName(occupantState.name);
-                  setEditPhone(occupantState.phone);
-                  setEditEmail(occupantState.email);
-                  setEditRent(occupantState.rentAmount);
-                  setEditDeposit(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
-                  setShowEditProfileModal(true);
-                }}
+                onClick={handleOpenEditProfileModal}
                 className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 rounded-xl text-xs font-semibold text-gray-700 shadow-xs active:scale-95 transition-all cursor-pointer"
               >
                 <Edit className="w-4 h-4 text-[#c2652a]" /> Edit Profile
@@ -1491,6 +1533,22 @@ export default function IndividualTenantProfilePage({
                       <Mail className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.email}
                     </span>
                   </div>
+                  {occupantState.occupation && (
+                    <div className="flex justify-between pt-1 border-t border-gray-100">
+                      <span className="text-gray-500 font-medium">Profession / Role</span>
+                      <span className="font-bold text-blue-900 flex items-center gap-1">
+                        <Briefcase className="w-3.5 h-3.5 text-blue-600" /> {occupantState.occupation}
+                      </span>
+                    </div>
+                  )}
+                  {occupantState.workplace && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-medium">Place of Work / College</span>
+                      <span className="font-bold text-amber-950 flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-amber-700" /> {occupantState.workplace}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2990,6 +3048,49 @@ export default function IndividualTenantProfilePage({
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>
+
+                {occupantState?.stayType === "Guest" ? (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Purpose of Visit (e.g. Exam, Job Interview, Hospital Visit)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. UPSC Exam / Infosys Training"
+                      value={editPurposeOfVisit}
+                      onChange={(e) => setEditPurposeOfVisit(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Profession / Role
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Software Engineer, UPSC Aspirant"
+                        value={editOccupation}
+                        onChange={(e) => setEditOccupation(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Place of Work / College / Office
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Microsoft Hyderabad / IIT Hyderabad"
+                        value={editWorkplace}
+                        onChange={(e) => setEditWorkplace(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                   <button

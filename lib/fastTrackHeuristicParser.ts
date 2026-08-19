@@ -22,6 +22,10 @@ export interface FastTrackParsedRow {
   isCurrentMonthRentPaid?: boolean; // Rent Paid This Month (Yes / No, default false)
   isSecurityDepositPaid?: boolean; // Security Deposit Paid (Yes / No, default true)
   priorArrearsAmount?: number; // Previous Arrears / Pending Due (default 0)
+  workplace?: string; // e.g. "Infosys EC", "Wipro", "Christ Univ"
+  occupation?: string; // e.g. "Software Engineer", "Student", "Doctor"
+  purposeOfVisit?: string; // for Guests: e.g. "Job Interview", "Exam", "Medical"
+  stayType?: "Tenant" | "Guest"; // "Tenant" (default) or "Guest"
   isValid: boolean;
   warnings: string[];
   rawSource?: string;
