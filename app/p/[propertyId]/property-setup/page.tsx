@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Sparkles,
 } from "lucide-react";
+import { SmartPropertyGeneratorModal } from "@/components/dashboard/SmartPropertyGeneratorModal";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 
 export default function PropertySetupPage({
@@ -62,6 +63,7 @@ export default function PropertySetupPage({
 
   // Accordion open/close state for floors (Auto-expands all active floors)
   const [openFloorIds, setOpenFloorIds] = useState<string[]>([]);
+  const [showSmartGeneratorModal, setShowSmartGeneratorModal] = useState(false);
   const [showFastTrackModal, setShowFastTrackModal] = useState(false);
 
   // Reactive Property Layout Structure State
@@ -147,7 +149,8 @@ export default function PropertySetupPage({
     room: RoomConfig;
   } | null>(null);
   const [newRoomNumber, setNewRoomNumber] = useState("");
-  const [newSharingCapacity, setNewSharingCapacity] = useState<number>(3);
+  const [newSharingCapacityStr, setNewSharingCapacityStr] = useState<string>("3");
+  const newSharingCapacity = Math.min(26, Math.max(1, parseInt(newSharingCapacityStr, 10) || 1));
   const [newRoomSpecialTag, setNewRoomSpecialTag] = useState("");
   const [newRoomCustomRent, setNewRoomCustomRent] = useState("");
   const [newRoomPhotos, setNewRoomPhotos] = useState<string[]>([]);
@@ -501,13 +504,13 @@ export default function PropertySetupPage({
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setShowFastTrackModal(true)}
+                onClick={() => setShowSmartGeneratorModal(true)}
                 className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-purple-600 hover:opacity-95 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-amber-200" />
-                <span>FastTrack Auto-Build</span>
+                <span>⚡ 1-Click Smart Layout Generator</span>
                 <span className="bg-white/20 text-white text-[9px] px-1.5 py-0.5 rounded-full uppercase font-extrabold tracking-wider">
-                  AI
+                  Wizard
                 </span>
               </button>
 
@@ -541,18 +544,18 @@ export default function PropertySetupPage({
                   Start Building Your Estate Layout
                 </h3>
                 <p className="text-xs text-[#554339] leading-relaxed max-w-md mx-auto">
-                  Have an existing Excel sheet or paper ledger? Use FastTrack AI to automatically generate all floors, rooms, and beds in 10 seconds!
+                  Build all your floors, rooms, and bed configurations automatically in 5 seconds with our 1-Click Property Map Generator!
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowFastTrackModal(true)}
+                  onClick={() => setShowSmartGeneratorModal(true)}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-purple-600 hover:opacity-95 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-200" />
-                  <span>⚡ FastTrack Auto-Build from Sheet / Photos</span>
+                  <span>⚡ 1-Click Smart Layout Generator</span>
                 </button>
                 <button
                   type="button"
@@ -606,7 +609,14 @@ export default function PropertySetupPage({
 
                     <div className="flex items-center gap-3 shrink-0">
                       <button
-                        onClick={() => setActiveAddRoomFloorId(floor.id)}
+                        onClick={() => {
+                          setActiveAddRoomFloorId(floor.id);
+                          setNewRoomNumber("");
+                          setNewSharingCapacityStr("3");
+                          setNewRoomSpecialTag("");
+                          setNewRoomCustomRent("");
+                          setNewRoomPhotos([]);
+                        }}
                         className="px-3.5 py-1.5 rounded-lg bg-orange-50 text-[#c2652a] hover:bg-orange-100 text-xs font-bold flex items-center gap-1.5"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add Room
@@ -648,7 +658,7 @@ export default function PropertySetupPage({
                                     onClick={() => {
                                       setActiveEditRoom({ floorId: floor.id, room });
                                       setNewRoomNumber(room.roomNumber);
-                                      setNewSharingCapacity(room.sharingType);
+                                      setNewSharingCapacityStr(String(room.sharingType));
                                       setNewRoomSpecialTag(room.specialFeatureTag || "");
                                       setNewRoomCustomRent(room.customRentAmount ? String(room.customRentAmount) : "");
                                       setNewRoomPhotos(room.roomPhotos || []);
@@ -929,16 +939,22 @@ export default function PropertySetupPage({
                     Bed Sharing Capacity (1 to 26 Beds — Bed A to Bed Z) *
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={26}
+                    type="text"
+                    inputMode="numeric"
                     required
-                    value={newSharingCapacity}
-                    onChange={(e) =>
-                      setNewSharingCapacity(
-                        Math.min(26, Math.max(1, Number(e.target.value)))
-                      )
-                    }
+                    value={newSharingCapacityStr}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+                      setNewSharingCapacityStr(val);
+                    }}
+                    onBlur={() => {
+                      const num = parseInt(newSharingCapacityStr, 10);
+                      if (isNaN(num) || num < 1) {
+                        setNewSharingCapacityStr("1");
+                      } else if (num > 26) {
+                        setNewSharingCapacityStr("26");
+                      }
+                    }}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">
@@ -966,10 +982,11 @@ export default function PropertySetupPage({
                     Custom Monthly Rent (₹) (Optional Override)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     placeholder={`e.g. 16000 (Default ${newSharingCapacity}-sharing: ₹${((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")})`}
                     value={newRoomCustomRent}
-                    onChange={(e) => setNewRoomCustomRent(e.target.value)}
+                    onChange={(e) => setNewRoomCustomRent(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">
@@ -1096,16 +1113,22 @@ export default function PropertySetupPage({
                           Bed Sharing Capacity (Min {occupiedCount} Bed{occupiedCount > 1 ? "s" : ""} — Active Occupants) *
                         </label>
                         <input
-                          type="number"
-                          min={occupiedCount}
-                          max={26}
+                          type="text"
+                          inputMode="numeric"
                           required
-                          value={newSharingCapacity}
-                          onChange={(e) =>
-                            setNewSharingCapacity(
-                              Math.min(26, Math.max(occupiedCount, Number(e.target.value)))
-                            )
-                          }
+                          value={newSharingCapacityStr}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+                            setNewSharingCapacityStr(val);
+                          }}
+                          onBlur={() => {
+                            const num = parseInt(newSharingCapacityStr, 10);
+                            if (isNaN(num) || num < Math.max(1, occupiedCount)) {
+                              setNewSharingCapacityStr(String(Math.max(1, occupiedCount)));
+                            } else if (num > 26) {
+                              setNewSharingCapacityStr("26");
+                            }
+                          }}
                           className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                         {occupiedCount > 0 ? (
@@ -1143,10 +1166,11 @@ export default function PropertySetupPage({
                     Custom Monthly Rent (₹) (Optional Override)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     placeholder={`e.g. 16000 (Default ${newSharingCapacity}-sharing: ₹${((settings?.rentalTiers as any)?.[`sharing${newSharingCapacity}`] || 12000).toLocaleString("en-IN")})`}
                     value={newRoomCustomRent}
-                    onChange={(e) => setNewRoomCustomRent(e.target.value)}
+                    onChange={(e) => setNewRoomCustomRent(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">
@@ -1225,7 +1249,17 @@ export default function PropertySetupPage({
           </div>
         )}
 
-        {/* ⚡ FastTrack 1-Click Migration Modal */}
+        {/* ⚡ 1-Click Smart Property Map Generator Modal */}
+        <SmartPropertyGeneratorModal
+          propertyId={propertyId}
+          isOpen={showSmartGeneratorModal}
+          onClose={() => setShowSmartGeneratorModal(false)}
+          onSuccess={() => {
+            triggerToast("✨ Property layout generated successfully! All floors, rooms, and beds are live.");
+          }}
+        />
+
+        {/* ⚡ FastTrack 1-Click Migration Modal (Kept for optional direct migration) */}
         <FastTrackImportModal
           propertyId={propertyId}
           isOpen={showFastTrackModal}

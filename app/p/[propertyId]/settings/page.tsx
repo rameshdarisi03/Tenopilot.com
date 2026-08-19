@@ -824,18 +824,20 @@ export default function PropertySettingsPage({
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
                         <input
-                          type="number"
-                          required
-                          value={settings.rentalTiers?.sharing1 ?? 20000}
-                          onChange={(e) =>
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="20000"
+                          value={settings.rentalTiers?.sharing1 ? settings.rentalTiers.sharing1 : ""}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
                             setSettings({
                               ...settings,
                               rentalTiers: {
                                 ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
-                                sharing1: Number(e.target.value),
+                                sharing1: val === "" ? 0 : Number(val),
                               },
-                            })
-                          }
+                            });
+                          }}
                           className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
@@ -847,18 +849,20 @@ export default function PropertySettingsPage({
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
                         <input
-                          type="number"
-                          required
-                          value={settings.rentalTiers?.sharing2 ?? 12000}
-                          onChange={(e) =>
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="12000"
+                          value={settings.rentalTiers?.sharing2 ? settings.rentalTiers.sharing2 : ""}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
                             setSettings({
                               ...settings,
                               rentalTiers: {
                                 ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
-                                sharing2: Number(e.target.value),
+                                sharing2: val === "" ? 0 : Number(val),
                               },
-                            })
-                          }
+                            });
+                          }}
                           className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
@@ -870,18 +874,20 @@ export default function PropertySettingsPage({
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
                         <input
-                          type="number"
-                          required
-                          value={settings.rentalTiers?.sharing3 ?? 8500}
-                          onChange={(e) =>
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="8500"
+                          value={settings.rentalTiers?.sharing3 ? settings.rentalTiers.sharing3 : ""}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
                             setSettings({
                               ...settings,
                               rentalTiers: {
                                 ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
-                                sharing3: Number(e.target.value),
+                                sharing3: val === "" ? 0 : Number(val),
                               },
-                            })
-                          }
+                            });
+                          }}
                           className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
@@ -893,18 +899,20 @@ export default function PropertySettingsPage({
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
                         <input
-                          type="number"
-                          required
-                          value={settings.rentalTiers?.sharing4 ?? 6000}
-                          onChange={(e) =>
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="6000"
+                          value={settings.rentalTiers?.sharing4 ? settings.rentalTiers.sharing4 : ""}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
                             setSettings({
                               ...settings,
                               rentalTiers: {
                                 ...(settings.rentalTiers || { sharing1: 20000, sharing2: 12000, sharing3: 8500, sharing4: 6000 }),
-                                sharing4: Number(e.target.value),
+                                sharing4: val === "" ? 0 : Number(val),
                               },
-                            })
-                          }
+                            });
+                          }}
                           className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
