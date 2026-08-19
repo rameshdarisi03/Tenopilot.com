@@ -120,8 +120,9 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       }
 
       const modelsToTry = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
         "gemini-flash-latest",
       ];
 
