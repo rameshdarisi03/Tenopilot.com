@@ -34,6 +34,7 @@ import {
   Camera,
   Download,
   Lock,
+  UserPlus,
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -49,6 +50,9 @@ export default function PropertyMapPage({
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Dropdown menu state for onboarding from bed drawer
+  const [showOnboardMenu, setShowOnboardMenu] = useState(false);
 
   // Reactive Property Layout Structure State (Subscribed to propertyStore)
   const [propertyGrid, setPropertyGrid] = useState<FloorConfig[]>(() =>
@@ -957,16 +961,73 @@ export default function PropertyMapPage({
                     </p>
                   </div>
 
-                  <button
-                    onClick={() =>
-                      triggerToast(
-                        `Initiated Tenant Onboarding for Room ${activeBedSlot.roomNumber} ${activeBedSlot.bed.bedCode}`
-                      )
-                    }
-                    className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all"
-                  >
-                    <Plus className="w-4 h-4" /> + Onboard Tenant / Guest to Bed
-                  </button>
+                  {/* + Add Resident Dropdown Menu */}
+                  <div className="relative pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowOnboardMenu(!showOnboardMenu)}
+                      className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-orange-500 via-amber-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs flex items-center justify-between shadow-md transition-all cursor-pointer active:scale-98"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Plus className="w-4 h-4" />
+                        <span>+ Add Resident to Bed</span>
+                      </div>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          showOnboardMenu ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {showOnboardMenu && (
+                      <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 shadow-2xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in slide-in-from-bottom-2">
+                        <div className="px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-left">
+                          Select Resident Type:
+                        </div>
+                        <Link
+                          href={`/p/${propertyId}/tenants/onboard-tenant?room=${encodeURIComponent(
+                            activeBedSlot.roomNumber
+                          )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
+                          onClick={() => setShowOnboardMenu(false)}
+                          className="w-full text-left px-4 py-3 hover:bg-orange-50/80 flex items-center justify-between text-[#c2652a] transition-colors group block"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a] group-hover:bg-orange-200 shrink-0">
+                              <UserPlus className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-900">Monthly Tenant (Long-term)</div>
+                              <div className="text-[10px] text-gray-500 font-normal">
+                                Monthly rent cycle, deposit & KYC agreement
+                              </div>
+                            </div>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#c2652a] transition-transform group-hover:translate-x-0.5 shrink-0" />
+                        </Link>
+
+                        <Link
+                          href={`/p/${propertyId}/tenants/onboard-guest?room=${encodeURIComponent(
+                            activeBedSlot.roomNumber
+                          )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
+                          onClick={() => setShowOnboardMenu(false)}
+                          className="w-full text-left px-4 py-3 hover:bg-purple-50/80 flex items-center justify-between text-purple-700 transition-colors group border-t border-gray-100 block"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-purple-100 text-purple-700 group-hover:bg-purple-200 shrink-0">
+                              <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-900">Daily Guest (Short-term)</div>
+                              <div className="text-[10px] text-gray-500 font-normal">
+                                Per-day tariff, instant check-in for hostels & travelers
+                              </div>
+                            </div>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-purple-700 transition-transform group-hover:translate-x-0.5 shrink-0" />
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -2,7 +2,7 @@
 
 import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
@@ -55,6 +55,9 @@ export default function OnboardGuestPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlRoom = searchParams.get("room");
+  const urlBed = searchParams.get("bed");
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -158,6 +161,31 @@ export default function OnboardGuestPage({
     });
     return unsubscribe;
   }, [propertyId]);
+
+  // Pre-select bed if redirected from Property Map with ?room=...&bed=...
+  useEffect(() => {
+    if (urlRoom && urlBed && propertyStructure.length > 0 && !selectedBed) {
+      for (const fl of propertyStructure) {
+        for (const rm of fl.rooms) {
+          if (rm.roomNumber.toUpperCase() === urlRoom.toUpperCase()) {
+            const matchedBed = rm.beds.find(
+              (b) => b.bedCode.toUpperCase() === urlBed.toUpperCase()
+            );
+            if (matchedBed) {
+              setSelectedBed({
+                bedId: matchedBed.id,
+                bedCode: matchedBed.bedCode,
+                roomNumber: rm.roomNumber,
+                floorName: fl.floorName,
+              });
+              setDesiredSharingFilter(rm.sharingType);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }, [urlRoom, urlBed, propertyStructure, selectedBed]);
 
   // Intelligent Floor Navigation Filter for Guest Onboarding:
   const onboardingFloorNavigation = useMemo(() => {

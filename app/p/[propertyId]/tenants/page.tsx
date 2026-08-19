@@ -618,151 +618,25 @@ export default function TenantsDirectoryPage({
             />
           </div>
 
-          {/* Filters & Sorting Control Bar */}
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Table Quick Search Input */}
-              <div className="relative min-w-[220px] flex-1 max-w-sm">
-                <input
-                  type="text"
-                  value={rawSearchTerm}
-                  onChange={(e) => {
-                    setRawSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="Filter name, phone, room..."
-                  className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-xs md:text-sm bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
+          {/* Active Search Query Tag (Only shows when user types in top search bar) */}
+          {rawSearchTerm && (
+            <div className="flex items-center gap-2 pt-1">
+              <div className="bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-orange-200 font-bold">
+                Search: "{rawSearchTerm}"
+                <X
+                  className="w-3.5 h-3.5 cursor-pointer hover:text-red-500"
+                  onClick={() => setRawSearchTerm("")}
                 />
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                {rawSearchTerm && (
-                  <X
-                    className="w-4 h-4 text-gray-400 absolute right-3 top-2.5 cursor-pointer hover:text-red-500"
-                    onClick={() => setRawSearchTerm("")}
-                  />
-                )}
               </div>
-
-              {/* Sort By Selector */}
-              <div className="relative min-w-[150px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10 flex items-center gap-1">
-                  <ArrowUpDown className="w-2.5 h-2.5" /> Sort By
-                </label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 font-medium focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="name-asc">Name (A - Z)</option>
-                  <option value="name-desc">Name (Z - A)</option>
-                  <option value="room">Room Number</option>
-                  <option value="rent-desc">Rent (High to Low)</option>
-                  <option value="due">Payment Due Date</option>
-                </select>
-              </div>
-
-              {/* Dropdown Filters Grouped Together */}
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Payment Status
-                </label>
-                <select
-                  value={paymentStatusFilter}
-                  onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Due">Pending / Due</option>
-                  <option value="Overdue">Overdue</option>
-                </select>
-              </div>
-
-              {/* Payment Due Filter */}
-              <div className="relative min-w-[130px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Payment Due
-                </label>
-                <select
-                  value={paymentDueFilter}
-                  onChange={(e) => setPaymentDueFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All">All Due Dates</option>
-                  <option value="Today">Due Today</option>
-                  <option value="Tomorrow">Due Tomorrow</option>
-                  <option value="Overdue">Overdue</option>
-                </select>
-              </div>
-
-              {/* Room Filter */}
-              <div className="relative min-w-[120px]">
-                <label className="absolute -top-2 left-2 px-1 bg-white text-[9px] text-gray-400 font-bold z-10">
-                  Room & Bed
-                </label>
-                <select
-                  value={roomFilter}
-                  onChange={(e) => setRoomFilter(e.target.value)}
-                  className="w-full text-xs md:text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-800 focus:ring-1 focus:ring-[#c2652a]"
-                >
-                  <option value="All Rooms">All Rooms</option>
-                  {propertyStore.getRoomNumbers().map((rmNum) => (
-                    <option key={rmNum} value={rmNum}>
-                      Room {rmNum}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <button
-                onClick={() => {
-                  setTenantStatusFilter("All");
-                  setPaymentStatusFilter("All");
-                  setPaymentDueFilter("All");
-                  setFloorFilter("All Floors");
-                  setRoomFilter("All Rooms");
-                  setRawSearchTerm("");
-                  setSortBy("name-asc");
-                }}
-                className="text-xs font-medium text-gray-400 hover:text-[#c2652a] flex items-center gap-1 ml-auto"
+                type="button"
+                onClick={() => setRawSearchTerm("")}
+                className="text-xs text-gray-400 hover:text-gray-600 font-medium underline"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Clear All
+                Clear Search
               </button>
             </div>
-
-            {/* Active Filter Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-[10px] text-gray-400 font-bold uppercase">
-                Active Filters ({filteredOccupants.length} matches):
-              </span>
-              {rawSearchTerm && (
-                <div className="bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-orange-200 font-bold">
-                  Query: "{rawSearchTerm}"
-                  <X
-                    className="w-3 h-3 cursor-pointer hover:text-red-500"
-                    onClick={() => setRawSearchTerm("")}
-                  />
-                </div>
-              )}
-              {tenantStatusFilter !== "All" && (
-                <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
-                  Status: {tenantStatusFilter}
-                  <X
-                    className="w-3 h-3 cursor-pointer hover:text-red-500"
-                    onClick={() => setTenantStatusFilter("All")}
-                  />
-                </div>
-              )}
-              {paymentStatusFilter !== "All" && (
-                <div className="bg-gray-100 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-gray-200 text-gray-700">
-                  Payment: {paymentStatusFilter}
-                  <X
-                    className="w-3 h-3 cursor-pointer hover:text-red-500"
-                    onClick={() => setPaymentStatusFilter("All")}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          )}
 
                      {/* Desktop Data Table (Continuous Scroll View - No Page Splitting) */}
           <div className="hidden md:block bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs max-h-[75vh] overflow-y-auto">

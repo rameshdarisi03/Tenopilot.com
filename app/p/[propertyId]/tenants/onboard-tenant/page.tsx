@@ -2,7 +2,7 @@
 
 import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
@@ -61,6 +61,9 @@ export default function OnboardTenantPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlRoom = searchParams.get("room");
+  const urlBed = searchParams.get("bed");
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -177,6 +180,38 @@ export default function OnboardTenantPage({
       unsubscribeSettings();
     };
   }, [propertyId]);
+
+  // Pre-select bed if redirected from Property Map with ?room=...&bed=...
+  useEffect(() => {
+    if (urlRoom && urlBed && propertyStructure.length > 0 && !selectedBed) {
+      for (const fl of propertyStructure) {
+        for (const rm of fl.rooms) {
+          if (rm.roomNumber.toUpperCase() === urlRoom.toUpperCase()) {
+            const matchedBed = rm.beds.find(
+              (b) => b.bedCode.toUpperCase() === urlBed.toUpperCase()
+            );
+            if (matchedBed) {
+              setSelectedBed({
+                bedId: matchedBed.id,
+                bedCode: matchedBed.bedCode,
+                roomNumber: rm.roomNumber,
+                floorName: fl.floorName,
+              });
+              setDesiredSharingFilter(rm.sharingType);
+              const defaultRent =
+                rm.customRentAmount ||
+                ((settings?.rentalTiers as any)?.[`sharing${rm.sharingType}`] || 12500);
+              setMonthlyRent(defaultRent);
+              if (!depositCustomized) {
+                setDepositAmount(defaultRent * 2);
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+  }, [urlRoom, urlBed, propertyStructure, settings, depositCustomized, selectedBed]);
 
   // Intelligent Floor Navigation Filter for Onboarding:
   // 1. Shows Available 🟢, Notice-Period Vacating 🟧 beds, and Short-Term Guest 🟧 beds (Hides permanently occupied & booked beds)
