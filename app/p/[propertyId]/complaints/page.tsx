@@ -108,7 +108,9 @@ export default function AdminComplaintsPage({
     setFloors(propertyStore.getStructure(propertyId));
 
     if (typeof window !== "undefined") {
-      setPublicPortalUrl(`${window.location.origin}/p/${propertyId}/public-complaint`);
+      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const baseDomain = isLocal ? window.location.origin : "https://www.tenopilot.com";
+      setPublicPortalUrl(`${baseDomain}/p/${propertyId}/public-complaint`);
     }
 
     // Subscribe to Firebase real-time complaints listener

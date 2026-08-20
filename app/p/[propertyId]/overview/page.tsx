@@ -100,7 +100,9 @@ export default function PropertyOverviewPage({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setPortalUrl(`${window.location.origin}/p/${propertyId}/public-complaint`);
+      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const baseDomain = isLocal ? window.location.origin : "https://www.tenopilot.com";
+      setPortalUrl(`${baseDomain}/p/${propertyId}/public-complaint`);
     }
   }, [propertyId]);
 
