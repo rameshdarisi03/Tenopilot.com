@@ -179,7 +179,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Dual-Tier Access Guard — Protect dashboard routes with Firebase Auth OR PIN Fast-Session + Session PIN Lock
   useEffect(() => {
-    const isProtectedPage = pathname?.startsWith("/p/") || pathname === "/home";
+    const isPublicComplaintPage = pathname?.includes("/public-complaint");
+    const isSelfOnboardPage = pathname?.startsWith("/self-onboard");
+    const isPublicMarketing =
+      pathname === "/" ||
+      pathname === "/pricing" ||
+      pathname === "/features" ||
+      pathname === "/how-it-works" ||
+      pathname === "/verticals" ||
+      pathname === "/install";
+
+    // Strictly exempt all public pages so QR scans open instantly with ZERO login or PIN prompts!
+    const isProtectedPage =
+      !isPublicComplaintPage &&
+      !isSelfOnboardPage &&
+      !isPublicMarketing &&
+      (pathname?.startsWith("/p/") || pathname === "/home" || pathname === "/staff-management");
+
     const isAuthPage = pathname === "/login" || pathname === "/signup";
 
     const hasLocalSession =

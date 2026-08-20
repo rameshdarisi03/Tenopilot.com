@@ -510,25 +510,109 @@ export function getBedOccupantsTimeline(
   };
 }
 
+export interface ResidentVerificationResponse {
+  isValid: boolean;
+  status: "VALID" | "BOOKED" | "PAST" | "NOT_FOUND";
+  occupant?: Occupant;
+  errorMessage?: string;
+}
+
 /**
- * Strict As-of-Today Active Resident Verifier
- * Filters out future 'Booked' guests or past 'Vacated' occupants.
+ * Strict As-of-Today Resident Complaint Verifier
+ * - Only currently residing Active/Notice Tenants and Guests are allowed.
+ * - Explicitly blocks 'Booked' occupants who have not onboarded yet.
+ * - Explicitly blocks 'Past' occupants who have vacated.
  */
-export function getActiveResidentForToday(phoneInput: string, occupantsList: Occupant[]): Occupant | null {
-  const cleanDigits = phoneInput.replace(/\D/g, "");
-  if (cleanDigits.length < 10) return null;
+export function verifyResidentForComplaint(
+  phoneInput: string,
+  occupantsList: Occupant[]
+): ResidentVerificationResponse {
+  const cleanDigits = phoneInput.replace(/\D/g, "").slice(-10);
+  if (cleanDigits.length < 10) {
+    return { isValid: false, status: "NOT_FOUND" };
+  }
 
-  const matched = occupantsList.find((o) => {
-    const occPhoneClean = o.phone.replace(/\D/g, "");
-    const isPhoneMatch = occPhoneClean.includes(cleanDigits) || cleanDigits.includes(occPhoneClean);
-    if (!isPhoneMatch) return false;
-
-    // Exclude past occupants who have vacated
-    if (o.lifecycleStatus === "Past") return false;
-
-    return true;
+  // 1. Find all matching records with this 10-digit phone number
+  const matches = occupantsList.filter((o) => {
+    const occPhoneClean = (o.phone || "").replace(/\D/g, "").slice(-10);
+    return occPhoneClean === cleanDigits;
   });
 
-  return matched || null;
+  if (matches.length === 0) {
+    return {
+      isValid: false,
+      status: "NOT_FOUND",
+      errorMessage:
+        "Mobile number not found in this property's resident directory. Please contact your property manager if you recently checked in.",
+    };
+  }
+
+  // 2. Prioritize currently Active or Notice residents physically in the building
+  const activeResident = matches.find(
+    (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+  );
+
+  if (activeResident) {
+    // Check if daily guest stay has expired
+    if (activeResident.stayType === "Guest" && activeResident.dueDate) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const checkoutDate = new Date(activeResident.dueDate);
+      checkoutDate.setHours(23, 59, 59, 999);
+      if (!isNaN(checkoutDate.getTime()) && checkoutDate < now) {
+        return {
+          isValid: false,
+          status: "PAST",
+          errorMessage:
+            "Access expired. Your guest stay ended on " +
+            activeResident.dueDate +
+            ". Only currently residing guests can log maintenance complaints.",
+        };
+      }
+    }
+
+    return {
+      isValid: true,
+      status: "VALID",
+      occupant: activeResident,
+    };
+  }
+
+  // 3. Block Booked residents who haven't moved in yet
+  const bookedResident = matches.find((o) => o.lifecycleStatus === "Booked");
+  if (bookedResident) {
+    return {
+      isValid: false,
+      status: "BOOKED",
+      errorMessage:
+        `Your reservation (${bookedResident.name}) is booked starting ${bookedResident.joiningDate || "soon"}, but you have not onboarded yet. Maintenance requests can only be logged once you check in.`,
+    };
+  }
+
+  // 4. Block Past / Vacated residents
+  const pastResident = matches.find((o) => o.lifecycleStatus === "Past");
+  if (pastResident) {
+    return {
+      isValid: false,
+      status: "PAST",
+      errorMessage:
+        "Access expired. You are marked as a vacated resident in our records. If you are currently staying here, please contact management.",
+    };
+  }
+
+  return {
+    isValid: false,
+    status: "NOT_FOUND",
+    errorMessage:
+      "Mobile number not found as an active occupant in this property.",
+  };
+}
+
+/**
+ * Strict As-of-Today Active Resident Verifier (Legacy Wrapper)
+ */
+export function getActiveResidentForToday(phoneInput: string, occupantsList: Occupant[]): Occupant | null {
+  const res = verifyResidentForComplaint(phoneInput, occupantsList);
+  return res.isValid && res.occupant ? res.occupant : null;
 }
 

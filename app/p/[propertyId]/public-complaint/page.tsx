@@ -6,7 +6,7 @@ import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
-import { getActiveResidentForToday } from "@/utils/domainSSOT";
+import { verifyResidentForComplaint, ResidentVerificationResponse } from "@/utils/domainSSOT";
 import { createComplaintInFirestore, Complaint } from "@/lib/complaintStore";
 import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import {
@@ -54,7 +54,10 @@ export default function PublicTenantComplaintPage({
 
   // Mobile Verification State
   const [verifiedOccupant, setVerifiedOccupant] = useState<Occupant | null>(null);
-  const [mobileError, setMobileError] = useState(false);
+  const [verificationError, setVerificationError] = useState<{
+    status: "BOOKED" | "PAST" | "NOT_FOUND";
+    message: string;
+  } | null>(null);
 
   // UI State
   const [submitting, setSubmitting] = useState(false);
@@ -102,49 +105,27 @@ export default function PublicTenantComplaintPage({
 
     if (cleanDigits.length === 10) {
       // Use SSOT active resident verifier (filters out future 'Booked' and past occupants)
-      const matched = getActiveResidentForToday(cleanDigits, occupants);
+      const res = verifyResidentForComplaint(cleanDigits, occupants);
 
-      if (matched) {
-        setVerifiedOccupant(matched);
-        setTenantName(matched.name);
-        setRoomNumber(`${matched.roomNumber} (Bed ${matched.bedCode})`);
-        setMobileError(false);
+      if (res.isValid && res.occupant) {
+        setVerifiedOccupant(res.occupant);
+        setTenantName(res.occupant.name);
+        setRoomNumber(`${res.occupant.roomNumber} (Bed ${res.occupant.bedCode})`);
+        setVerificationError(null);
       } else {
-        // Fallback sample check for demo number 9876543210
-        if (cleanDigits === "9876543210") {
-          const sampleMatch: Occupant = {
-            id: "occ-987",
-            name: "Rohan Gupta",
-            phone: "9876543210",
-            email: "rohan@gmail.com",
-            roomNumber: "Room 302",
-            bedCode: "B",
-            stayType: "Tenant",
-            joiningDate: "01 Jan 2026",
-            lastPaidDate: "01 Jul 2026",
-            dueDate: "01 Aug 2026",
-            dueDay: 1,
-            daysRemainingText: "Paid",
-            daysDiff: 10,
-            rentAmount: 12000,
-            paymentStatus: "Paid",
-            lifecycleStatus: "Active",
-            aadhaarNumber: "123456789012",
-            avatar: "",
-            emergencyContact: { name: "", phone: "", relation: "" },
-          };
-          setVerifiedOccupant(sampleMatch);
-          setTenantName(sampleMatch.name);
-          setRoomNumber(`${sampleMatch.roomNumber} (Bed ${sampleMatch.bedCode})`);
-          setMobileError(false);
-        } else {
-          setVerifiedOccupant(null);
-          setMobileError(true);
-        }
+        setVerifiedOccupant(null);
+        setTenantName("");
+        setRoomNumber("");
+        setVerificationError({
+          status: res.status !== "VALID" ? res.status : "NOT_FOUND",
+          message:
+            res.errorMessage ||
+            "Mobile number not found in this property's active resident directory.",
+        });
       }
     } else {
       setVerifiedOccupant(null);
-      setMobileError(false);
+      setVerificationError(null);
     }
   };
 
@@ -309,8 +290,10 @@ export default function PublicTenantComplaintPage({
                     className={`w-full px-3.5 py-2.5 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums ${
                       verifiedOccupant
                         ? "border-emerald-500 ring-1 ring-emerald-500"
-                        : mobileError
-                        ? "border-red-500 ring-1 ring-red-500"
+                        : verificationError
+                        ? verificationError.status === "BOOKED"
+                          ? "border-amber-500 ring-1 ring-amber-500"
+                          : "border-red-500 ring-1 ring-red-500"
                         : "border-gray-300"
                     }`}
                   />
@@ -323,7 +306,7 @@ export default function PublicTenantComplaintPage({
                       <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                       <div>
                         <p className="font-bold text-sm text-emerald-950">
-                          {verifiedOccupant.name}
+                          {verifiedOccupant.name} ({verifiedOccupant.stayType})
                         </p>
                         <p className="text-xs text-emerald-800 font-semibold mt-0.5">
                           Assigned Location: {verifiedOccupant.roomNumber} (Bed {verifiedOccupant.bedCode})
@@ -331,20 +314,34 @@ export default function PublicTenantComplaintPage({
                       </div>
                     </div>
                     <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase shrink-0">
-                      MATCHED 🟢
+                      ACTIVE RESIDENT 🟢
                     </span>
                   </div>
                 )}
 
-                {mobileError && (
-                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-xs font-bold flex items-start gap-2.5 animate-in fade-in">
-                    <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                {verificationError && (
+                  <div
+                    className={`p-3.5 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in fade-in ${
+                      verificationError.status === "BOOKED"
+                        ? "bg-amber-50 border-amber-300 text-amber-900"
+                        : "bg-red-50 border-red-300 text-red-900"
+                    }`}
+                  >
+                    {verificationError.status === "BOOKED" ? (
+                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    )}
                     <div>
-                      <p className="font-bold text-sm text-red-950">
-                        Mobile number not found in TenoPilot.com active resident database.
+                      <p className="font-bold text-sm">
+                        {verificationError.status === "BOOKED"
+                          ? "Booking Reserved (Not Onboarded Yet)"
+                          : verificationError.status === "PAST"
+                          ? "Access Expired (Vacated Resident)"
+                          : "Mobile Number Not Registered"}
                       </p>
-                      <p className="text-xs text-red-800 font-normal mt-0.5">
-                        Only residents physically occupying a bed today can log complaints to prevent unauthorized spam. Please contact management if you recently checked in.
+                      <p className="text-xs font-normal mt-0.5 leading-relaxed">
+                        {verificationError.message}
                       </p>
                     </div>
                   </div>

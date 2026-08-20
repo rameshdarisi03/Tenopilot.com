@@ -55,7 +55,7 @@ export default function PropertyOverviewPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
-  const [portalUrl, setPortalUrl] = useState(`http://localhost:3000/p/${propertyId}/public-complaint`);
+  const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyLink = async () => {

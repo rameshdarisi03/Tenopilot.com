@@ -89,8 +89,8 @@ export default function AdminComplaintsPage({
   // Resolution Note State for Modal
   const [resolutionInput, setResolutionInput] = useState("");
 
-  // Public Complaints Portal Link (Dynamic for local & Vercel)
-  const [publicPortalUrl, setPublicPortalUrl] = useState(`http://localhost:3000/p/${propertyId}/public-complaint`);
+  // Public Complaints Portal Link (Dynamic for production custom domain & local)
+  const [publicPortalUrl, setPublicPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyLink = async () => {
