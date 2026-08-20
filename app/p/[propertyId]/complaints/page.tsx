@@ -15,6 +15,7 @@ import {
   buildComplaintWhatsAppUrl,
 } from "@/lib/complaintStore";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
+import { PublicComplaintQrModal } from "@/components/PublicComplaintQrModal";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Wrench,
@@ -990,86 +991,12 @@ export default function AdminComplaintsPage({
       )}
 
       {/* RESIDENT QR PORTAL PREVIEW MODAL */}
-      {qrModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setQrModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-6 text-center animate-in zoom-in-95 text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="text-left">
-                <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-[#c2652a]" /> Tenant Complaints QR Code
-                </h3>
-                <p className="text-[11px] text-gray-500">
-                  Scan or display in PG corridors & reception desk for residents to lodge 24/7 maintenance complaints
-                </p>
-              </div>
-              <button
-                onClick={() => setQrModalOpen(false)}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Simulated QR Code Canvas Frame */}
-            <div className="p-6 bg-orange-50/40 rounded-3xl border-2 border-dashed border-[#c2652a]/40 flex flex-col items-center justify-center space-y-3">
-              <div className="w-48 h-48 bg-white p-3 rounded-2xl shadow-md border border-gray-200 flex flex-col items-center justify-center relative">
-                <QRCodeSVG
-                  value={publicPortalUrl || (typeof window !== "undefined" ? `${window.location.origin}/p/${propertyId}/public-complaint` : `/p/${propertyId}/public-complaint`)}
-                  size={160}
-                  fgColor="#201a17"
-                  bgColor="#ffffff"
-                  level="H"
-                />
-              </div>
-
-              <div>
-                <span className="font-bold text-gray-900 block text-xs">
-                  Scan to Log Complaint Directly
-                </span>
-                <span className="text-[10px] text-gray-500 font-mono">
-                  {publicPortalUrl || `/p/${propertyId}/public-complaint`}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <a
-                href={publicPortalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-3 rounded-2xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:bg-[#c2652a]/90 transition-all cursor-pointer"
-              >
-                <span>Open Complaints Portal</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="w-full py-2.5 rounded-2xl bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 border border-gray-200 transition-all cursor-pointer"
-              >
-                {copiedLink ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="text-emerald-700">Link Copied to Clipboard!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-gray-500" />
-                    <span>Copy Direct Link</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PublicComplaintQrModal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        propertyId={propertyId}
+        propertyName={propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+      />
     </div>
   );
 }

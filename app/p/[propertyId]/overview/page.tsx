@@ -5,6 +5,7 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
+import { PublicComplaintQrModal } from "@/components/PublicComplaintQrModal";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
 import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
 import {
@@ -31,6 +32,8 @@ import {
   Copy,
   Check,
   QrCode,
+  Download,
+  Printer,
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -57,6 +60,7 @@ export default function PropertyOverviewPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   const handleCopyLink = async () => {
     const urlToCopy = portalUrl || (typeof window !== "undefined" ? `${window.location.origin}/p/${propertyId}/public-complaint` : `/p/${propertyId}/public-complaint`);
@@ -517,14 +521,23 @@ export default function PropertyOverviewPage({
                 </div>
 
                 <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setQrModalOpen(true)}
+                    className="w-full py-3 px-4 rounded-xl bg-[#964407] hover:bg-[#803804] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                  >
+                    <Download className="w-4 h-4 text-white" />
+                    <span>Download / Print QR Poster</span>
+                  </button>
+
                   <a
                     href={`/p/${propertyId}/public-complaint`}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-full py-3 px-4 rounded-xl bg-[#964407] hover:bg-[#803804] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#fff8f6] text-[#554339] hover:text-[#964407] font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <ExternalLink className="w-4 h-4 text-white" />
-                    <span>Open Complaints Portal</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Test Complaints Portal</span>
                   </a>
 
                   <button
@@ -550,6 +563,14 @@ export default function PropertyOverviewPage({
           </div>
         </div>
       </div>
+
+      {/* REUSABLE PRINTABLE QR MODAL */}
+      <PublicComplaintQrModal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        propertyId={propertyId}
+        propertyName={propertySettings.propertyName || propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+      />
     </div>
   );
 }
