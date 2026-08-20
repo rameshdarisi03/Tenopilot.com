@@ -52,8 +52,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [showBootSplash, setShowBootSplash] = useState(true);
 
-  // Auth Flow Steps: "CREDENTIALS" | "PIN_PROMPT" | "FIRST_TIME_SET_PIN"
-  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PIN_PROMPT" | "FIRST_TIME_SET_PIN">("CREDENTIALS");
+  // Auth Flow Steps: "CREDENTIALS" | "PIN_PROMPT" | "SET_OR_RESET_PIN"
+  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PIN_PROMPT" | "SET_OR_RESET_PIN">("CREDENTIALS");
   const [savedSession, setSavedSession] = useState<SavedSession | null>(null);
 
   // Form Inputs
@@ -63,12 +63,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 6-Digit PIN Keyboard State
+  // 6-Digit PIN Keyboard & Quick Unlock State
   const [pinValue, setPinValue] = useState("");
-  const [firstTimePin, setFirstTimePin] = useState("");
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [lockoutExpiry, setLockoutExpiry] = useState<number | null>(null);
   const [lockoutCountdown, setLockoutCountdown] = useState<number>(0);
+
+  // Banking 2-Step PIN Setup & Reset State
+  const [isResetMode, setIsResetMode] = useState(false); // false = Set New PIN, true = 🔄 Reset PIN
+  const [pinCreationStep, setPinCreationStep] = useState<"ENTER" | "CONFIRM">("ENTER");
+  const [firstTimePin, setFirstTimePin] = useState(""); // Step 1 entered PIN
+  const [confirmPinValue, setConfirmPinValue] = useState(""); // Step 2 entered PIN
+  const [pinMismatchError, setPinMismatchError] = useState<string | null>(null);
+  const [isPinMatching, setIsPinMatching] = useState(false);
 
   // Reset PIN with Password Modal State
   const [showPasswordResetPinModal, setShowPasswordResetPinModal] = useState(false);
@@ -86,6 +93,7 @@ export default function LoginPage() {
   const [revokedNotice, setRevokedNotice] = useState<string | null>(null);
 
   const pinInputRef = useRef<HTMLInputElement>(null);
+  const confirmPinInputRef = useRef<HTMLInputElement>(null);
 
   // Clear any existing lockout
   const clearLockout = () => {
@@ -119,7 +127,9 @@ export default function LoginPage() {
             setSavedSession(parsed);
             setEmail(parsed.email);
             if (parsed.hasSetPin === false || !parsed.securityPin) {
-              setAuthStep("FIRST_TIME_SET_PIN");
+              setIsResetMode(false);
+              setPinCreationStep("ENTER");
+              setAuthStep("SET_OR_RESET_PIN");
             } else {
               setAuthStep("PIN_PROMPT");
             }
@@ -215,12 +225,18 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [lockoutExpiry]);
 
-  // Focus PIN input on PIN_PROMPT
+  // Focus PIN input on PIN_PROMPT or SET_OR_RESET_PIN
   useEffect(() => {
-    if (authStep === "PIN_PROMPT" || authStep === "FIRST_TIME_SET_PIN") {
+    if (authStep === "PIN_PROMPT") {
       pinInputRef.current?.focus();
+    } else if (authStep === "SET_OR_RESET_PIN") {
+      if (pinCreationStep === "ENTER") {
+        pinInputRef.current?.focus();
+      } else {
+        confirmPinInputRef.current?.focus();
+      }
     }
-  }, [authStep]);
+  }, [authStep, pinCreationStep]);
 
   // Handle Step 1: Email + Handover Password Authentication
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -286,13 +302,17 @@ export default function LoginPage() {
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
       staffStore.setActiveRole(session.role);
 
-      // Route to PIN_PROMPT if PIN is already set, or FIRST_TIME_SET_PIN if not
+      // Route to PIN_PROMPT if PIN is already set, or SET_OR_RESET_PIN if not
       if (hasUserSetPin && resolvedPin) {
         setAuthStep("PIN_PROMPT");
         setPinValue("");
       } else {
-        setAuthStep("FIRST_TIME_SET_PIN");
+        setIsResetMode(false);
+        setPinCreationStep("ENTER");
         setFirstTimePin("");
+        setConfirmPinValue("");
+        setPinMismatchError(null);
+        setAuthStep("SET_OR_RESET_PIN");
       }
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
@@ -340,8 +360,12 @@ export default function LoginPage() {
         setAuthStep("PIN_PROMPT");
         setPinValue("");
       } else {
-        setAuthStep("FIRST_TIME_SET_PIN");
+        setIsResetMode(false);
+        setPinCreationStep("ENTER");
         setFirstTimePin("");
+        setConfirmPinValue("");
+        setPinMismatchError(null);
+        setAuthStep("SET_OR_RESET_PIN");
       }
     } catch (err: any) {
       console.error("Google Login Error:", err);
@@ -351,24 +375,24 @@ export default function LoginPage() {
     }
   };
 
-  // Handle Setting Personal 6-Digit PIN (First-Time or Reset)
-  const handleSavePersonalPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (firstTimePin.length !== 6) {
-      setError("Please enter a valid 6-digit security PIN.");
+  // Handle Setting / Resetting Personal 6-Digit PIN (Banking Double-Entry Execution)
+  const handleSavePersonalPin = async (finalPin: string) => {
+    if (finalPin.length !== 6) {
+      setPinMismatchError("Please enter a valid 6-digit security PIN.");
       return;
     }
 
     setIsLoading(true);
     setError(null);
+    setPinMismatchError(null);
 
     try {
-      const targetEmail = savedSession?.email || email;
+      const targetEmail = (savedSession?.email || email || "admin@tenopilot.com").trim().toLowerCase();
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === targetEmail.toLowerCase());
 
       if (match) {
-        await staffStore.setSecurityPin(match.id, firstTimePin);
+        await staffStore.setSecurityPin(match.id, finalPin);
       } else {
         const newStaff: StaffMember = {
           id: `staff_user_${Date.now()}`,
@@ -381,14 +405,14 @@ export default function LoginPage() {
           propertyName: savedSession?.propertyName || "All Properties",
           status: "Active",
           joinedDate: "Today",
-          securityPin: firstTimePin,
+          securityPin: finalPin,
           hasSetPin: true,
         };
         staffStore.addGlobalStaff(newStaff);
       }
 
-      // Sync PIN across both Firestore users and staff_accounts collections
-      await syncUserSecurityPinToCloud(targetEmail, firstTimePin);
+      // Sync PIN across both Firestore users and staff_accounts collections & generate new epoch
+      const newVersion = await syncUserSecurityPinToCloud(targetEmail, finalPin);
 
       // Clear any lockout
       clearLockout();
@@ -400,11 +424,12 @@ export default function LoginPage() {
           role: "master_admin",
           assignedPropertyId: "sunshine-pg",
         }),
-        securityPin: firstTimePin,
+        securityPin: finalPin,
         hasSetPin: true,
       };
       setSavedSession(updated);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
+      localStorage.setItem("tenopilot_session_version", newVersion);
 
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
@@ -426,79 +451,78 @@ export default function LoginPage() {
     }
   };
 
-  // Verify PIN & Smart Redirection (with Instant Cloud Fallback)
+  // Verify PIN & Smart Redirection (Strict Cloud-First Authority with Local Fallback)
   const verifyAndRedirect = async (inputPin: string) => {
     setIsLoading(true);
     setError(null);
 
     const targetEmail = (savedSession?.email || email || "admin@gmail.com").trim().toLowerCase();
     
-    // 1. Direct check against local saved session & staff store
     let isValid = false;
+    let cloudFound = false;
+    let activeSessionVersion = "";
+    let resolvedRole = savedSession?.role || "master_admin";
+    let resolvedName = savedSession?.name || "Team Member";
+    let resolvedProp = savedSession?.assignedPropertyId || "sunshine-pg";
     let member: StaffMember | undefined = undefined;
 
-    if (savedSession?.securityPin && savedSession.securityPin === inputPin) {
-      isValid = true;
-    } else {
-      const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
-      isValid = verification.valid;
-      member = verification.member;
-    }
+    // 1. CLOUD-FIRST AUTHORITY: Query Firestore first as the definitive source of truth
+    try {
+      // 1A. Check staff_accounts collection
+      const staffSnap = await getDoc(doc(db, "staff_accounts", targetEmail));
+      if (staffSnap.exists()) {
+        cloudFound = true;
+        const data = staffSnap.data();
+        if (data.sessionVersion) activeSessionVersion = data.sessionVersion;
+        if (data.name) resolvedName = data.name;
+        if (data.role) resolvedRole = data.role;
+        if (data.assignedPropertyId) resolvedProp = data.assignedPropertyId;
 
-    // 2. LIVE CLOUD FALLBACK: If local check failed, check Cloud Firestore before failing!
-    let activeSessionVersion = "";
-    if (!isValid) {
-      try {
-        // Check staff_accounts collection
-        const staffSnap = await getDoc(doc(db, "staff_accounts", targetEmail));
-        if (staffSnap.exists()) {
-          const data = staffSnap.data();
-          if (data.sessionVersion) activeSessionVersion = data.sessionVersion;
-          if (data.securityPin && data.securityPin === inputPin) {
+        if (data.securityPin) {
+          if (data.securityPin === inputPin) {
             isValid = true;
-            // Update local session with synced Cloud PIN
-            const updated = {
-              ...(savedSession || {}),
-              email: targetEmail,
-              name: data.name || savedSession?.name,
-              role: data.role || savedSession?.role,
-              assignedPropertyId: data.assignedPropertyId || savedSession?.assignedPropertyId,
-              securityPin: inputPin,
-              hasSetPin: true,
-            } as SavedSession;
-            setSavedSession(updated);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
-            }
+          } else {
+            // Cloud has a PIN and input does NOT match cloud PIN -> Strict Reject!
+            isValid = false;
           }
         }
+      }
 
-        // Check users collection if currentUser available
-        if (!isValid && auth.currentUser) {
-          const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+      // 1B. Check users collection if not found or if user is logged in via Auth
+      if (!cloudFound || (!isValid && auth.currentUser)) {
+        const uid = auth.currentUser?.uid;
+        if (uid) {
+          const userSnap = await getDoc(doc(db, "users", uid));
           if (userSnap.exists()) {
+            cloudFound = true;
             const uData = userSnap.data();
             if (uData.sessionVersion) activeSessionVersion = uData.sessionVersion;
-            if (uData.securityPin && uData.securityPin === inputPin) {
-              isValid = true;
-              const updated = {
-                ...(savedSession || {}),
-                email: targetEmail,
-                name: uData.displayName || savedSession?.name,
-                role: uData.role || savedSession?.role,
-                assignedPropertyId: uData.assignedPropertyId || savedSession?.assignedPropertyId,
-                securityPin: inputPin,
-                hasSetPin: true,
-              } as SavedSession;
-              setSavedSession(updated);
-              if (typeof window !== "undefined") {
-                localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
+            if (uData.displayName) resolvedName = uData.displayName;
+            if (uData.role) resolvedRole = uData.role;
+            if (uData.assignedPropertyId) resolvedProp = uData.assignedPropertyId;
+
+            if (uData.securityPin) {
+              if (uData.securityPin === inputPin) {
+                isValid = true;
+              } else {
+                isValid = false;
               }
             }
           }
         }
-      } catch (cloudErr) {
-        console.warn("Live cloud PIN check fallback notice:", cloudErr);
+      }
+    } catch (cloudErr) {
+      console.warn("Cloud Firestore PIN verification network fallback:", cloudErr);
+    }
+
+    // 2. OFFLINE / LOCAL FALLBACK: Only if Cloud Firestore was completely unreachable/offline or document not created yet
+    if (!cloudFound) {
+      if (savedSession?.securityPin && savedSession.securityPin === inputPin) {
+        isValid = true;
+      } else {
+        const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
+        isValid = verification.valid;
+        member = verification.member;
       }
     }
 
@@ -506,17 +530,30 @@ export default function LoginPage() {
       // Clear lockout state on successful unlock
       clearLockout();
 
+      const updatedSession: SavedSession = {
+        ...(savedSession || {}),
+        email: targetEmail,
+        name: resolvedName,
+        role: (resolvedRole as any) || "master_admin",
+        assignedPropertyId: resolvedProp,
+        securityPin: inputPin,
+        hasSetPin: true,
+      };
+
+      setSavedSession(updatedSession);
+
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
+        localStorage.setItem("tenopilot_saved_session", JSON.stringify(updatedSession));
         if (activeSessionVersion) {
           localStorage.setItem("tenopilot_session_version", activeSessionVersion);
         }
       }
 
-      const role = member?.role || savedSession?.role || "master_admin";
+      const role = updatedSession.role || "master_admin";
       staffStore.setActiveRole(role);
 
-      const targetProperty = member?.assignedPropertyId || savedSession?.assignedPropertyId || "sunshine-pg";
+      const targetProperty = updatedSession.assignedPropertyId || "sunshine-pg";
       const targetPath = role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`;
 
       router.push(targetPath);
@@ -561,12 +598,17 @@ export default function LoginPage() {
         );
       }
 
-      // Google identity verified! Clear lockout and open PIN creation
+      // Google identity verified! Clear lockout and open PIN creation in Reset Mode
       clearLockout();
       setShowPasswordResetPinModal(false);
       setVerifyPasswordForPin("");
-      setAuthStep("FIRST_TIME_SET_PIN");
+      setIsResetMode(true);
+      setPinCreationStep("ENTER");
       setFirstTimePin("");
+      setConfirmPinValue("");
+      setPinMismatchError(null);
+      setIsPinMatching(false);
+      setAuthStep("SET_OR_RESET_PIN");
     } catch (err: any) {
       console.error("Google Re-Auth Error:", err);
       setVerifyPasswordError(getCleanAuthErrorMessage(err));
@@ -585,12 +627,17 @@ export default function LoginPage() {
       const targetEmail = savedSession?.email || email;
       await loginWithEmailPassword(targetEmail, verifyPasswordForPin);
 
-      // Password verified! Clear lockout and open PIN creation screen
+      // Password verified! Clear lockout and open PIN creation in Reset Mode
       clearLockout();
       setShowPasswordResetPinModal(false);
       setVerifyPasswordForPin("");
-      setAuthStep("FIRST_TIME_SET_PIN");
+      setIsResetMode(true);
+      setPinCreationStep("ENTER");
       setFirstTimePin("");
+      setConfirmPinValue("");
+      setPinMismatchError(null);
+      setIsPinMatching(false);
+      setAuthStep("SET_OR_RESET_PIN");
     } catch (err: any) {
       setVerifyPasswordError("Incorrect account password. If you signed in with Google, please click 'Verify with Google Account' above.");
     } finally {
@@ -682,15 +729,19 @@ export default function LoginPage() {
                 />
               </div>
               <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] tracking-tight">
-                {authStep === "FIRST_TIME_SET_PIN"
-                  ? "Set Your Security PIN"
+                {authStep === "SET_OR_RESET_PIN"
+                  ? isResetMode
+                    ? "Reset Security PIN"
+                    : "Set Your Security PIN"
                   : authStep === "PIN_PROMPT"
                   ? "Enter Security PIN"
                   : "Welcome to TenoPilot.com"}
               </h1>
               <p className="text-xs text-gray-500 font-medium">
-                {authStep === "FIRST_TIME_SET_PIN"
-                  ? "Create your personal 6-digit PIN for rapid device unlock"
+                {authStep === "SET_OR_RESET_PIN"
+                  ? isResetMode
+                    ? "Create and confirm your new 6-digit PIN for rapid device unlock"
+                    : "Create and confirm your personal 6-digit PIN for rapid device unlock"
                   : authStep === "PIN_PROMPT"
                   ? "Enter your 6-digit access code to unlock workspace"
                   : "Sign in to manage your properties & residents"}
@@ -819,64 +870,193 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* STEP 2A: FIRST TIME LOGIN - SET PERSONAL 6-DIGIT PIN */}
-            {authStep === "FIRST_TIME_SET_PIN" && (
-              <div className="space-y-5 bg-orange-50/50 p-6 rounded-3xl border border-orange-200 text-center animate-in fade-in">
-                <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto shadow-xs">
-                  <Key className="w-6 h-6" />
+            {/* STEP 2A: SET OR RESET PERSONAL 6-DIGIT PIN (BANKING 2-STEP DOUBLE-ENTRY) */}
+            {authStep === "SET_OR_RESET_PIN" && (
+              <div className="space-y-5 bg-orange-50/50 p-6 rounded-3xl border border-orange-200 text-center animate-in fade-in shadow-xs">
+                {/* Mode & Step Badges */}
+                <div className="flex flex-col items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                    isResetMode ? "bg-amber-100 text-amber-800 border border-amber-300" : "bg-orange-100 text-[#c2652a] border border-orange-200"
+                  }`}>
+                    {isResetMode ? <RotateCcw className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
+                    <span>{isResetMode ? "🔄 Reset PIN" : "🔑 Set New PIN"}</span>
+                  </span>
+
+                  <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+                    <span className={`px-2.5 py-0.5 rounded-full transition-colors ${pinCreationStep === "ENTER" ? "bg-[#c2652a] text-white font-bold shadow-2xs" : "bg-gray-200 text-gray-700"}`}>
+                      1. Enter PIN
+                    </span>
+                    <span className="text-gray-400">→</span>
+                    <span className={`px-2.5 py-0.5 rounded-full transition-colors ${pinCreationStep === "CONFIRM" ? "bg-[#c2652a] text-white font-bold shadow-2xs" : "bg-gray-200 text-gray-700"}`}>
+                      2. Confirm PIN
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
                   <h2 className="font-serif font-bold text-xl text-gray-900">
-                    Welcome, {savedSession?.name || "Team Member"}! 🎉
+                    {pinCreationStep === "ENTER"
+                      ? isResetMode
+                        ? "Enter New 6-Digit PIN"
+                        : `Welcome, ${savedSession?.name || "Team Member"}! 🎉`
+                      : "Confirm New 6-Digit PIN"}
                   </h2>
                   <p className="text-xs text-gray-600">
-                    Please create your personal 6-digit Security PIN for rapid device unlock.
+                    {pinCreationStep === "ENTER"
+                      ? "Choose a memorable 6-digit PIN for rapid device unlock."
+                      : "Re-enter the exact same 6-digit PIN to confirm and activate."}
                   </p>
                 </div>
 
-                <form onSubmit={handleSavePersonalPin} className="space-y-4">
-                  <div>
-                    <input
-                      ref={pinInputRef}
-                      type="password"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      required
-                      value={firstTimePin}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setFirstTimePin(val);
-                      }}
-                      placeholder="••••••"
-                      className="w-full max-w-[200px] mx-auto px-4 py-3 rounded-2xl border-2 border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-200 focus:outline-hidden"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Enter 6 digits and click save below
-                    </p>
+                {pinMismatchError && (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold flex items-center justify-center gap-2 animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{pinMismatchError}</span>
                   </div>
+                )}
 
-                  <button
-                    type="submit"
-                    disabled={isLoading || firstTimePin.length !== 6}
-                    className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
-                  >
-                    <span>{isLoading ? "Setting PIN..." : "Save PIN & Open Workspace"}</span>
-                    <Sparkles className="w-4 h-4" />
-                  </button>
+                {isPinMatching && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-bold flex items-center justify-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>PINs match! Saving securely to cloud...</span>
+                  </div>
+                )}
 
-                  <div className="pt-2">
+                {/* STEP 1: ENTER PIN */}
+                {pinCreationStep === "ENTER" && (
+                  <div className="space-y-4">
+                    <div>
+                      <input
+                        ref={pinInputRef}
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        required
+                        disabled={isLoading}
+                        value={firstTimePin}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setFirstTimePin(val);
+                          setPinMismatchError(null);
+                          if (val.length === 6) {
+                            setTimeout(() => {
+                              setPinCreationStep("CONFIRM");
+                              setConfirmPinValue("");
+                              confirmPinInputRef.current?.focus();
+                            }, 200);
+                          }
+                        }}
+                        placeholder="••••••"
+                        className="w-full max-w-[200px] mx-auto px-4 py-3 rounded-2xl border-2 border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-200 focus:outline-hidden"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Auto-advances when all 6 digits are typed
+                      </p>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handleSwitchAccount}
-                      className="text-gray-500 hover:text-gray-900 text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+                      disabled={firstTimePin.length !== 6 || isLoading}
+                      onClick={() => {
+                        setPinCreationStep("CONFIRM");
+                        setConfirmPinValue("");
+                        setTimeout(() => confirmPinInputRef.current?.focus(), 100);
+                      }}
+                      className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>← Back to Sign In with Password</span>
+                      <span>Next: Confirm PIN</span>
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
-                </form>
+                )}
+
+                {/* STEP 2: CONFIRM PIN */}
+                {pinCreationStep === "CONFIRM" && (
+                  <div className="space-y-4">
+                    <div>
+                      <input
+                        ref={confirmPinInputRef}
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        required
+                        disabled={isLoading || isPinMatching}
+                        value={confirmPinValue}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setConfirmPinValue(val);
+                          setPinMismatchError(null);
+                          if (val.length === 6) {
+                            if (val === firstTimePin) {
+                              setIsPinMatching(true);
+                              setTimeout(() => {
+                                handleSavePersonalPin(val);
+                              }, 350);
+                            } else {
+                              setIsPinMatching(false);
+                              setPinMismatchError("PINs do not match. Please re-enter.");
+                              setTimeout(() => {
+                                setConfirmPinValue("");
+                              }, 1200);
+                            }
+                          }
+                        }}
+                        placeholder="••••••"
+                        className="w-full max-w-[200px] mx-auto px-4 py-3 rounded-2xl border-2 border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-200 focus:outline-hidden"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Auto-submits when confirmed correctly
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPinCreationStep("ENTER");
+                          setFirstTimePin("");
+                          setConfirmPinValue("");
+                          setPinMismatchError(null);
+                          setTimeout(() => pinInputRef.current?.focus(), 100);
+                        }}
+                        className="flex-1 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer transition-all active:scale-98"
+                      >
+                        ← Change PIN
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={confirmPinValue.length !== 6 || isLoading || isPinMatching}
+                        onClick={() => {
+                          if (confirmPinValue === firstTimePin) {
+                            setIsPinMatching(true);
+                            handleSavePersonalPin(confirmPinValue);
+                          } else {
+                            setIsPinMatching(false);
+                            setPinMismatchError("PINs do not match. Please re-enter.");
+                          }
+                        }}
+                        className="flex-1 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                      >
+                        <span>{isLoading ? "Saving PIN..." : "Confirm & Save"}</span>
+                        <Sparkles className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-orange-200/60">
+                  <button
+                    type="button"
+                    onClick={handleSwitchAccount}
+                    className="text-gray-500 hover:text-gray-900 text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>← Back to Sign In with Password</span>
+                  </button>
+                </div>
               </div>
             )}
 

@@ -91,7 +91,7 @@ class StaffStore {
         return { valid: false, error: "Account is inactive. Please contact Master Admin." };
       }
       // Strict check: if user has a configured PIN, ONLY that PIN is valid
-      const expectedPin = match.securityPin || (match.hasSetPin === false ? "123456" : "");
+      const expectedPin = match.securityPin || "";
       if (expectedPin && pin === expectedPin) {
         return { valid: true, member: match };
       }
@@ -105,7 +105,7 @@ class StaffStore {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.email?.toLowerCase() === cleanQuery || parsed.name) {
-            const expectedPin = parsed.securityPin || (parsed.hasSetPin === false ? "123456" : "");
+            const expectedPin = parsed.securityPin || "";
             if (expectedPin && pin === expectedPin) {
               const localMember: StaffMember = {
                 id: `staff-local-${Date.now()}`,

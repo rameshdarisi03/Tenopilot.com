@@ -227,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, loading, pathname, router]);
 
-  // 🔄 Real-Time Cross-Device Session Invalidation Listener (Instant Eviction)
+  // 🔄 Real-Time Cross-Device Session Invalidation Listener (Instant Eviction across collections)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -244,46 +244,106 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     }
 
-    if (!targetEmail) return;
+    if (!targetEmail && !user?.uid) return;
 
-    const staffAccountRef = doc(db, "staff_accounts", targetEmail);
-    const unsub = onSnapshot(
-      staffAccountRef,
-      (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const remoteVersion = data.sessionVersion;
-          if (remoteVersion) {
-            const localVersion = localStorage.getItem("tenopilot_session_version");
-            if (localVersion && localVersion !== remoteVersion) {
-              console.warn("🔒 Cross-Device Eviction: Remote sessionVersion changed from", localVersion, "to", remoteVersion);
-              sessionStorage.removeItem("tenopilot_session_unlocked");
-              localStorage.removeItem("tenopilot_saved_session");
-              localStorage.removeItem("tenopilot_global_staff");
-              localStorage.removeItem("tenopilot_pin_lockout");
-              localStorage.removeItem("tenopilot_active_role");
-              localStorage.removeItem("tenopilot_session_version");
-              sessionStorage.setItem(
-                "tenopilot_revoked_notice",
-                "🔒 Security Notice: Your PIN or password was updated on another device. Please sign in with your new credentials."
-              );
-              setProfile(null);
-              setUser(null);
-              signOut(auth);
-              router.replace("/login");
-            } else if (!localVersion) {
-              localStorage.setItem("tenopilot_session_version", remoteVersion);
-            }
-          }
+    const evictCurrentSession = (reason: string) => {
+      console.warn("🔒 Cross-Device Eviction Triggered:", reason);
+      sessionStorage.removeItem("tenopilot_session_unlocked");
+      localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_global_staff");
+      localStorage.removeItem("tenopilot_pin_lockout");
+      localStorage.removeItem("tenopilot_active_role");
+      localStorage.removeItem("tenopilot_session_version");
+      sessionStorage.setItem(
+        "tenopilot_revoked_notice",
+        "🔒 Security Notice: Your PIN or credentials were changed on another device. Please sign in with your new PIN/password."
+      );
+      setProfile(null);
+      setUser(null);
+      signOut(auth).catch(() => {});
+      router.replace("/login");
+    };
+
+    const unsubs: Array<() => void> = [];
+
+    // Helper to evaluate cloud data against local device state
+    const evaluateCloudSecurityState = (cloudData: any, source: string) => {
+      if (!cloudData) return;
+
+      const remoteVersion = cloudData.sessionVersion;
+      const remotePin = cloudData.securityPin;
+      const localVersion = localStorage.getItem("tenopilot_session_version");
+
+      let localPin: string | undefined = undefined;
+      try {
+        const saved = localStorage.getItem("tenopilot_saved_session");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          localPin = parsed.securityPin;
         }
-      },
-      (err) => {
-        console.warn("Cross-device session snapshot notice:", err);
-      }
-    );
+      } catch {}
 
-    return () => unsub();
-  }, [user?.email, pathname, router]);
+      // 1. Version Mismatch Check
+      if (remoteVersion && localVersion && remoteVersion !== localVersion) {
+        evictCurrentSession(`${source} remote version (${remoteVersion}) differs from local (${localVersion})`);
+        return;
+      }
+
+      // 2. PIN Drift Check (If PIN changed in cloud and differs from local device's cached PIN)
+      if (remotePin && localPin && remotePin !== localPin) {
+        evictCurrentSession(`${source} remote securityPin changed in Cloud Firestore`);
+        return;
+      }
+
+      // 3. Initialize local version if aligned
+      if (remoteVersion && !localVersion) {
+        localStorage.setItem("tenopilot_session_version", remoteVersion);
+      }
+    };
+
+    // 1. Listen to staff_accounts collection
+    if (targetEmail) {
+      try {
+        const staffAccountRef = doc(db, "staff_accounts", targetEmail);
+        const unsubStaff = onSnapshot(
+          staffAccountRef,
+          (snap) => {
+            if (snap.exists()) {
+              evaluateCloudSecurityState(snap.data(), "staff_accounts");
+            }
+          },
+          (err) => console.warn("Staff account snapshot listener notice:", err)
+        );
+        unsubs.push(unsubStaff);
+      } catch (err) {
+        console.warn("staff_accounts snapshot registration warning:", err);
+      }
+    }
+
+    // 2. Listen to users collection
+    const currentUid = user?.uid || auth.currentUser?.uid;
+    if (currentUid) {
+      try {
+        const userRef = doc(db, "users", currentUid);
+        const unsubUser = onSnapshot(
+          userRef,
+          (snap) => {
+            if (snap.exists()) {
+              evaluateCloudSecurityState(snap.data(), "users");
+            }
+          },
+          (err) => console.warn("Users snapshot listener notice:", err)
+        );
+        unsubs.push(unsubUser);
+      } catch (err) {
+        console.warn("users snapshot registration warning:", err);
+      }
+    }
+
+    return () => {
+      unsubs.forEach((unsub) => unsub());
+    };
+  }, [user?.email, user?.uid, pathname, router]);
 
   // Update Profile Name Function
   const updateProfileName = async (newName: string) => {
