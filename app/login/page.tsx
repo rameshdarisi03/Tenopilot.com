@@ -95,22 +95,89 @@ export default function LoginPage() {
     setLockoutCountdown(0);
   };
 
-  // Check for saved local device session on mount (Fintech Quick Unlock)
+  // Check for saved local device session on mount (Fintech Quick Unlock + Cloud Revalidation)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tenopilot_saved_session");
       if (saved) {
         try {
           const parsed = JSON.parse(saved) as SavedSession;
-          setSavedSession(parsed);
-          setEmail(parsed.email);
-          if (parsed.hasSetPin === false || !parsed.securityPin) {
-            setAuthStep("FIRST_TIME_SET_PIN");
+          if (!parsed.email || typeof parsed.email !== "string" || !parsed.email.includes("@")) {
+            // Corrupt or legacy session schema -> self heal
+            localStorage.removeItem("tenopilot_saved_session");
+            setSavedSession(null);
+            setAuthStep("CREDENTIALS");
           } else {
-            setAuthStep("PIN_PROMPT");
+            setSavedSession(parsed);
+            setEmail(parsed.email);
+            if (parsed.hasSetPin === false || !parsed.securityPin) {
+              setAuthStep("FIRST_TIME_SET_PIN");
+            } else {
+              setAuthStep("PIN_PROMPT");
+            }
+
+            // 🔄 Background Cloud Revalidation: Silently verify latest PIN & account status from Cloud Firestore
+            (async () => {
+              try {
+                const cleanEmail = parsed.email.trim().toLowerCase();
+                let cloudPin: string | undefined = undefined;
+                let cloudHasSetPin: boolean = false;
+                let cloudName: string | undefined = undefined;
+                let cloudRole: any = undefined;
+                let cloudAssignedProp: string | undefined = undefined;
+
+                // 1. Check staff_accounts collection
+                const staffSnap = await getDoc(doc(db, "staff_accounts", cleanEmail));
+                if (staffSnap.exists()) {
+                  const sData = staffSnap.data();
+                  if (sData.securityPin) {
+                    cloudPin = sData.securityPin;
+                    cloudHasSetPin = true;
+                  }
+                  if (sData.name) cloudName = sData.name;
+                  if (sData.role) cloudRole = sData.role;
+                  if (sData.assignedPropertyId) cloudAssignedProp = sData.assignedPropertyId;
+                }
+
+                // 2. Check users collection if firebase auth user is present
+                if (auth.currentUser) {
+                  const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+                  if (userSnap.exists()) {
+                    const uData = userSnap.data();
+                    if (uData.securityPin) {
+                      cloudPin = uData.securityPin;
+                      cloudHasSetPin = true;
+                    }
+                    if (uData.displayName) cloudName = uData.displayName;
+                    if (uData.role) cloudRole = uData.role;
+                    if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
+                  }
+                }
+
+                if (cloudPin || cloudHasSetPin) {
+                  const updatedSession: SavedSession = {
+                    ...parsed,
+                    securityPin: cloudPin || parsed.securityPin,
+                    hasSetPin: true,
+                    name: cloudName || parsed.name,
+                    role: cloudRole || parsed.role,
+                    assignedPropertyId: cloudAssignedProp || parsed.assignedPropertyId,
+                  };
+                  setSavedSession(updatedSession);
+                  localStorage.setItem("tenopilot_saved_session", JSON.stringify(updatedSession));
+                  if (updatedSession.securityPin) {
+                    setAuthStep("PIN_PROMPT");
+                  }
+                }
+              } catch (syncErr) {
+                console.warn("Background session revalidation notice:", syncErr);
+              }
+            })();
           }
         } catch {
+          localStorage.removeItem("tenopilot_saved_session");
           setSavedSession(null);
+          setAuthStep("CREDENTIALS");
         }
       }
 
@@ -351,14 +418,14 @@ export default function LoginPage() {
     }
   };
 
-  // Verify PIN & Smart Redirection
-  const verifyAndRedirect = (inputPin: string) => {
+  // Verify PIN & Smart Redirection (with Instant Cloud Fallback)
+  const verifyAndRedirect = async (inputPin: string) => {
     setIsLoading(true);
     setError(null);
 
-    const targetEmail = savedSession?.email || email || "admin@gmail.com";
+    const targetEmail = (savedSession?.email || email || "admin@gmail.com").trim().toLowerCase();
     
-    // Direct check against saved session securityPin first!
+    // 1. Direct check against local saved session & staff store
     let isValid = false;
     let member: StaffMember | undefined = undefined;
 
@@ -368,6 +435,44 @@ export default function LoginPage() {
       const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
       isValid = verification.valid;
       member = verification.member;
+    }
+
+    // 2. LIVE CLOUD FALLBACK: If local check failed, check Cloud Firestore before failing!
+    if (!isValid) {
+      try {
+        // Check staff_accounts collection
+        const staffSnap = await getDoc(doc(db, "staff_accounts", targetEmail));
+        if (staffSnap.exists()) {
+          const data = staffSnap.data();
+          if (data.securityPin && data.securityPin === inputPin) {
+            isValid = true;
+            // Update local session with synced Cloud PIN
+            const updated = { ...(savedSession || {}), email: targetEmail, securityPin: inputPin, hasSetPin: true } as SavedSession;
+            setSavedSession(updated);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
+            }
+          }
+        }
+
+        // Check users collection if currentUser available
+        if (!isValid && auth.currentUser) {
+          const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+          if (userSnap.exists()) {
+            const uData = userSnap.data();
+            if (uData.securityPin && uData.securityPin === inputPin) {
+              isValid = true;
+              const updated = { ...(savedSession || {}), email: targetEmail, securityPin: inputPin, hasSetPin: true } as SavedSession;
+              setSavedSession(updated);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
+              }
+            }
+          }
+        }
+      } catch (cloudErr) {
+        console.warn("Live cloud PIN check fallback notice:", cloudErr);
+      }
     }
 
     if (isValid) {
