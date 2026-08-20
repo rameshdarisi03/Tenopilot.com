@@ -44,6 +44,8 @@ import {
   QrCode,
   ExternalLink,
   MessageSquare,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export default function AdminComplaintsPage({
@@ -87,8 +89,18 @@ export default function AdminComplaintsPage({
   // Resolution Note State for Modal
   const [resolutionInput, setResolutionInput] = useState("");
 
-  // Public Resident Portal Link (Dynamic for local & Vercel)
+  // Public Complaints Portal Link (Dynamic for local & Vercel)
   const [publicPortalUrl, setPublicPortalUrl] = useState(`http://localhost:3000/p/${propertyId}/public-complaint`);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyLink = async () => {
+    const urlToCopy = publicPortalUrl || (typeof window !== "undefined" ? `${window.location.origin}/p/${propertyId}/public-complaint` : `/p/${propertyId}/public-complaint`);
+    try {
+      await navigator.clipboard.writeText(urlToCopy);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {}
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -327,7 +339,7 @@ export default function AdminComplaintsPage({
                 onClick={() => setQrModalOpen(true)}
                 className="px-3.5 py-2.5 rounded-2xl bg-white border border-gray-200 hover:border-[#c2652a] text-gray-800 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
               >
-                <QrCode className="w-4 h-4 text-[#c2652a]" /> Resident QR Portal
+                <QrCode className="w-4 h-4 text-[#c2652a]" /> Complaints QR Portal
               </button>
 
               <button
@@ -990,10 +1002,10 @@ export default function AdminComplaintsPage({
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="text-left">
                 <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-[#c2652a]" /> Resident QR Portal Code
+                  <QrCode className="w-5 h-5 text-[#c2652a]" /> Tenant Complaints QR Code
                 </h3>
                 <p className="text-[11px] text-gray-500">
-                  Scan or display in PG corridors & reception desk
+                  Scan or display in PG corridors & reception desk for residents to lodge 24/7 maintenance complaints
                 </p>
               </div>
               <button
@@ -1008,7 +1020,7 @@ export default function AdminComplaintsPage({
             <div className="p-6 bg-orange-50/40 rounded-3xl border-2 border-dashed border-[#c2652a]/40 flex flex-col items-center justify-center space-y-3">
               <div className="w-48 h-48 bg-white p-3 rounded-2xl shadow-md border border-gray-200 flex flex-col items-center justify-center relative">
                 <QRCodeSVG
-                  value={publicPortalUrl}
+                  value={publicPortalUrl || (typeof window !== "undefined" ? `${window.location.origin}/p/${propertyId}/public-complaint` : `/p/${propertyId}/public-complaint`)}
                   size={160}
                   fgColor="#201a17"
                   bgColor="#ffffff"
@@ -1021,21 +1033,39 @@ export default function AdminComplaintsPage({
                   Scan to Log Complaint Directly
                 </span>
                 <span className="text-[10px] text-gray-500 font-mono">
-                  {publicPortalUrl}
+                  {publicPortalUrl || `/p/${propertyId}/public-complaint`}
                 </span>
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-2">
               <a
                 href={publicPortalUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 py-3 rounded-2xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:bg-[#c2652a]/90 transition-all cursor-pointer"
+                className="w-full py-3 rounded-2xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:bg-[#c2652a]/90 transition-all cursor-pointer"
               >
-                <span>Preview Tenant Portal</span>
+                <span>Open Complaints Portal</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
+
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="w-full py-2.5 rounded-2xl bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 border border-gray-200 transition-all cursor-pointer"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-700">Link Copied to Clipboard!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Copy Direct Link</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
