@@ -40,8 +40,7 @@ export default function PublicTenantComplaintPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
   // Real-time Property Map Structure & Occupants
-  const [occupants, setOccupants] = useState<Occupant[]>([]);
-  const [isMounted, setIsMounted] = useState(false);
+  const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
 
   // Form Input States
   const [tenantPhone, setTenantPhone] = useState("");
@@ -75,7 +74,6 @@ export default function PublicTenantComplaintPage({
   ];
 
   useEffect(() => {
-    setIsMounted(true);
     setOccupants(occupantStore.getOccupants(propertyId));
 
     const unsubscribeLocal = propertyStore.subscribe(() => {
@@ -160,8 +158,6 @@ export default function PublicTenantComplaintPage({
     setDescription("");
     setPhotoUrl("");
   };
-
-  if (!isMounted) return null;
 
   return (
     <div className="min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-orange-100 selection:text-[#c2652a] pb-12">

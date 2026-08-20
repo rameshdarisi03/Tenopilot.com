@@ -273,8 +273,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 🛡️ Zero-Flash Guard: Never render private dashboard pixels before session PIN unlock
-  const isProtected = pathname?.startsWith("/p/") || pathname === "/home";
-  const isUnlocked = typeof window !== "undefined" ? sessionStorage.getItem("tenopilot_session_unlocked") === "true" : true;
+  const isPublicComplaint = pathname?.includes("/public-complaint");
+  const isSelfOnboard = pathname?.startsWith("/self-onboard");
+  const isPublicMarketing =
+    pathname === "/" ||
+    pathname === "/pricing" ||
+    pathname === "/features" ||
+    pathname === "/how-it-works" ||
+    pathname === "/verticals" ||
+    pathname === "/install";
+
+  const isProtected =
+    !isPublicComplaint &&
+    !isSelfOnboard &&
+    !isPublicMarketing &&
+    (pathname?.startsWith("/p/") || pathname === "/home" || pathname === "/staff-management");
+
+  const isUnlocked =
+    typeof window !== "undefined" ? sessionStorage.getItem("tenopilot_session_unlocked") === "true" : true;
 
   if (isProtected && !isUnlocked) {
     return (
