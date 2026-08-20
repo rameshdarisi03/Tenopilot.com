@@ -90,8 +90,9 @@ class StaffStore {
       if (match.status === "Inactive") {
         return { valid: false, error: "Account is inactive. Please contact Master Admin." };
       }
-      const expectedPin = match.securityPin || "123456";
-      if (pin === expectedPin || pin === "123456") {
+      // Strict check: if user has a configured PIN, ONLY that PIN is valid
+      const expectedPin = match.securityPin || (match.hasSetPin === false ? "123456" : "");
+      if (expectedPin && pin === expectedPin) {
         return { valid: true, member: match };
       }
       return { valid: false, error: "Incorrect 6-digit security PIN." };
@@ -104,8 +105,8 @@ class StaffStore {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.email?.toLowerCase() === cleanQuery || parsed.name) {
-            const expectedPin = parsed.securityPin || "123456";
-            if (pin === expectedPin || pin === "123456") {
+            const expectedPin = parsed.securityPin || (parsed.hasSetPin === false ? "123456" : "");
+            if (expectedPin && pin === expectedPin) {
               const localMember: StaffMember = {
                 id: `staff-local-${Date.now()}`,
                 name: parsed.name || "Estate Master Admin",
@@ -118,6 +119,7 @@ class StaffStore {
                 status: "Active",
                 joinedDate: "Today",
                 securityPin: pin,
+                hasSetPin: true,
               };
               this.addGlobalStaff(localMember);
               return { valid: true, member: localMember };
@@ -125,26 +127,6 @@ class StaffStore {
           }
         } catch {}
       }
-    }
-
-    // 3. Fallback for demo accounts or initial 123456 PIN
-    if (pin === "123456") {
-      return {
-        valid: true,
-        member: {
-          id: "staff-master-fallback",
-          name: cleanQuery.split("@")[0] || "Master Admin",
-          email: cleanQuery,
-          phone: "+91 9876543210",
-          role: "master_admin",
-          assignedPropertyId: "sunshine-pg",
-          assignedPropertyIds: ["*"],
-          propertyName: "All Properties",
-          status: "Active",
-          joinedDate: "Today",
-          securityPin: "123456",
-        },
-      };
     }
 
     return { valid: false, error: "Incorrect 6-digit security PIN." };
@@ -285,8 +267,8 @@ class StaffStore {
                 propertyName: parsed.propertyName || (userRole === "master_admin" ? "All Properties" : "Assigned Property"),
                 status: "Active",
                 joinedDate: userRole === "master_admin" ? "Owner" : "Staff",
-                securityPin: parsed.securityPin || "123456",
-                hasSetPin: parsed.hasSetPin ?? true,
+                securityPin: parsed.securityPin,
+                hasSetPin: parsed.hasSetPin ?? (parsed.securityPin ? true : false),
               };
               if (userRole === "master_admin") {
                 list = [currentMember, ...list.filter((s) => s.role !== "master_admin")];
