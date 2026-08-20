@@ -2,12 +2,17 @@
 
 export const dynamic = "force-dynamic";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
-import { verifyResidentForComplaint, ResidentVerificationResponse } from "@/utils/domainSSOT";
-import { createComplaintInFirestore, Complaint } from "@/lib/complaintStore";
+import { propertySettingsStore } from "@/constants/propertySettings";
+import { verifyResidentForComplaint } from "@/utils/domainSSOT";
+import {
+  createComplaintInFirestore,
+  subscribeToComplaints,
+  Complaint,
+} from "@/lib/complaintStore";
 import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import {
   Wrench,
@@ -29,7 +34,31 @@ import {
   AlertTriangle,
   XCircle,
   Lock,
+  Search,
+  Clock,
+  Check,
+  MessageSquare,
+  ChevronRight,
+  Package,
+  Layers,
+  PhoneCall,
+  ExternalLink,
 } from "lucide-react";
+
+function formatTimelineDate(isoStr: string): string {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return isoStr;
+  }
+}
 
 export default function PublicTenantComplaintPage({
   params,
@@ -39,11 +68,29 @@ export default function PublicTenantComplaintPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
-  // Real-time Property Map Structure & Occupants
-  const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
+  // Active Tab: "LOG" | "TRACK"
+  const [activeTab, setActiveTab] = useState<"LOG" | "TRACK">("LOG");
+
+  // Property Settings & Name
+  const [propertySettings, setPropertySettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
+
+  // Real-time Occupants & Complaints
+  const [occupants, setOccupants] = useState<Occupant[]>(() =>
+    occupantStore.getOccupants(propertyId)
+  );
+  const [allComplaints, setAllComplaints] = useState<Complaint[]>([]);
+
+  // Phone input & Verification State
+  const [tenantPhone, setTenantPhone] = useState("");
+  const [verifiedOccupant, setVerifiedOccupant] = useState<Occupant | null>(null);
+  const [verificationError, setVerificationError] = useState<{
+    status: "BOOKED" | "PAST" | "NOT_FOUND";
+    message: string;
+  } | null>(null);
 
   // Form Input States
-  const [tenantPhone, setTenantPhone] = useState("");
   const [tenantName, setTenantName] = useState("");
   const [roomNumber, setRoomNumber] = useState("");
   const [category, setCategory] = useState("Plumbing");
@@ -51,16 +98,10 @@ export default function PublicTenantComplaintPage({
   const [description, setDescription] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
 
-  // Mobile Verification State
-  const [verifiedOccupant, setVerifiedOccupant] = useState<Occupant | null>(null);
-  const [verificationError, setVerificationError] = useState<{
-    status: "BOOKED" | "PAST" | "NOT_FOUND";
-    message: string;
-  } | null>(null);
-
   // UI State
   const [submitting, setSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState<Complaint | null>(null);
+  const [trackFilter, setTrackFilter] = useState<"ALL" | "ACTIVE" | "RESOLVED">("ALL");
 
   const categoriesList = [
     { name: "Plumbing", icon: Wrench, color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -74,8 +115,15 @@ export default function PublicTenantComplaintPage({
   ];
 
   useEffect(() => {
-    setOccupants(occupantStore.getOccupants(propertyId));
+    // Property Settings sync
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
 
+    // Occupants sync
+    setOccupants(occupantStore.getOccupants(propertyId));
     const unsubscribeLocal = propertyStore.subscribe(() => {
       setOccupants(occupantStore.getOccupants(propertyId));
     });
@@ -90,9 +138,16 @@ export default function PublicTenantComplaintPage({
       }
     });
 
+    // Real-time complaints listener for tracking
+    const unsubscribeComplaints = subscribeToComplaints(propertyId, (list) => {
+      setAllComplaints(list);
+    });
+
     return () => {
+      unsubscribeSettings();
       unsubscribeLocal();
       unsubscribeFirestore();
+      unsubscribeComplaints();
     };
   }, [propertyId]);
 
@@ -102,7 +157,6 @@ export default function PublicTenantComplaintPage({
     setTenantPhone(cleanDigits);
 
     if (cleanDigits.length === 10) {
-      // Use SSOT active resident verifier (filters out future 'Booked' and past occupants)
       const res = verifyResidentForComplaint(cleanDigits, occupants);
 
       if (res.isValid && res.occupant) {
@@ -126,6 +180,26 @@ export default function PublicTenantComplaintPage({
       setVerificationError(null);
     }
   };
+
+  // Filter complaints for tracking (only belonging to entered verified mobile)
+  const tenantComplaints = useMemo(() => {
+    if (!tenantPhone || tenantPhone.length < 10) return [];
+    return allComplaints.filter((c) => c.tenantPhone.replace(/\D/g, "") === tenantPhone);
+  }, [allComplaints, tenantPhone]);
+
+  const activeComplaintsCount = useMemo(() => {
+    return tenantComplaints.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS").length;
+  }, [tenantComplaints]);
+
+  const filteredTrackComplaints = useMemo(() => {
+    if (trackFilter === "ACTIVE") {
+      return tenantComplaints.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS");
+    }
+    if (trackFilter === "RESOLVED") {
+      return tenantComplaints.filter((c) => c.status === "RESOLVED" || c.status === "REJECTED");
+    }
+    return tenantComplaints;
+  }, [tenantComplaints, trackFilter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,308 +226,610 @@ export default function PublicTenantComplaintPage({
     }
   };
 
-  const handleReset = () => {
+  const handleResetForm = () => {
     setSubmittedTicket(null);
     setTitle("");
     setDescription("");
     setPhotoUrl("");
   };
 
+  const displayName =
+    propertySettings.propertyName ||
+    propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
   return (
-    <div className="min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-orange-100 selection:text-[#c2652a] pb-12">
-      {/* Top Header Banner */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-2xs">
+    <div className="min-h-screen bg-[#fff8f6] text-[#201a17] font-sans selection:bg-orange-100 selection:text-[#964407] pb-16">
+      {/* TOP PROPERTY BRANDING HEADER */}
+      <header className="bg-white border-b border-[#d7c2b9] sticky top-0 z-30 shadow-xs">
         <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#c2652a] text-white flex items-center justify-center font-serif font-bold text-xl shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-xl shadow-xs">
               T
             </div>
             <div>
-              <h1 className="font-serif font-bold text-lg text-gray-900 tracking-tight flex items-center gap-1.5">
-                TenoPilot.com Resident Portal
+              <h1 className="font-serif font-bold text-base sm:text-lg text-gray-900 tracking-tight flex items-center gap-1.5 uppercase">
+                {displayName}
               </h1>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                Protected Resident Maintenance Portal
+              <p className="text-[10px] font-bold text-[#964407] tracking-wider uppercase">
+                24/7 Resident Care Desk
               </p>
             </div>
           </div>
           <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10px] flex items-center gap-1">
-            <Lock className="w-3 h-3 text-emerald-700" /> Active Occupancy Verified
+            <Lock className="w-3 h-3 text-emerald-700" /> Verified Resident Access
           </span>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-xl mx-auto px-4 pt-6 space-y-6">
-        {submittedTicket ? (
-          /* SUCCESS TICKET CONFIRMATION VIEW */
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6 text-center animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-inner">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
+      {/* WELCOME BANNER & TAB NAVIGATION */}
+      <div className="max-w-xl mx-auto px-4 pt-6 space-y-4">
+        <div className="text-center space-y-1">
+          <p className="text-xs font-semibold text-[#887569]">
+            Welcome to {displayName} Care Desk
+          </p>
+          <h2 className="font-serif font-bold text-xl sm:text-2xl text-gray-900">
+            How can we help you today?
+          </h2>
+        </div>
 
-            <div>
-              <span className="bg-orange-50 text-[#c2652a] border border-orange-200 px-3 py-1 rounded-full font-mono font-bold text-xs">
-                Reference ID: {submittedTicket.complaintNumber}
+        {/* 2 MAIN TABS */}
+        <div className="grid grid-cols-2 p-1.5 bg-white rounded-2xl border border-[#d7c2b9] shadow-xs gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab("LOG")}
+            className={`py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeTab === "LOG"
+                ? "bg-[#964407] text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-orange-50/50"
+            }`}
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Log New Issue</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("TRACK")}
+            className={`py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+              activeTab === "TRACK"
+                ? "bg-[#964407] text-white shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-orange-50/50"
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Track Complaints</span>
+            {activeComplaintsCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-amber-400 text-amber-950 font-extrabold text-[10px] flex items-center justify-center">
+                {activeComplaintsCount}
               </span>
-              <h2 className="font-serif font-bold text-2xl text-gray-900 mt-3">
-                Complaint Logged Successfully!
-              </h2>
-              <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
-                Your maintenance request has been submitted directly to TenoPilot.com Caretaker & Management desk.
-              </p>
-            </div>
+            )}
+          </button>
+        </div>
+      </div>
 
-            {/* Ticket Summary Card */}
-            <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 text-left space-y-2.5 text-xs">
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 font-bold">Verified Resident:</span>
-                <span className="font-bold text-gray-900">{submittedTicket.tenantName} ({submittedTicket.tenantPhone})</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 font-bold">Assigned Location:</span>
-                <span className="font-bold text-[#c2652a]">{submittedTicket.roomNumber}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-200 pb-2">
-                <span className="text-gray-500 font-bold">Category:</span>
-                <span className="font-bold text-gray-900">{submittedTicket.category}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 font-bold">Issue Title:</span>
-                <span className="font-bold text-gray-900">{submittedTicket.title}</span>
-              </div>
-            </div>
-
-            {/* Status Progress Tracker */}
-            <div className="p-4 rounded-2xl bg-orange-50/50 border border-orange-200 text-left space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-gray-900">
-                <span>Live Ticket Status</span>
-                <span className="text-[#c2652a] uppercase text-[10px]">🔴 OPEN / PENDING REVIEW</span>
-              </div>
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c2652a] rounded-full w-1/4 animate-pulse"></div>
-              </div>
-              <p className="text-[10px] text-gray-500 italic">
-                Caretaker will review this ticket and initiate servicing shortly.
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="flex-1 py-3 rounded-2xl bg-[#c2652a] text-white font-bold text-xs hover:bg-[#c2652a]/90 transition-all shadow-xs cursor-pointer"
-              >
-                Log Another Issue
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* FORM ENTRY VIEW WITH ANTI-SPAM DATABASE CHECK */
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6">
-            <div>
-              <h2 className="font-serif font-bold text-xl text-gray-900">
-                Log a Maintenance Request
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Enter your registered mobile number to verify your current active residency and log issues.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-5 text-xs">
-              {/* Resident Mobile Check Block */}
-              <div className="space-y-3 p-4 bg-orange-50/30 rounded-2xl border border-orange-200/60">
-                <h3 className="font-bold text-gray-900 flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5">
-                    <User className="w-4 h-4 text-[#c2652a]" /> Resident Mobile Verification
-                  </span>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">
-                    Anti-Spam Security 🔒
-                  </span>
-                </h3>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Enter Registered Mobile Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    maxLength={10}
-                    value={tenantPhone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
-                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums ${
-                      verifiedOccupant
-                        ? "border-emerald-500 ring-1 ring-emerald-500"
-                        : verificationError
-                        ? verificationError.status === "BOOKED"
-                          ? "border-amber-500 ring-1 ring-amber-500"
-                          : "border-red-500 ring-1 ring-red-500"
-                        : "border-gray-300"
-                    }`}
-                  />
+      {/* MAIN CONTENT AREA */}
+      <main className="max-w-xl mx-auto px-4 pt-4 space-y-6">
+        {/* ========================================================================= */}
+        {/* TAB 1: ✍️ LOG NEW ISSUE FORM */}
+        {/* ========================================================================= */}
+        {activeTab === "LOG" && (
+          <>
+            {submittedTicket ? (
+              /* SUCCESS TICKET CONFIRMATION VIEW */
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6 text-center animate-in zoom-in-95">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center shadow-inner">
+                  <CheckCircle2 className="w-10 h-10" />
                 </div>
 
-                {/* VERIFICATION FEEDBACK BADGES */}
-                {verifiedOccupant && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
-                    <div className="flex items-center gap-2.5">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <div>
-                        <p className="font-bold text-sm text-emerald-950">
-                          {verifiedOccupant.name} ({verifiedOccupant.stayType})
-                        </p>
-                        <p className="text-xs text-emerald-800 font-semibold mt-0.5">
-                          Assigned Location: {verifiedOccupant.roomNumber} (Bed {verifiedOccupant.bedCode})
-                        </p>
-                      </div>
-                    </div>
-                    <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase shrink-0">
-                      ACTIVE RESIDENT 🟢
+                <div className="space-y-2">
+                  <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                    Ticket Logged: {submittedTicket.complaintNumber}
+                  </span>
+                  <h2 className="font-serif font-bold text-2xl text-gray-900">
+                    Maintenance Request Dispatched!
+                  </h2>
+                  <p className="text-xs text-gray-600 max-w-sm mx-auto leading-relaxed">
+                    Your request has been routed directly to the property caretaker and management dashboard.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] text-left text-xs space-y-2">
+                  <div className="flex justify-between py-1 border-b border-orange-100">
+                    <span className="text-gray-500 font-medium">Issue Category</span>
+                    <span className="font-bold text-gray-900">{submittedTicket.category}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-orange-100">
+                    <span className="text-gray-500 font-medium">Reported For</span>
+                    <span className="font-bold text-gray-900">{submittedTicket.roomNumber}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-gray-500 font-medium">Status</span>
+                    <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-[10px]">
+                      OPEN / IN QUEUE
                     </span>
                   </div>
-                )}
+                </div>
 
-                {verificationError && (
-                  <div
-                    className={`p-3.5 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in fade-in ${
-                      verificationError.status === "BOOKED"
-                        ? "bg-amber-50 border-amber-300 text-amber-900"
-                        : "bg-red-50 border-red-300 text-red-900"
-                    }`}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("TRACK")}
+                    className="w-full py-3.5 rounded-2xl bg-[#964407] hover:bg-[#803804] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
                   >
-                    {verificationError.status === "BOOKED" ? (
-                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                    )}
-                    <div>
-                      <p className="font-bold text-sm">
-                        {verificationError.status === "BOOKED"
-                          ? "Booking Reserved (Not Onboarded Yet)"
-                          : verificationError.status === "PAST"
-                          ? "Access Expired (Vacated Resident)"
-                          : "Mobile Number Not Registered"}
-                      </p>
-                      <p className="text-xs font-normal mt-0.5 leading-relaxed">
-                        {verificationError.message}
-                      </p>
+                    <Package className="w-4 h-4" />
+                    <span>Track Live Progress in Timeline</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="w-full py-3 rounded-2xl bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs border border-gray-300 transition-all cursor-pointer"
+                  >
+                    Log Another Maintenance Issue
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ACTIVE COMPLAINT REGISTRATION FORM */
+              <form
+                onSubmit={handleSubmit}
+                className="bg-white rounded-3xl border border-[#d7c2b9] p-6 sm:p-8 shadow-xs space-y-6 animate-in fade-in"
+              >
+                {/* STEP 1: MOBILE VERIFICATION */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-bold text-gray-900 text-xs sm:text-sm mb-1">
+                      Step 1: Enter Your Registered Mobile Number *
+                    </label>
+                    <p className="text-[11px] text-gray-500 mb-2">
+                      Auto-verifies your room & resident details from {displayName} records.
+                    </p>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+                      <input
+                        type="tel"
+                        required
+                        maxLength={10}
+                        value={tenantPhone}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        placeholder="Enter 10-digit mobile number (e.g. 9876543210)"
+                        className={`w-full pl-10 pr-3.5 py-3 rounded-xl border bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407] tabular-nums ${
+                          verifiedOccupant
+                            ? "border-emerald-500 ring-1 ring-emerald-500"
+                            : verificationError
+                            ? verificationError.status === "BOOKED"
+                              ? "border-amber-500 ring-1 ring-amber-500"
+                              : "border-red-500 ring-1 ring-red-500"
+                            : "border-gray-300"
+                        }`}
+                      />
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Category Selector Grid */}
-              <div className={!verifiedOccupant ? "opacity-50 pointer-events-none" : ""}>
-                <label className="block font-bold text-gray-900 mb-2">
-                  Select Issue Category *
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {categoriesList.map((cat) => {
-                    const Icon = cat.icon;
-                    const isSelected = category === cat.name;
-
-                    return (
-                      <div
-                        key={cat.name}
-                        onClick={() => setCategory(cat.name)}
-                        className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-1.5 ${
-                          isSelected
-                            ? "border-[#c2652a] bg-orange-50 shadow-xs font-bold text-[#c2652a]"
-                            : "border-gray-200 bg-white hover:border-gray-300 text-gray-700"
-                        }`}
-                      >
-                        <div
-                          className={`p-2 rounded-xl border ${cat.color} ${
-                            isSelected ? "scale-110" : ""
-                          } transition-transform`}
-                        >
-                          <Icon className="w-4 h-4" />
+                  {/* VERIFICATION FEEDBACK BADGES */}
+                  {verifiedOccupant && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <p className="font-bold text-sm text-emerald-950">
+                            {verifiedOccupant.name} ({verifiedOccupant.stayType})
+                          </p>
+                          <p className="text-xs text-emerald-800 font-semibold mt-0.5">
+                            Assigned Location: {verifiedOccupant.roomNumber} (Bed {verifiedOccupant.bedCode})
+                          </p>
                         </div>
-                        <span className="text-[11px] leading-tight font-semibold">
-                          {cat.name}
-                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                      <span className="bg-emerald-200 text-emerald-900 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase shrink-0">
+                        ACTIVE RESIDENT 🟢
+                      </span>
+                    </div>
+                  )}
 
-              {/* Title & Description */}
-              <div className={!verifiedOccupant ? "opacity-50 pointer-events-none space-y-4" : "space-y-4"}>
-                <div>
-                  <label className="block font-bold text-gray-900 mb-1">
-                    Short Issue Title *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    disabled={!verifiedOccupant}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Water leaking from shower pipe / AC remote not working"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-900 mb-1">
-                    Detailed Description *
-                  </label>
-                  <textarea
-                    required
-                    disabled={!verifiedOccupant}
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Please describe what happened or location inside room..."
-                    className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  ></textarea>
+                  {verificationError && (
+                    <div
+                      className={`p-3.5 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in fade-in ${
+                        verificationError.status === "BOOKED"
+                          ? "bg-amber-50 border-amber-300 text-amber-900"
+                          : "bg-red-50 border-red-300 text-red-900"
+                      }`}
+                    >
+                      {verificationError.status === "BOOKED" ? (
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <p className="font-bold text-sm">
+                          {verificationError.status === "BOOKED"
+                            ? "Booking Reserved (Not Onboarded Yet)"
+                            : verificationError.status === "PAST"
+                            ? "Access Expired (Vacated Resident)"
+                            : "Mobile Number Not Registered"}
+                        </p>
+                        <p className="text-xs font-normal mt-0.5 leading-relaxed">
+                          {verificationError.message}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Optional Photo Attachment */}
-                <div>
-                  <label className="block font-bold text-gray-900 mb-1">
-                    Attach Photo (Optional)
+                {/* STEP 2: CATEGORY SELECTOR */}
+                <div className={!verifiedOccupant ? "opacity-40 pointer-events-none" : ""}>
+                  <label className="block font-bold text-gray-900 text-xs sm:text-sm mb-2">
+                    Step 2: Select Issue Category *
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 hover:border-[#c2652a] transition-colors cursor-pointer">
-                    <Upload className="w-5 h-5 text-[#c2652a] mx-auto mb-1" />
-                    <span className="font-bold text-gray-900 block text-xs">
-                      Click to upload picture of damaged tap / socket
-                    </span>
-                    <span className="text-[10px] text-gray-500">
-                      JPG or PNG (Max 5MB)
-                    </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {categoriesList.map((cat) => {
+                      const Icon = cat.icon;
+                      const isSelected = category === cat.name;
+
+                      return (
+                        <button
+                          key={cat.name}
+                          type="button"
+                          onClick={() => setCategory(cat.name)}
+                          className={`p-3 rounded-2xl border text-left flex flex-col items-start gap-2 transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-[#fff8f6] border-[#964407] ring-1 ring-[#964407] text-[#964407]"
+                              : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
+                          }`}
+                        >
+                          <div className={`p-2 rounded-xl border ${cat.color}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <span className="font-bold text-xs">{cat.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* STEP 3: TITLE & DESCRIPTION */}
+                <div className={`space-y-4 ${!verifiedOccupant ? "opacity-40 pointer-events-none" : ""}`}>
+                  <div>
+                    <label className="block font-bold text-gray-900 text-xs mb-1">
+                      Issue Summary / Title *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Bathroom geyser not turning on, Wi-Fi router slow"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-900 text-xs mb-1">
+                      Detailed Problem Description *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Please provide specific details to help the maintenance technician prepare tools..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-900 text-xs mb-1">
+                      Attach Image Link / Cloud URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={photoUrl}
+                      onChange={(e) => setPhotoUrl(e.target.value)}
+                      placeholder="https://drive.google.com/... or image link"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                    />
+                  </div>
+                </div>
+
+                {/* SUBMIT BUTTON */}
                 <button
                   type="submit"
-                  disabled={submitting || !verifiedOccupant}
-                  className={`w-full py-3.5 rounded-2xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
-                    verifiedOccupant
-                      ? "bg-[#c2652a] hover:bg-[#c2652a]/90 text-white cursor-pointer active:scale-98"
-                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  disabled={!verifiedOccupant || submitting}
+                  className={`w-full py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                    !verifiedOccupant || submitting
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-[#964407] hover:bg-[#803804] text-white shadow-md cursor-pointer active:scale-98"
                   }`}
                 >
                   {submitting ? (
-                    <span>Submitting Complaint...</span>
-                  ) : !verifiedOccupant ? (
-                    <span>Enter Verified Active Resident Mobile to Unlock</span>
+                    <span>Submitting Ticket to Caretaker...</span>
                   ) : (
                     <>
-                      <span>Submit Maintenance Request</span>
+                      <span>Dispatch Maintenance Request</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
+              </form>
+            )}
+          </>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: 📦 E-COMMERCE LOGISTICS TIMELINE TRACKING */}
+        {/* ========================================================================= */}
+        {activeTab === "TRACK" && (
+          <div className="space-y-4 animate-in fade-in">
+            {/* Phone Entry for Tracking */}
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-5 shadow-xs space-y-3">
+              <label className="block font-bold text-gray-900 text-xs">
+                Enter Your Registered Mobile Number to Track Status:
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="tel"
+                  maxLength={10}
+                  value={tenantPhone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  placeholder="Enter 10-digit mobile number"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#964407] tabular-nums"
+                />
               </div>
-            </form>
+
+              {/* Resident Verification Banner */}
+              {verifiedOccupant && (
+                <div className="p-3 rounded-xl bg-orange-50/80 border border-[#d7c2b9] text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-[#964407]" />
+                    <span className="font-bold text-gray-900">
+                      {verifiedOccupant.name} — Room {verifiedOccupant.roomNumber} ({verifiedOccupant.bedCode})
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Active
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Filter Pills */}
+            {tenantPhone.length === 10 && tenantComplaints.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTrackFilter("ALL")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    trackFilter === "ALL"
+                      ? "bg-[#964407] text-white"
+                      : "bg-white text-gray-600 border border-gray-200"
+                  }`}
+                >
+                  All ({tenantComplaints.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrackFilter("ACTIVE")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    trackFilter === "ACTIVE"
+                      ? "bg-amber-600 text-white"
+                      : "bg-white text-gray-600 border border-gray-200"
+                  }`}
+                >
+                  Active ({tenantComplaints.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrackFilter("RESOLVED")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    trackFilter === "RESOLVED"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-white text-gray-600 border border-gray-200"
+                  }`}
+                >
+                  Resolved ({tenantComplaints.filter((c) => c.status === "RESOLVED" || c.status === "REJECTED").length})
+                </button>
+              </div>
+            )}
+
+            {/* Tracking Cards List */}
+            {tenantPhone.length < 10 ? (
+              <div className="bg-white rounded-3xl border border-gray-200 p-8 text-center space-y-3">
+                <Phone className="w-10 h-10 text-gray-300 mx-auto" />
+                <h3 className="font-serif font-bold text-base text-gray-900">
+                  Enter Mobile Number Above
+                </h3>
+                <p className="text-xs text-gray-500 max-w-xs mx-auto">
+                  Type in your 10-digit registered number to view real-time tracking for your room maintenance tickets.
+                </p>
+              </div>
+            ) : filteredTrackComplaints.length === 0 ? (
+              <div className="bg-white rounded-3xl border border-gray-200 p-8 text-center space-y-3">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                <h3 className="font-serif font-bold text-base text-gray-900">
+                  No Complaints Found
+                </h3>
+                <p className="text-xs text-gray-500 max-w-xs mx-auto">
+                  There are no active or past maintenance tickets logged for this mobile number.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("LOG")}
+                  className="px-4 py-2 rounded-xl bg-[#964407] text-white font-bold text-xs inline-flex items-center gap-1.5 mt-2 cursor-pointer"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>Log an Issue Now</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredTrackComplaints.map((ticket) => {
+                  const isResolved = ticket.status === "RESOLVED";
+                  const isInProgress = ticket.status === "IN_PROGRESS";
+                  const isOpen = ticket.status === "OPEN";
+
+                  return (
+                    <div
+                      key={ticket.id}
+                      className="bg-white rounded-3xl border border-[#d7c2b9] p-5 sm:p-6 shadow-xs space-y-5"
+                    >
+                      {/* Ticket Card Header */}
+                      <div className="flex items-start justify-between border-b border-gray-100 pb-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-[#964407] bg-orange-50 px-2.5 py-0.5 rounded-md border border-orange-200">
+                              {ticket.complaintNumber || `#TKT-${ticket.id.slice(-4)}`}
+                            </span>
+                            <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
+                              {ticket.category}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-sm text-gray-900">
+                            {ticket.title}
+                          </h3>
+                        </div>
+
+                        {/* Status Badge */}
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase shrink-0 ${
+                            isResolved
+                              ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                              : isInProgress
+                              ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
+                              : "bg-blue-100 text-blue-900 border border-blue-300"
+                          }`}
+                        >
+                          {ticket.status === "RESOLVED"
+                            ? "Resolved 🟢"
+                            : ticket.status === "IN_PROGRESS"
+                            ? "In Progress 🟡"
+                            : "Received ⚪"}
+                        </span>
+                      </div>
+
+                      {/* Problem Description Snippet */}
+                      <p className="text-xs text-gray-600 bg-gray-50/70 p-3 rounded-xl border border-gray-100 leading-relaxed">
+                        {ticket.description}
+                      </p>
+
+                      {/* E-COMMERCE LOGISTICS 3-STEP TIMELINE TRACKER */}
+                      <div className="pt-2">
+                        <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#964407]" /> Live Resolution Tracker
+                        </h4>
+
+                        <div className="relative pl-6 space-y-6 border-l-2 border-dashed border-gray-200 ml-3">
+                          {/* STEP 1: TICKET RECEIVED */}
+                          <div className="relative">
+                            <div className="absolute -left-[31px] top-0.5 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center ring-4 ring-white shadow-xs">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-xs text-gray-900">
+                                ⚪ Step 1: Ticket Received & Queued
+                              </p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">
+                                Logged on {formatTimelineDate(ticket.createdAt)} • Assigned to {ticket.roomNumber}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* STEP 2: CARETAKER ASSIGNED / IN PROGRESS */}
+                          <div className="relative">
+                            <div
+                              className={`absolute -left-[31px] top-0.5 w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-white shadow-xs ${
+                                isResolved || isInProgress
+                                  ? "bg-amber-500 text-white"
+                                  : "bg-gray-200 text-gray-400"
+                              }`}
+                            >
+                              {isResolved ? (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : isInProgress ? (
+                                <Wrench className="w-3 h-3 text-white" />
+                              ) : (
+                                <span className="text-[10px] font-bold">2</span>
+                              )}
+                            </div>
+                            <div>
+                              <p
+                                className={`font-bold text-xs ${
+                                  isInProgress
+                                    ? "text-amber-900 font-extrabold"
+                                    : isResolved
+                                    ? "text-gray-900"
+                                    : "text-gray-400"
+                                }`}
+                              >
+                                🟡 Step 2: Caretaker Assigned / In Progress
+                              </p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">
+                                {isInProgress || isResolved
+                                  ? "Under active inspection by property maintenance technician"
+                                  : "Awaiting caretaker allocation"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* STEP 3: ISSUE RESOLVED */}
+                          <div className="relative">
+                            <div
+                              className={`absolute -left-[31px] top-0.5 w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-white shadow-xs ${
+                                isResolved
+                                  ? "bg-emerald-500 text-white"
+                                  : "bg-gray-200 text-gray-400"
+                              }`}
+                            >
+                              {isResolved ? (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : (
+                                <span className="text-[10px] font-bold">3</span>
+                              )}
+                            </div>
+                            <div>
+                              <p
+                                className={`font-bold text-xs ${
+                                  isResolved ? "text-emerald-950 font-extrabold" : "text-gray-400"
+                                }`}
+                              >
+                                🟢 Step 3: Issue Resolved & Verified
+                              </p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">
+                                {isResolved
+                                  ? "Repair completed & ticket closed by management"
+                                  : "Pending final repair & confirmation"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CARETAKER RESOLUTION NOTE BOX */}
+                      {ticket.resolutionNotes && (
+                        <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-950 text-xs space-y-1">
+                          <span className="font-bold text-[11px] flex items-center gap-1.5 text-amber-900">
+                            <MessageSquare className="w-3.5 h-3.5" /> Note from Caretaker:
+                          </span>
+                          <p className="text-xs text-amber-900/90 font-medium pl-5">
+                            &quot;{ticket.resolutionNotes}&quot;
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </main>
+
+      {/* FOOTER */}
+      <footer className="max-w-xl mx-auto px-4 mt-10 text-center space-y-1">
+        <p className="text-[11px] text-gray-400 font-medium">
+          Powered by <strong className="text-gray-600">TenoPilot.com</strong> • Precision Property Operating System
+        </p>
+      </footer>
     </div>
   );
 }
