@@ -90,6 +90,9 @@ export default function AdminComplaintsPage({
   // Resolution Note State for Modal
   const [resolutionInput, setResolutionInput] = useState("");
 
+  // Fullscreen Photo Modal State
+  const [previewModalImg, setPreviewModalImg] = useState<string | null>(null);
+
   // Public Complaints Portal Link (Dynamic for production custom domain & local)
   const [publicPortalUrl, setPublicPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -682,6 +685,34 @@ export default function AdminComplaintsPage({
                       </p>
                     </div>
 
+                    {/* Attached Photo Evidence Preview */}
+                    {((c.photoUrls && c.photoUrls.length > 0) || c.photoUrl) && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block">
+                          Attached Photo Evidence:
+                        </span>
+                        <div className="flex items-center gap-2.5">
+                          {(c.photoUrls || (c.photoUrl ? [c.photoUrl] : [])).map((pUrl, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() => setPreviewModalImg(pUrl)}
+                              className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shadow-2xs hover:scale-105 transition-transform cursor-pointer relative group"
+                            >
+                              <img
+                                src={pUrl}
+                                alt={`Evidence ${pIdx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Eye className="w-4 h-4 text-white" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Resolution Notes if resolved */}
                     {c.resolutionNotes && (
                       <div className="text-xs bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 space-y-1 text-emerald-900">
@@ -999,6 +1030,32 @@ export default function AdminComplaintsPage({
         propertyId={propertyId}
         propertyName={propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
       />
+
+      {/* FULLSCREEN PHOTO ZOOM MODAL */}
+      {previewModalImg && (
+        <div
+          onClick={() => setPreviewModalImg(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-2xl max-h-[85vh] bg-white rounded-3xl p-2 shadow-2xl overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewModalImg(null)}
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center shadow-md cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={previewModalImg}
+              alt="Photo Evidence Fullscreen"
+              className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

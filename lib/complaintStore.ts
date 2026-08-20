@@ -21,6 +21,7 @@ export interface Complaint {
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "REJECTED";
   resolutionNotes?: string;
   photoUrl?: string;
+  photoUrls?: string[];
   preferredTime?: string;
   createdAt: string;
   isRead: boolean;

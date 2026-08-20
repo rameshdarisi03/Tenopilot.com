@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { use, useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
@@ -43,6 +43,11 @@ import {
   Layers,
   PhoneCall,
   ExternalLink,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+  X,
+  Eye,
 } from "lucide-react";
 
 function formatTimelineDate(isoStr: string): string {
@@ -58,6 +63,52 @@ function formatTimelineDate(isoStr: string): string {
   } catch {
     return isoStr;
   }
+}
+
+/**
+ * Fast client-side image compressor (scales to max 900px, 0.75 JPEG)
+ */
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 900;
+        const MAX_HEIGHT = 900;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round(height * (MAX_WIDTH / width));
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round(width * (MAX_HEIGHT / height));
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
+          resolve(compressedDataUrl);
+        } else {
+          resolve(img.src);
+        }
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
 }
 
 export default function PublicTenantComplaintPage({
@@ -96,7 +147,14 @@ export default function PublicTenantComplaintPage({
   const [category, setCategory] = useState("Plumbing");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [compressing, setCompressing] = useState(false);
+
+  // File Input Ref for native file/camera dialog
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fullscreen Photo Modal State
+  const [previewModalImg, setPreviewModalImg] = useState<string | null>(null);
 
   // UI State
   const [submitting, setSubmitting] = useState(false);
@@ -181,6 +239,36 @@ export default function PublicTenantComplaintPage({
     }
   };
 
+  // Photo Upload Handler (Max 2 photos with auto-compression)
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const remainingSlots = 2 - photos.length;
+    if (remainingSlots <= 0) return;
+
+    setCompressing(true);
+    const filesToProcess = Array.from(e.target.files).slice(0, remainingSlots);
+    const newPhotos: string[] = [];
+
+    for (const file of filesToProcess) {
+      if (file.type.startsWith("image/")) {
+        try {
+          const compressed = await compressImage(file);
+          newPhotos.push(compressed);
+        } catch (err) {
+          console.warn("Image compression error:", err);
+        }
+      }
+    }
+
+    setPhotos((prev) => [...prev, ...newPhotos].slice(0, 2));
+    setCompressing(false);
+    if (e.target) e.target.value = "";
+  };
+
+  const handleRemovePhoto = (indexToRemove: number) => {
+    setPhotos((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
   // Filter complaints for tracking (only belonging to entered verified mobile)
   const tenantComplaints = useMemo(() => {
     if (!tenantPhone || tenantPhone.length < 10) return [];
@@ -223,7 +311,8 @@ export default function PublicTenantComplaintPage({
         category,
         title,
         description,
-        photoUrl: photoUrl || undefined,
+        photoUrl: photos.length > 0 ? photos[0] : undefined,
+        photoUrls: photos.length > 0 ? photos : undefined,
       });
 
       setSubmittedTicket(created);
@@ -238,7 +327,7 @@ export default function PublicTenantComplaintPage({
     setSubmittedTicket(null);
     setTitle("");
     setDescription("");
-    setPhotoUrl("");
+    setPhotos([]);
   };
 
   const displayName =
@@ -352,8 +441,8 @@ export default function PublicTenantComplaintPage({
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-gray-500 font-medium">Status</span>
-                    <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-[10px]">
-                      OPEN / IN QUEUE
+                    <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full text-[10px]">
+                      RECEIVED / QUEUED
                     </span>
                   </div>
                 </div>
@@ -495,7 +584,7 @@ export default function PublicTenantComplaintPage({
                   </div>
                 </div>
 
-                {/* STEP 3: TITLE & DESCRIPTION */}
+                {/* STEP 3: TITLE, DESCRIPTION & PHOTO UPLOAD */}
                 <div className={`space-y-4 ${!verifiedOccupant ? "opacity-40 pointer-events-none" : ""}`}>
                   <div>
                     <label className="block font-bold text-gray-900 text-xs mb-1">
@@ -525,26 +614,104 @@ export default function PublicTenantComplaintPage({
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-gray-900 text-xs mb-1">
-                      Attach Image Link / Cloud URL (Optional)
-                    </label>
+                  {/* 📷 NATIVE CAMERA & PHOTO UPLOADER (MAX 2 IMAGES) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-gray-900 text-xs">
+                        Attach Photo Evidence (Max 2 Photos)
+                      </label>
+                      <span className="text-[11px] font-bold text-gray-500">
+                        {photos.length} of 2 added
+                      </span>
+                    </div>
+
+                    {/* Hidden Native File Input (Triggers Camera / Gallery sheet) */}
                     <input
-                      type="url"
-                      value={photoUrl}
-                      onChange={(e) => setPhotoUrl(e.target.value)}
-                      placeholder="https://drive.google.com/... or image link"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#964407]"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple={photos.length === 0}
+                      onChange={handlePhotoSelect}
+                      className="hidden"
                     />
+
+                    {/* Uploader Trigger Button (Visible when under 2 photos) */}
+                    {photos.length < 2 && (
+                      <button
+                        type="button"
+                        disabled={compressing}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full py-4 px-4 rounded-2xl border-2 border-dashed border-[#d7c2b9] bg-white hover:bg-orange-50/50 hover:border-[#964407] transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-orange-100/80 text-[#964407] flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs text-gray-900">
+                            {compressing ? "Compressing Image..." : "📸 Take Photo / Upload from Gallery"}
+                          </p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            Tap to snap photo with camera or pick from photo library (JPEG, PNG)
+                          </p>
+                        </div>
+                      </button>
+                    )}
+
+                    {/* Attached Photos Grid */}
+                    {photos.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        {photos.map((photoData, idx) => (
+                          <div
+                            key={idx}
+                            className="relative rounded-2xl overflow-hidden border border-[#d7c2b9] bg-gray-100 aspect-video group shadow-2xs"
+                          >
+                            <img
+                              src={photoData}
+                              alt={`Evidence photo ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            {/* Overlay Controls */}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewModalImg(photoData)}
+                                className="w-8 h-8 rounded-full bg-white text-gray-900 flex items-center justify-center shadow-xs cursor-pointer hover:scale-110 transition-transform"
+                                title="View Fullscreen"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhoto(idx)}
+                                className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xs cursor-pointer hover:scale-110 transition-transform"
+                                title="Remove Photo"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <span className="absolute bottom-1.5 left-1.5 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                              Photo #{idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(idx)}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center sm:hidden"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* SUBMIT BUTTON */}
                 <button
                   type="submit"
-                  disabled={!verifiedOccupant || submitting}
+                  disabled={!verifiedOccupant || submitting || compressing}
                   className={`w-full py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-                    !verifiedOccupant || submitting
+                    !verifiedOccupant || submitting || compressing
                       ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                       : "bg-[#964407] hover:bg-[#803804] text-white shadow-md cursor-pointer active:scale-98"
                   }`}
@@ -595,7 +762,7 @@ export default function PublicTenantComplaintPage({
                     </span>
                   </div>
                   <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    Active
+                    Active Resident 🟢
                   </span>
                 </div>
               )}
@@ -676,6 +843,9 @@ export default function PublicTenantComplaintPage({
                   const isInProgress = ticket.status === "IN_PROGRESS";
                   const isOpen = ticket.status === "OPEN";
 
+                  // Extract photo attachments
+                  const ticketPhotos = ticket.photoUrls || (ticket.photoUrl ? [ticket.photoUrl] : []);
+
                   return (
                     <div
                       key={ticket.id}
@@ -719,6 +889,34 @@ export default function PublicTenantComplaintPage({
                       <p className="text-xs text-gray-700 bg-gray-50/80 p-3 rounded-xl border border-gray-100 leading-relaxed font-medium">
                         {ticket.description}
                       </p>
+
+                      {/* Photo Attachments Preview in Timeline Card */}
+                      {ticketPhotos.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block">
+                            Attached Photo Evidence ({ticketPhotos.length}):
+                          </span>
+                          <div className="flex items-center gap-2.5">
+                            {ticketPhotos.map((pUrl, pIdx) => (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => setPreviewModalImg(pUrl)}
+                                className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shadow-2xs hover:scale-105 transition-transform cursor-pointer relative group"
+                              >
+                                <img
+                                  src={pUrl}
+                                  alt={`Evidence ${pIdx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="w-4 h-4 text-white" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* E-COMMERCE LOGISTICS 3-STEP TIMELINE TRACKER */}
                       <div className="pt-2">
@@ -831,6 +1029,32 @@ export default function PublicTenantComplaintPage({
           </div>
         )}
       </main>
+
+      {/* FULLSCREEN PHOTO ZOOM MODAL */}
+      {previewModalImg && (
+        <div
+          onClick={() => setPreviewModalImg(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-xl max-h-[85vh] bg-white rounded-3xl p-2 shadow-2xl overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewModalImg(null)}
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center shadow-md cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={previewModalImg}
+              alt="Photo Evidence Fullscreen"
+              className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
 
       {/* FOOTER */}
       <footer className="max-w-xl mx-auto px-4 mt-10 text-center space-y-1">
