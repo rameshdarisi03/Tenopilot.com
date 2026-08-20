@@ -164,18 +164,38 @@ class StaffStore {
 
     // Save to Firestore properties, staff_accounts, and users
     if (target) {
+      const newSessionVersion = Date.now().toString();
+      const nowTimestamp = Date.now();
+      const nowIso = new Date().toISOString();
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("tenopilot_session_version", newSessionVersion);
+      }
+
       try {
         if (target.assignedPropertyId) {
           const docRef = doc(db, "properties", target.assignedPropertyId, "staff", staffId);
-          await setDoc(docRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
+          await setDoc(
+            docRef,
+            { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
+            { merge: true }
+          );
         }
         if (target.email) {
           const staffAccRef = doc(db, "staff_accounts", target.email.toLowerCase());
-          await setDoc(staffAccRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
+          await setDoc(
+            staffAccRef,
+            { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
+            { merge: true }
+          );
         }
         if (auth.currentUser) {
           const userDocRef = doc(db, "users", auth.currentUser.uid);
-          await setDoc(userDocRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
+          await setDoc(
+            userDocRef,
+            { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
+            { merge: true }
+          );
         }
       } catch (e) {
         console.warn("Firestore setSecurityPin fallback:", e);

@@ -27,6 +27,7 @@ import {
   sendUserEmailVerification,
   logoutUser,
   getCleanAuthErrorMessage,
+  syncUserSecurityPinToCloud,
 } from "@/lib/authService";
 import { useAuth } from "@/providers/AuthProvider";
 import { staffStore } from "@/lib/staffStore";
@@ -247,6 +248,9 @@ function SignUpPageContent() {
         securityPin: newPin,
       })
     );
+
+    // Sync PIN to cloud in background
+    syncUserSecurityPinToCloud(currentEmail, newPin).catch(() => {});
 
     router.push("/home");
     if (typeof window !== "undefined") {

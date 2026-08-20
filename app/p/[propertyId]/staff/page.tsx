@@ -6,7 +6,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
-import { reauthenticateCurrentAccount } from "@/lib/authService";
+import { reauthenticateCurrentAccount, syncUserSecurityPinToCloud } from "@/lib/authService";
 import Link from "next/link";
 import {
   Users,
@@ -96,6 +96,9 @@ export default function StaffManagementPage({
     setIsResettingPin(true);
     try {
       await staffStore.setSecurityPin(resetTargetStaff.id, resetNewPin);
+      if (resetTargetStaff.email) {
+        await syncUserSecurityPinToCloud(resetTargetStaff.email, resetNewPin);
+      }
       triggerToast(`✅ Security PIN for ${resetTargetStaff.name} updated to ${resetNewPin}!`);
       setResetTargetStaff(null);
       setResetNewPin("");

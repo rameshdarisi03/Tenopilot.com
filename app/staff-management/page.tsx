@@ -30,7 +30,7 @@ import {
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
 import { useAuth } from "@/providers/AuthProvider";
-import { reauthenticateCurrentAccount, provisionStaffFirebaseAccount } from "@/lib/authService";
+import { reauthenticateCurrentAccount, provisionStaffFirebaseAccount, syncUserSecurityPinToCloud } from "@/lib/authService";
 
 export default function StaffManagementPage() {
   const router = useRouter();
@@ -270,6 +270,9 @@ export default function StaffManagementPage() {
         await reauthenticateCurrentAccount(resetMasterPassword);
       }
       await staffStore.setSecurityPin(resetTargetMember.id, resetNewPin);
+      if (resetTargetMember.email) {
+        await syncUserSecurityPinToCloud(resetTargetMember.email, resetNewPin);
+      }
       setSuccessMessage(`✅ Your Master Security PIN has been updated successfully to ${resetNewPin}!`);
       setResetTargetMember(null);
       setResetNewPin("");

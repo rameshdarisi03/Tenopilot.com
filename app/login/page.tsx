@@ -83,6 +83,8 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
+  const [revokedNotice, setRevokedNotice] = useState<string | null>(null);
+
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Clear any existing lockout
@@ -98,6 +100,12 @@ export default function LoginPage() {
   // Check for saved local device session on mount (Fintech Quick Unlock + Cloud Revalidation)
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const notice = sessionStorage.getItem("tenopilot_revoked_notice");
+      if (notice) {
+        setRevokedNotice(notice);
+        sessionStorage.removeItem("tenopilot_revoked_notice");
+      }
+
       const saved = localStorage.getItem("tenopilot_saved_session");
       if (saved) {
         try {
@@ -438,16 +446,26 @@ export default function LoginPage() {
     }
 
     // 2. LIVE CLOUD FALLBACK: If local check failed, check Cloud Firestore before failing!
+    let activeSessionVersion = "";
     if (!isValid) {
       try {
         // Check staff_accounts collection
         const staffSnap = await getDoc(doc(db, "staff_accounts", targetEmail));
         if (staffSnap.exists()) {
           const data = staffSnap.data();
+          if (data.sessionVersion) activeSessionVersion = data.sessionVersion;
           if (data.securityPin && data.securityPin === inputPin) {
             isValid = true;
             // Update local session with synced Cloud PIN
-            const updated = { ...(savedSession || {}), email: targetEmail, securityPin: inputPin, hasSetPin: true } as SavedSession;
+            const updated = {
+              ...(savedSession || {}),
+              email: targetEmail,
+              name: data.name || savedSession?.name,
+              role: data.role || savedSession?.role,
+              assignedPropertyId: data.assignedPropertyId || savedSession?.assignedPropertyId,
+              securityPin: inputPin,
+              hasSetPin: true,
+            } as SavedSession;
             setSavedSession(updated);
             if (typeof window !== "undefined") {
               localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
@@ -460,9 +478,18 @@ export default function LoginPage() {
           const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
           if (userSnap.exists()) {
             const uData = userSnap.data();
+            if (uData.sessionVersion) activeSessionVersion = uData.sessionVersion;
             if (uData.securityPin && uData.securityPin === inputPin) {
               isValid = true;
-              const updated = { ...(savedSession || {}), email: targetEmail, securityPin: inputPin, hasSetPin: true } as SavedSession;
+              const updated = {
+                ...(savedSession || {}),
+                email: targetEmail,
+                name: uData.displayName || savedSession?.name,
+                role: uData.role || savedSession?.role,
+                assignedPropertyId: uData.assignedPropertyId || savedSession?.assignedPropertyId,
+                securityPin: inputPin,
+                hasSetPin: true,
+              } as SavedSession;
               setSavedSession(updated);
               if (typeof window !== "undefined") {
                 localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
@@ -481,6 +508,9 @@ export default function LoginPage() {
 
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
+        if (activeSessionVersion) {
+          localStorage.setItem("tenopilot_session_version", activeSessionVersion);
+        }
       }
 
       const role = member?.role || savedSession?.role || "master_admin";
@@ -570,8 +600,12 @@ export default function LoginPage() {
 
   const handleSwitchAccount = () => {
     if (typeof window !== "undefined") {
+      sessionStorage.removeItem("tenopilot_session_unlocked");
       localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_global_staff");
       localStorage.removeItem("tenopilot_pin_lockout");
+      localStorage.removeItem("tenopilot_active_role");
+      localStorage.removeItem("tenopilot_session_version");
     }
     clearLockout();
     setSavedSession(null);
@@ -580,6 +614,7 @@ export default function LoginPage() {
     setEmail("");
     setPassword("");
     setError(null);
+    setRevokedNotice(null);
   };
 
   const handleResetSubmit = async (e: React.FormEvent) => {
@@ -661,6 +696,14 @@ export default function LoginPage() {
                   : "Sign in to manage your properties & residents"}
               </p>
             </div>
+
+            {/* Multi-Device Revocation Security Notice */}
+            {revokedNotice && (
+              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-center gap-3 text-xs text-amber-900 font-semibold animate-in fade-in shadow-2xs">
+                <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+                <span>{revokedNotice}</span>
+              </div>
+            )}
 
             {/* Error Banner */}
             {error && (

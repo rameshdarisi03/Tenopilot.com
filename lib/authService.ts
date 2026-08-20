@@ -35,6 +35,8 @@ export interface AuthUserProfile {
   isNewUser?: boolean;
   hasSetPin?: boolean;
   securityPin?: string;
+  sessionVersion?: string;
+  pinUpdatedAt?: number;
 }
 
 /**
@@ -254,13 +256,18 @@ export async function loginWithGoogle(
 
 /**
  * 🔒 Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
+ * Generates and writes a new sessionVersion to invalidate other active sessions
  */
 export async function syncUserSecurityPinToCloud(
   email: string,
   pin: string,
   uid?: string
-): Promise<void> {
+): Promise<string> {
   const cleanEmail = email.trim().toLowerCase();
+  const newSessionVersion = Date.now().toString();
+  const nowIso = new Date().toISOString();
+  const nowTimestamp = Date.now();
+
   try {
     // 1. Update staff_accounts collection in Firestore
     await setDoc(
@@ -268,7 +275,9 @@ export async function syncUserSecurityPinToCloud(
       {
         securityPin: pin,
         hasSetPin: true,
-        updatedAt: new Date().toISOString(),
+        sessionVersion: newSessionVersion,
+        pinUpdatedAt: nowTimestamp,
+        updatedAt: nowIso,
       },
       { merge: true }
     );
@@ -281,7 +290,9 @@ export async function syncUserSecurityPinToCloud(
         {
           securityPin: pin,
           hasSetPin: true,
-          updatedAt: new Date().toISOString(),
+          sessionVersion: newSessionVersion,
+          pinUpdatedAt: nowTimestamp,
+          updatedAt: nowIso,
         },
         { merge: true }
       );
@@ -289,6 +300,13 @@ export async function syncUserSecurityPinToCloud(
   } catch (err) {
     console.warn("syncUserSecurityPinToCloud warning:", err);
   }
+
+  // Update local session version for current device
+  if (typeof window !== "undefined") {
+    localStorage.setItem("tenopilot_session_version", newSessionVersion);
+  }
+
+  return newSessionVersion;
 }
 
 /**

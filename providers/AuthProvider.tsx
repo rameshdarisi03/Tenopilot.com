@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import { sanitizeTitleCase } from "@/lib/authService";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
@@ -227,6 +227,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, loading, pathname, router]);
 
+  // 🔄 Real-Time Cross-Device Session Invalidation Listener (Instant Eviction)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let targetEmail = "";
+    if (user?.email) {
+      targetEmail = user.email.toLowerCase().trim();
+    } else {
+      try {
+        const saved = localStorage.getItem("tenopilot_saved_session");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.email) targetEmail = parsed.email.toLowerCase().trim();
+        }
+      } catch {}
+    }
+
+    if (!targetEmail) return;
+
+    const staffAccountRef = doc(db, "staff_accounts", targetEmail);
+    const unsub = onSnapshot(
+      staffAccountRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const remoteVersion = data.sessionVersion;
+          if (remoteVersion) {
+            const localVersion = localStorage.getItem("tenopilot_session_version");
+            if (localVersion && localVersion !== remoteVersion) {
+              console.warn("🔒 Cross-Device Eviction: Remote sessionVersion changed from", localVersion, "to", remoteVersion);
+              sessionStorage.removeItem("tenopilot_session_unlocked");
+              localStorage.removeItem("tenopilot_saved_session");
+              localStorage.removeItem("tenopilot_global_staff");
+              localStorage.removeItem("tenopilot_pin_lockout");
+              localStorage.removeItem("tenopilot_active_role");
+              localStorage.removeItem("tenopilot_session_version");
+              sessionStorage.setItem(
+                "tenopilot_revoked_notice",
+                "🔒 Security Notice: Your PIN or password was updated on another device. Please sign in with your new credentials."
+              );
+              setProfile(null);
+              setUser(null);
+              signOut(auth);
+              router.replace("/login");
+            } else if (!localVersion) {
+              localStorage.setItem("tenopilot_session_version", remoteVersion);
+            }
+          }
+        }
+      },
+      (err) => {
+        console.warn("Cross-device session snapshot notice:", err);
+      }
+    );
+
+    return () => unsub();
+  }, [user?.email, pathname, router]);
+
   // Update Profile Name Function
   const updateProfileName = async (newName: string) => {
     const cleanName = sanitizeTitleCase(newName);
@@ -264,8 +322,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("tenopilot_session_unlocked");
       localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_global_staff");
       localStorage.removeItem("tenopilot_active_role");
       localStorage.removeItem("tenopilot_pin_lockout");
+      localStorage.removeItem("tenopilot_session_version");
     }
     setProfile(null);
     setUser(null);
