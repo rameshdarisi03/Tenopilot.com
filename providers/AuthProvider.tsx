@@ -265,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem("tenopilot_session_unlocked");
       localStorage.removeItem("tenopilot_saved_session");
       localStorage.removeItem("tenopilot_active_role");
+      localStorage.removeItem("tenopilot_pin_lockout");
     }
     setProfile(null);
     setUser(null);

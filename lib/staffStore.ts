@@ -1,4 +1,4 @@
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import {
   collection,
   doc,
@@ -162,7 +162,7 @@ class StaffStore {
       }
     }
 
-    // Save to Firestore properties and staff_accounts
+    // Save to Firestore properties, staff_accounts, and users
     if (target) {
       try {
         if (target.assignedPropertyId) {
@@ -172,6 +172,10 @@ class StaffStore {
         if (target.email) {
           const staffAccRef = doc(db, "staff_accounts", target.email.toLowerCase());
           await setDoc(staffAccRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
+        }
+        if (auth.currentUser) {
+          const userDocRef = doc(db, "users", auth.currentUser.uid);
+          await setDoc(userDocRef, { securityPin: newPin, hasSetPin: true }, { merge: true });
         }
       } catch (e) {
         console.warn("Firestore setSecurityPin fallback:", e);

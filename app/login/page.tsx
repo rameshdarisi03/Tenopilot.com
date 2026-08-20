@@ -31,11 +31,12 @@ import {
   sendPasswordReset,
   getCleanAuthErrorMessage,
   sanitizeTitleCase,
+  syncUserSecurityPinToCloud,
 } from "@/lib/authService";
 import { staffStore, StaffMember } from "@/lib/staffStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 
 interface SavedSession {
   email: string;
@@ -84,6 +85,16 @@ export default function LoginPage() {
 
   const pinInputRef = useRef<HTMLInputElement>(null);
 
+  // Clear any existing lockout
+  const clearLockout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tenopilot_pin_lockout");
+    }
+    setLockoutExpiry(null);
+    setWrongAttempts(0);
+    setLockoutCountdown(0);
+  };
+
   // Check for saved local device session on mount (Fintech Quick Unlock)
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -123,9 +134,7 @@ export default function LoginPage() {
       const remaining = Math.max(0, Math.ceil((lockoutExpiry - Date.now()) / 1000));
       setLockoutCountdown(remaining);
       if (remaining <= 0) {
-        setLockoutExpiry(null);
-        setWrongAttempts(0);
-        localStorage.removeItem("tenopilot_pin_lockout");
+        clearLockout();
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -150,6 +159,9 @@ export default function LoginPage() {
       // Sign in with Firebase Auth or staff credentials
       await loginWithEmailPassword(cleanEmail, password);
 
+      // Successfully authenticated with credentials -> Immediately clear lockout
+      clearLockout();
+
       // Check staff_accounts collection in Firestore
       let staffData: any = null;
       try {
@@ -161,32 +173,51 @@ export default function LoginPage() {
         console.warn("Firestore staff check fallback:", fsErr);
       }
 
+      // Check users collection in Firestore if currentUser available
+      let userData: any = null;
+      if (auth.currentUser) {
+        try {
+          const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+          if (userSnap.exists()) {
+            userData = userSnap.data();
+          }
+        } catch {}
+      }
+
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === cleanEmail);
 
-      const hasUserSetPin = staffData?.hasSetPin === true || (match && match.hasSetPin === true);
+      const hasUserSetPin =
+        userData?.hasSetPin === true ||
+        staffData?.hasSetPin === true ||
+        (match && match.hasSetPin === true);
+
+      const resolvedPin =
+        userData?.securityPin ||
+        staffData?.securityPin ||
+        match?.securityPin;
 
       const session: SavedSession = {
         email: cleanEmail,
-        name: staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner",
-        role: staffData?.role || match?.role || (cleanEmail.includes("rec") ? "receptionist" : "master_admin"),
+        name: userData?.displayName || staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner",
+        role: userData?.role || staffData?.role || match?.role || (cleanEmail.includes("rec") ? "receptionist" : "master_admin"),
         propertyName: staffData?.propertyName || match?.propertyName || "Sunshine Heights PG",
-        assignedPropertyId: staffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
-        securityPin: hasUserSetPin ? (staffData?.securityPin || match?.securityPin) : undefined,
-        hasSetPin: hasUserSetPin,
+        assignedPropertyId: userData?.assignedPropertyId || staffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
+        securityPin: hasUserSetPin ? resolvedPin : undefined,
+        hasSetPin: hasUserSetPin && Boolean(resolvedPin),
       };
 
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
       staffStore.setActiveRole(session.role);
 
-      // Route directly to FIRST_TIME_SET_PIN if user has not set their PIN yet!
-      if (!hasUserSetPin) {
-        setAuthStep("FIRST_TIME_SET_PIN");
-        setFirstTimePin("");
-      } else {
+      // Route to PIN_PROMPT if PIN is already set, or FIRST_TIME_SET_PIN if not
+      if (hasUserSetPin && resolvedPin) {
         setAuthStep("PIN_PROMPT");
         setPinValue("");
+      } else {
+        setAuthStep("FIRST_TIME_SET_PIN");
+        setFirstTimePin("");
       }
     } catch (err: any) {
       setError(getCleanAuthErrorMessage(err));
@@ -203,11 +234,18 @@ export default function LoginPage() {
       const result = await loginWithGoogle(false); // isSignUpMode = false
       if (!result) return;
 
+      // Master verification passed! Immediately clear any lockout freeze
+      clearLockout();
+
       const userEmail = result.user.email?.toLowerCase() || "";
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === userEmail);
 
-      const hasUserSetPin = result.profile.hasSetPin === true || (match && match.hasSetPin === true);
+      const hasUserSetPin =
+        (result.profile.hasSetPin === true && Boolean(result.profile.securityPin)) ||
+        (match && match.hasSetPin === true && Boolean(match.securityPin));
+
+      const resolvedPin = result.profile.securityPin || match?.securityPin;
 
       const session: SavedSession = {
         email: userEmail,
@@ -215,7 +253,7 @@ export default function LoginPage() {
         role: result.profile.role || match?.role || "master_admin",
         propertyName: match?.propertyName || "All Properties",
         assignedPropertyId: result.profile.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
-        securityPin: hasUserSetPin ? (result.profile.securityPin || match?.securityPin) : undefined,
+        securityPin: hasUserSetPin ? resolvedPin : undefined,
         hasSetPin: hasUserSetPin,
       };
 
@@ -223,11 +261,12 @@ export default function LoginPage() {
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
       staffStore.setActiveRole(session.role);
 
-      if (!hasUserSetPin) {
-        setAuthStep("FIRST_TIME_SET_PIN");
-      } else {
+      if (hasUserSetPin && resolvedPin) {
         setAuthStep("PIN_PROMPT");
         setPinValue("");
+      } else {
+        setAuthStep("FIRST_TIME_SET_PIN");
+        setFirstTimePin("");
       }
     } catch (err: any) {
       console.error("Google Login Error:", err);
@@ -273,27 +312,32 @@ export default function LoginPage() {
         staffStore.addGlobalStaff(newStaff);
       }
 
-      // Mark hasSetPin in Firestore
-      try {
-        await setDoc(doc(db, "staff_accounts", targetEmail.toLowerCase()), {
-          hasSetPin: true,
-          securityPin: firstTimePin,
-        }, { merge: true });
-      } catch {}
+      // Sync PIN across both Firestore users and staff_accounts collections
+      await syncUserSecurityPinToCloud(targetEmail, firstTimePin);
 
-      if (savedSession) {
-        const updated: SavedSession = { ...savedSession, securityPin: firstTimePin, hasSetPin: true };
-        setSavedSession(updated);
-        localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
-      }
+      // Clear any lockout
+      clearLockout();
+
+      const updated: SavedSession = {
+        ...(savedSession || {
+          email: targetEmail,
+          name: sanitizeTitleCase(targetEmail.split("@")[0]) || "Master Admin",
+          role: "master_admin",
+          assignedPropertyId: "sunshine-pg",
+        }),
+        securityPin: firstTimePin,
+        hasSetPin: true,
+      };
+      setSavedSession(updated);
+      localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
 
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
       }
 
-      const role = savedSession?.role || "master_admin";
+      const role = updated.role || "master_admin";
       staffStore.setActiveRole(role);
-      const targetProp = savedSession?.assignedPropertyId || "sunshine-pg";
+      const targetProp = updated.assignedPropertyId || "sunshine-pg";
       const targetPath = role === "master_admin" ? "/home" : `/p/${targetProp}/overview`;
 
       router.push(targetPath);
@@ -313,17 +357,31 @@ export default function LoginPage() {
     setError(null);
 
     const targetEmail = savedSession?.email || email || "admin@gmail.com";
-    const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
+    
+    // Direct check against saved session securityPin first!
+    let isValid = false;
+    let member: StaffMember | undefined = undefined;
 
-    if (verification.valid) {
+    if (savedSession?.securityPin && savedSession.securityPin === inputPin) {
+      isValid = true;
+    } else {
+      const verification = staffStore.verifySecurityPin(targetEmail, inputPin);
+      isValid = verification.valid;
+      member = verification.member;
+    }
+
+    if (isValid) {
+      // Clear lockout state on successful unlock
+      clearLockout();
+
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
       }
 
-      const role = verification.member?.role || savedSession?.role || "master_admin";
+      const role = member?.role || savedSession?.role || "master_admin";
       staffStore.setActiveRole(role);
 
-      const targetProperty = verification.member?.assignedPropertyId || savedSession?.assignedPropertyId || "sunshine-pg";
+      const targetProperty = member?.assignedPropertyId || savedSession?.assignedPropertyId || "sunshine-pg";
       const targetPath = role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`;
 
       router.push(targetPath);
@@ -339,7 +397,9 @@ export default function LoginPage() {
       if (newAttempts >= 5) {
         const expiry = Date.now() + 15 * 60 * 1000;
         setLockoutExpiry(expiry);
-        localStorage.setItem("tenopilot_pin_lockout", expiry.toString());
+        if (typeof window !== "undefined") {
+          localStorage.setItem("tenopilot_pin_lockout", expiry.toString());
+        }
         setError("🔒 Account locked due to 5 incorrect attempts. Please wait 15 minutes or verify with password/Google.");
       } else {
         setError(`Incorrect 6-digit PIN. (${5 - newAttempts} attempts remaining)`);
@@ -366,7 +426,8 @@ export default function LoginPage() {
         );
       }
 
-      // Google identity verified! Close modal and open PIN creation
+      // Google identity verified! Clear lockout and open PIN creation
+      clearLockout();
       setShowPasswordResetPinModal(false);
       setVerifyPasswordForPin("");
       setAuthStep("FIRST_TIME_SET_PIN");
@@ -389,7 +450,8 @@ export default function LoginPage() {
       const targetEmail = savedSession?.email || email;
       await loginWithEmailPassword(targetEmail, verifyPasswordForPin);
 
-      // Password verified! Open the PIN creation screen
+      // Password verified! Clear lockout and open PIN creation screen
+      clearLockout();
       setShowPasswordResetPinModal(false);
       setVerifyPasswordForPin("");
       setAuthStep("FIRST_TIME_SET_PIN");
@@ -402,7 +464,11 @@ export default function LoginPage() {
   };
 
   const handleSwitchAccount = () => {
-    localStorage.removeItem("tenopilot_saved_session");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_pin_lockout");
+    }
+    clearLockout();
     setSavedSession(null);
     setAuthStep("CREDENTIALS");
     setPinValue("");

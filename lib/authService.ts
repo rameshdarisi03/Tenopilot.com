@@ -181,17 +181,40 @@ export async function loginWithGoogle(
       let profile: AuthUserProfile;
       if (userSnap.exists()) {
         profile = userSnap.data() as AuthUserProfile;
+        // Check if there is a securityPin in staff_accounts or users as well
+        if (!profile.hasSetPin || !profile.securityPin) {
+          try {
+            const staffDoc = await getDoc(doc(db, "staff_accounts", email));
+            if (staffDoc.exists() && staffDoc.data().hasSetPin) {
+              const staffData = staffDoc.data();
+              profile.hasSetPin = true;
+              profile.securityPin = staffData.securityPin;
+              await setDoc(userDocRef, { hasSetPin: true, securityPin: staffData.securityPin }, { merge: true });
+            }
+          } catch {}
+        }
       } else {
-        // Find in staff registry
+        // Find in staff registry or staff_accounts
+        let matchStaffData: any = null;
+        try {
+          const staffDoc = await getDoc(doc(db, "staff_accounts", email));
+          if (staffDoc.exists()) {
+            matchStaffData = staffDoc.data();
+          }
+        } catch {}
+
         const all = staffStore.getAllGlobalStaff();
         const match = all.find((s) => s.email.toLowerCase() === email);
+
         profile = {
           uid: user.uid,
           email: email,
-          displayName: match?.name || user.displayName || "Staff Member",
+          displayName: matchStaffData?.name || match?.name || user.displayName || "Staff Member",
           organizationId: "org_estate",
-          role: match?.role || "admin",
-          assignedPropertyId: match?.assignedPropertyId || "sunshine-pg",
+          role: matchStaffData?.role || match?.role || "master_admin",
+          assignedPropertyId: matchStaffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
+          hasSetPin: matchStaffData?.hasSetPin ?? match?.hasSetPin ?? false,
+          securityPin: matchStaffData?.securityPin ?? match?.securityPin ?? undefined,
         };
         await setDoc(userDocRef, profile, { merge: true });
       }
@@ -226,6 +249,45 @@ export async function loginWithGoogle(
   } catch (error: any) {
     console.error("Google Auth Error:", error);
     throw error;
+  }
+}
+
+/**
+ * 🔒 Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
+ */
+export async function syncUserSecurityPinToCloud(
+  email: string,
+  pin: string,
+  uid?: string
+): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    // 1. Update staff_accounts collection in Firestore
+    await setDoc(
+      doc(db, "staff_accounts", cleanEmail),
+      {
+        securityPin: pin,
+        hasSetPin: true,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    // 2. Update users collection in Firestore
+    const targetUid = uid || auth.currentUser?.uid;
+    if (targetUid) {
+      await setDoc(
+        doc(db, "users", targetUid),
+        {
+          securityPin: pin,
+          hasSetPin: true,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.warn("syncUserSecurityPinToCloud warning:", err);
   }
 }
 
