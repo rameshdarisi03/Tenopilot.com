@@ -146,15 +146,24 @@ export function subscribeToComplaints(
             };
           });
 
+          // Deduplicate by ID
+          const uniqueMap = new Map<string, Complaint>();
+          list.forEach((item) => {
+            if (!uniqueMap.has(item.id)) {
+              uniqueMap.set(item.id, item);
+            }
+          });
+          const deduplicated = Array.from(uniqueMap.values());
+
           // Sort by creation date descending (latest first)
-          list.sort(
+          deduplicated.sort(
             (a, b) =>
               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
 
-          inMemoryComplaintsStore = list;
-          saveToLocalStorage(propertyId, list);
-          notifyStoreListeners(list);
+          inMemoryComplaintsStore = deduplicated;
+          saveToLocalStorage(propertyId, deduplicated);
+          notifyStoreListeners(deduplicated);
         } else {
           if (isMasterDemo) {
             INITIAL_COMPLAINTS.forEach((c) => {
@@ -215,7 +224,11 @@ export async function createComplaintInFirestore(
     console.warn("Firestore create complaint error, fallback to local store:", error);
   }
 
-  inMemoryComplaintsStore = [newComplaint, ...inMemoryComplaintsStore];
+  // Deduplicate before appending to local in-memory store
+  inMemoryComplaintsStore = [
+    newComplaint,
+    ...inMemoryComplaintsStore.filter((c) => c.id !== newId),
+  ];
   saveToLocalStorage(propertyId, inMemoryComplaintsStore);
   notifyStoreListeners(inMemoryComplaintsStore);
   

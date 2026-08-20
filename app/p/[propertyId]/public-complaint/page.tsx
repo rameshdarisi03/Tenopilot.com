@@ -184,7 +184,15 @@ export default function PublicTenantComplaintPage({
   // Filter complaints for tracking (only belonging to entered verified mobile)
   const tenantComplaints = useMemo(() => {
     if (!tenantPhone || tenantPhone.length < 10) return [];
-    return allComplaints.filter((c) => c.tenantPhone.replace(/\D/g, "") === tenantPhone);
+    const filtered = allComplaints.filter(
+      (c) => c.tenantPhone.replace(/\D/g, "") === tenantPhone
+    );
+    const seen = new Set<string>();
+    return filtered.filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
   }, [allComplaints, tenantPhone]);
 
   const activeComplaintsCount = useMemo(() => {
@@ -691,24 +699,24 @@ export default function PublicTenantComplaintPage({
 
                         {/* Status Badge */}
                         <span
-                          className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase shrink-0 ${
+                          className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shrink-0 ${
                             isResolved
                               ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
                               : isInProgress
                               ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
-                              : "bg-blue-100 text-blue-900 border border-blue-300"
+                              : "bg-blue-50 text-blue-800 border border-blue-200"
                           }`}
                         >
                           {ticket.status === "RESOLVED"
-                            ? "Resolved 🟢"
+                            ? "RESOLVED"
                             : ticket.status === "IN_PROGRESS"
-                            ? "In Progress 🟡"
-                            : "Received ⚪"}
+                            ? "IN PROGRESS"
+                            : "RECEIVED"}
                         </span>
                       </div>
 
                       {/* Problem Description Snippet */}
-                      <p className="text-xs text-gray-600 bg-gray-50/70 p-3 rounded-xl border border-gray-100 leading-relaxed">
+                      <p className="text-xs text-gray-700 bg-gray-50/80 p-3 rounded-xl border border-gray-100 leading-relaxed font-medium">
                         {ticket.description}
                       </p>
 
@@ -726,7 +734,7 @@ export default function PublicTenantComplaintPage({
                             </div>
                             <div>
                               <p className="font-bold text-xs text-gray-900">
-                                ⚪ Step 1: Ticket Received & Queued
+                                Step 1: Ticket Received & Queued
                               </p>
                               <p className="text-[10px] text-gray-500 mt-0.5">
                                 Logged on {formatTimelineDate(ticket.createdAt)} • Assigned to {ticket.roomNumber}
@@ -740,7 +748,7 @@ export default function PublicTenantComplaintPage({
                               className={`absolute -left-[31px] top-0.5 w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-white shadow-xs ${
                                 isResolved || isInProgress
                                   ? "bg-amber-500 text-white"
-                                  : "bg-gray-200 text-gray-400"
+                                  : "bg-gray-200 text-gray-500"
                               }`}
                             >
                               {isResolved ? (
@@ -761,7 +769,7 @@ export default function PublicTenantComplaintPage({
                                     : "text-gray-400"
                                 }`}
                               >
-                                🟡 Step 2: Caretaker Assigned / In Progress
+                                Step 2: Caretaker Assigned / In Progress
                               </p>
                               <p className="text-[10px] text-gray-500 mt-0.5">
                                 {isInProgress || isResolved
@@ -777,7 +785,7 @@ export default function PublicTenantComplaintPage({
                               className={`absolute -left-[31px] top-0.5 w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-white shadow-xs ${
                                 isResolved
                                   ? "bg-emerald-500 text-white"
-                                  : "bg-gray-200 text-gray-400"
+                                  : "bg-gray-200 text-gray-500"
                               }`}
                             >
                               {isResolved ? (
@@ -792,7 +800,7 @@ export default function PublicTenantComplaintPage({
                                   isResolved ? "text-emerald-950 font-extrabold" : "text-gray-400"
                                 }`}
                               >
-                                🟢 Step 3: Issue Resolved & Verified
+                                Step 3: Issue Resolved & Verified
                               </p>
                               <p className="text-[10px] text-gray-500 mt-0.5">
                                 {isResolved
