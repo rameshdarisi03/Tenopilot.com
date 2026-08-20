@@ -21,9 +21,76 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "TenoPilot.com — Rental Operating System for PG & Hostel Management",
+  metadataBase: new URL("https://www.tenopilot.com"),
+  title: {
+    default: "TenoPilot.com — Precision Rental Operating System for PG & Hostel Management",
+    template: "%s | TenoPilot.com",
+  },
   description:
-    "Automate room allocation, tenant & guest onboarding, rent collections, partner profit settlements, and expense tracking for PG & Hostel owners.",
+    "Automate room allocation, tenant & guest onboarding, automated rent collections, partner profit settlements, and 24/7 maintenance tracking for PG & Hostel owners.",
+  keywords: [
+    "PG management software",
+    "hostel management software",
+    "PG management app India",
+    "rental operating system",
+    "paying guest management software",
+    "PG rent collection software",
+    "hostel daily guest check-in",
+    "PG room allocation tool",
+    "automated rent receipts WhatsApp",
+    "PG partner profit settlement",
+    "co-living management platform",
+    "student housing management app",
+    "PG maintenance complaint portal",
+    "TenoPilot",
+  ],
+  authors: [{ name: "TenoPilot Inc.", url: "https://www.tenopilot.com" }],
+  creator: "TenoPilot Inc.",
+  publisher: "TenoPilot Inc.",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: "https://www.tenopilot.com",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "https://www.tenopilot.com",
+    siteName: "TenoPilot.com",
+    title: "TenoPilot.com — Precision Rental OS for PGs & Hostels",
+    description:
+      "Automate room allocation, tenant & guest onboarding, rent collections, partner profit settlements, and 24/7 maintenance tracking.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "TenoPilot — Precision Rental Operating System for PGs & Hostels",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TenoPilot.com — Precision Rental OS for PGs & Hostels",
+    description:
+      "Automate room allocation, tenant & guest onboarding, rent collections, partner profit settlements, and maintenance tracking.",
+    images: ["/og-image.png"],
+    creator: "@tenopilot",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

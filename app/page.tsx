@@ -48,8 +48,72 @@ export default function Home() {
     },
   ];
 
+  const jsonLdData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "TenoPilot",
+        "operatingSystem": "Web, iOS, Android (PWA)",
+        "applicationCategory": "BusinessApplication",
+        "description":
+          "Precision Rental Operating System for PG & Hostel Management in India. Automated room allocation, rent receipts, partner settlements.",
+        "url": "https://www.tenopilot.com",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Starter Plan",
+            "price": "999",
+            "priceCurrency": "INR",
+            "priceValidUntil": "2027-12-31",
+            "availability": "https://schema.org/InStock",
+          },
+          {
+            "@type": "Offer",
+            "name": "Professional Plan",
+            "price": "2499",
+            "priceCurrency": "INR",
+            "priceValidUntil": "2027-12-31",
+            "availability": "https://schema.org/InStock",
+          },
+        ],
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.9",
+          "ratingCount": "142",
+        },
+      },
+      {
+        "@type": "Organization",
+        "name": "TenoPilot Inc.",
+        "url": "https://www.tenopilot.com",
+        "logo": "https://www.tenopilot.com/icons/icon-512.png",
+        "sameAs": [
+          "https://twitter.com/tenopilot",
+          "https://linkedin.com/company/tenopilot",
+        ],
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": faqData.map((faq) => ({
+          "@type": "Question",
+          "name": faq.question,
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": faq.answer,
+          },
+        })),
+      },
+    ],
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-[#fff8f6] text-[#201a17] selection:bg-[#964407] selection:text-white">
+      {/* Schema.org Structured Data for Google Rich Results */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
+      />
       {/* 1. Global Navigation */}
       <nav className="sticky top-0 z-50 bg-[#fff8f6]/85 backdrop-blur-xl border-b border-[#d7c2b9]/60 transition-all">
         <div className="max-w-[1240px] mx-auto px-6 h-20 flex items-center justify-between">
@@ -242,7 +306,7 @@ export default function Home() {
       </header>
 
       {/* 3. Audience Verticals Section */}
-      <section className="py-20 md:py-28 bg-white border-y border-[#d7c2b9]/60" id="verticals">
+      <section className="py-20 md:py-28 bg-white border-y border-[#d7c2b9]/60 scroll-mt-20" id="verticals">
         <div className="max-w-[1240px] mx-auto px-6">
           <div className="text-center mb-16">
             <span className="text-[#964407] font-bold text-xs uppercase tracking-widest">
@@ -399,7 +463,7 @@ export default function Home() {
       </section>
 
       {/* 5. Showcase Features Section */}
-      <section className="py-20 md:py-28 bg-white" id="features">
+      <section className="py-20 md:py-28 bg-white scroll-mt-20" id="features">
         <div className="max-w-[1240px] mx-auto px-6">
           {/* Feature 1 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-24">
@@ -512,7 +576,7 @@ export default function Home() {
       </section>
 
       {/* 6. Corrected 5-Step Operational Timeline Section */}
-      <section className="py-20 md:py-28 bg-[#f8ede3]" id="how-it-works">
+      <section className="py-20 md:py-28 bg-[#f8ede3] scroll-mt-20" id="how-it-works">
         <div className="max-w-[1240px] mx-auto px-6 text-center">
           <span className="text-[#964407] font-bold text-xs uppercase tracking-widest block mb-2">
             Simple 5-Step Flow
@@ -576,7 +640,7 @@ export default function Home() {
       </section>
 
       {/* 7. Transparent Pricing Section (INR Currency & 10-Day Trial) */}
-      <section className="py-20 md:py-28 bg-white" id="pricing">
+      <section className="py-20 md:py-28 bg-white scroll-mt-20" id="pricing">
         <div className="max-w-[1240px] mx-auto px-6">
           <div className="text-center mb-16">
             <span className="text-[#964407] font-bold text-xs uppercase tracking-widest block mb-2">
@@ -693,7 +757,7 @@ export default function Home() {
       </section>
 
       {/* 8. FAQ Section */}
-      <section className="py-20 md:py-28 bg-[#f8ede3]">
+      <section className="py-20 md:py-28 bg-[#f8ede3]" id="faq">
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-16">
             <span className="text-[#964407] font-bold text-xs uppercase tracking-widest block mb-2">
