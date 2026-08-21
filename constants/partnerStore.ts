@@ -1,4 +1,4 @@
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // TenoPilot Single Source of Truth (SSOT) Partner Ownership & Expense Categories Store
@@ -41,224 +41,239 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
 
 export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [];
 
-let partnerState: PartnerConfig[] = [...DEFAULT_PARTNERS];
-let categoryState: ExpenseCategoryConfig[] = [...DEFAULT_EXPENSE_CATEGORIES];
-let paymentAccountState: PaymentAccountConfig[] = [...DEFAULT_PAYMENT_ACCOUNTS];
-let listeners: Array<() => void> = [];
-let activePartnerUnsub: (() => void) | null = null;
-let activePropId: string | null = null;
+// Multi-tenant in-memory maps keyed by propertyId
+const PROPERTY_PARTNERS_MAP = new Map<string, PartnerConfig[]>();
+const PROPERTY_CATEGORIES_MAP = new Map<string, ExpenseCategoryConfig[]>();
+const PROPERTY_PAYMENT_ACCOUNTS_MAP = new Map<string, PaymentAccountConfig[]>();
+const ACTIVE_PARTNERS_UNSUBSCRIBES = new Map<string, () => void>();
 
-// Load persisted state from localStorage on init if in browser
-if (typeof window !== "undefined") {
+let listeners: Array<() => void> = [];
+
+function notify() {
+  listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (e) {
+      console.warn("partnerStore listener error:", e);
+    }
+  });
+}
+
+function getStoredArray<T>(key: string, fallback: T[]): T[] {
+  if (typeof window === "undefined") return fallback;
   try {
-    const savedPartners = localStorage.getItem("tenopilot_partner_ownership");
-    if (savedPartners) {
-      const parsed = JSON.parse(savedPartners);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        partnerState = parsed;
-      }
-    }
-    const savedCats = localStorage.getItem("tenopilot_expense_categories");
-    if (savedCats) {
-      const parsedCats = JSON.parse(savedCats);
-      if (Array.isArray(parsedCats) && parsedCats.length > 0) {
-        categoryState = parsedCats;
-      }
-    }
-    const savedAccounts = localStorage.getItem("tenopilot_payment_accounts");
-    if (savedAccounts) {
-      const parsedAccs = JSON.parse(savedAccounts);
-      if (Array.isArray(parsedAccs) && parsedAccs.length > 0) {
-        paymentAccountState = parsedAccs;
-      }
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
-    console.error("Failed to load partnerStore from localStorage", e);
+    console.warn(`Failed reading localStorage ${key}:`, e);
+  }
+  return fallback;
+}
+
+function setStoredArray<T>(key: string, val: T[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {
+    console.warn(`Failed writing localStorage ${key}:`, e);
   }
 }
 
-function notify() {
-  listeners.forEach((listener) => listener());
-}
-
 export const partnerStore = {
-  initFirebaseListener(propertyId = "sunshine-pg") {
-    if (typeof window === "undefined" || !db) return;
-    if (activePropId === propertyId && activePartnerUnsub) return;
-
-    if (activePartnerUnsub) {
-      activePartnerUnsub();
-      activePartnerUnsub = null;
-    }
-
-    activePropId = propertyId;
+  initFirebaseListener(propertyId?: string) {
+    if (!propertyId || typeof window === "undefined" || !db) return;
+    if (ACTIVE_PARTNERS_UNSUBSCRIBES.has(propertyId)) return;
 
     try {
       const docRef = doc(db, `properties/${propertyId}/partners/config`);
-      activePartnerUnsub = onSnapshot(
+      const unsub = onSnapshot(
         docRef,
         (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.data();
-            if (data.partners && Array.isArray(data.partners)) partnerState = data.partners;
-            if (data.categories && Array.isArray(data.categories)) categoryState = data.categories;
-            if (data.paymentAccounts && Array.isArray(data.paymentAccounts)) paymentAccountState = data.paymentAccounts;
-            
-            if (typeof window !== "undefined") {
-              localStorage.setItem("tenopilot_partner_ownership", JSON.stringify(partnerState));
-              localStorage.setItem("tenopilot_expense_categories", JSON.stringify(categoryState));
-              localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
+            if (data.partners && Array.isArray(data.partners)) {
+              PROPERTY_PARTNERS_MAP.set(propertyId, data.partners);
+              setStoredArray(`tenopilot_partners_${propertyId}`, data.partners);
+            }
+            if (data.categories && Array.isArray(data.categories)) {
+              PROPERTY_CATEGORIES_MAP.set(propertyId, data.categories);
+              setStoredArray(`tenopilot_expense_categories_${propertyId}`, data.categories);
+            }
+            if (data.paymentAccounts && Array.isArray(data.paymentAccounts)) {
+              PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, data.paymentAccounts);
+              setStoredArray(`tenopilot_payment_accounts_${propertyId}`, data.paymentAccounts);
             }
             notify();
           }
         },
         (err) => {
-          console.warn("Realtime partner store snapshot notice:", err);
+          console.warn(`Realtime partner store snapshot notice for ${propertyId}:`, err);
         }
       );
+      ACTIVE_PARTNERS_UNSUBSCRIBES.set(propertyId, unsub);
     } catch (e) {
-      console.warn("Failed to attach partnerStore onSnapshot", e);
+      console.warn(`Failed to attach partnerStore onSnapshot for ${propertyId}`, e);
     }
+  },
+
+  async fetchPartnerConfigFromFirestore(propertyId?: string) {
+    if (!propertyId || !db) return;
+    try {
+      const docRef = doc(db, `properties/${propertyId}/partners/config`);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.partners && Array.isArray(data.partners)) {
+          PROPERTY_PARTNERS_MAP.set(propertyId, data.partners);
+          setStoredArray(`tenopilot_partners_${propertyId}`, data.partners);
+        }
+        if (data.categories && Array.isArray(data.categories)) {
+          PROPERTY_CATEGORIES_MAP.set(propertyId, data.categories);
+          setStoredArray(`tenopilot_expense_categories_${propertyId}`, data.categories);
+        }
+        if (data.paymentAccounts && Array.isArray(data.paymentAccounts)) {
+          PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, data.paymentAccounts);
+          setStoredArray(`tenopilot_payment_accounts_${propertyId}`, data.paymentAccounts);
+        }
+        notify();
+      }
+    } catch (e) {
+      console.warn(`fetchPartnerConfigFromFirestore notice for ${propertyId}:`, e);
+    }
+  },
+
+  async fetchPartnersFromFirestore(propertyId?: string) {
+    return this.fetchPartnerConfigFromFirestore(propertyId);
   },
 
   getPartners(propertyId?: string): PartnerConfig[] {
-    if (!propertyId) return [];
-    this.initFirebaseListener(propertyId);
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(`tenopilot_partners_${propertyId}`);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.warn(`Failed to read partners for ${propertyId}:`, e);
-      }
+    if (!propertyId) return [...DEFAULT_PARTNERS];
+    if (PROPERTY_PARTNERS_MAP.has(propertyId)) {
+      return PROPERTY_PARTNERS_MAP.get(propertyId)!;
     }
-    return partnerState;
+    const fromStorage = getStoredArray<PartnerConfig>(`tenopilot_partners_${propertyId}`, DEFAULT_PARTNERS);
+    PROPERTY_PARTNERS_MAP.set(propertyId, fromStorage);
+    return fromStorage;
   },
 
   async syncToFirestore(propertyId?: string) {
-    if (!propertyId) return;
+    if (!propertyId || !db) return;
     try {
-      if (db) {
-        const docRef = doc(db, `properties/${propertyId}/partners/config`);
-        await setDoc(
-          docRef,
-          {
-            partners: partnerState,
-            categories: categoryState,
-            paymentAccounts: paymentAccountState,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-      }
+      const partners = this.getPartners(propertyId);
+      const categories = this.getCategories(propertyId);
+      const paymentAccounts = this.getPaymentAccounts(propertyId);
+      const docRef = doc(db, `properties/${propertyId}/partners/config`);
+      await setDoc(
+        docRef,
+        {
+          partners,
+          categories,
+          paymentAccounts,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (e) {
-      console.warn("Firestore partnerStore sync notice:", e);
+      console.warn(`Firestore partnerStore sync notice for ${propertyId}:`, e);
     }
   },
 
   updatePartners(newPartners: PartnerConfig[], propertyId?: string) {
-    partnerState = newPartners;
+    if (!propertyId) return;
+    PROPERTY_PARTNERS_MAP.set(propertyId, newPartners);
+    setStoredArray(`tenopilot_partners_${propertyId}`, newPartners);
+
     // Auto sync partner accounts into payment accounts
-    const partnerAccs: PartnerConfig[] = newPartners;
-    const partnerAccountConfigs: PaymentAccountConfig[] = partnerAccs.map((p) => ({
+    const partnerAccountConfigs: PaymentAccountConfig[] = newPartners.map((p) => ({
       id: `acc-partner-${p.id}`,
       name: p.name,
       type: "Partner Account",
     }));
 
-    const nonPartnerAccs = paymentAccountState.filter(
-      (a) => a.type !== "Partner Account"
-    );
-    paymentAccountState = [...nonPartnerAccs, ...partnerAccountConfigs];
+    const currentAccounts = this.getPaymentAccounts(propertyId);
+    const nonPartnerAccs = currentAccounts.filter((a) => a.type !== "Partner Account");
+    const updatedAccounts = [...nonPartnerAccs, ...partnerAccountConfigs];
+    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, updatedAccounts);
+    setStoredArray(`tenopilot_payment_accounts_${propertyId}`, updatedAccounts);
 
-    if (typeof window !== "undefined" && propertyId) {
-      try {
-        localStorage.setItem(`tenopilot_partners_${propertyId}`, JSON.stringify(newPartners));
-        localStorage.setItem(`tenopilot_payment_accounts_${propertyId}`, JSON.stringify(paymentAccountState));
-      } catch (e) {
-        console.error("Failed to save partners to localStorage", e);
-      }
-    }
     notify();
     this.syncToFirestore(propertyId);
   },
 
   getPaymentAccounts(propertyId?: string): PaymentAccountConfig[] {
-    if (!propertyId) return [];
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(`tenopilot_payment_accounts_${propertyId}`);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.warn(`Failed to read payment accounts for ${propertyId}:`, e);
-      }
+    if (!propertyId) return [...DEFAULT_PAYMENT_ACCOUNTS];
+    if (PROPERTY_PAYMENT_ACCOUNTS_MAP.has(propertyId)) {
+      return PROPERTY_PAYMENT_ACCOUNTS_MAP.get(propertyId)!;
     }
-    return paymentAccountState;
+    const fromStorage = getStoredArray<PaymentAccountConfig>(`tenopilot_payment_accounts_${propertyId}`, DEFAULT_PAYMENT_ACCOUNTS);
+    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, fromStorage);
+    return fromStorage;
   },
 
-  addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account") {
+  addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account", propertyId?: string) {
+    if (!propertyId) return null;
+    const current = this.getPaymentAccounts(propertyId);
     const newAcc: PaymentAccountConfig = {
       id: `acc-${Date.now()}`,
       name: name.trim(),
       type,
     };
-    paymentAccountState = [...paymentAccountState, newAcc];
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
-      } catch (e) {
-        console.error("Failed to save payment account", e);
-      }
-    }
+    const updated = [...current, newAcc];
+    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, updated);
+    setStoredArray(`tenopilot_payment_accounts_${propertyId}`, updated);
     notify();
+    this.syncToFirestore(propertyId);
     return newAcc;
   },
 
-  deletePaymentAccount(id: string) {
-    paymentAccountState = paymentAccountState.filter((a) => a.id !== id);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("tenopilot_payment_accounts", JSON.stringify(paymentAccountState));
-      } catch (e) {
-        console.error("Failed to delete payment account", e);
-      }
-    }
+  deletePaymentAccount(id: string, propertyId?: string) {
+    if (!propertyId) return;
+    const current = this.getPaymentAccounts(propertyId);
+    const updated = current.filter((a) => a.id !== id);
+    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, updated);
+    setStoredArray(`tenopilot_payment_accounts_${propertyId}`, updated);
     notify();
+    this.syncToFirestore(propertyId);
   },
 
-  getCategories(): ExpenseCategoryConfig[] {
-    return categoryState;
+  getCategories(propertyId?: string): ExpenseCategoryConfig[] {
+    if (!propertyId) return [...DEFAULT_EXPENSE_CATEGORIES];
+    if (PROPERTY_CATEGORIES_MAP.has(propertyId)) {
+      return PROPERTY_CATEGORIES_MAP.get(propertyId)!;
+    }
+    const fromStorage = getStoredArray<ExpenseCategoryConfig>(`tenopilot_expense_categories_${propertyId}`, DEFAULT_EXPENSE_CATEGORIES);
+    PROPERTY_CATEGORIES_MAP.set(propertyId, fromStorage);
+    return fromStorage;
   },
 
-  addCategory(name: string, icon = "Wrench", color = "#964407") {
+  addCategory(name: string, icon = "Wrench", color = "#964407", propertyId?: string) {
+    if (!propertyId) return null;
+    const current = this.getCategories(propertyId);
     const newCat: ExpenseCategoryConfig = {
       id: `cat-${Date.now()}`,
       name: name.trim(),
       icon,
       color,
     };
-    categoryState = [...categoryState, newCat];
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("tenopilot_expense_categories", JSON.stringify(categoryState));
-      } catch (e) {
-        console.error("Failed to save expense categories", e);
-      }
-    }
+    const updated = [...current, newCat];
+    PROPERTY_CATEGORIES_MAP.set(propertyId, updated);
+    setStoredArray(`tenopilot_expense_categories_${propertyId}`, updated);
     notify();
+    this.syncToFirestore(propertyId);
     return newCat;
   },
 
-  deleteCategory(id: string) {
-    categoryState = categoryState.filter((c) => c.id !== id);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("tenopilot_expense_categories", JSON.stringify(categoryState));
-      } catch (e) {
-        console.error("Failed to delete category", e);
-      }
-    }
+  deleteCategory(id: string, propertyId?: string) {
+    if (!propertyId) return;
+    const current = this.getCategories(propertyId);
+    const updated = current.filter((c) => c.id !== id);
+    PROPERTY_CATEGORIES_MAP.set(propertyId, updated);
+    setStoredArray(`tenopilot_expense_categories_${propertyId}`, updated);
     notify();
+    this.syncToFirestore(propertyId);
   },
 
   subscribe(listener: () => void) {

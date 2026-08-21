@@ -125,14 +125,21 @@ export default function PropertySettingsPage({
       setSettings(propertySettingsStore.getSettings(propertyId));
     });
 
-    setPartners(partnerStore.getPartners());
-    setCategories(partnerStore.getCategories());
-    setPaymentAccounts(partnerStore.getPaymentAccounts());
+    partnerStore.initFirebaseListener(propertyId);
+    partnerStore.fetchPartnersFromFirestore(propertyId).then(() => {
+      setPartners(partnerStore.getPartners(propertyId));
+      setCategories(partnerStore.getCategories(propertyId));
+      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+    });
+
+    setPartners(partnerStore.getPartners(propertyId));
+    setCategories(partnerStore.getCategories(propertyId));
+    setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
 
     const unsubPartners = partnerStore.subscribe(() => {
-      setPartners(partnerStore.getPartners());
-      setCategories(partnerStore.getCategories());
-      setPaymentAccounts(partnerStore.getPaymentAccounts());
+      setPartners(partnerStore.getPartners(propertyId));
+      setCategories(partnerStore.getCategories(propertyId));
+      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
 
     return () => {
@@ -163,7 +170,7 @@ export default function PropertySettingsPage({
       alert(`⚠️ Total Partner Ownership percentage must equal exactly 100%! Current sum is ${totalShare}%. Please adjust.`);
       return;
     }
-    partnerStore.updatePartners(partners);
+    partnerStore.updatePartners(partners, propertyId);
     triggerToast("🎉 Partner ownership ratios saved! Financial Hub settlements updated in real-time.");
   };
 
@@ -193,14 +200,14 @@ export default function PropertySettingsPage({
   const handleAddCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    partnerStore.addCategory(newCatName);
+    partnerStore.addCategory(newCatName, undefined, undefined, propertyId);
     setNewCatName("");
     triggerToast(`✓ Added "${newCatName.trim()}" to active expense categories!`);
   };
 
   const handleDeleteCategoryClick = (id: string, name: string) => {
     if (confirm(`Remove expense category "${name}"?`)) {
-      partnerStore.deleteCategory(id);
+      partnerStore.deleteCategory(id, propertyId);
       triggerToast(`✓ Expense category "${name}" removed.`);
     }
   };
@@ -208,14 +215,14 @@ export default function PropertySettingsPage({
   const handleAddPaymentAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccName.trim()) return;
-    partnerStore.addPaymentAccount(newAccName, newAccType);
+    partnerStore.addPaymentAccount(newAccName, newAccType, propertyId);
     setNewAccName("");
     triggerToast(`✓ Added payment account "${newAccName.trim()}" (${newAccType})! Reflected across Financial Hub.`);
   };
 
   const handleDeletePaymentAccountClick = (id: string, name: string) => {
     if (confirm(`Delete payment account "${name}"?`)) {
-      partnerStore.deletePaymentAccount(id);
+      partnerStore.deletePaymentAccount(id, propertyId);
       triggerToast(`✓ Payment account "${name}" removed.`);
     }
   };

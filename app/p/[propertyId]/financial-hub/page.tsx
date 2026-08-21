@@ -283,14 +283,15 @@ export default function FinancialHubPage({
   const [revenueMetrics, setRevenueMetrics] = useState(computeLiveRevenueData);
 
   useEffect(() => {
-    setPartners(partnerStore.getPartners());
-    setCategories(partnerStore.getCategories());
-    setPaymentAccounts(partnerStore.getPaymentAccounts());
+    partnerStore.initFirebaseListener(propertyId);
+    setPartners(partnerStore.getPartners(propertyId));
+    setCategories(partnerStore.getCategories(propertyId));
+    setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
 
     const unsubPartners = partnerStore.subscribe(() => {
-      setPartners(partnerStore.getPartners());
-      setCategories(partnerStore.getCategories());
-      setPaymentAccounts(partnerStore.getPaymentAccounts());
+      setPartners(partnerStore.getPartners(propertyId));
+      setCategories(partnerStore.getCategories(propertyId));
+      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
 
     // Init Cloud Firebase Firestore & SSOT Stores for Property
@@ -362,11 +363,13 @@ export default function FinancialHubPage({
       return;
     }
 
-    const created = partnerStore.addCategory(trimmed, "Wrench", selectedColor);
-    setCategory(created.name);
-    setNewCategoryInput("");
-    setIsAddingNewCategory(false);
-    triggerToast(`🟢 New category "${created.name}" added to system!`);
+    const created = partnerStore.addCategory(trimmed, "Wrench", selectedColor, propertyId);
+    if (created) {
+      setCategory(created.name);
+      setNewCategoryInput("");
+      setIsAddingNewCategory(false);
+      triggerToast(`🟢 New category "${created.name}" added to system!`);
+    }
   };
 
   const handleSaveExpense = async (e: React.FormEvent) => {
@@ -514,14 +517,14 @@ export default function FinancialHubPage({
       return;
     }
 
-    partnerStore.addCategory(trimmed, selectedIcon, selectedColor);
+    partnerStore.addCategory(trimmed, selectedIcon, selectedColor, propertyId);
     setCatNameInput("");
     triggerToast(`🟢 Custom Category "${trimmed}" created & saved to SSOT!`);
   };
 
   const handleDeleteCategory = (catId: string, catName: string) => {
     if (confirm(`Are you sure you want to delete category "${catName}"?`)) {
-      partnerStore.deleteCategory(catId);
+      partnerStore.deleteCategory(catId, propertyId);
       triggerToast(`🗑️ Category "${catName}" removed.`);
     }
   };
