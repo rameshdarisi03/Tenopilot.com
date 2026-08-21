@@ -39,7 +39,10 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-[#4338ca]", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
 ];
 
-export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [];
+export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [
+  { id: "acc-1", name: "Main Business Account", type: "Business Account", isDefault: true },
+  { id: "acc-2", name: "Petty Cash", type: "Petty Cash" },
+];
 
 // Multi-tenant in-memory maps keyed by propertyId
 const PROPERTY_PARTNERS_MAP = new Map<string, PartnerConfig[]>();
