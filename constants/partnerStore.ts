@@ -26,7 +26,39 @@ export interface PaymentAccountConfig {
   isDefault?: boolean;
 }
 
-export const DEFAULT_PARTNERS: PartnerConfig[] = [];
+export function getOwnerDisplayName(): string {
+  if (typeof window === "undefined") return "Property Owner";
+  try {
+    const session = localStorage.getItem("tenopilot_saved_session");
+    if (session) {
+      const parsed = JSON.parse(session);
+      if (parsed.name) return parsed.name;
+      if (parsed.displayName) return parsed.displayName;
+    }
+    const profile = localStorage.getItem("tenopilot_user_profile");
+    if (profile) {
+      const parsed = JSON.parse(profile);
+      if (parsed.displayName) return parsed.displayName;
+      if (parsed.name) return parsed.name;
+    }
+  } catch {}
+  return "Property Owner";
+}
+
+export function getDefaultPartners(ownerName?: string): PartnerConfig[] {
+  const resolvedName = ownerName?.trim() || getOwnerDisplayName();
+  return [
+    {
+      id: "p-owner-1",
+      name: resolvedName,
+      ownershipPercentage: 100,
+      color: "#964407",
+      accountType: "Personal Account",
+    },
+  ];
+}
+
+export const DEFAULT_PARTNERS: PartnerConfig[] = getDefaultPartners();
 
 export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-1", name: "Electricity", icon: "Zap", color: "#d97706" },
@@ -68,7 +100,7 @@ function getStoredArray<T>(key: string, fallback: T[]): T[] {
     const saved = localStorage.getItem(key);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {
     console.warn(`Failed reading localStorage ${key}:`, e);
@@ -97,15 +129,15 @@ export const partnerStore = {
         (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.data();
-            if (data.partners && Array.isArray(data.partners)) {
+            if (data.partners && Array.isArray(data.partners) && data.partners.length > 0) {
               PROPERTY_PARTNERS_MAP.set(propertyId, data.partners);
               setStoredArray(`tenopilot_partners_${propertyId}`, data.partners);
             }
-            if (data.categories && Array.isArray(data.categories)) {
+            if (data.categories && Array.isArray(data.categories) && data.categories.length > 0) {
               PROPERTY_CATEGORIES_MAP.set(propertyId, data.categories);
               setStoredArray(`tenopilot_expense_categories_${propertyId}`, data.categories);
             }
-            if (data.paymentAccounts && Array.isArray(data.paymentAccounts)) {
+            if (data.paymentAccounts && Array.isArray(data.paymentAccounts) && data.paymentAccounts.length > 0) {
               PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, data.paymentAccounts);
               setStoredArray(`tenopilot_payment_accounts_${propertyId}`, data.paymentAccounts);
             }
@@ -122,22 +154,22 @@ export const partnerStore = {
     }
   },
 
-  async fetchPartnerConfigFromFirestore(propertyId?: string) {
+  async fetchPartnerConfigFromFirestore(propertyId?: string, fallbackOwnerName?: string) {
     if (!propertyId || !db) return;
     try {
       const docRef = doc(db, `properties/${propertyId}/partners/config`);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data();
-        if (data.partners && Array.isArray(data.partners)) {
+        if (data.partners && Array.isArray(data.partners) && data.partners.length > 0) {
           PROPERTY_PARTNERS_MAP.set(propertyId, data.partners);
           setStoredArray(`tenopilot_partners_${propertyId}`, data.partners);
         }
-        if (data.categories && Array.isArray(data.categories)) {
+        if (data.categories && Array.isArray(data.categories) && data.categories.length > 0) {
           PROPERTY_CATEGORIES_MAP.set(propertyId, data.categories);
           setStoredArray(`tenopilot_expense_categories_${propertyId}`, data.categories);
         }
-        if (data.paymentAccounts && Array.isArray(data.paymentAccounts)) {
+        if (data.paymentAccounts && Array.isArray(data.paymentAccounts) && data.paymentAccounts.length > 0) {
           PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, data.paymentAccounts);
           setStoredArray(`tenopilot_payment_accounts_${propertyId}`, data.paymentAccounts);
         }
@@ -148,18 +180,21 @@ export const partnerStore = {
     }
   },
 
-  async fetchPartnersFromFirestore(propertyId?: string) {
-    return this.fetchPartnerConfigFromFirestore(propertyId);
+  async fetchPartnersFromFirestore(propertyId?: string, fallbackOwnerName?: string) {
+    return this.fetchPartnerConfigFromFirestore(propertyId, fallbackOwnerName);
   },
 
-  getPartners(propertyId?: string): PartnerConfig[] {
-    if (!propertyId) return [...DEFAULT_PARTNERS];
+  getPartners(propertyId?: string, fallbackOwnerName?: string): PartnerConfig[] {
+    const defaultList = getDefaultPartners(fallbackOwnerName);
+    if (!propertyId) return defaultList;
     if (PROPERTY_PARTNERS_MAP.has(propertyId)) {
-      return PROPERTY_PARTNERS_MAP.get(propertyId)!;
+      const existing = PROPERTY_PARTNERS_MAP.get(propertyId)!;
+      if (existing && existing.length > 0) return existing;
     }
-    const fromStorage = getStoredArray<PartnerConfig>(`tenopilot_partners_${propertyId}`, DEFAULT_PARTNERS);
-    PROPERTY_PARTNERS_MAP.set(propertyId, fromStorage);
-    return fromStorage;
+    const fromStorage = getStoredArray<PartnerConfig>(`tenopilot_partners_${propertyId}`, defaultList);
+    const finalPartners = (fromStorage && fromStorage.length > 0) ? fromStorage : defaultList;
+    PROPERTY_PARTNERS_MAP.set(propertyId, finalPartners);
+    return finalPartners;
   },
 
   async syncToFirestore(propertyId?: string) {
@@ -207,13 +242,31 @@ export const partnerStore = {
   },
 
   getPaymentAccounts(propertyId?: string): PaymentAccountConfig[] {
-    if (!propertyId) return [...DEFAULT_PAYMENT_ACCOUNTS];
+    const partners = this.getPartners(propertyId);
+    const partnerAccountConfigs: PaymentAccountConfig[] = partners.map((p) => ({
+      id: `acc-partner-${p.id}`,
+      name: p.name,
+      type: "Partner Account",
+    }));
+
+    if (!propertyId) {
+      const base = [...DEFAULT_PAYMENT_ACCOUNTS];
+      const nonPartner = base.filter((a) => a.type !== "Partner Account");
+      return [...nonPartner, ...partnerAccountConfigs];
+    }
     if (PROPERTY_PAYMENT_ACCOUNTS_MAP.has(propertyId)) {
-      return PROPERTY_PAYMENT_ACCOUNTS_MAP.get(propertyId)!;
+      const cached = PROPERTY_PAYMENT_ACCOUNTS_MAP.get(propertyId)!;
+      if (cached && cached.length > 0) {
+        const nonPartner = cached.filter((a) => a.type !== "Partner Account");
+        return [...nonPartner, ...partnerAccountConfigs];
+      }
     }
     const fromStorage = getStoredArray<PaymentAccountConfig>(`tenopilot_payment_accounts_${propertyId}`, DEFAULT_PAYMENT_ACCOUNTS);
-    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, fromStorage);
-    return fromStorage;
+    const baseList = (fromStorage && fromStorage.length > 0) ? fromStorage : DEFAULT_PAYMENT_ACCOUNTS;
+    const nonPartner = baseList.filter((a) => a.type !== "Partner Account");
+    const finalAccounts = [...nonPartner, ...partnerAccountConfigs];
+    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, finalAccounts);
+    return finalAccounts;
   },
 
   addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account", propertyId?: string) {

@@ -37,6 +37,7 @@ import {
   ExpenseCategoryConfig,
   PaymentAccountConfig,
 } from "@/constants/partnerStore";
+import { useAuth } from "@/providers/AuthProvider";
 import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
 
 export default function PropertySettingsPage({
@@ -46,6 +47,7 @@ export default function PropertySettingsPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const { profile } = useAuth();
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -125,19 +127,20 @@ export default function PropertySettingsPage({
       setSettings(propertySettingsStore.getSettings(propertyId));
     });
 
+    const ownerDisplayName = profile?.displayName;
     partnerStore.initFirebaseListener(propertyId);
-    partnerStore.fetchPartnersFromFirestore(propertyId).then(() => {
-      setPartners(partnerStore.getPartners(propertyId));
+    partnerStore.fetchPartnersFromFirestore(propertyId, ownerDisplayName).then(() => {
+      setPartners(partnerStore.getPartners(propertyId, ownerDisplayName));
       setCategories(partnerStore.getCategories(propertyId));
       setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
 
-    setPartners(partnerStore.getPartners(propertyId));
+    setPartners(partnerStore.getPartners(propertyId, ownerDisplayName));
     setCategories(partnerStore.getCategories(propertyId));
     setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
 
     const unsubPartners = partnerStore.subscribe(() => {
-      setPartners(partnerStore.getPartners(propertyId));
+      setPartners(partnerStore.getPartners(propertyId, ownerDisplayName));
       setCategories(partnerStore.getCategories(propertyId));
       setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
@@ -146,7 +149,7 @@ export default function PropertySettingsPage({
       unsubSettings();
       unsubPartners();
     };
-  }, [propertyId]);
+  }, [propertyId, profile?.displayName]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);

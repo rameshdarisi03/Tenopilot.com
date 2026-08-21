@@ -166,7 +166,7 @@ export default function HomeWorkspacePage() {
           ownerEmail: profile?.email || "",
         };
 
-        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name);
+        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, profile?.displayName || "Property Owner");
         portfolioStore.addProperty(defaultOwnerBuilding, profile?.email);
         customProps = [defaultOwnerBuilding];
       }
@@ -279,7 +279,7 @@ export default function HomeWorkspacePage() {
       ownerEmail: profile?.email || "isharapandey01@gmail.com",
     };
 
-    await initializeCleanProperty(newBuilding.id, newBuilding.name);
+    await initializeCleanProperty(newBuilding.id, newBuilding.name, profile?.displayName || userDisplayName);
     await portfolioStore.addProperty(newBuilding, profile?.email);
 
     setShowAddPropertyModal(false);
