@@ -21,6 +21,11 @@ import {
   Trash2,
   Upload,
   X,
+  MessageSquare,
+  Zap,
+  Sparkles,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -37,6 +42,8 @@ import {
   ExpenseCategoryConfig,
   PaymentAccountConfig,
 } from "@/constants/partnerStore";
+import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
+import { whatsappCreditStore, WhatsAppCreditTransaction } from "@/constants/whatsappCreditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
 
@@ -51,8 +58,15 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "WHATSAPP" | "POLICE_REGISTER">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // WhatsApp Wallet State in Settings
+  const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
+  const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
+  const [whatsappTransactions, setWhatsappTransactions] = useState<WhatsAppCreditTransaction[]>(() =>
+    whatsappCreditStore.getTransactions(propertyId)
+  );
 
   // QR Profiles State
   const [newQrName, setNewQrName] = useState("");
@@ -145,9 +159,20 @@ export default function PropertySettingsPage({
       setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
 
+    whatsappCreditStore.initFirebaseListener(propertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
+
+    const unsubWallet = whatsappCreditStore.subscribe(() => {
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+      setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
+    });
+
     return () => {
       unsubSettings();
       unsubPartners();
+      unsubWallet();
     };
   }, [propertyId, profile?.displayName]);
 
@@ -356,6 +381,21 @@ export default function PropertySettingsPage({
               }`}
             >
               <QrCode className="w-4 h-4" /> Payment QR Profiles & Accounts
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("WHATSAPP")}
+              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                activeTab === "WHATSAPP"
+                  ? "border-emerald-600 text-emerald-700 font-extrabold"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-600" /> WhatsApp Cloud & Credits
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold">
+                {whatsappCredits}
+              </span>
             </button>
 
             <button
@@ -1059,10 +1099,181 @@ export default function PropertySettingsPage({
               </div>
             </div>
           )}
+          {/* TAB: WHATSAPP CLOUD GATEWAY & CREDIT WALLET */}
+          {activeTab === "WHATSAPP" && (
+            <div className="space-y-6 animate-in fade-in text-xs">
+              {/* 1. Wallet Balance & Recharge Card */}
+              <div className="bg-gradient-to-br from-[#064e3b] via-[#047857] to-[#059669] text-white p-6 rounded-3xl shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1.5 z-10">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 border border-emerald-300/30 text-emerald-200 text-[10px] font-bold uppercase tracking-wider">
+                      Official Meta WhatsApp Cloud Gateway
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-100">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live & Connected
+                    </span>
+                  </div>
+                  <h3 className="font-extrabold text-xl tracking-tight">WhatsApp Credit Wallet</h3>
+                  <p className="text-xs text-emerald-100/90 max-w-md">
+                    Send 1-click automated rent reminders, payment receipts, and tenant KYC check-in links directly to residents' WhatsApp.
+                  </p>
+                </div>
+
+                <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-center sm:text-right shrink-0 z-10 w-full sm:w-auto">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
+                    Available Balance
+                  </span>
+                  <div className="flex items-baseline justify-center sm:justify-end gap-1.5 my-1">
+                    <span className="text-3xl font-black font-mono tabular-nums text-white">
+                      {whatsappCredits}
+                    </span>
+                    <span className="text-xs text-emerald-200 font-bold">Credits</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhatsAppWalletModal(true)}
+                    className="mt-2 w-full px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-900 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-current text-emerald-700" />
+                    <span>Recharge Credits</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Message Templates Preview */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Rent Payment Reminders</span>
+                  </div>
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
+                    👋 <strong>Hello Rahul</strong>,<br /><br />
+                    Friendly rent reminder for <strong>{settings.propertyName || "TenoPilot PG"}</strong>:<br />
+                    🏠 Room 204 (Bed A)<br />
+                    💰 Amount: ₹8,500<br />
+                    📅 Due: 5th of this month<br /><br />
+                    💳 Pay via UPI ID: {settings.upiPaymentId || "manager@upi"}
+                  </div>
+                  <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Auto-dispatched on 1-tap bulk reminder
+                  </span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+                  <div className="flex items-center gap-2 text-purple-700 font-bold">
+                    <CreditCard className="w-4 h-4" />
+                    <span>Payment Confirmation</span>
+                  </div>
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
+                    ✅ <strong>Payment Received</strong><br /><br />
+                    We have received your rent payment of <strong>₹8,500</strong> for {settings.propertyName || "TenoPilot PG"}.<br /><br />
+                    🧾 Receipt: REC-948271<br />
+                    🏠 Room: 204<br /><br />
+                    Thank you for being a valued resident!
+                  </div>
+                  <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Sent when recording tenant payment
+                  </span>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+                  <div className="flex items-center gap-2 text-blue-700 font-bold">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Digital KYC & Check-In</span>
+                  </div>
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
+                    🏢 <strong>Welcome to {settings.propertyName || "TenoPilot PG"}!</strong><br /><br />
+                    Please complete your digital KYC and sign the digital tenant agreement:<br /><br />
+                    🔗 tenopilot.com/self-onboard/...<br /><br />
+                    Upload Aadhaar & complete check-in.
+                  </div>
+                  <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Sent on tenant booking / invitation
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. Transaction & Delivery Logs Table */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900">Recent WhatsApp Dispatch Logs</h3>
+                    <p className="text-[11px] text-gray-500">Live delivery records and credit usage audit trail</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhatsAppWalletModal(true)}
+                    className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700 cursor-pointer"
+                  >
+                    View All Logs
+                  </button>
+                </div>
+
+                {whatsappTransactions.length === 0 ? (
+                  <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <Clock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-gray-600">No message transactions recorded yet</p>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Automated WhatsApp reminders and receipts will appear here in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {whatsappTransactions.slice(0, 10).map((tx) => {
+                      const isCreditAdd = tx.amount > 0;
+                      return (
+                        <div
+                          key={tx.id}
+                          className="p-3 rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                                isCreditAdd ? "bg-emerald-100 text-emerald-800" : "bg-purple-100 text-purple-800"
+                              }`}
+                            >
+                              {isCreditAdd ? <Plus className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
+                            </div>
+                            <div>
+                              <span className="font-bold text-gray-900 block">{tx.description}</span>
+                              <span className="text-[10px] text-gray-400 font-medium">
+                                {new Date(tx.timestamp).toLocaleString("en-IN")} • Status:{" "}
+                                <span className="text-emerald-600 font-bold uppercase">{tx.status}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right font-mono">
+                            <span className={`font-bold block ${isCreditAdd ? "text-emerald-700" : "text-gray-900"}`}>
+                              {isCreditAdd ? `+${tx.amount}` : `${tx.amount}`} Credits
+                            </span>
+                            <span className="text-[10px] text-gray-400">Bal: {tx.balanceAfter}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB 5: POLICE & LEGAL RESIDENT REGISTER */}
           {activeTab === "POLICE_REGISTER" && (
             <PoliceVerificationRegister propertyId={propertyId} />
           )}
+
+          {/* 💬 WhatsApp Cloud Gateway & Credit Wallet Modal */}
+          <WhatsAppWalletModal
+            propertyId={propertyId}
+            isOpen={showWhatsAppWalletModal}
+            onClose={() => setShowWhatsAppWalletModal(false)}
+            onRechargeSuccess={(newCredits) => {
+              setWhatsappCredits(newCredits);
+              triggerToast(`🎉 Recharged! Available WhatsApp Credits: ${newCredits}`);
+            }}
+          />
         </div>
       </div>
     </div>

@@ -23,6 +23,8 @@ import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
 import { StaggerItem } from "@/components/motion/StaggerContainer";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
+import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
+import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 import {
   Search,
   Plus,
@@ -55,6 +57,8 @@ import {
   ExternalLink,
   ImageIcon,
   Users,
+  Zap,
+  RefreshCw,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -144,6 +148,12 @@ export default function TenantsDirectoryPage({
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
   const [deletePastTenantTarget, setDeletePastTenantTarget] = useState<Occupant | null>(null);
 
+  // WhatsApp Cloud Gateway & Credit Wallet States
+  const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
+  const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
+  const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
+  const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
+
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
   const [showCompleteCheckInPopup, setShowCompleteCheckInPopup] = useState<boolean>(false);
@@ -160,15 +170,104 @@ export default function TenantsDirectoryPage({
     runAutoCheckInEngine();
     propertySettingsStore.initFirebaseListener(propertyId);
     setCurrentSettings(propertySettingsStore.getSettings(propertyId));
-    const unsubscribe = propertySettingsStore.subscribe(() => {
+    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
       setCurrentSettings(propertySettingsStore.getSettings(propertyId));
     });
-    return unsubscribe;
+
+    whatsappCreditStore.initFirebaseListener(propertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    const unsubscribeWallet = whatsappCreditStore.subscribe(() => {
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    });
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeWallet();
+    };
   }, [propertyId]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // 1-Tap Central WhatsApp Cloud Dispatch Handler
+  const handleSendCloudWhatsAppReminders = async () => {
+    const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
+    const activeQr = profiles[activeQrIndex] || profiles[0];
+    const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+
+    if (selectedOccupants.length === 0) {
+      triggerToast("Please select at least one tenant to send reminders.");
+      return;
+    }
+
+    const currentBal = whatsappCreditStore.getCredits(propertyId);
+    if (currentBal < selectedOccupants.length) {
+      triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge.`);
+      setShowWhatsAppWalletModal(true);
+      return;
+    }
+
+    setIsSendingCloudWhatsApp(true);
+    setCloudSendProgress({ sent: 0, total: selectedOccupants.length });
+
+    let sentCount = 0;
+    for (const occ of selectedOccupants) {
+      try {
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            messages: [
+              {
+                toPhone: occ.phone,
+                recipientName: occ.name,
+                propertyId,
+                propertyName: currentSettings.propertyName || "TenoPilot PG",
+                type: "RENT_REMINDER",
+                params: {
+                  roomNumber: occ.roomNumber,
+                  bedCode: occ.bedCode,
+                  amount: occ.rentAmount,
+                  dueDate: occ.dueDate,
+                  upiId: activeQr?.upiId,
+                  bankLabel: activeQr?.bankLabel,
+                },
+              },
+            ],
+          }),
+        });
+
+        if (res.ok) {
+          whatsappCreditStore.deductCredit(propertyId, {
+            recipientPhone: occ.phone,
+            recipientName: occ.name,
+            messageType: "RENT_REMINDER",
+            description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
+          });
+          sentCount++;
+          setCloudSendProgress({ sent: sentCount, total: selectedOccupants.length });
+        }
+      } catch (err) {
+        console.warn("Failed sending WhatsApp for", occ.name, err);
+      }
+    }
+
+    setIsSendingCloudWhatsApp(false);
+    setCloudSendProgress(null);
+    setShowRentReminderQRModal(false);
+    triggerToast(`🎉 Successfully dispatched ${sentCount} automated WhatsApp reminders via TenoPilot Cloud!`);
+
+    activityAuditStore.logActivity(propertyId, {
+      type: "PAYMENT",
+      title: `WhatsApp Reminders: ${sentCount} Sent`,
+      subtitle: `Batch dispatched to ${sentCount} selected tenants via Cloud API`,
+      staffName: profile?.displayName || "Manager",
+      staffRole: "Property Admin",
+    });
   };
 
   // Handle Complete Check-In Submission
@@ -1516,13 +1615,27 @@ export default function TenantsDirectoryPage({
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowRentReminderQRModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowWhatsAppWalletModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-bold text-[11px] cursor-pointer shadow-2xs transition-all"
+                    title="Click to recharge credits or view delivery history"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{whatsappCredits} Credits</span>
+                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-200/70 px-1.5 py-0.2 rounded-md">+ Add</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRentReminderQRModal(false)}
+                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Step 1: Horizontal Carousel Slider for Pre-Configured QR Profiles */}
@@ -1635,9 +1748,14 @@ export default function TenantsDirectoryPage({
 
               {/* Step 2: Selected Tenants Summary & Send Action */}
               <div className="space-y-2">
-                <h4 className="font-bold text-gray-900 text-xs">
-                  2. Selected Tenants ({selectedIds.length}) & Rent Reminders:
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-gray-900 text-xs">
+                    2. Selected Tenants ({selectedIds.length}) & Instant Dispatch:
+                  </h4>
+                  <span className="text-[10px] text-gray-500 font-medium">
+                    Auto-sends verified WhatsApp text with UPI payment details
+                  </span>
+                </div>
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {(() => {
@@ -1677,10 +1795,11 @@ export default function TenantsDirectoryPage({
                               href={waUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs"
+                              className="px-2.5 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-[10px] flex items-center gap-1 shadow-2xs"
+                              title="Manual wa.me fallback"
                             >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                              <span>WhatsApp 💬</span>
+                              <MessageSquare className="w-3 h-3 text-emerald-600" />
+                              <span>Manual wa.me</span>
                             </a>
                           </div>
                         );
@@ -1689,49 +1808,35 @@ export default function TenantsDirectoryPage({
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              {/* Bottom Action Footer with 1-Tap Cloud Dispatch */}
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowRentReminderQRModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                  className="py-2.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
                 >
                   Close
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
-                    const activeQr = profiles[activeQrIndex] || profiles[0];
-                    const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
-
-                    if (selectedOccupants.length > 0) {
-                      const firstOcc = selectedOccupants[0];
-                      const cleanPhone = firstOcc.phone.replace(/\D/g, "");
-                      const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                      const isCashReq = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.accountType === "CASH_DESK";
-                      const paymentNote = isCashReq
-                        ? `💵 *Payment Mode*: Cash Request at ${activeQr?.bankLabel}\nPlease visit reception desk to clear rent.`
-                        : `💳 *Pay via UPI ID*: ${activeQr?.upiId} (${activeQr?.bankLabel})\nPlease scan QR code or pay via UPI.`;
-
-                      const msg = encodeURIComponent(
-                        `Hello ${firstOcc.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "TenoPilot.com"}:\n🏠 *Room Location*: ${firstOcc.roomNumber} (${firstOcc.bedCode})\n💰 *Rent Amount Due*: ₹${firstOcc.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${firstOcc.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "TenoPilot.com"} Management`
-                      );
-                      // Synchronous window.open on user click event (never blocked by browser)
-                      window.open(`https://wa.me/${formattedPhone}?text=${msg}`, "_blank");
-
-                      if (selectedOccupants.length > 1) {
-                        triggerToast(`🚀 Launched WhatsApp for ${firstOcc.name}! Click 'WhatsApp 💬' next to remaining ${selectedOccupants.length - 1} tenants to send.`);
-                      } else {
-                        triggerToast(`🚀 Launched WhatsApp Rent Reminder for ${firstOcc.name}!`);
-                      }
-                    } else {
-                      triggerToast("Please select at least one tenant to send reminders.");
-                    }
-                  }}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isSendingCloudWhatsApp || selectedIds.length === 0}
+                  onClick={handleSendCloudWhatsAppReminders}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>Send Selected WhatsApp Reminders 🚀</span>
+                  {isSendingCloudWhatsApp ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>
+                        Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length} Cloud Reminders...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-current text-yellow-300" />
+                      <span>1-Tap Cloud Dispatch (Auto-Send to All {selectedIds.length})</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1829,6 +1934,17 @@ export default function TenantsDirectoryPage({
           onClose={() => setShowFastTrackModal(false)}
           onSuccess={() => {
             triggerToast("🎉 FastTrack Ingestion Complete! Building and tenants are now live.");
+          }}
+        />
+
+        {/* 💬 WhatsApp Cloud Gateway & Credit Wallet Modal */}
+        <WhatsAppWalletModal
+          propertyId={propertyId}
+          isOpen={showWhatsAppWalletModal}
+          onClose={() => setShowWhatsAppWalletModal(false)}
+          onRechargeSuccess={(newCredits) => {
+            setWhatsappCredits(newCredits);
+            triggerToast(`🎉 Recharged! Available WhatsApp Credits: ${newCredits}`);
           }}
         />
       </div>
