@@ -200,7 +200,7 @@ export default function FinancialHubPage({
       if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
         occupiedCount++;
       }
-      const stmt = calculateOccupantFinancialStatement(occ);
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
       totalGrossRevenue += stmt.totalPaid;
       totalBilledRent += stmt.proRataRent + stmt.priorArrears;
       totalUncollectedArrears += stmt.netOutstandingBalance;
@@ -814,7 +814,7 @@ export default function FinancialHubPage({
                     ₹{revenueMetrics.totalUncollectedArrears.toLocaleString("en-IN")}
                   </h2>
                   <span className="inline-block bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {revenueMetrics.occupants.filter((o) => calculateOccupantFinancialStatement(o).netOutstandingBalance > 0).length} Unpaid Occupants
+                    {revenueMetrics.occupants.filter((o) => calculateOccupantFinancialStatement(o, propertySettings).netOutstandingBalance > 0).length} Unpaid Occupants
                   </span>
                 </div>
               </div>
@@ -974,7 +974,7 @@ export default function FinancialHubPage({
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-medium">
                       {revenueMetrics.occupants.slice(0, 8).map((occ) => {
-                        const stmt = calculateOccupantFinancialStatement(occ);
+                        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
                         const lastPayment = occ.paymentHistory && occ.paymentHistory.length > 0
                           ? occ.paymentHistory[occ.paymentHistory.length - 1]
                           : null;

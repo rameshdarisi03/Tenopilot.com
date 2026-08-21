@@ -98,10 +98,11 @@ export default function HomeWorkspacePage() {
     const occRateNum = totalBeds > 0 ? (occupiedCount / totalBeds) * 100 : 0;
     const occRate = occRateNum.toFixed(1) + "%";
 
+    const propSettings = propertySettingsStore.getSettings("sunshine-pg");
     let expectedTotal = 0;
     let paidTotal = 0;
     occupants.forEach((occ) => {
-      const stmt = calculateOccupantFinancialStatement(occ);
+      const stmt = calculateOccupantFinancialStatement(occ, propSettings);
       expectedTotal += stmt.totalGrossDue;
       paidTotal += stmt.totalPaid;
     });

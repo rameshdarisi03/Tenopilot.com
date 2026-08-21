@@ -256,7 +256,7 @@ export function GuestProfileView({
 
       {/* 📊 4 TAILORED GUEST METRIC CARDS */}
       {(() => {
-        const stmt = calculateOccupantFinancialStatement(occupantState);
+        const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
         const guestHistory = occupantState.paymentHistory || [];
 
         return (
@@ -542,7 +542,7 @@ export function GuestProfileView({
 
 
           {(() => {
-            const stmt = calculateOccupantFinancialStatement(occupantState);
+            const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
             const guestHistory = occupantState.paymentHistory || [];
 
             return (

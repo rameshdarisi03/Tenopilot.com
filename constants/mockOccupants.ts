@@ -8,6 +8,12 @@ export interface PaymentHistoryItem {
   mode: string;
   receiptNo: string;
   status: "PAID" | "PENDING" | "PARTIAL";
+  collectedBy?: {
+    id?: string;
+    name: string;
+    role: string;
+    email?: string;
+  };
 }
 
 export interface Occupant {

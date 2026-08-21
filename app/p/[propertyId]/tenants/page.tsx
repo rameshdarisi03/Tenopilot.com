@@ -12,7 +12,9 @@ import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
-import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
+import { activityAuditStore } from "@/utils/activityAuditStore";
+import { useAuth } from "@/providers/AuthProvider";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -63,6 +65,8 @@ export default function TenantsDirectoryPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
+  const { profile } = useAuth();
+
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -107,7 +111,7 @@ export default function TenantsDirectoryPage({
 
   // Interactive Column Sorting state
   const [sortColumn, setSortColumn] = useState<
-    "name" | "dueDate" | "daysRemaining" | "room" | "rent"
+    "name" | "dueDate" | "room" | "rent"
   >("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -202,10 +206,41 @@ export default function TenantsDirectoryPage({
       ] || "Aug"
     } ${dParts[0]}`;
 
+    const staffName = profile?.displayName || "Admin";
+    const staffRole = profile?.role === "master_admin" ? "Master Admin" : profile?.role === "receptionist" ? "Receptionist" : "Admin";
+
+    const newReceipt = {
+      id: `rcpt_${Date.now()}`,
+      receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      month: "Current Cycle",
+      amount: paymentAmount,
+      date: formattedPaidDate,
+      mode: paymentMode,
+      status: "PAID" as const,
+      collectedBy: {
+        id: profile?.uid,
+        name: staffName,
+        role: staffRole,
+        email: profile?.email,
+      },
+    };
+
     // Mutate mock occupant status
     collectRentOccupant.paymentStatus = "Paid";
     collectRentOccupant.lastPaidDate = formattedPaidDate;
     collectRentOccupant.daysRemainingText = "—";
+    collectRentOccupant.paymentHistory = [...(collectRentOccupant.paymentHistory || []), newReceipt];
+
+    occupantStore.updateOccupant(collectRentOccupant, propertyId);
+
+    activityAuditStore.logActivity(propertyId, {
+      type: "PAYMENT",
+      title: `Rent Collected: ₹${paymentAmount.toLocaleString("en-IN")}`,
+      subtitle: `${collectRentOccupant.name} (Room ${collectRentOccupant.roomNumber})`,
+      staffName,
+      staffRole,
+      staffEmail: profile?.email,
+    });
 
     fireCelebrationConfetti();
     triggerToast(
@@ -233,13 +268,13 @@ export default function TenantsDirectoryPage({
     let totalExpected = 0;
 
     billableOccupants.forEach((curr) => {
-      const stmt = calculateOccupantFinancialStatement(curr);
+      const stmt = calculateOccupantFinancialStatement(curr, currentSettings);
       totalExpected += stmt.proRataRent + stmt.priorArrears;
       sumCollected += stmt.totalRentPaid;
 
       if (!stmt.isFullyPaid) {
         const netDue = stmt.netOutstandingBalance;
-        if (curr.paymentStatus === "Overdue" || curr.daysDiff < 0) {
+        if (stmt.isOverdue || curr.paymentStatus === "Overdue" || curr.daysDiff < 0) {
           overdueCount++;
           overdueSum += netDue;
         } else if (curr.daysDiff === 0) {
@@ -270,7 +305,7 @@ export default function TenantsDirectoryPage({
       sumCollected,
       totalExpected,
     };
-  }, [occupantsList]);
+  }, [occupantsList, currentSettings]);
 
   // XSS Sanitized & Tokenized Search Filtering + Sorting
   const filteredOccupants = useMemo(() => {
@@ -357,10 +392,6 @@ export default function TenantsDirectoryPage({
         comparison = a.rentAmount - b.rentAmount;
       } else if (sortColumn === "dueDate") {
         comparison = a.dueDay - b.dueDay;
-      } else if (sortColumn === "daysRemaining") {
-        const aVal = a.paymentStatus === "Paid" ? 999 : a.paymentStatus === "Overdue" ? -5 : 2;
-        const bVal = b.paymentStatus === "Paid" ? 999 : b.paymentStatus === "Overdue" ? -5 : 2;
-        comparison = aVal - bVal;
       }
 
       return sortDirection === "asc" ? comparison : -comparison;
@@ -378,7 +409,7 @@ export default function TenantsDirectoryPage({
   ]);
 
   // Handle Header Cell Click for Column Sorting
-  const handleHeaderSort = (column: "name" | "dueDate" | "daysRemaining" | "room" | "rent") => {
+  const handleHeaderSort = (column: "name" | "dueDate" | "room" | "rent") => {
     if (sortColumn === column) {
       setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
@@ -690,17 +721,6 @@ export default function TenantsDirectoryPage({
                       )}
                     </div>
                   </th>
-                  <th
-                    onClick={() => handleHeaderSort("daysRemaining")}
-                    className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#c2652a] select-none"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Days Remaining</span>
-                      {sortColumn === "daysRemaining" && (
-                        <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
-                      )}
-                    </div>
-                  </th>
                   <th className="p-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                     Rent Status
                   </th>
@@ -790,17 +810,8 @@ export default function TenantsDirectoryPage({
                           {occ.dueDate}
                         </td>
                         <td className="p-4">
-                          {occ.paymentStatus === "Paid" ? (
-                            <span className="text-gray-400 font-bold text-xs">—</span>
-                          ) : (
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${occ.paymentStatus === "Overdue" ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"}`}>
-                              {occ.daysRemainingText}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-4">
                           {(() => {
-                            const stmt = calculateOccupantFinancialStatement(occ);
+                            const stmt = calculateOccupantFinancialStatement(occ, currentSettings);
                             return (
                               <span
                                 className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
@@ -903,7 +914,7 @@ export default function TenantsDirectoryPage({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-xs text-gray-500">
+                    <td colSpan={7} className="py-12 text-center text-xs text-gray-500">
                       No matching occupants found.
                     </td>
                   </tr>

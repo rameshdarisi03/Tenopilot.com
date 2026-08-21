@@ -145,7 +145,7 @@ export default function PropertyOverviewPage({
 
   occupants.forEach((occ) => {
     if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
-      const stmt = calculateOccupantFinancialStatement(occ);
+      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
       totalCollectedThisMonth += stmt.totalRentPaid;
       totalPendingDue += stmt.netOutstandingBalance;
       if (stmt.netOutstandingBalance > 0) {

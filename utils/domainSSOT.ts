@@ -273,6 +273,93 @@ export function calculateProRataRent(monthlyRent: number, joiningDateStr?: strin
   };
 }
 
+export interface OccupantLastPaidInfo {
+  date: string;
+  amount?: number;
+  mode?: string;
+  isPaid: boolean;
+  displayText: string;
+  subText?: string;
+}
+
+/**
+ * SSOT Helper to resolve the occupant's last payment date, amount, and payment mode
+ */
+export function resolveOccupantLastPaidInfo(occupant?: Partial<Occupant> | null): OccupantLastPaidInfo {
+  if (!occupant) {
+    return { date: "—", isPaid: false, displayText: "—" };
+  }
+
+  const history = occupant.paymentHistory || [];
+  const isDepositReceipt = (item: PaymentHistoryItem) => {
+    const m = (item.month || "").toLowerCase();
+    const r = (item.receiptNo || "").toLowerCase();
+    return m.includes("deposit") || r.includes("dep");
+  };
+
+  const rentReceipts = history.filter((item) => !isDepositReceipt(item) && item.status === "PAID");
+  const latestRent = rentReceipts.length > 0 ? rentReceipts[rentReceipts.length - 1] : null;
+
+  if (latestRent && latestRent.amount > 0) {
+    return {
+      date: latestRent.date,
+      amount: latestRent.amount,
+      mode: latestRent.mode || "UPI",
+      isPaid: true,
+      displayText: latestRent.date,
+      subText: `₹${latestRent.amount.toLocaleString("en-IN")}${latestRent.mode ? ` (${latestRent.mode})` : ""}`,
+    };
+  }
+
+  // Fallback to occupant.lastPaidDate if present and not a placeholder string
+  if (
+    occupant.lastPaidDate &&
+    occupant.lastPaidDate !== "Unpaid / Due Now" &&
+    occupant.lastPaidDate !== "Reserved / Unpaid" &&
+    !occupant.lastPaidDate.toLowerCase().includes("unpaid") &&
+    !occupant.lastPaidDate.toLowerCase().includes("pending")
+  ) {
+    const defaultAmount = occupant.rentAmount || 0;
+    return {
+      date: occupant.lastPaidDate,
+      amount: defaultAmount,
+      isPaid: true,
+      displayText: occupant.lastPaidDate,
+      subText: defaultAmount > 0 ? `₹${defaultAmount.toLocaleString("en-IN")}` : undefined,
+    };
+  }
+
+  if (occupant.lifecycleStatus === "Booked") {
+    return {
+      date: "Pending Check-In",
+      isPaid: false,
+      displayText: "Pending Check-In",
+    };
+  }
+
+  return {
+    date: "Unpaid / Due Now",
+    isPaid: false,
+    displayText: "Unpaid / Due Now",
+  };
+}
+
+/**
+ * SSOT Helper to resolve the occupant's current billing cycle payment due date
+ */
+export function resolveOccupantPaymentDueDate(
+  occupant?: Partial<Occupant> | null,
+  settings?: any
+): string {
+  if (!occupant) return "—";
+  const desiredDueDay = settings?.desiredDueDate || occupant.dueDay || 5;
+  const now = new Date();
+  
+  const dayPadded = String(desiredDueDay).padStart(2, "0");
+  const monthStr = now.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  return `${dayPadded} ${monthStr}`;
+}
+
 export interface FinancialStatementSummary {
   proRataRent: number;
   securityDepositRequired: number;
@@ -287,21 +374,34 @@ export interface FinancialStatementSummary {
   isFullyPaid: boolean;
   isPartialPaid: boolean;
   isDepositCleared: boolean;
+  isOverdue: boolean;
   paymentStatusLabel: "Paid" | "Due" | "Overdue";
   depositStatusLabel: "PAID" | "PENDING" | "PARTIAL";
   statusBadgeText: string;
+  dueDay: number;
+  graceCutoffDay: number;
+  isPastGrace: boolean;
 }
 
 /**
  * 7. SSOT Unified Dual-Ledger Partial Payment & Financial Statement Resolver
  * Strictly segregates Security Deposit (Escrow) from Rent/Stay Tariff (Income).
  * Handles full life-cycle calculations for Migrated Tenants, Standard Tenants, and Short-Stay Guests.
+ * Dynamically computes Overdue vs Due status based on property due date and grace period settings.
  */
 export function calculateOccupantFinancialStatement(
-  occupant: Partial<Occupant>
+  occupant: Partial<Occupant>,
+  settings?: any
 ): FinancialStatementSummary {
   const isGuest = occupant.stayType === "Guest";
   const history = occupant.paymentHistory || [];
+
+  const desiredDueDay = settings?.desiredDueDate || occupant.dueDay || 5;
+  const graceDays = settings?.gracePeriodDays ?? 5;
+  const now = new Date();
+  const currentDay = now.getDate();
+  const graceCutoffDay = desiredDueDay + graceDays;
+  const isPastGrace = currentDay > graceCutoffDay;
 
   if (isGuest) {
     // -------------------------------------------------------------------------
@@ -324,13 +424,13 @@ export function calculateOccupantFinancialStatement(
     const netOutstandingBalance = Math.max(0, totalGrossDue - totalPaid);
     const isFullyPaid = netOutstandingBalance === 0;
     const isPartialPaid = !isFullyPaid && totalPaid > 0;
-
     const isDepositCleared =
       occupant.depositStatus === "PAID" || totalPaid >= totalGrossDue || (totalPaid >= securityDepositRequired && occupant.depositStatus === "PARTIAL");
 
+    const isOverdue = !isFullyPaid && isPastGrace;
     const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
       ? "Paid"
-      : occupant.paymentStatus === "Overdue"
+      : isOverdue
       ? "Overdue"
       : "Due";
 
@@ -340,11 +440,19 @@ export function calculateOccupantFinancialStatement(
       ? "PARTIAL"
       : "PENDING";
 
-    let statusBadgeText = "DUE NOW 🔴";
+    let statusBadgeText = "DUE 🟧";
     if (isFullyPaid) {
-      statusBadgeText = "ALL CLEAR 🟢";
+      statusBadgeText = "PAID 🟢";
+    } else if (isOverdue) {
+      if (isPartialPaid) {
+        statusBadgeText = `PARTIAL (OVERDUE) 🔴 - ₹${netOutstandingBalance.toLocaleString("en-IN")} pending`;
+      } else {
+        statusBadgeText = "OVERDUE 🔴";
+      }
     } else if (isPartialPaid) {
       statusBadgeText = `PARTIAL DUE (₹${netOutstandingBalance.toLocaleString("en-IN")}) 🟧`;
+    } else {
+      statusBadgeText = "DUE 🟧";
     }
 
     return {
@@ -361,9 +469,13 @@ export function calculateOccupantFinancialStatement(
       isFullyPaid,
       isPartialPaid,
       isDepositCleared,
+      isOverdue,
       paymentStatusLabel,
       depositStatusLabel,
       statusBadgeText,
+      dueDay: desiredDueDay,
+      graceCutoffDay,
+      isPastGrace,
     };
   }
 
@@ -417,10 +529,11 @@ export function calculateOccupantFinancialStatement(
 
   const isFullyPaid = netOutstandingBalance === 0;
   const isPartialPaid = !isFullyPaid && (totalRentPaidFromReceipts > 0 || totalDepositPaidFromReceipts > 0);
+  const isOverdue = !isFullyPaid && (isPastGrace || priorArrears > 0 || occupant.paymentStatus === "Overdue");
 
   const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
     ? "Paid"
-    : occupant.paymentStatus === "Overdue"
+    : isOverdue
     ? "Overdue"
     : "Due";
 
@@ -430,11 +543,22 @@ export function calculateOccupantFinancialStatement(
     ? "PARTIAL"
     : "PENDING";
 
-  let statusBadgeText = "DUE NOW 🔴";
+  // Dynamic Status Badge formatting matching exact business rules
+  let statusBadgeText = "DUE 🟧";
   if (isFullyPaid) {
-    statusBadgeText = "ALL CLEAR 🟢";
+    statusBadgeText = "PAID 🟢";
+  } else if (priorArrears > 0) {
+    statusBadgeText = `OVERDUE (1 Month Arrears / ₹${netOutstandingBalance.toLocaleString("en-IN")}) 🔴`;
+  } else if (isPastGrace) {
+    if (isPartialPaid) {
+      statusBadgeText = `PARTIAL (OVERDUE) 🔴 - ₹${netOutstandingBalance.toLocaleString("en-IN")} pending`;
+    } else {
+      statusBadgeText = "OVERDUE 🔴";
+    }
   } else if (isPartialPaid) {
     statusBadgeText = `PARTIAL DUE (₹${netOutstandingBalance.toLocaleString("en-IN")}) 🟧`;
+  } else {
+    statusBadgeText = "DUE 🟧";
   }
 
   return {
@@ -451,9 +575,13 @@ export function calculateOccupantFinancialStatement(
     isFullyPaid,
     isPartialPaid,
     isDepositCleared,
+    isOverdue,
     paymentStatusLabel,
     depositStatusLabel,
     statusBadgeText,
+    dueDay: desiredDueDay,
+    graceCutoffDay,
+    isPastGrace,
   };
 }
 

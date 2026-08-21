@@ -441,7 +441,7 @@ export default function IndividualTenantProfilePage({
       ...occupantState,
       paymentHistory: updatedHistory,
     };
-    const stmt = calculateOccupantFinancialStatement(updatedDraft);
+    const stmt = calculateOccupantFinancialStatement(updatedDraft, propertySettings);
 
     const updated: Occupant = {
       ...occupantState,
@@ -883,7 +883,7 @@ export default function IndividualTenantProfilePage({
     e.preventDefault();
     if (!occupantState) return;
 
-    const stmt = calculateOccupantFinancialStatement(occupantState);
+    const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
     const analysis = earlyDepartureAnalysis;
 
     let baseRoomRent = occupantState.rentAmount || 1000;
@@ -1243,7 +1243,7 @@ export default function IndividualTenantProfilePage({
               <button
                 disabled={occupantState.lifecycleStatus === "Past"}
                 onClick={() => {
-                  const currentStmt = calculateOccupantFinancialStatement(occupantState);
+                  const currentStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
                   setPaymentAmount(currentStmt.netOutstandingBalance > 0 ? currentStmt.netOutstandingBalance : occupantState.rentAmount);
                   setShowCollectRentModal(true);
                 }}
@@ -1356,7 +1356,7 @@ export default function IndividualTenantProfilePage({
 
           {/* 4 KPI Metrics Cards Section */}
           {(() => {
-            const topStmt = calculateOccupantFinancialStatement(occupantState);
+            const topStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
             return (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Total Rent Paid */}
@@ -1973,7 +1973,7 @@ export default function IndividualTenantProfilePage({
 
                 {/* 💰 PREMIUM FINANCIAL RECEIVABLE BREAKDOWN BOX */}
                 {(() => {
-                  const stmt = calculateOccupantFinancialStatement(occupantState);
+                  const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
                   const isTenant = occupantState.stayType === "Tenant";
                   const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
                   const targetAutoFill = stmt.netOutstandingBalance;
@@ -2604,7 +2604,7 @@ export default function IndividualTenantProfilePage({
 
                   {/* 💰 CRYSTAL-CLEAR CASH SETTLEMENT SUMMARY BOX (NO CONFUSION, NO DOUBLE COUNTING!) */}
                   {(() => {
-                    const stmt = calculateOccupantFinancialStatement(occupantState);
+                    const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
                     const analysis = earlyDepartureAnalysis;
 
                     let baseRoomRent = stmt.proRataRent;
@@ -2815,7 +2815,7 @@ export default function IndividualTenantProfilePage({
 
               {/* Summary details */}
               {(() => {
-                const stmt = calculateOccupantFinancialStatement(occupantState);
+                const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
                 const analysis = earlyDepartureAnalysis;
 
                 let baseRoomRent = stmt.proRataRent;
@@ -3487,7 +3487,7 @@ export default function IndividualTenantProfilePage({
               ) : (
                 /* TAB 2: CANCEL BOOKING & ADVANCE RETENTION SETTLEMENT */
                 (() => {
-                  const statement = calculateOccupantFinancialStatement(occupantState);
+                  const statement = calculateOccupantFinancialStatement(occupantState, propertySettings);
                   const totalAdvanceCollected = Number(statement.totalPaid) || (occupantState.depositStatus === "PAID" ? Number(occupantState.securityDeposit) || 0 : 0);
                   const netRefund = Math.max(0, totalAdvanceCollected - cancellationRetentionFee);
 
