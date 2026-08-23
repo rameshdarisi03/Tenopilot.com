@@ -2400,7 +2400,7 @@ export default function IndividualTenantProfilePage({
                           </div>
                         )}
 
-                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        <div className="pt-1">
                           <button
                             type="button"
                             onClick={() => {
@@ -2413,20 +2413,12 @@ export default function IndividualTenantProfilePage({
                                 setDepositPaymentPortion(stmt.remainingDepositDue);
                               }
                             }}
-                            className="py-1.5 px-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                            className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-98"
                           >
-                            ⚡ Auto-Fill Category
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPaymentPurpose("COMBINED");
-                              setRentPaymentPortion(stmt.remainingRentDue);
-                              setDepositPaymentPortion(stmt.remainingDepositDue);
-                            }}
-                            className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
-                          >
-                            💰 Clear All (₹{targetAutoFill.toLocaleString("en-IN")})
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>
+                              ⚡ Auto-Fill Pending Dues ({paymentPurpose === "RENT" ? `₹${(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount).toLocaleString("en-IN")}` : paymentPurpose === "DEPOSIT" ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`})
+                            </span>
                           </button>
                         </div>
                       </div>

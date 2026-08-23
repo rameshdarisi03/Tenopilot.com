@@ -847,7 +847,7 @@ export default function TenantsDirectoryPage({
                 setRawSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search resident name, room, phone, Aadhaar..."
+              placeholder="Search resident name, room, phone..."
               className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 focus:border-[#c2652a] rounded-2xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a]/20 shadow-xs transition-all"
             />
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-4" />
@@ -1813,35 +1813,27 @@ Scroll vertically to browse all residents without pagination limits
                         </div>
                       )}
 
-                      <div className="grid grid-cols-2 gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (paymentPurpose === "RENT") {
-                              setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount);
-                            } else if (paymentPurpose === "DEPOSIT") {
-                              setDepositPaymentPortion(stmt.remainingDepositDue);
-                            } else {
-                              setRentPaymentPortion(stmt.remainingRentDue);
-                              setDepositPaymentPortion(stmt.remainingDepositDue);
-                            }
-                          }}
-                          className="py-1.5 px-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
-                        >
-                          ⚡ Auto-Fill Category
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentPurpose("COMBINED");
-                            setRentPaymentPortion(stmt.remainingRentDue);
-                            setDepositPaymentPortion(stmt.remainingDepositDue);
-                          }}
-                          className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
-                        >
-                          💰 Clear All (₹{targetAutoFill.toLocaleString("en-IN")})
-                        </button>
-                      </div>
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (paymentPurpose === "RENT") {
+                                setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount);
+                              } else if (paymentPurpose === "DEPOSIT") {
+                                setDepositPaymentPortion(stmt.remainingDepositDue);
+                              } else {
+                                setRentPaymentPortion(stmt.remainingRentDue);
+                                setDepositPaymentPortion(stmt.remainingDepositDue);
+                              }
+                            }}
+                            className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-98"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>
+                              ⚡ Auto-Fill Pending Dues ({paymentPurpose === "RENT" ? `₹${(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount).toLocaleString("en-IN")}` : paymentPurpose === "DEPOSIT" ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`})
+                            </span>
+                          </button>
+                        </div>
                     </div>
                   );
                 })()}

@@ -123,7 +123,7 @@ export function PropertyHeader({
               type="text"
               value={searchValue}
               onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
-              placeholder="Search by name, phone, room, Aadhaar..."
+              placeholder="Search by name, phone, room..."
               className="w-full pl-9 pr-8 py-2.5 bg-gray-100 focus:bg-white border border-gray-200 rounded-xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a] focus:border-transparent transition-all shadow-inner"
             />
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
@@ -176,7 +176,7 @@ export function PropertyHeader({
                   type="text"
                   value={searchValue}
                   onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
-                  placeholder="Search by name, phone, room, Aadhaar..."
+                  placeholder="Search by name, phone, room..."
                   className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs md:text-sm text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all"
                 />
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
