@@ -6,13 +6,13 @@ import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { MOCK_OCCUPANTS_200, occupantStore, Occupant } from "@/constants/mockOccupants";
+import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
-import { calculateOccupantFinancialStatement, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
@@ -137,9 +137,42 @@ export default function TenantsDirectoryPage({
   // Collect Rent Modal State
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
   const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
+  const [paymentPurpose, setPaymentPurpose] = useState<"RENT" | "DEPOSIT" | "COMBINED">("RENT");
+  const [rentPaymentPortion, setRentPaymentPortion] = useState<number>(14500);
+  const [depositPaymentPortion, setDepositPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(14500);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
+  const [transactionRef, setTransactionRef] = useState<string>("");
+  const [showLedgerBreakdownDetail, setShowLedgerBreakdownDetail] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [currentSettings, setCurrentSettings] = useState(() =>
+    typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
+  );
+
+  // Sync initial allocation when opening Collect Payment Modal
+  useEffect(() => {
+    if (collectRentOccupant) {
+      const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+      const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount;
+      const depDue = stmt.remainingDepositDue;
+
+      if (stmt.remainingRentDue === 0 && depDue > 0) {
+        setPaymentPurpose("DEPOSIT");
+        setRentPaymentPortion(0);
+        setDepositPaymentPortion(depDue);
+      } else if (stmt.remainingRentDue > 0 && depDue > 0) {
+        setPaymentPurpose("RENT");
+        setRentPaymentPortion(rentDue);
+        setDepositPaymentPortion(depDue);
+      } else {
+        setPaymentPurpose("RENT");
+        setRentPaymentPortion(rentDue);
+        setDepositPaymentPortion(0);
+      }
+    }
+  }, [collectRentOccupant, currentSettings]);
+
   // Rent Reminder QR Code & WhatsApp Broadcast Modal State
   const [showRentReminderQRModal, setShowRentReminderQRModal] = useState(false);
   const [activeQrIndex, setActiveQrIndex] = useState<number>(0);
@@ -160,10 +193,6 @@ export default function TenantsDirectoryPage({
   const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
   const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
   const [checkOutModalOccupant, setCheckOutModalOccupant] = useState<Occupant | null>(null);
-
-  const [currentSettings, setCurrentSettings] = useState(() =>
-    typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
-  );
 
   // Silent Automated Move-In Date Auto-Checkin Engine & Property Settings Reactive Subscriber
   useEffect(() => {
@@ -293,10 +322,19 @@ export default function TenantsDirectoryPage({
     setCheckInModalOccupant(null);
   };
 
-  // Handle Rent Collection Submission
+  // Handle Rent Collection Submission (Supports Rent, Deposit, and Combined Allocations)
   const handleCollectRentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!collectRentOccupant) return;
+
+    const effectiveRent = paymentPurpose === "DEPOSIT" ? 0 : (rentPaymentPortion || 0);
+    const effectiveDeposit = paymentPurpose === "RENT" ? 0 : (depositPaymentPortion || 0);
+    const totalCollected = effectiveRent + effectiveDeposit;
+
+    if (totalCollected <= 0) {
+      triggerToast("⚠️ Please enter a payment amount greater than ₹0.");
+      return;
+    }
 
     const dParts = paymentDate.split("-");
     const formattedPaidDate = `${dParts[2]} ${
@@ -307,34 +345,96 @@ export default function TenantsDirectoryPage({
 
     const staffName = profile?.displayName || "Admin";
     const staffRole = profile?.role === "master_admin" ? "Master Admin" : profile?.role === "receptionist" ? "Receptionist" : "Admin";
+    const modeLabel =
+      paymentMode === "UPI"
+        ? `UPI (${transactionRef || "GPay"})`
+        : paymentMode === "Bank Transfer"
+        ? `Bank Transfer (${transactionRef || "NEFT"})`
+        : "Cash";
 
-    const newReceipt = {
-      id: `rcpt_${Date.now()}`,
-      receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      month: "Current Cycle",
-      amount: paymentAmount,
-      date: formattedPaidDate,
-      mode: paymentMode,
-      status: "PAID" as const,
-      collectedBy: {
-        id: profile?.uid,
-        name: staffName,
-        role: staffRole,
-        email: profile?.email,
-      },
+    const currentBillingMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const newReceipts: PaymentHistoryItem[] = [];
+
+    // 🏠 Rent Receipt
+    if (effectiveRent > 0) {
+      newReceipts.push({
+        id: `rcpt_rent_${Date.now()}`,
+        receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        month: currentBillingMonth,
+        amount: effectiveRent,
+        date: formattedPaidDate,
+        mode: modeLabel,
+        status: "PAID",
+        collectedBy: {
+          id: profile?.uid,
+          name: staffName,
+          role: staffRole,
+          email: profile?.email,
+        },
+      });
+    }
+
+    // 🔒 Security Deposit Receipt
+    if (effectiveDeposit > 0) {
+      newReceipts.push({
+        id: `rcpt_dep_${Date.now() + 1}`,
+        receiptNo: `DEP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        month: "Security Deposit",
+        amount: effectiveDeposit,
+        date: formattedPaidDate,
+        mode: modeLabel,
+        status: "PAID",
+        collectedBy: {
+          id: profile?.uid,
+          name: staffName,
+          role: staffRole,
+          email: profile?.email,
+        },
+      });
+    }
+
+    const updatedHistory = [...newReceipts, ...(collectRentOccupant.paymentHistory || [])];
+    const updatedDraft: Occupant = {
+      ...collectRentOccupant,
+      paymentHistory: updatedHistory,
+    };
+    const stmt = calculateOccupantFinancialStatement(updatedDraft, currentSettings);
+
+    const updated: Occupant = {
+      ...collectRentOccupant,
+      paymentStatus: stmt.isFullyPaid ? "Paid" : "Due",
+      lastPaidDate: formattedPaidDate,
+      daysRemainingText: stmt.isFullyPaid ? "—" : "PARTIAL DUE",
+      depositStatus: stmt.depositStatusLabel,
+      partialPaidThisCycle: stmt.totalPaid,
+      paymentHistory: updatedHistory,
     };
 
-    // Mutate mock occupant status
-    collectRentOccupant.paymentStatus = "Paid";
-    collectRentOccupant.lastPaidDate = formattedPaidDate;
-    collectRentOccupant.daysRemainingText = "—";
-    collectRentOccupant.paymentHistory = [...(collectRentOccupant.paymentHistory || []), newReceipt];
+    occupantStore.updateOccupant(updated, propertyId);
 
-    occupantStore.updateOccupant(collectRentOccupant, propertyId);
+    // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant status in propertyStore!
+    const currentStructure = propertyStore.getStructure(propertyId);
+    const updatedStructure = currentStructure.map((floor) => ({
+      ...floor,
+      rooms: floor.rooms.map((room) => {
+        if (room.roomNumber !== collectRentOccupant.roomNumber) return room;
+        return {
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.bedCode !== collectRentOccupant.bedCode) return bed;
+            return {
+              ...bed,
+              occupant: updated,
+            };
+          }),
+        };
+      }),
+    }));
+    propertyStore.updateStructure(updatedStructure, propertyId);
 
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
-      title: `Rent Collected: ₹${paymentAmount.toLocaleString("en-IN")}`,
+      title: `Payment Collected: ₹${totalCollected.toLocaleString("en-IN")}`,
       subtitle: `${collectRentOccupant.name} (Room ${collectRentOccupant.roomNumber})`,
       staffName,
       staffRole,
@@ -342,10 +442,22 @@ export default function TenantsDirectoryPage({
     });
 
     fireCelebrationConfetti();
-    triggerToast(
-      `🎉 Rent collected successfully! ₹${paymentAmount.toLocaleString("en-IN")} recorded for ${collectRentOccupant.name}`
-    );
+    if (paymentPurpose === "COMBINED") {
+      triggerToast(
+        `🎉 Total ₹${totalCollected.toLocaleString("en-IN")} (Rent: ₹${effectiveRent.toLocaleString("en-IN")}, Deposit: ₹${effectiveDeposit.toLocaleString("en-IN")}) recorded for ${collectRentOccupant.name} 🟢`
+      );
+    } else if (paymentPurpose === "DEPOSIT") {
+      triggerToast(
+        `🎉 Security Deposit of ₹${effectiveDeposit.toLocaleString("en-IN")} recorded for ${collectRentOccupant.name} 🔒`
+      );
+    } else {
+      triggerToast(
+        `🎉 Rent of ₹${effectiveRent.toLocaleString("en-IN")} recorded for ${collectRentOccupant.name} 🟢`
+      );
+    }
+
     setCollectRentOccupant(null);
+    setTransactionRef("");
   };
 
   // Dynamic Rent Metrics Calculations
@@ -1408,95 +1520,359 @@ Scroll vertically to browse all residents without pagination limits
 
         {/* Collect Rent Interactive Modal */}
         {collectRentOccupant && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+              {/* 📌 Sticky Header */}
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-white">
                 <div>
-                  <h3 className="font-serif font-bold text-lg text-gray-900">
-                    Collect Rent
+                  <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 flex items-center gap-1.5">
+                    <span>💰 Collect Payment</span>
                   </h3>
-                  <p className="text-xs text-gray-500">
-                    Log rent collection for {collectRentOccupant.name}
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    {collectRentOccupant.name} • Room {collectRentOccupant.roomNumber} ({collectRentOccupant.bedCode})
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setCollectRentOccupant(null)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleCollectRentSubmit} className="space-y-4 text-xs">
+              {/* 📜 Scrollable Body */}
+              <form
+                id="directory-collect-rent-form"
+                onSubmit={handleCollectRentSubmit}
+                className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs overscroll-contain"
+              >
+                {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
-                    Occupant & Room
+                    Payment Category *
                   </label>
-                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 font-semibold text-gray-900">
-                    {collectRentOccupant.name} • Room {collectRentOccupant.roomNumber} ({collectRentOccupant.bedCode})
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPurpose("RENT")}
+                      className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                        paymentPurpose === "RENT"
+                          ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                      }`}
+                    >
+                      <span>🏠 Rent Only</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPurpose("DEPOSIT")}
+                      className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                        paymentPurpose === "DEPOSIT"
+                          ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                      }`}
+                    >
+                      <span>🔒 Deposit Only</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPurpose("COMBINED")}
+                      className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                        paymentPurpose === "COMBINED"
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                      }`}
+                    >
+                      <span>⚡ Combined</span>
+                    </button>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Payment Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Defaults to today. Change if logging a past/backdated payment.
-                  </p>
+                {/* 📅 Date & Payment Mode in 2-Column Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Payment Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Payment Mode *
+                    </label>
+                    <select
+                      value={paymentMode}
+                      onChange={(e) => setPaymentMode(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    >
+                      <option value="UPI">UPI (Google Pay / PhonePe)</option>
+                      <option value="Bank Transfer">Bank Transfer (NEFT)</option>
+                      <option value="Cash">Cash</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Amount Collected (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
+                {/* 💵 Dynamic Amount Inputs Based on Selected Category */}
+                {paymentPurpose === "RENT" && (
+                  <div className="animate-in fade-in space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-gray-700">
+                        Rent Amount Collected (₹) *
+                      </label>
+                      {(() => {
+                        const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                        return (
+                          <span className="text-[10px] text-gray-500 font-medium">
+                            Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <input
+                      type="number"
+                      required
+                      value={rentPaymentPortion ? rentPaymentPortion : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Payment Mode *
-                  </label>
-                  <select
-                    value={paymentMode}
-                    onChange={(e) => setPaymentMode(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
-                    <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
-                    <option value="Cash">Cash</option>
-                  </select>
-                </div>
+                {paymentPurpose === "DEPOSIT" && (
+                  <div className="animate-in fade-in space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-purple-900">
+                        Security Deposit Amount Collected (₹) *
+                      </label>
+                      {(() => {
+                        const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                        return (
+                          <span className="text-[10px] text-purple-700 font-bold">
+                            Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <input
+                      type="number"
+                      required
+                      value={depositPaymentPortion ? depositPaymentPortion : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-purple-300 text-sm font-mono font-bold text-purple-950 focus:ring-1 focus:ring-purple-600 bg-purple-50/20"
+                    />
+                  </div>
+                )}
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setCollectRentOccupant(null)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
-                  >
-                    Confirm & Record Rent
-                  </button>
-                </div>
+                {paymentPurpose === "COMBINED" && (
+                  <div className="animate-in fade-in space-y-2 p-3 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-gray-700">
+                          1. Rent Portion (₹)
+                        </label>
+                        {(() => {
+                          const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                          return (
+                            <span className="text-[10px] text-gray-500">
+                              Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <input
+                        type="number"
+                        value={rentPaymentPortion ? rentPaymentPortion : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 bg-white focus:ring-1 focus:ring-emerald-600"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-purple-900">
+                          2. Security Deposit Portion (₹)
+                        </label>
+                        {(() => {
+                          const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                          return (
+                            <span className="text-[10px] text-purple-700 font-bold">
+                              Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <input
+                        type="number"
+                        value={depositPaymentPortion ? depositPaymentPortion : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-purple-300 text-sm font-mono font-bold text-purple-950 bg-white focus:ring-1 focus:ring-purple-600"
+                      />
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
+                      <span>Total Combined:</span>
+                      <span className="font-mono text-sm text-emerald-700 font-extrabold">
+                        ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0)).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Optional Transaction ID for UPI or Bank Transfer */}
+                {(paymentMode === "UPI" || paymentMode === "Bank Transfer") && (
+                  <div className="animate-in fade-in">
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Transaction / Ref Number (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={transactionRef}
+                      onChange={(e) => setTransactionRef(e.target.value)}
+                      placeholder="e.g. UPI/42819201928 or Ref-99120"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                )}
+
+                {/* 💰 COMPACT RECEIVABLE SUMMARY & AUTO-FILL BUTTONS */}
+                {(() => {
+                  const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                  const isTenant = collectRentOccupant.stayType === "Tenant";
+                  const proRataInfo = calculateProRataRent(collectRentOccupant.rentAmount, collectRentOccupant.joiningDate);
+                  const targetAutoFill = stmt.netOutstandingBalance;
+
+                  return (
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-amber-200/80 space-y-2">
+                      <div className="flex items-center justify-between font-extrabold text-xs">
+                        <span className="text-amber-950 flex items-center gap-1">
+                          💰 Total Outstanding Dues:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[#c2652a] text-sm">
+                            ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowLedgerBreakdownDetail(!showLedgerBreakdownDetail)}
+                            className="text-[10px] text-amber-800 underline font-normal cursor-pointer"
+                          >
+                            {showLedgerBreakdownDetail ? "Hide Details ▴" : "Details ▾"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Collapsible Details */}
+                      {showLedgerBreakdownDetail && (
+                        <div className="pt-2 border-t border-amber-200/80 space-y-1.5 text-[11px] text-gray-700 font-medium animate-in fade-in">
+                          {isTenant ? (
+                            <>
+                              <div className="flex justify-between items-center">
+                                <span>▫️ Rent ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`}):</span>
+                                <span className="font-mono font-bold">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span>▫️ Security Deposit:</span>
+                                <span className="font-mono font-bold">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                              </div>
+                              {stmt.priorArrears > 0 && (
+                                <div className="flex justify-between items-center text-red-700">
+                                  <span>▫️ Prior Arrears:</span>
+                                  <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex justify-between items-center">
+                              <span>▫️ Stay Package:</span>
+                              <span className="font-mono font-bold">₹{(stmt.proRataRent + stmt.securityDepositRequired).toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (paymentPurpose === "RENT") {
+                              setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount);
+                            } else if (paymentPurpose === "DEPOSIT") {
+                              setDepositPaymentPortion(stmt.remainingDepositDue);
+                            } else {
+                              setRentPaymentPortion(stmt.remainingRentDue);
+                              setDepositPaymentPortion(stmt.remainingDepositDue);
+                            }
+                          }}
+                          className="py-1.5 px-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                        >
+                          ⚡ Auto-Fill Category
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentPurpose("COMBINED");
+                            setRentPaymentPortion(stmt.remainingRentDue);
+                            setDepositPaymentPortion(stmt.remainingDepositDue);
+                          }}
+                          className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                        >
+                          💰 Clear All (₹{targetAutoFill.toLocaleString("en-IN")})
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </form>
+
+              {/* 📌 Sticky Action Footer */}
+              <div className="p-3 sm:p-4 border-t border-gray-100 flex items-center justify-end gap-2.5 bg-gray-50/90 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setCollectRentOccupant(null)}
+                  className="px-3.5 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-100 text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="directory-collect-rent-form"
+                  className="px-4 sm:px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md cursor-pointer active:scale-95 flex items-center gap-1.5"
+                >
+                  <span>Confirm & Record</span>
+                  <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                    ₹{(
+                      paymentPurpose === "RENT"
+                        ? (rentPaymentPortion || 0)
+                        : paymentPurpose === "DEPOSIT"
+                        ? (depositPaymentPortion || 0)
+                        : (rentPaymentPortion || 0) + (depositPaymentPortion || 0)
+                    ).toLocaleString("en-IN")}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         )}
