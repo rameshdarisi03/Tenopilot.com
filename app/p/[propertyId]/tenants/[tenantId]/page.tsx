@@ -282,6 +282,7 @@ export default function IndividualTenantProfilePage({
   const [showTariffAccordion, setShowTariffAccordion] = useState(false);
   const [showFinancialAccordion, setShowFinancialAccordion] = useState(false);
   const [showBalanceBreakdown, setShowBalanceBreakdown] = useState(false);
+  const [showLedgerBreakdownDetail, setShowLedgerBreakdownDetail] = useState(false);
 
   // In-Profile Upload KYC Modal State
   const [showUploadKycModal, setShowUploadKycModal] = useState<boolean>(false);
@@ -2106,166 +2107,116 @@ export default function IndividualTenantProfilePage({
         <>
           {/* 1. Collect Rent Modal (UPI / Bank / Cash with Transaction ID - No Cheques) */}
           {showCollectRentModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div>
-                  <h3 className="font-serif font-bold text-lg text-gray-900">
-                    Collect Rent
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Log rent collection for {occupantState.name}
-                  </p>
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+                {/* 📌 Sticky Header */}
+                <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-white">
+                  <div>
+                    <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 flex items-center gap-1.5">
+                      <span>💰 Collect Payment</span>
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      {occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCollectRentModal(false)}
+                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowCollectRentModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+
+                {/* 📜 Scrollable Body */}
+                <form
+                  id="collect-rent-form"
+                  onSubmit={handleCollectRentSubmit}
+                  className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs overscroll-contain"
                 >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCollectRentSubmit} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Occupant & Room
-                  </label>
-                  <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 font-semibold text-gray-900 flex items-center justify-between">
-                    <span>{occupantState.name} • Room {occupantState.roomNumber} ({occupantState.bedCode})</span>
-                    <span className="text-[10px] bg-orange-100 text-orange-950 font-bold px-2 py-0.5 rounded-full">
-                      {occupantState.stayType === "Guest" ? "Daily Guest" : "Monthly Tenant"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1.5">
-                    Payment Category *
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPurpose("RENT")}
-                      className={`py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                        paymentPurpose === "RENT"
-                          ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                      }`}
-                    >
-                      <span>🏠 Rent Only</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPurpose("DEPOSIT")}
-                      className={`py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                        paymentPurpose === "DEPOSIT"
-                          ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                      }`}
-                    >
-                      <span>🔒 Deposit Only</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPurpose("COMBINED")}
-                      className={`py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                        paymentPurpose === "COMBINED"
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                      }`}
-                    >
-                      <span>⚡ Combined</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Payment Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Defaults to today. Change if logging a past/backdated payment.
-                  </p>
-                </div>
-
-                {/* 💵 Dynamic Amount Inputs Based on Selected Category */}
-                {paymentPurpose === "RENT" && (
-                  <div className="animate-in fade-in space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-gray-700">
-                        Rent Amount Collected (₹) *
-                      </label>
-                      {(() => {
-                        const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
-                        return (
-                          <span className="text-[10px] text-gray-500 font-medium">
-                            Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
-                          </span>
-                        );
-                      })()}
+                  {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Payment Category *
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentPurpose("RENT")}
+                        className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                          paymentPurpose === "RENT"
+                            ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                        }`}
+                      >
+                        <span>🏠 Rent Only</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentPurpose("DEPOSIT")}
+                        className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                          paymentPurpose === "DEPOSIT"
+                            ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                        }`}
+                      >
+                        <span>🔒 Deposit Only</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentPurpose("COMBINED")}
+                        className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                          paymentPurpose === "COMBINED"
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                        }`}
+                      >
+                        <span>⚡ Combined</span>
+                      </button>
                     </div>
-                    <input
-                      type="number"
-                      required
-                      value={rentPaymentPortion ? rentPaymentPortion : ""}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
                   </div>
-                )}
 
-                {paymentPurpose === "DEPOSIT" && (
-                  <div className="animate-in fade-in space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-purple-900">
-                        Security Deposit Amount Collected (₹) *
-                      </label>
-                      {(() => {
-                        const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
-                        return (
-                          <span className="text-[10px] text-purple-700 font-bold">
-                            Pending Deposit: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <input
-                      type="number"
-                      required
-                      value={depositPaymentPortion ? depositPaymentPortion : ""}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl border border-purple-300 text-xs font-mono font-bold text-purple-950 focus:ring-1 focus:ring-purple-600 bg-purple-50/20"
-                    />
-                  </div>
-                )}
-
-                {paymentPurpose === "COMBINED" && (
-                  <div className="animate-in fade-in space-y-3 p-3.5 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
+                  {/* 📅 Date & Payment Mode in 2-Column Grid */}
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Payment Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Payment Mode *
+                      </label>
+                      <select
+                        value={paymentMode}
+                        onChange={(e) => setPaymentMode(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      >
+                        <option value="UPI">UPI (Google Pay / PhonePe)</option>
+                        <option value="Bank Transfer">Bank Transfer (NEFT)</option>
+                        <option value="Cash">Cash</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 💵 Dynamic Amount Inputs Based on Selected Category */}
+                  {paymentPurpose === "RENT" && (
+                    <div className="animate-in fade-in space-y-1">
+                      <div className="flex items-center justify-between">
                         <label className="font-bold text-gray-700">
-                          1. Rent Portion (₹)
+                          Rent Amount Collected (₹) *
                         </label>
                         {(() => {
                           const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
                           return (
-                            <span className="text-[10px] text-gray-500">
+                            <span className="text-[10px] text-gray-500 font-medium">
                               Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
                             </span>
                           );
@@ -2273,20 +2224,23 @@ export default function IndividualTenantProfilePage({
                       </div>
                       <input
                         type="number"
+                        required
                         value={rentPaymentPortion ? rentPaymentPortion : ""}
                         placeholder="0"
                         onChange={(e) => {
                           const val = e.target.value.replace(/\D/g, "");
                           setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
                         }}
-                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 bg-white focus:ring-1 focus:ring-emerald-600"
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                     </div>
+                  )}
 
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
+                  {paymentPurpose === "DEPOSIT" && (
+                    <div className="animate-in fade-in space-y-1">
+                      <div className="flex items-center justify-between">
                         <label className="font-bold text-purple-900">
-                          2. Security Deposit Portion (₹)
+                          Security Deposit Amount Collected (₹) *
                         </label>
                         {(() => {
                           const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
@@ -2299,193 +2253,216 @@ export default function IndividualTenantProfilePage({
                       </div>
                       <input
                         type="number"
+                        required
                         value={depositPaymentPortion ? depositPaymentPortion : ""}
                         placeholder="0"
                         onChange={(e) => {
                           const val = e.target.value.replace(/\D/g, "");
                           setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
                         }}
-                        className="w-full px-3 py-2 rounded-xl border border-purple-300 text-xs font-mono font-bold text-purple-950 bg-white focus:ring-1 focus:ring-purple-600"
+                        className="w-full px-3 py-2 rounded-xl border border-purple-300 text-sm font-mono font-bold text-purple-950 focus:ring-1 focus:ring-purple-600 bg-purple-50/20"
                       />
                     </div>
+                  )}
 
-                    <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
-                      <span>Total Combined Payment:</span>
-                      <span className="font-mono text-sm text-emerald-700 font-extrabold">
-                        ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0)).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Payment Mode *
-                  </label>
-                  <select
-                    value={paymentMode}
-                    onChange={(e) => setPaymentMode(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
-                    <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
-                    <option value="Cash">Cash</option>
-                  </select>
-                </div>
-
-                {/* Optional Transaction ID for UPI or Bank Transfer */}
-                {(paymentMode === "UPI" || paymentMode === "Bank Transfer") && (
-                  <div className="animate-in fade-in">
-                    <label className="block font-bold text-gray-700 mb-1">
-                      Transaction / Ref Number (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={transactionRef}
-                      onChange={(e) => setTransactionRef(e.target.value)}
-                      placeholder="e.g. UPI/42819201928 or Ref-99120"
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
-                  </div>
-                )}
-
-                {/* 💰 PREMIUM FINANCIAL RECEIVABLE BREAKDOWN BOX */}
-                {(() => {
-                  const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
-                  const isTenant = occupantState.stayType === "Tenant";
-                  const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
-                  const targetAutoFill = stmt.netOutstandingBalance;
-
-                  return (
-                    <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-amber-200/80 space-y-2.5 my-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                          💰 {isTenant ? "RECEIVABLE ACCOUNT BREAKDOWN" : "GUEST STAY TARIFF BREAKDOWN"}
-                        </span>
-                        {isTenant && !proRataInfo.isFullMonth && (
-                          <span className="text-[10px] bg-orange-200/80 text-orange-950 px-2 py-0.5 rounded-full font-bold">
-                            PRO-RATA ({proRataInfo.remainingDays}/{proRataInfo.totalDaysInMonth} DAYS)
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-2 text-xs text-gray-700 font-medium">
-                        {isTenant ? (
-                          <>
-                            {/* Current Month Rent */}
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Rent ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`}):</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-gray-900">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.remainingRentDue === 0 ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
-                                  {stmt.remainingRentDue === 0 ? "PAID 🟢" : `₹${stmt.remainingRentDue.toLocaleString("en-IN")} DUE`}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Security Deposit */}
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Security Deposit:</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-gray-900">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${stmt.isDepositCleared ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                                  {stmt.depositStatusLabel}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Prior Arrears */}
-                            {stmt.priorArrears > 0 && (
-                              <div className="flex justify-between items-center text-red-700">
-                                <span>▫️ Prior Unpaid Arrears:</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-red-600">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                                    DUE 🔴
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {/* Simple Plain Summary for Short-Term Guest Installments */}
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Total Stay Package (Tariff + Deposit):</span>
-                              <span className="font-mono font-bold text-gray-900">
-                                ₹{(stmt.proRataRent + stmt.securityDepositRequired).toLocaleString("en-IN")}
+                  {paymentPurpose === "COMBINED" && (
+                    <div className="animate-in fade-in space-y-2 p-3 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-bold text-gray-700">
+                            1. Rent Portion (₹)
+                          </label>
+                          {(() => {
+                            const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+                            return (
+                              <span className="text-[10px] text-gray-500">
+                                Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
                               </span>
-                            </div>
-
-                            {stmt.totalPaid > 0 && (
-                              <div className="flex justify-between items-center text-emerald-800">
-                                <span>▫️ Previously Paid / Collected:</span>
-                                <span className="font-mono font-bold text-emerald-700">
-                                  -₹{stmt.totalPaid.toLocaleString("en-IN")} 🟢
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between font-extrabold text-gray-900 text-sm">
-                          <span className="text-amber-950">🟧 REMAINING BALANCE DUE NOW:</span>
-                          <span className="font-mono text-[#c2652a] text-base">₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}</span>
+                            );
+                          })()}
                         </div>
+                        <input
+                          type="number"
+                          value={rentPaymentPortion ? rentPaymentPortion : ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 bg-white focus:ring-1 focus:ring-emerald-600"
+                        />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (paymentPurpose === "RENT") {
-                              setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount);
-                            } else if (paymentPurpose === "DEPOSIT") {
-                              setDepositPaymentPortion(stmt.remainingDepositDue);
-                            } else {
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-bold text-purple-900">
+                            2. Security Deposit Portion (₹)
+                          </label>
+                          {(() => {
+                            const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+                            return (
+                              <span className="text-[10px] text-purple-700 font-bold">
+                                Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <input
+                          type="number"
+                          value={depositPaymentPortion ? depositPaymentPortion : ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-purple-300 text-sm font-mono font-bold text-purple-950 bg-white focus:ring-1 focus:ring-purple-600"
+                        />
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
+                        <span>Total Combined:</span>
+                        <span className="font-mono text-sm text-emerald-700 font-extrabold">
+                          ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0)).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Optional Transaction ID for UPI or Bank Transfer */}
+                  {(paymentMode === "UPI" || paymentMode === "Bank Transfer") && (
+                    <div className="animate-in fade-in">
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Transaction / Ref Number (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={transactionRef}
+                        onChange={(e) => setTransactionRef(e.target.value)}
+                        placeholder="e.g. UPI/42819201928 or Ref-99120"
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+                  )}
+
+                  {/* 💰 COMPACT RECEIVABLE SUMMARY & AUTO-FILL BUTTONS */}
+                  {(() => {
+                    const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+                    const isTenant = occupantState.stayType === "Tenant";
+                    const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
+                    const targetAutoFill = stmt.netOutstandingBalance;
+
+                    return (
+                      <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-50/80 to-orange-50/50 border border-amber-200/80 space-y-2">
+                        <div className="flex items-center justify-between font-extrabold text-xs">
+                          <span className="text-amber-950 flex items-center gap-1">
+                            💰 Total Outstanding Dues:
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[#c2652a] text-sm">
+                              ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowLedgerBreakdownDetail(!showLedgerBreakdownDetail)}
+                              className="text-[10px] text-amber-800 underline font-normal cursor-pointer"
+                            >
+                              {showLedgerBreakdownDetail ? "Hide Details ▴" : "Details ▾"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Collapsible Details */}
+                        {showLedgerBreakdownDetail && (
+                          <div className="pt-2 border-t border-amber-200/80 space-y-1.5 text-[11px] text-gray-700 font-medium animate-in fade-in">
+                            {isTenant ? (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Rent ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`}):</span>
+                                  <span className="font-mono font-bold">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Security Deposit:</span>
+                                  <span className="font-mono font-bold">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                                </div>
+                                {stmt.priorArrears > 0 && (
+                                  <div className="flex justify-between items-center text-red-700">
+                                    <span>▫️ Prior Arrears:</span>
+                                    <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex justify-between items-center">
+                                <span>▫️ Stay Package:</span>
+                                <span className="font-mono font-bold">₹{(stmt.proRataRent + stmt.securityDepositRequired).toLocaleString("en-IN")}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (paymentPurpose === "RENT") {
+                                setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount);
+                              } else if (paymentPurpose === "DEPOSIT") {
+                                setDepositPaymentPortion(stmt.remainingDepositDue);
+                              } else {
+                                setRentPaymentPortion(stmt.remainingRentDue);
+                                setDepositPaymentPortion(stmt.remainingDepositDue);
+                              }
+                            }}
+                            className="py-1.5 px-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                          >
+                            ⚡ Auto-Fill Category
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentPurpose("COMBINED");
                               setRentPaymentPortion(stmt.remainingRentDue);
                               setDepositPaymentPortion(stmt.remainingDepositDue);
-                            }
-                          }}
-                          className="py-2 px-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"
-                        >
-                          ⚡ Auto-Fill Category Due
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentPurpose("COMBINED");
-                            setRentPaymentPortion(stmt.remainingRentDue);
-                            setDepositPaymentPortion(stmt.remainingDepositDue);
-                          }}
-                          className="py-2 px-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"
-                        >
-                          💰 Clear All Dues (₹{targetAutoFill.toLocaleString("en-IN")})
-                        </button>
+                            }}
+                            className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                          >
+                            💰 Clear All (₹{targetAutoFill.toLocaleString("en-IN")})
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
+                </form>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                {/* 📌 Sticky Action Footer */}
+                <div className="p-3 sm:p-4 border-t border-gray-100 flex items-center justify-end gap-2.5 bg-gray-50/90 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowCollectRentModal(false)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
+                    className="px-3.5 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-100 text-xs cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md cursor-pointer active:scale-95"
+                    form="collect-rent-form"
+                    className="px-4 sm:px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md cursor-pointer active:scale-95 flex items-center gap-1.5"
                   >
-                    Confirm & Record Payment
+                    <span>Confirm & Record</span>
+                    <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                      ₹{(
+                        paymentPurpose === "RENT"
+                          ? (rentPaymentPortion || 0)
+                          : paymentPurpose === "DEPOSIT"
+                          ? (depositPaymentPortion || 0)
+                          : (rentPaymentPortion || 0) + (depositPaymentPortion || 0)
+                      ).toLocaleString("en-IN")}
+                    </span>
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* 2. Log Notice Modal */}
         {showLogNoticeModal && (
