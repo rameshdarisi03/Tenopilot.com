@@ -66,9 +66,10 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-3", name: "Staff Salary", icon: "Users", color: "#059669" },
   { id: "cat-4", name: "Internet / Wi-Fi", icon: "Wifi", color: "#7e22ce" },
   { id: "cat-5", name: "Repairs & Maintenance", icon: "Wrench", color: "#964407" },
-  { id: "cat-[#be123c]", name: "Food & Kitchen Supplies", icon: "Utensils", color: "#be123c" },
-  { id: "cat-[#0f766e]", name: "Gas Cylinders & Fuel", icon: "Fuel", color: "#0f766e" },
-  { id: "cat-[#4338ca]", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
+  { id: "cat-6", name: "Food & Kitchen Supplies", icon: "Utensils", color: "#be123c" },
+  { id: "cat-7", name: "Gas Cylinders & Fuel", icon: "Fuel", color: "#0f766e" },
+  { id: "cat-8", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
+  { id: "cat-9", name: "Property Rent", icon: "Building2", color: "#0f172a" },
 ];
 
 export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [
