@@ -1027,7 +1027,7 @@ export default function TenantsDirectoryPage({
                 <Users className="w-4 h-4 text-[#c2652a]" /> Showing All {filteredOccupants.length} Occupants (Continuous Scroll View)
               </span>
               <span className="text-[11px] text-gray-400 font-normal">
-                Scroll vertically to browse all residents without pagination limits
+Scroll vertically to browse all residents without pagination limits
               </span>
             </div>
           </div>
@@ -1076,7 +1076,7 @@ export default function TenantsDirectoryPage({
               </div>
             ) : (
               <div className="p-2.5 rounded-xl bg-orange-50/70 border border-orange-200 text-orange-950 text-[11px] font-medium flex items-center justify-between">
-                <span>💡 <strong>Tip:</strong> Press & hold any card for 1 sec 📳 to select multiple tenants.</span>
+                <span>💡 <strong>Tip:</strong> Press & hold any card (0.5s) 📳 to select multiple tenants.</span>
               </div>
             )}
 
@@ -1086,15 +1086,17 @@ export default function TenantsDirectoryPage({
                 const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
                 const isActionMenuOpen = activeActionDropdownId === occ.id;
 
-                const startTouchTimer = () => {
+                const startTouchTimer = (e: React.TouchEvent | React.MouseEvent) => {
                   if (isMobileMultiSelectMode) return;
                   const timer = setTimeout(() => {
                     setIsMobileMultiSelectMode(true);
                     handleSelectOne(occ.id);
                     if (typeof window !== "undefined" && navigator.vibrate) {
-                      navigator.vibrate(60);
+                      try {
+                        navigator.vibrate(60);
+                      } catch {}
                     }
-                  }, 1000); // 1.0 second exact long-press threshold
+                  }, 450); // 450ms standard native mobile long-press threshold
                   setLongPressTimer(timer);
                 };
 
@@ -1113,13 +1115,19 @@ export default function TenantsDirectoryPage({
                     onTouchMove={clearTouchTimer}
                     onMouseDown={startTouchTimer}
                     onMouseUp={clearTouchTimer}
+                    onContextMenu={(e) => e.preventDefault()}
                     onClick={(e) => {
                       if (isMobileMultiSelectMode) {
                         e.preventDefault();
                         handleSelectOne(occ.id);
                       }
                     }}
-                    className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all relative ${
+                    style={{
+                      WebkitTouchCallout: "none",
+                      WebkitUserSelect: "none",
+                      userSelect: "none",
+                    }}
+                    className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all relative select-none touch-manipulation cursor-pointer ${
                       isSelected ? "border-[#c2652a] bg-orange-50/40 ring-1 ring-[#c2652a]" : "border-gray-200"
                     }`}
                   >
@@ -1131,7 +1139,8 @@ export default function TenantsDirectoryPage({
                               <img
                                 src={occ.avatar}
                                 alt={occ.name}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover pointer-events-none"
+                                draggable={false}
                               />
                             ) : (
                               <User className="w-6 h-6 text-gray-400" />
@@ -1146,15 +1155,18 @@ export default function TenantsDirectoryPage({
 
                         <Link
                           href={isMobileMultiSelectMode ? "#" : `/p/${propertyId}/tenants/${occ.id}`}
+                          onContextMenu={(e) => e.preventDefault()}
+                          draggable={false}
+                          style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
                           onClick={(e) => {
                             if (isMobileMultiSelectMode) {
                               e.preventDefault();
                               handleSelectOne(occ.id);
                             }
                           }}
-                          className="flex-1 min-w-0"
+                          className="flex-1 min-w-0 select-none"
                         >
-                          <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2 truncate">
+                          <h3 className="font-bold text-sm text-gray-900 hover:text-[#c2652a] transition-colors flex items-center gap-2 truncate select-none">
                             {occ.name}
                             {occ.stayType === "Guest" && (
                               <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
@@ -1163,22 +1175,22 @@ export default function TenantsDirectoryPage({
                             )}
                           </h3>
                           {occ.stayType === "Guest" && (occ.purposeOfVisit || occ.workplace) ? (
-                            <p className="text-[11px] text-purple-700 font-semibold truncate">
+                            <p className="text-[11px] text-purple-700 font-semibold truncate select-none">
                               🎯 {occ.purposeOfVisit || occ.workplace}
                             </p>
                           ) : (occ.occupation || occ.workplace) ? (
-                            <p className="text-[11px] text-gray-600 font-medium truncate">
+                            <p className="text-[11px] text-gray-600 font-medium truncate select-none">
                               {occ.occupation ? `${occ.occupation}${occ.workplace ? ` @ ${occ.workplace}` : ""}` : `🏢 ${occ.workplace}`}
                             </p>
                           ) : (
-                            <p className="text-xs text-gray-500 font-mono truncate">{occ.phone}</p>
+                            <p className="text-xs text-gray-500 font-mono truncate select-none">{occ.phone}</p>
                           )}
                         </Link>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span
-                          className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
+                          className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase select-none ${
                             occ.paymentStatus === "Paid"
                               ? "bg-green-100 text-green-700"
                               : occ.paymentStatus === "Overdue"
@@ -1193,7 +1205,10 @@ export default function TenantsDirectoryPage({
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={() => setActiveActionDropdownId(isActionMenuOpen ? null : occ.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
+                            }}
                             className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer"
                             title="More Actions"
                           >
@@ -1202,47 +1217,54 @@ export default function TenantsDirectoryPage({
 
                           {/* Mobile Action Dropdown Popup */}
                           {isActionMenuOpen && (
-                            <div className="absolute right-0 top-9 z-30 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 text-xs font-semibold animate-in fade-in zoom-in-95">
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
+                            >
                               <Link
                                 href={`/p/${propertyId}/tenants/${occ.id}`}
-                                onClick={() => setActiveActionDropdownId(null)}
-                                className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-800"
+                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
                               >
-                                <Eye className="w-4 h-4 text-purple-600" /> View Profile
+                                <Eye className="w-4 h-4 text-gray-400" /> View Details & KYC
                               </Link>
-                              {occ.lifecycleStatus !== "Past" && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setActiveActionDropdownId(null);
-                                      setCollectRentOccupant(occ);
-                                      setPaymentAmount(occ.rentAmount);
-                                    }}
-                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-800"
-                                  >
-                                    <CreditCard className="w-4 h-4 text-emerald-600" /> Collect Rent
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setActiveActionDropdownId(null);
-                                      triggerToast(`Initiated Room Transfer for ${occ.name}`);
-                                    }}
-                                    className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-800"
-                                  >
-                                    <ArrowRightLeft className="w-4 h-4 text-gray-500" /> Transfer Room
-                                  </button>
-                                </>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveActionDropdownId(null);
+                                  setCollectRentOccupant(occ);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-emerald-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                              >
+                                <CreditCard className="w-4 h-4 text-emerald-600" /> Collect / Record Rent
+                              </button>
+                              <Link
+                                href={`/p/${propertyId}/property-map`}
+                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
+                              >
+                                <ArrowRightLeft className="w-4 h-4 text-gray-400" /> Swap / Transfer Room
+                              </Link>
+                              {occ.lifecycleStatus === "Active" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionDropdownId(null);
+                                    setCheckOutModalOccupant(occ);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-700 hover:bg-rose-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
+                                >
+                                  <FileText className="w-4 h-4 text-rose-600" /> Check-Out & Settle
+                                </button>
                               )}
                               {isPastTenant && (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setActiveActionDropdownId(null);
                                     setDeletePastTenantTarget(occ);
                                   }}
-                                  className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-rose-50 text-rose-600 border-t border-gray-100 font-bold"
+                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 transition-all text-left cursor-pointer font-bold border-t border-gray-100"
                                 >
-                                  <Trash2 className="w-4 h-4 text-rose-600" />
-                                  <span>{occ.stayType === "Guest" ? "Delete Guest" : "Delete Past Tenant"}</span>
+                                  <Trash2 className="w-4 h-4 text-red-600" /> Delete Past Tenant 🗑️
                                 </button>
                               )}
                             </div>
@@ -1251,42 +1273,39 @@ export default function TenantsDirectoryPage({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
+                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-gray-100 py-2.5 my-1">
                       <div>
-                        <p className="text-[10px] text-gray-400 uppercase font-bold">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
                           Room & Bed Allocation
-                        </p>
-                        <p className="font-semibold text-gray-800">
-                          {isPastTenant ? (
-                            <span className="text-gray-400 font-semibold italic">— (Vacated)</span>
-                          ) : (
-                            `Room ${occ.roomNumber} (${occ.bedCode})`
-                          )}
-                        </p>
+                        </span>
+                        <span className="font-bold text-gray-900">
+                          Room {occ.roomNumber} ({occ.bedCode})
+                        </span>
                       </div>
                       <div>
-                        <p className="text-[10px] text-gray-400 uppercase font-bold">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
                           Payment Due
-                        </p>
-                        <p className="font-semibold text-[#c2652a]">
-                          {occ.dueDate}
-                        </p>
+                        </span>
+                        <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
+                          {resolveOccupantPaymentDueDate(occ)}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex gap-2">
                       <Link
                         href={`/p/${propertyId}/tenants/${occ.id}`}
-                        className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-800 font-bold text-xs flex items-center justify-center gap-1.5"
+                        className="flex-1 py-2 px-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
                       >
-                        <User className="w-3.5 h-3.5 text-gray-600" /> View Profile
+                        <User className="w-3.5 h-3.5 text-gray-400" /> View Profile
                       </Link>
                       <button
-                        onClick={() => {
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setCollectRentOccupant(occ);
-                          setPaymentAmount(occ.rentAmount);
                         }}
-                        className="flex-1 py-2 rounded-xl bg-[#c2652a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs"
+                        className="flex-1 py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
                       >
                         <CreditCard className="w-3.5 h-3.5" /> Collect Rent
                       </button>
@@ -1295,75 +1314,66 @@ export default function TenantsDirectoryPage({
                 );
               })
             ) : (
-              <div className="p-8 text-center bg-white rounded-2xl border border-gray-200 text-xs text-gray-500">
-                No matching occupants found.
+              <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-xs font-bold text-gray-600">No matching tenants found</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Try adjusting your search query or status filter.
+                </p>
               </div>
             )}
           </div>
-
-          {/* Sticky Mobile Batch WhatsApp Reminders Bar */}
-          {selectedIds.length > 0 && (
-            <div className="fixed bottom-4 left-4 right-4 z-40 bg-gray-900 text-white rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5">
-              <div>
-                <p className="font-bold text-xs">
-                  {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected
-                </p>
-                <p className="text-[10px] text-gray-400 font-medium">
-                  Send instant rent due reminders
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRentReminderQRModal(true)}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
-                >
-                  <MessageSquare className="w-4 h-4" /> Send Rent Reminders (QR Attached)
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Floating Bulk Action Bar */}
+        {/* Unified Floating Bulk Action Bar (Responsive Mobile & Desktop) */}
         {selectedIds.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 shadow-2xl rounded-2xl p-3 md:px-6 md:py-3.5 flex items-center gap-4 md:gap-6 animate-in slide-in-from-bottom-4">
+          <div className="fixed bottom-4 sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-slate-900 text-white border border-slate-800 shadow-2xl rounded-2xl p-3 sm:px-5 sm:py-3.5 flex items-center justify-between sm:justify-start gap-3 sm:gap-5 animate-in slide-in-from-bottom-4 backdrop-blur-md">
             <div className="flex items-center gap-2 text-xs">
-              <span className="w-7 h-7 rounded-lg bg-orange-50 text-[#c2652a] font-bold flex items-center justify-center text-sm">
+              <span className="w-7 h-7 rounded-xl bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs font-mono shadow-xs">
                 {selectedIds.length}
               </span>
               <div className="hidden sm:block">
-                <span className="font-bold text-gray-900 block">Tenants Selected</span>
-                <span className="text-[10px] text-gray-500">
+                <span className="font-bold text-white block">Tenants Selected</span>
+                <span className="text-[10px] text-slate-400">
                   Batch Rent Reminders & Payment QR
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setShowRentReminderQRModal(true)}
-                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
+                className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Send Rent Reminder & Attach QR ({selectedIds.length})</span>
+                <span>Send Reminders & QR ({selectedIds.length})</span>
               </button>
+
               <button
+                type="button"
                 onClick={() => triggerToast(`Calling ${selectedIds.length} selected tenants`)}
-                className="hidden md:flex px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold items-center gap-1.5"
+                className="hidden md:flex px-3.5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-semibold items-center gap-1.5 transition-all"
               >
                 <Phone className="w-4 h-4" /> Call Selected
               </button>
+
               <button
+                type="button"
                 onClick={() => triggerToast(`Exported CSV for ${selectedIds.length} tenants`)}
-                className="hidden md:flex px-4 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold items-center gap-1.5"
+                className="hidden md:flex px-3.5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-semibold items-center gap-1.5 transition-all"
               >
-                <Download className="w-4 h-4" /> Export Selected
+                <Download className="w-4 h-4" /> Export
               </button>
+
               <button
-                onClick={() => setSelectedIds([])}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 ml-1"
+                type="button"
+                onClick={() => {
+                  setSelectedIds([]);
+                  setIsMobileMultiSelectMode(false);
+                }}
+                className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Cancel selection"
               >
                 <X className="w-4 h-4" />
               </button>
