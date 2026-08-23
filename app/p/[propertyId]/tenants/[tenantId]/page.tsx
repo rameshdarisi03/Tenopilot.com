@@ -57,6 +57,7 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
+  Info,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -254,6 +255,7 @@ export default function IndividualTenantProfilePage({
   const [newGuestDailyRate, setNewGuestDailyRate] = useState<number>(0);
   const [showTariffAccordion, setShowTariffAccordion] = useState(false);
   const [showFinancialAccordion, setShowFinancialAccordion] = useState(false);
+  const [showBalanceBreakdown, setShowBalanceBreakdown] = useState(false);
 
   // In-Profile Upload KYC Modal State
   const [showUploadKycModal, setShowUploadKycModal] = useState<boolean>(false);
@@ -1359,27 +1361,63 @@ export default function IndividualTenantProfilePage({
             const topStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
             return (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Total Rent Paid */}
-                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-                  <div className="p-2 bg-green-50 w-fit rounded-lg mb-2 text-green-600">
+                {/* 1. Rent Paid (Current Cycle) */}
+                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs relative">
+                  <div className="p-2 bg-emerald-50 w-fit rounded-lg mb-2 text-emerald-600">
                     <Wallet className="w-5 h-5" />
                   </div>
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                    Total Rent Paid
+                    Rent Paid (This Cycle)
                   </p>
-                  <p className="text-2xl font-bold font-serif text-gray-900">
-                    ₹{topStmt.totalRentPaid.toLocaleString("en-IN")}
-                  </p>
-                  <p className="text-[10px] text-green-600 font-bold mt-1.5">
-                    {paymentHistory.length > 0 ? `${paymentHistory.length} PAYMENTS RECORDED 🟢` : "NO PAYMENTS YET ⚪"}
+                  <div className="flex items-baseline gap-1.5">
+                    <p className="text-2xl font-bold font-serif text-gray-900">
+                      ₹{topStmt.totalRentPaid.toLocaleString("en-IN")}
+                    </p>
+                    {topStmt.proRataRent > 0 && topStmt.totalRentPaid < topStmt.proRataRent && (
+                      <span className="text-xs text-gray-400 font-mono">
+                        / ₹{topStmt.proRataRent.toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                    topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
+                      ? "text-emerald-600"
+                      : topStmt.totalRentPaid > 0
+                      ? "text-amber-600"
+                      : "text-gray-500"
+                  }`}>
+                    {topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
+                      ? `🟢 Cycle Cleared • Last: ${paymentHistory[0]?.date || occupantState.joiningDate || "Recent"}`
+                      : topStmt.totalRentPaid > 0
+                      ? `🟡 Partial (₹${topStmt.remainingRentDue.toLocaleString("en-IN")} Due)`
+                      : `⏳ Unpaid (₹${topStmt.proRataRent.toLocaleString("en-IN")} Due)`}
                   </p>
                 </div>
 
-                {/* Outstanding Balance (Connected to SSOT Statement Engine) */}
-                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-                  <div className="p-2 bg-blue-50 w-fit rounded-lg mb-2 text-blue-600">
-                    <ShieldCheck className="w-5 h-5" />
+                {/* 2. Outstanding Balance (with Interactive Breakdown Popover) */}
+                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs relative">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`p-2 rounded-lg ${topStmt.netOutstandingBalance > 0 ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowBalanceBreakdown(!showBalanceBreakdown);
+                      }}
+                      className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold active:scale-95 ${
+                        showBalanceBreakdown
+                          ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                          : "bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
+                      }`}
+                      title="View Dues Breakdown"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Breakdown</span>
+                    </button>
                   </div>
+
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
                     Outstanding Balance
                   </p>
@@ -1391,6 +1429,69 @@ export default function IndividualTenantProfilePage({
                   }`}>
                     {topStmt.statusBadgeText}
                   </p>
+
+                  {/* 📊 Interactive Breakdown Popover Card */}
+                  {showBalanceBreakdown && (
+                    <div
+                      className="absolute left-0 sm:left-auto right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl border border-gray-200 shadow-2xl z-40 p-4 space-y-3 animate-in fade-in zoom-in-95 text-xs select-none"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                        <span className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                          <Info className="w-4 h-4 text-[#c2652a]" /> Dues Breakdown
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowBalanceBreakdown(false)}
+                          className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 font-medium">
+                        <div className="flex items-center justify-between py-1 text-gray-700">
+                          <span className="flex items-center gap-1.5">
+                            🏠 Current Cycle Rent Due
+                          </span>
+                          <span className="font-bold font-mono text-gray-900">
+                            ₹{topStmt.remainingRentDue.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+
+                        {topStmt.priorArrears > 0 && (
+                          <div className="flex items-center justify-between py-1 text-rose-700 bg-rose-50/50 px-2 rounded-lg">
+                            <span className="flex items-center gap-1.5 font-bold">
+                              ⚠️ Prior Month Arrears
+                            </span>
+                            <span className="font-bold font-mono">
+                              ₹{topStmt.priorArrears.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between py-1 text-gray-700">
+                          <span className="flex items-center gap-1.5">
+                            🔒 Pending Security Deposit
+                          </span>
+                          <span className="font-bold font-mono text-gray-900">
+                            ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900 text-xs">
+                          <span>Total Net Outstanding:</span>
+                          <span className="font-mono text-sm text-rose-700">
+                            ₹{topStmt.netOutstandingBalance.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-gray-50 rounded-xl text-[10px] text-gray-500 font-normal leading-tight">
+                        💡 Computed live via TenoPilot SSOT Financial Matrix based on receipts and room tariff rules.
+                      </div>
+                    </div>
+                  )}
                 </div>
 
             {/* Security Deposit */}
