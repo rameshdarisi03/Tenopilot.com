@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, UserCheck, Edit3 } from "lucide-react";
+import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, ChevronLeft, UserCheck, Edit3 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Complaint, subscribeToComplaints, INITIAL_COMPLAINTS } from "@/lib/complaintStore";
@@ -40,6 +40,8 @@ export function PropertyHeader({
   const [editNameInput, setEditNameInput] = useState(profile?.displayName || "");
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const [complaints, setComplaints] = useState<Complaint[]>(
     propertyId === "sunshine-pg" ? INITIAL_COMPLAINTS : []
   );
@@ -80,6 +82,15 @@ export function PropertyHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Auto-focus mobile search input when expanded
+  useEffect(() => {
+    if (isMobileSearchExpanded) {
+      setTimeout(() => {
+        mobileSearchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isMobileSearchExpanded]);
+
   // Compute real-time notification alerts from complaints & occupantStore per property scope
   const occupants = occupantStore.getOccupants(propertyId);
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
@@ -91,60 +102,133 @@ export function PropertyHeader({
     : openComplaints.length + overdueOccupants.length + pendingKycOccupants.length;
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 md:px-6 h-16 flex items-center justify-between gap-4">
-      {/* Left: Mobile Menu Button & Search Bar (Only shown when showSearch is true) */}
-      <div className="flex items-center gap-3 flex-1 max-w-xl">
-        <button
-          onClick={onMobileMenuToggle}
-          className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-700 active:scale-95 shrink-0 cursor-pointer"
-          aria-label="Toggle Mobile Menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-3 sm:px-4 md:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4 transition-all">
+      {/* 📱 Mobile Full-Width Expanded Search Overlay */}
+      {isMobileSearchExpanded && showSearch ? (
+        <div className="flex items-center gap-2 w-full animate-in fade-in slide-in-from-top-2 duration-150">
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileSearchExpanded(false);
+            }}
+            className="p-2 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors shrink-0 cursor-pointer active:scale-95"
+            aria-label="Back / Close search"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
 
-        <Link
-          href={profile?.role === "receptionist" ? `/p/${propertyId}/overview` : "/home"}
-          className="lg:hidden shrink-0 cursor-pointer"
-          title={profile?.role === "receptionist" ? "Front Desk Dashboard" : "Return to Multi-Property Portfolio Welcome Screen"}
-        >
-          <TenoPilotLogo size="sm" />
-        </Link>
-
-        {/* Full-width Search Bar Input (Rendered strictly on Tenants section or when requested) */}
-        {showSearch ? (
-          <div className="relative w-full">
+          <div className="relative flex-1">
             <input
+              ref={mobileSearchInputRef}
               type="text"
               value={searchValue}
               onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
               placeholder="Search by name, phone, room, Aadhaar..."
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs md:text-sm text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all"
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-100 focus:bg-white border border-gray-200 rounded-xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a] focus:border-transparent transition-all shadow-inner"
             />
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-          </div>
-        ) : (
-          <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-gray-500">
-            {profile?.role !== "receptionist" ? (
-              <Link
-                href="/home"
-                className="font-serif font-bold text-sm text-gray-900 hover:text-[#964407] transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Return to Multi-Property Portfolio Welcome Screen"
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+            {searchValue ? (
+              <button
+                type="button"
+                onClick={() => onSearchChange && onSearchChange("")}
+                className="p-1 text-gray-400 hover:text-gray-600 absolute right-2 top-2.5 cursor-pointer"
+                title="Clear search query"
               >
-                <span>Portfolio</span>
-              </Link>
-            ) : (
-              <span className="font-serif font-bold text-sm text-gray-900">
-                Front Desk
-              </span>
-            )}
-            <span>/</span>
-            <span className="text-gray-900 font-bold">{title}</span>
+                <X className="w-4 h-4" />
+              </button>
+            ) : null}
           </div>
-        )}
-      </div>
 
-      {/* Right: Notification Bell & User Avatar Dropdown */}
-      <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileSearchExpanded(false);
+            }}
+            className="px-2.5 py-2 text-xs font-bold text-[#c2652a] hover:text-[#964407] shrink-0 cursor-pointer"
+          >
+            Done
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Left: Mobile Menu & Logo Branding */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-xl">
+            <button
+              onClick={onMobileMenuToggle}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-700 active:scale-95 shrink-0 cursor-pointer"
+              aria-label="Toggle Mobile Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <Link
+              href={profile?.role === "receptionist" ? `/p/${propertyId}/overview` : "/home"}
+              className="shrink-0 cursor-pointer"
+              title={profile?.role === "receptionist" ? "Front Desk Dashboard" : "Return to Multi-Property Portfolio Welcome Screen"}
+            >
+              <TenoPilotLogo size="sm" />
+            </Link>
+
+            {/* Desktop Center Search Bar (Hidden on Mobile) */}
+            {showSearch ? (
+              <div className="hidden md:block relative w-full ml-2">
+                <input
+                  type="text"
+                  value={searchValue}
+                  onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+                  placeholder="Search by name, phone, room, Aadhaar..."
+                  className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs md:text-sm text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all"
+                />
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                {searchValue && (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange && onSearchChange("")}
+                    className="p-1 text-gray-400 hover:text-gray-600 absolute right-2 top-2 cursor-pointer"
+                    title="Clear search query"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-gray-500 ml-2">
+                {profile?.role !== "receptionist" ? (
+                  <Link
+                    href="/home"
+                    className="font-serif font-bold text-sm text-gray-900 hover:text-[#964407] transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Return to Multi-Property Portfolio Welcome Screen"
+                  >
+                    <span>Portfolio</span>
+                  </Link>
+                ) : (
+                  <span className="font-serif font-bold text-sm text-gray-900">
+                    Front Desk
+                  </span>
+                )}
+                <span>/</span>
+                <span className="text-gray-900 font-bold">{title}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Actions, Mobile Search Trigger, Notification Bell & Avatar */}
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+            {/* 📱 Mobile Search Icon Trigger Button */}
+            {showSearch && (
+              <button
+                type="button"
+                onClick={() => setIsMobileSearchExpanded(true)}
+                className="md:hidden relative p-2 rounded-full hover:bg-gray-100 text-gray-600 active:scale-95 transition-colors cursor-pointer"
+                aria-label="Open Search Bar"
+                title="Search tenants"
+              >
+                <Search className="w-5 h-5" />
+                {searchValue ? (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[#c2652a] ring-2 ring-white" />
+                ) : null}
+              </button>
+            )}
         {/* 🔔 Real-Time Notification Bell & Drawer */}
         <div className="relative" ref={notifRef}>
           <button
@@ -373,6 +457,8 @@ export function PropertyHeader({
           )}
         </div>
       </div>
+        </>
+      )}
 
       {/* ✏️ EDIT PROFILE MODAL */}
       {showEditProfileModal && (

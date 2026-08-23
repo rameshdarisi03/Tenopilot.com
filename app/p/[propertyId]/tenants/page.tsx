@@ -726,6 +726,31 @@ export default function TenantsDirectoryPage({
             </MagneticGlowCard>
           </div>
 
+          {/* 🔍 Dedicated In-Page Search Bar (Full-Width on Mobile & Desktop) */}
+          <div className="relative max-w-lg w-full pt-1">
+            <input
+              type="text"
+              value={rawSearchTerm}
+              onChange={(e) => {
+                setRawSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search resident name, room, phone, Aadhaar..."
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 focus:border-[#c2652a] rounded-2xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a]/20 shadow-xs transition-all"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-4" />
+            {rawSearchTerm && (
+              <button
+                type="button"
+                onClick={() => setRawSearchTerm("")}
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 absolute right-2.5 top-3 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           {/* Spring-Physics Gliding Status Filter Tabs (Positioned directly below KPI cards) */}
           <div className="overflow-x-auto pb-1 max-w-4xl pt-1">
             <GlidingTabs
