@@ -273,6 +273,57 @@ export const CATEGORIZED_ICON_LIBRARY: IconCategoryGroup[] = [
   },
 ];
 
+// Custom Pixel-Perfect Indian Rupee Receipt Icon (No Dollar Sign)
+export function ReceiptRupeeIcon({
+  className = "w-4 h-4",
+  ...props
+}: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+      <path d="M9 7.5h6" />
+      <path d="M9 10.5h6" />
+      <path d="M9 7.5v3a2.5 2.5 0 0 0 2.5 2.5h0.5" />
+      <path d="M11.5 13.5L15 17.5" />
+    </svg>
+  );
+}
+
+// Plain Bill / Receipt with Text Lines (Neutral, No Currency)
+export function ReceiptPlainIcon({
+  className = "w-4 h-4",
+  ...props
+}: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...props}
+    >
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </svg>
+  );
+}
+
 // Helper Component to render dynamic icon by string name
 export function RenderDynamicCategoryIcon({
   iconName,
@@ -281,6 +332,14 @@ export function RenderDynamicCategoryIcon({
   iconName: string;
   className?: string;
 }) {
+  if (iconName === "Receipt" || iconName === "ReceiptRupee") {
+    return React.createElement(ReceiptRupeeIcon, { className });
+  }
+
+  if (iconName === "ReceiptPlain" || iconName === "Bill" || iconName === "ReceiptText") {
+    return React.createElement(ReceiptPlainIcon, { className });
+  }
+
   for (const group of CATEGORIZED_ICON_LIBRARY) {
     const found = group.icons.find((i) => i.name === iconName);
     if (found) {
@@ -288,6 +347,6 @@ export function RenderDynamicCategoryIcon({
     }
   }
 
-  // Default Fallback
-  return React.createElement(Wrench, { className });
+  // Default Fallback: Rupee Receipt Icon
+  return React.createElement(ReceiptRupeeIcon, { className });
 }

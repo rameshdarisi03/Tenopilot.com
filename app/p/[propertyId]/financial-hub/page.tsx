@@ -2484,7 +2484,7 @@ export default function FinancialHubPage({
                   Add Expense Category
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Creates a new category with auto-assigned bill icon
+                  Create a new operational category for your ledger
                 </p>
               </div>
               <button
@@ -2510,15 +2510,6 @@ export default function FinancialHubPage({
                   placeholder="e.g. Generator Fuel, Lift AMC, Pest Control"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                 />
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-slate-600 text-white font-bold shrink-0">
-                  <Receipt className="w-4 h-4" />
-                </div>
-                <div className="text-[11px] text-slate-600 font-medium">
-                  Auto-assigns standard <strong className="text-slate-900">Bill & Receipt icon 🧾</strong> for transaction ledgers.
-                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
