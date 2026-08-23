@@ -1369,16 +1369,9 @@ export default function IndividualTenantProfilePage({
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
                     Rent Paid (This Cycle)
                   </p>
-                  <div className="flex items-baseline gap-1.5">
-                    <p className="text-2xl font-bold font-serif text-gray-900">
-                      ₹{topStmt.totalRentPaid.toLocaleString("en-IN")}
-                    </p>
-                    {topStmt.proRataRent > 0 && topStmt.totalRentPaid < topStmt.proRataRent && (
-                      <span className="text-xs text-gray-400 font-mono">
-                        / ₹{topStmt.proRataRent.toLocaleString("en-IN")}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-2xl font-bold font-serif text-gray-900">
+                    ₹{topStmt.totalRentPaid.toLocaleString("en-IN")}
+                  </p>
                   <p className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
                     topStmt.totalRentPaid >= topStmt.proRataRent && topStmt.proRataRent > 0
                       ? "text-emerald-600"
@@ -1430,67 +1423,139 @@ export default function IndividualTenantProfilePage({
                     {topStmt.statusBadgeText}
                   </p>
 
-                  {/* 📊 Interactive Breakdown Popover Card */}
+                  {/* 📊 Interactive Breakdown Popover / Modal (Responsive Mobile Center & Desktop Popover) */}
                   {showBalanceBreakdown && (
-                    <div
-                      className="absolute left-0 sm:left-auto right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl border border-gray-200 shadow-2xl z-40 p-4 space-y-3 animate-in fade-in zoom-in-95 text-xs select-none"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                        <span className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
-                          <Info className="w-4 h-4 text-[#c2652a]" /> Dues Breakdown
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setShowBalanceBreakdown(false)}
-                          className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                    <>
+                      {/* Mobile Backdrop & Centered Modal */}
+                      <div
+                        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 sm:hidden animate-in fade-in"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowBalanceBreakdown(false);
+                        }}
+                      >
+                        <div
+                          className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-sm p-5 space-y-4 animate-in zoom-in-95 text-xs select-none"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <X className="w-4 h-4" />
-                        </button>
+                          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                            <span className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                              <Info className="w-5 h-5 text-[#c2652a]" /> Dues Breakdown
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowBalanceBreakdown(false)}
+                              className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+
+                          <div className="space-y-3 font-medium text-xs">
+                            <div className="flex items-center justify-between py-1 text-gray-700">
+                              <span className="flex items-center gap-2">
+                                🏠 Current Cycle Rent Due
+                              </span>
+                              <span className="font-bold font-mono text-gray-900 text-sm">
+                                ₹{topStmt.remainingRentDue.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+
+                            {topStmt.priorArrears > 0 && (
+                              <div className="flex items-center justify-between py-1.5 text-rose-700 bg-rose-50 px-2.5 rounded-xl">
+                                <span className="flex items-center gap-2 font-bold">
+                                  ⚠️ Prior Month Arrears
+                                </span>
+                                <span className="font-bold font-mono text-sm">
+                                  ₹{topStmt.priorArrears.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between py-1 text-gray-700">
+                              <span className="flex items-center gap-2">
+                                🔒 Pending Security Deposit
+                              </span>
+                              <span className="font-bold font-mono text-gray-900 text-sm">
+                                ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+
+                            <div className="pt-3 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
+                              <span className="text-xs">Total Net Outstanding:</span>
+                              <span className="font-mono text-base text-rose-700 font-extrabold">
+                                ₹{topStmt.netOutstandingBalance.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 rounded-2xl text-[11px] text-gray-500 font-normal leading-relaxed">
+                            💡 Computed live via TenoPilot SSOT Financial Matrix based on verified receipts and room tariffs.
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-2 font-medium">
-                        <div className="flex items-center justify-between py-1 text-gray-700">
-                          <span className="flex items-center gap-1.5">
-                            🏠 Current Cycle Rent Due
+                      {/* Desktop Popover (Anchored) */}
+                      <div
+                        className="hidden sm:block absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-gray-200 shadow-2xl z-40 p-4 space-y-3 animate-in fade-in zoom-in-95 text-xs select-none"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                          <span className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                            <Info className="w-4 h-4 text-[#c2652a]" /> Dues Breakdown
                           </span>
-                          <span className="font-bold font-mono text-gray-900">
-                            ₹{topStmt.remainingRentDue.toLocaleString("en-IN")}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowBalanceBreakdown(false)}
+                            className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         </div>
 
-                        {topStmt.priorArrears > 0 && (
-                          <div className="flex items-center justify-between py-1 text-rose-700 bg-rose-50/50 px-2 rounded-lg">
-                            <span className="flex items-center gap-1.5 font-bold">
-                              ⚠️ Prior Month Arrears
+                        <div className="space-y-2 font-medium">
+                          <div className="flex items-center justify-between py-1 text-gray-700">
+                            <span className="flex items-center gap-1.5">
+                              🏠 Current Cycle Rent Due
                             </span>
-                            <span className="font-bold font-mono">
-                              ₹{topStmt.priorArrears.toLocaleString("en-IN")}
+                            <span className="font-bold font-mono text-gray-900">
+                              ₹{topStmt.remainingRentDue.toLocaleString("en-IN")}
                             </span>
                           </div>
-                        )}
 
-                        <div className="flex items-center justify-between py-1 text-gray-700">
-                          <span className="flex items-center gap-1.5">
-                            🔒 Pending Security Deposit
-                          </span>
-                          <span className="font-bold font-mono text-gray-900">
-                            ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
-                          </span>
+                          {topStmt.priorArrears > 0 && (
+                            <div className="flex items-center justify-between py-1 text-rose-700 bg-rose-50/50 px-2 rounded-lg">
+                              <span className="flex items-center gap-1.5 font-bold">
+                                ⚠️ Prior Month Arrears
+                              </span>
+                              <span className="font-bold font-mono">
+                                ₹{topStmt.priorArrears.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between py-1 text-gray-700">
+                            <span className="flex items-center gap-1.5">
+                              🔒 Pending Security Deposit
+                            </span>
+                            <span className="font-bold font-mono text-gray-900">
+                              ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
+                          <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900 text-xs">
+                            <span>Total Net Outstanding:</span>
+                            <span className="font-mono text-sm text-rose-700">
+                              ₹{topStmt.netOutstandingBalance.toLocaleString("en-IN")}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900 text-xs">
-                          <span>Total Net Outstanding:</span>
-                          <span className="font-mono text-sm text-rose-700">
-                            ₹{topStmt.netOutstandingBalance.toLocaleString("en-IN")}
-                          </span>
+                        <div className="p-2 bg-gray-50 rounded-xl text-[10px] text-gray-500 font-normal leading-tight">
+                          💡 Computed live via TenoPilot SSOT Financial Matrix based on receipts and room tariff rules.
                         </div>
                       </div>
-
-                      <div className="p-2 bg-gray-50 rounded-xl text-[10px] text-gray-500 font-normal leading-tight">
-                        💡 Computed live via TenoPilot SSOT Financial Matrix based on receipts and room tariff rules.
-                      </div>
-                    </div>
+                    </>
                   )}
                 </div>
 
