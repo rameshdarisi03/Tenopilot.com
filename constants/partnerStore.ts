@@ -65,7 +65,7 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-2", name: "Water Supply", icon: "Droplet", color: "#1d4ed8" },
   { id: "cat-3", name: "Staff Salary", icon: "Users", color: "#059669" },
   { id: "cat-4", name: "Internet / Wi-Fi", icon: "Wifi", color: "#7e22ce" },
-  { id: "cat-5", name: "Property Maintenance", icon: "Wrench", color: "#964407" },
+  { id: "cat-5", name: "Repairs & Maintenance", icon: "Wrench", color: "#964407" },
   { id: "cat-[#be123c]", name: "Food & Kitchen Supplies", icon: "Utensils", color: "#be123c" },
   { id: "cat-[#0f766e]", name: "Gas Cylinders & Fuel", icon: "Fuel", color: "#0f766e" },
   { id: "cat-[#4338ca]", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
@@ -320,6 +320,16 @@ export const partnerStore = {
     notify();
     this.syncToFirestore(propertyId);
     return newCat;
+  },
+
+  renameCategory(id: string, newName: string, propertyId?: string) {
+    if (!propertyId || !newName.trim()) return;
+    const current = this.getCategories(propertyId);
+    const updated = current.map((c) => (c.id === id ? { ...c, name: newName.trim() } : c));
+    PROPERTY_CATEGORIES_MAP.set(propertyId, updated);
+    setStoredArray(`tenopilot_expense_categories_${propertyId}`, updated);
+    notify();
+    this.syncToFirestore(propertyId);
   },
 
   deleteCategory(id: string, propertyId?: string) {

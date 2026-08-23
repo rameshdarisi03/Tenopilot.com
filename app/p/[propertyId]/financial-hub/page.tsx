@@ -167,11 +167,11 @@ export default function FinancialHubPage({
   const [recPaidFrom, setRecPaidFrom] = useState("Business Account");
   const [recNotes, setRecNotes] = useState("");
 
-  // Custom Category Creator & Sub-Tab State
-  const [catNameInput, setCatNameInput] = useState("");
-  const [selectedColor, setSelectedColor] = useState("#964407");
-  const [selectedIcon, setSelectedIcon] = useState("Wrench");
-  const [selectedIconGroupTab, setSelectedIconGroupTab] = useState("Property & Building");
+  // Category Management & Sub-Tab State
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<ExpenseCategoryConfig | null>(null);
+  const [renameCategoryName, setRenameCategoryName] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
 
@@ -363,7 +363,7 @@ export default function FinancialHubPage({
       return;
     }
 
-    const created = partnerStore.addCategory(trimmed, "Wrench", selectedColor, propertyId);
+    const created = partnerStore.addCategory(trimmed, "Receipt", "#475569", propertyId);
     if (created) {
       setCategory(created.name);
       setNewCategoryInput("");
@@ -509,17 +509,34 @@ export default function FinancialHubPage({
     setShowAddRecurringModal(false);
   };
 
-  const handleCreateCategoryFromTab = (e: React.FormEvent) => {
+  const handleCreateNewCategory = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = catNameInput.trim();
+    const trimmed = newCategoryName.trim();
     if (!trimmed) {
       triggerToast("⚠️ Please enter a category name.");
       return;
     }
 
-    partnerStore.addCategory(trimmed, selectedIcon, selectedColor, propertyId);
-    setCatNameInput("");
-    triggerToast(`🟢 Custom Category "${trimmed}" created & saved to SSOT!`);
+    // Default icon: Receipt (Bill icon), Color: Brand Slate #475569
+    partnerStore.addCategory(trimmed, "Receipt", "#475569", propertyId);
+    setNewCategoryName("");
+    setShowAddCategoryModal(false);
+    triggerToast(`🟢 New expense category "${trimmed}" added with Bill icon 🧾`);
+  };
+
+  const handleRenameCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    const trimmed = renameCategoryName.trim();
+    if (!trimmed) {
+      triggerToast("⚠️ Category name cannot be empty.");
+      return;
+    }
+
+    partnerStore.renameCategory(editingCategory.id, trimmed, propertyId);
+    triggerToast(`✓ Category renamed to "${trimmed}" successfully!`);
+    setEditingCategory(null);
+    setRenameCategoryName("");
   };
 
   const handleDeleteCategory = (catId: string, catName: string) => {
@@ -1327,11 +1344,26 @@ export default function FinancialHubPage({
                         .map((exp) => (
                           <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
                             <td className="py-4 px-4 text-gray-500 font-medium">{exp.date}</td>
-                            <td className="py-4 px-4 font-bold text-gray-900 flex items-center gap-2">
-                              <span className="p-1.5 rounded-lg bg-orange-50 text-[#c2652a]">
-                                <Receipt className="w-3.5 h-3.5" />
-                              </span>
-                              {exp.category}
+                            <td className="py-4 px-4 font-bold text-gray-900">
+                              {(() => {
+                                const catObj = categories.find(
+                                  (c) => c.name.toLowerCase() === exp.category.toLowerCase()
+                                );
+                                const catColor = catObj?.color || "#475569";
+                                const catIcon = catObj?.icon || "Receipt";
+
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="p-1.5 rounded-lg text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
+                                      style={{ backgroundColor: catColor }}
+                                    >
+                                      <RenderDynamicCategoryIcon iconName={catIcon} className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                    <span className="font-bold text-gray-900">{exp.category}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="py-4 px-4">
                               <span className="font-semibold text-gray-900 flex items-center gap-1.5">
@@ -1377,190 +1409,97 @@ export default function FinancialHubPage({
             </div>
           )}
 
-              {/* VIEW 2: CATEGORY CUSTOMIZER & 100+ ICONS */}
+              {/* VIEW 2: CLEAN ACTIVE CATEGORIES DIRECTORY */}
               {expensesSubTab === "CATEGORIES" && (
-                <div className="space-y-8 animate-in fade-in">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    {/* Left Column: Color & Icon Category Creator Form */}
-                    <div className="lg:col-span-5 bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6">
+                <div className="space-y-6 animate-in fade-in">
+                  <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-5">
                       <div>
-                        <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
-                          <Tag className="w-5 h-5 text-[#c2652a]" /> Custom Category Creator
+                        <h3 className="font-serif font-bold text-xl sm:text-2xl text-gray-900 flex items-center gap-2">
+                          <span>🏷️ Operational Expense Categories ({categories.length})</span>
                         </h3>
                         <p className="text-xs text-gray-500 mt-1">
-                          Add new operational expense categories with custom theme colors and icons
+                          Standard building categories with in-place rename and 1-tap custom category addition
                         </p>
                       </div>
 
-                      <form onSubmit={handleCreateCategoryFromTab} className="space-y-5 text-xs">
-                        <div>
-                          <label className="block font-bold text-gray-900 mb-1">
-                            Category Name *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={catNameInput}
-                            onChange={(e) => setCatNameInput(e.target.value)}
-                            placeholder="e.g. Generator Fuel, Pest Control"
-                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                          />
-                        </div>
-
-                        {/* Color Swatch Picker */}
-                        <div>
-                          <label className="block font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-                            <Palette className="w-3.5 h-3.5 text-[#c2652a]" /> Select Theme Color *
-                          </label>
-                          <div className="flex flex-wrap gap-2.5">
-                            {COLOR_SWATCHES.map((swatch) => (
-                              <button
-                                key={swatch.name}
-                                type="button"
-                                onClick={() => setSelectedColor(swatch.hex)}
-                                className={`w-8 h-8 rounded-full transition-all flex items-center justify-center cursor-pointer ${
-                                  selectedColor === swatch.hex
-                                    ? "ring-2 ring-offset-2 ring-[#c2652a] scale-110 shadow-sm"
-                                    : "hover:scale-105 opacity-80 hover:opacity-100"
-                                }`}
-                                style={{ backgroundColor: swatch.hex }}
-                                title={swatch.name}
-                              >
-                                {selectedColor === swatch.hex && (
-                                  <CheckCircle2 className="w-4 h-4 text-white" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 100+ Categorized Business Icon Library Picker */}
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <label className="block font-bold text-gray-900">
-                              Select Business Icon (100+ Library) *
-                            </label>
-                            <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                              Selected: {selectedIcon}
-                            </span>
-                          </div>
-
-                          {/* Icon Category Tabs Bar */}
-                          <div className="flex overflow-x-auto gap-1.5 pb-2 mb-2.5 scrollbar-thin">
-                            {CATEGORIZED_ICON_LIBRARY.map((group) => (
-                              <button
-                                key={group.category}
-                                type="button"
-                                onClick={() => setSelectedIconGroupTab(group.category)}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition-all cursor-pointer ${
-                                  selectedIconGroupTab === group.category
-                                    ? "bg-[#c2652a] text-white shadow-xs"
-                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                              >
-                                {group.category}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Icons Grid for Active Tab */}
-                          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-200">
-                            {CATEGORIZED_ICON_LIBRARY.find(
-                              (g) => g.category === selectedIconGroupTab
-                            )?.icons.map((iconOpt) => (
-                              <button
-                                key={iconOpt.name}
-                                type="button"
-                                onClick={() => setSelectedIcon(iconOpt.name)}
-                                className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                                  selectedIcon === iconOpt.name
-                                    ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/30 text-[#c2652a] font-bold shadow-xs scale-105"
-                                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
-                                }`}
-                              >
-                                <RenderDynamicCategoryIcon
-                                  iconName={iconOpt.name}
-                                  className="w-4 h-4"
-                                />
-                                <span className="text-[9px] truncate w-full text-center">
-                                  {iconOpt.label}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <button
-                          type="submit"
-                          className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
-                        >
-                          + Save Category to System
-                        </button>
-                      </form>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewCategoryName("");
+                          setShowAddCategoryModal(true);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>+ Add New Category</span>
+                      </button>
                     </div>
 
-                    {/* Right Column: Active Categories Directory Grid */}
-                    <div className="lg:col-span-7 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h3 className="font-serif font-bold text-xl text-gray-900">
-                            Active Categories Directory ({categories.length})
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            All operational building categories currently included in your ledger
-                          </p>
-                        </div>
-                      </div>
+                    {/* Full-Width Grid of Categories */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {categories.map((cat) => {
+                        const catExpenses = expenseList.filter((e) => e.category === cat.name);
+                        const catTotal = catExpenses.reduce((a, b) => a + b.amount, 0);
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {categories.map((cat) => {
-                          const catExpenses = expenseList.filter((e) => e.category === cat.name);
-                          const catTotal = catExpenses.reduce((a, b) => a + b.amount, 0);
-
-                          return (
-                            <div
-                              key={cat.id}
-                              className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3 flex flex-col justify-between"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="p-2.5 rounded-xl text-white font-bold shadow-xs flex items-center justify-center shrink-0"
-                                    style={{ backgroundColor: cat.color || "#c2652a" }}
-                                  >
-                                    <RenderDynamicCategoryIcon
-                                      iconName={cat.icon}
-                                      className="w-5 h-5 text-white"
-                                    />
-                                  </div>
-                                  <div>
-                                    <h4 className="font-bold text-sm text-gray-900">{cat.name}</h4>
-                                    <p className="text-[10px] text-gray-500">
-                                      {catExpenses.length} Logged Transactions
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                                  className="p-1.5 rounded-lg text-red-400 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                                  title="Delete Category"
+                        return (
+                          <div
+                            key={cat.id}
+                            className="p-5 rounded-2xl bg-white border border-gray-200 hover:border-gray-300 shadow-xs hover:shadow-sm transition-all space-y-3 flex flex-col justify-between group"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div
+                                  className="p-2.5 rounded-xl text-white font-bold shadow-xs flex items-center justify-center shrink-0"
+                                  style={{ backgroundColor: cat.color || "#475569" }}
                                 >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                  <RenderDynamicCategoryIcon
+                                    iconName={cat.icon || "Receipt"}
+                                    className="w-5 h-5 text-white"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <h4 className="font-bold text-sm text-gray-900 truncate" title={cat.name}>
+                                      {cat.name}
+                                    </h4>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingCategory(cat);
+                                        setRenameCategoryName(cat.name);
+                                      }}
+                                      className="p-1 rounded text-gray-400 hover:text-[#c2652a] hover:bg-orange-50 cursor-pointer transition-colors"
+                                      title="Rename Category"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 font-medium">
+                                    {catExpenses.length} Logged Transactions
+                                  </p>
+                                </div>
                               </div>
 
-                              <div className="border-t border-gray-100 pt-2 flex justify-between items-center">
-                                <span className="text-[10px] text-gray-500 font-medium">Total Spend</span>
-                                <span className="font-sans font-bold text-[#c2652a] text-base tabular-nums">
-                                  ₹{catTotal.toLocaleString("en-IN")}
-                                </span>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                                className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Delete Category"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                          );
-                        })}
-                      </div>
+
+                            <div className="border-t border-gray-100 pt-2.5 flex justify-between items-center">
+                              <span className="text-[10px] text-gray-500 font-medium">Total Spend</span>
+                              <span className="font-sans font-bold text-[#c2652a] text-sm tabular-nums">
+                                ₹{catTotal.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -2499,8 +2438,11 @@ export default function FinancialHubPage({
                     className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a] font-bold">
-                        <Receipt className="w-4 h-4" />
+                      <div
+                        className="p-2 rounded-xl text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
+                        style={{ backgroundColor: cat.color || "#475569" }}
+                      >
+                        <RenderDynamicCategoryIcon iconName={cat.icon || "Receipt"} className="w-4 h-4 text-white" />
                       </div>
                       <div>
                         <h4 className="font-bold text-gray-900">{cat.name}</h4>
@@ -2528,6 +2470,143 @@ export default function FinancialHubPage({
                 Close Directory
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD CUSTOM CATEGORY MODAL */}
+      {showAddCategoryModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-sm w-full p-6 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-serif font-bold text-lg text-gray-900">
+                  Add Expense Category
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Creates a new category with auto-assigned bill icon
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddCategoryModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewCategory} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="e.g. Generator Fuel, Lift AMC, Pest Control"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-slate-600 text-white font-bold shrink-0">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="text-[11px] text-slate-600 font-medium">
+                  Auto-assigns standard <strong className="text-slate-900">Bill & Receipt icon 🧾</strong> for transaction ledgers.
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCategoryModal(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold shadow-md cursor-pointer active:scale-95"
+                >
+                  Save Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RENAME CATEGORY MODAL */}
+      {editingCategory && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-sm w-full p-6 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-serif font-bold text-lg text-gray-900">
+                  Rename Category
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Update category name while keeping its original icon & color
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingCategory(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRenameCategorySubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={renameCategoryName}
+                  onChange={(e) => setRenameCategoryName(e.target.value)}
+                  placeholder="Enter new category name..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-orange-50/60 border border-orange-200 flex items-center gap-3">
+                <div
+                  className="p-2 rounded-xl text-white font-bold shrink-0"
+                  style={{ backgroundColor: editingCategory.color || "#c2652a" }}
+                >
+                  <RenderDynamicCategoryIcon iconName={editingCategory.icon || "Receipt"} className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-[11px] text-orange-950 font-medium">
+                  All existing expense transactions tagged with <strong className="font-bold">{editingCategory.name}</strong> will update automatically.
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory(null)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold shadow-md cursor-pointer active:scale-95"
+                >
+                  Update Name
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
