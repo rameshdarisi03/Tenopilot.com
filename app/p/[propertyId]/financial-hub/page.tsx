@@ -44,7 +44,7 @@ import {
 } from "@/constants/partnerStore";
 import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
 import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBillStore";
-import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon } from "@/constants/businessIconLibrary";
+import { CATEGORIZED_ICON_LIBRARY, RenderDynamicCategoryIcon, ReceiptRupeeIcon } from "@/constants/businessIconLibrary";
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -686,7 +686,7 @@ export default function FinancialHubPage({
                         : "bg-emerald-100 text-emerald-800 group-hover:bg-[#c2652a] group-hover:text-white"
                     }`}
                   >
-                    <Receipt className="w-5 h-5" />
+                    <ReceiptRupeeIcon className="w-5 h-5" />
                   </div>
                   <div>
                     <h3
@@ -1077,7 +1077,7 @@ export default function FinancialHubPage({
                         RECORDED TRANSACTIONS
                       </p>
                       <div className="flex items-center gap-2 mt-1">
-                        <Receipt className="w-4 h-4 text-purple-700" />
+                        <ReceiptRupeeIcon className="w-4 h-4 text-purple-700" />
                         <span className="font-sans font-bold text-base text-gray-900">
                           {expenseList.length} Entries Logged
                         </span>
@@ -1144,7 +1144,7 @@ export default function FinancialHubPage({
                       : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
-                  <Receipt className="w-4 h-4" /> Ledger & Recurring Bills
+                  <ReceiptRupeeIcon className="w-4 h-4" /> Ledger & Recurring Bills
                 </button>
                 <button
                   type="button"
@@ -1602,7 +1602,7 @@ export default function FinancialHubPage({
                     <div className="flex items-center justify-between border-b border-gray-100 pb-4">
                       <div>
                         <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
-                          <Receipt className="w-5 h-5 text-[#c2652a]" /> Record Operational Expense
+                          <ReceiptRupeeIcon className="w-5 h-5 text-[#c2652a]" /> Record Operational Expense
                         </h3>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Log building costs, utility bills, or staff salaries in seconds
@@ -2021,7 +2021,7 @@ export default function FinancialHubPage({
                       Total Expenses
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-orange-100 text-[#c2652a] flex items-center justify-center">
-                      <Receipt className="w-4 h-4" />
+                      <ReceiptRupeeIcon className="w-4 h-4" />
                     </div>
                   </div>
                   <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
@@ -2072,28 +2072,33 @@ export default function FinancialHubPage({
               </div>
 
               {/* Partner Settlement Overview Table Section */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xs">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-serif font-bold text-lg text-gray-900">
-                    Partner Settlement Overview
-                  </h3>
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-gray-100 pb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-xl text-gray-900">
+                      Partner Settlement Overview
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Net profit allocation matrix & partner reimbursement tracking
+                    </p>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto scrollbar-thin pb-2 -mx-2 sm:mx-0">
                   {partners.length === 0 ? (
                     <div className="py-12 text-center text-xs text-gray-500">
                       No partner equity profiles configured yet. Configure partner profit sharing in Property Settings.
                     </div>
                   ) : (
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[700px] text-left text-xs border-collapse">
                       <thead>
-                        <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold">
-                          <th className="pb-3 font-bold">Partner</th>
-                          <th className="pb-3 font-bold">Ownership %</th>
-                          <th className="pb-3 font-bold">Paid Out-Of-Pocket (This Month)</th>
-                          <th className="pb-3 font-bold">Profit Share</th>
-                          <th className="pb-3 font-bold">Receivable / Payable</th>
-                          <th className="pb-3 font-bold text-right">Status</th>
+                        <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
+                          <th className="py-3 px-4 font-bold">Partner</th>
+                          <th className="py-3 px-4 font-bold">Ownership %</th>
+                          <th className="py-3 px-4 font-bold">Paid Out-Of-Pocket (This Month)</th>
+                          <th className="py-3 px-4 font-bold">Profit Share</th>
+                          <th className="py-3 px-4 font-bold">Receivable / Payable</th>
+                          <th className="py-3 px-4 font-bold text-right">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -2104,25 +2109,25 @@ export default function FinancialHubPage({
                           const receivable = profitShare - actualPaid;
 
                           return (
-                            <tr key={p.id}>
-                              <td className="py-4 font-bold flex items-center gap-2 text-gray-900">
+                            <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                              <td className="py-4 px-4 font-bold flex items-center gap-2.5 text-gray-900 whitespace-nowrap">
                                 <span
-                                  className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-bold"
+                                  className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs"
                                   style={{ backgroundColor: p.color || "#c2652a" }}
                                 >
                                   {p.name.charAt(0)}
                                 </span>
-                                {p.name}
+                                <span>{p.name}</span>
                               </td>
-                              <td className="py-4 text-gray-500 font-sans font-bold tabular-nums">{p.ownershipPercentage}%</td>
-                              <td className="py-4 text-gray-500 font-sans font-semibold tabular-nums">₹{actualPaid.toLocaleString("en-IN")}</td>
-                              <td className="py-4 font-sans font-bold text-gray-900 tabular-nums">₹{profitShare.toLocaleString("en-IN")}</td>
-                              <td className={`py-4 font-sans font-bold tabular-nums ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
+                              <td className="py-4 px-4 text-gray-500 font-sans font-bold tabular-nums whitespace-nowrap">{p.ownershipPercentage}%</td>
+                              <td className="py-4 px-4 text-gray-700 font-sans font-semibold tabular-nums whitespace-nowrap">₹{actualPaid.toLocaleString("en-IN")}</td>
+                              <td className="py-4 px-4 font-sans font-bold text-gray-900 tabular-nums whitespace-nowrap">₹{profitShare.toLocaleString("en-IN")}</td>
+                              <td className={`py-4 px-4 font-sans font-bold tabular-nums whitespace-nowrap ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
                                 {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
                               </td>
-                              <td className="py-4 text-right">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  receivable >= 0 ? "bg-emerald-100 text-emerald-900" : "bg-red-100 text-red-900"
+                              <td className="py-4 px-4 text-right whitespace-nowrap">
+                                <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
+                                  receivable >= 0 ? "bg-emerald-100 text-emerald-900 border border-emerald-200" : "bg-red-100 text-red-900 border border-red-200"
                                 }`}>
                                   {receivable >= 0 ? "Receivable" : "Payable"}
                                 </span>
@@ -2140,7 +2145,7 @@ export default function FinancialHubPage({
               <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-3 rounded-xl bg-orange-50 text-[#c2652a]">
-                    <Receipt className="w-6 h-6" />
+                    <ReceiptRupeeIcon className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="font-serif font-bold text-base text-gray-900">
