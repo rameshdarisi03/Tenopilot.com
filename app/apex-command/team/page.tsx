@@ -135,8 +135,8 @@ export default function ApexCommandTeamPage() {
 
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="Internal Team & Role-Based Access (RBAC)"
-          subtitle="Manage TenoPilot company staff accounts, field sales representatives, and permissions"
+          title="Team and Access"
+          subtitle="Manage company staff accounts, roles, and granular administrative permissions"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
           actionElement={
             <button

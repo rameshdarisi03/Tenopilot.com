@@ -107,8 +107,8 @@ export default function ApexCommandMonitoringPage() {
 
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="Sentry & PostHog Observability Hub"
-          subtitle="Real-time error diagnostics, client session replay links, and platform-wide announcement broadcaster"
+          title="Health Monitor"
+          subtitle="Real-time error diagnostics, client session replay links, and system uptime"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

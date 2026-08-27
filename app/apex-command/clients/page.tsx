@@ -107,8 +107,8 @@ export default function ApexCommandClientsPage() {
 
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="PG Client Master CRM & God-Mode"
-          subtitle="Multi-tenant directory of all onboarded PG properties with 1-click client impersonation"
+          title="PG Master CRM"
+          subtitle="Directory of all onboarded PG properties with 1-click client impersonation"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
           actionElement={
             <Link

@@ -69,8 +69,8 @@ export default function ApexCommandOverviewPage() {
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="SaaS Global Command Pulse"
-          subtitle="TenoPilot Platform-wide real-time operations, ARR/MRR, and door-to-door GTM"
+          title="Platform Pulse"
+          subtitle="Tenopilot.com real-time operations, revenue, and active PG network"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

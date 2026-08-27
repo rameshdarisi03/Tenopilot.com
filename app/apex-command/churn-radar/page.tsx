@@ -78,8 +78,8 @@ export default function ApexCommandChurnRadarPage() {
 
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="Client Health & Churn Prevention Radar"
-          subtitle="Automated engagement tracking to flag struggling PG owners before they drop off"
+          title="Risk and Alerts"
+          subtitle="Early-warning engagement tracking to flag struggling PG owners before they drop off"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

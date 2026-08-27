@@ -79,8 +79,8 @@ export default function ApexCommandBillingPage() {
 
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="SaaS Plans, Invoices & WhatsApp Credit Wallets"
-          subtitle="Manage software subscription pricing, client invoice history, and WhatsApp gateway credits"
+          title="Subscriptions and Billing"
+          subtitle="Manage software subscription plans, client invoices, and WhatsApp gateway credits"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 

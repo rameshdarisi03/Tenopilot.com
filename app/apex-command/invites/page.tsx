@@ -151,8 +151,8 @@ export default function ApexCommandInvitesPage() {
 
       <div className="flex-1 flex flex-col min-w-0 md:pl-64">
         <FounderHeader
-          title="Door-to-Door VIP Invites & Activation Codes"
-          subtitle="Generate and track exclusive 1-time activation codes for prospective PG clients"
+          title="PG Onboarding Hub"
+          subtitle="Generate and track VIP activation passes & links for prospective PG clients"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
           actionElement={
             <button
