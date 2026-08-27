@@ -84,12 +84,7 @@ class ExpenseStore {
     this.firebaseUnsubscribes.set(propertyId, unsub);
   }
 
-  /**
-   * Get all expenses for a given propertyId
-   */
-  public getExpenses(propertyId: string = "sunshine-pg"): ExpenseRecord[] {
-    return this.expenses.filter((e) => e.propertyId === propertyId);
-  }
+
 
   /**
    * Add a new expense record (Syncs to Firebase Cloud & SSOT)
@@ -131,19 +126,46 @@ class ExpenseStore {
   }
 
   /**
-   * RESOLVER: Total Spent This Month
+   * Get all expenses for a given propertyId, optionally filtered by date range
    */
-  public getTotalSpentThisMonth(propertyId: string = "sunshine-pg"): number {
-    return this.getExpenses(propertyId).reduce((acc, e) => acc + e.amount, 0);
+  public getExpenses(
+    propertyId: string = "sunshine-pg",
+    startDate?: string,
+    endDate?: string
+  ): ExpenseRecord[] {
+    let records = this.expenses.filter((e) => e.propertyId === propertyId);
+    if (startDate && endDate) {
+      records = records.filter((e) => {
+        const expDate = e.date || "";
+        return expDate >= startDate && expDate <= endDate;
+      });
+    }
+    return records;
   }
 
   /**
-   * RESOLVER: Category Weightages (% of Total Monthly Spend)
+   * RESOLVER: Total Spent In Date Range
+   */
+  public getTotalSpentThisMonth(
+    propertyId: string = "sunshine-pg",
+    startDate?: string,
+    endDate?: string
+  ): number {
+    return this.getExpenses(propertyId, startDate, endDate).reduce(
+      (acc, e) => acc + e.amount,
+      0
+    );
+  }
+
+  /**
+   * RESOLVER: Category Weightages (% of Total Spend in Date Range)
    */
   public getCategoryWeightages(
-    propertyId: string = "sunshine-pg"
+    propertyId: string = "sunshine-pg",
+    startDate?: string,
+    endDate?: string
   ): CategoryWeightage[] {
-    const records = this.getExpenses(propertyId);
+    const records = this.getExpenses(propertyId, startDate, endDate);
     const total = records.reduce((acc, e) => acc + e.amount, 0);
     if (total === 0) return [];
 
@@ -167,24 +189,28 @@ class ExpenseStore {
   }
 
   /**
-   * RESOLVER: Highest Category
+   * RESOLVER: Highest Category in Date Range
    */
   public getHighestCategory(
-    propertyId: string = "sunshine-pg"
+    propertyId: string = "sunshine-pg",
+    startDate?: string,
+    endDate?: string
   ): { category: string; amount: number } {
-    const weightages = this.getCategoryWeightages(propertyId);
+    const weightages = this.getCategoryWeightages(propertyId, startDate, endDate);
     if (weightages.length === 0)
       return { category: "None", amount: 0 };
     return { category: weightages[0].category, amount: weightages[0].amount };
   }
 
   /**
-   * RESOLVER: Partner Personal Contributions (Out-of-Pocket Expense Payments)
+   * RESOLVER: Partner Personal Contributions in Date Range (Out-of-Pocket Expense Payments)
    */
   public getPartnerPersonalContributions(
-    propertyId: string = "sunshine-pg"
+    propertyId: string = "sunshine-pg",
+    startDate?: string,
+    endDate?: string
   ): Record<string, number> {
-    const records = this.getExpenses(propertyId);
+    const records = this.getExpenses(propertyId, startDate, endDate);
     const partnerTotals: Record<string, number> = {};
 
     records.forEach((e) => {
@@ -200,8 +226,12 @@ class ExpenseStore {
   /**
    * UTILITY: Export Expense Ledger to CSV File
    */
-  public exportLedgerToCSV(propertyId: string = "sunshine-pg"): void {
-    const records = this.getExpenses(propertyId);
+  public exportLedgerToCSV(
+    propertyId: string = "sunshine-pg",
+    startDate?: string,
+    endDate?: string
+  ): void {
+    const records = this.getExpenses(propertyId, startDate, endDate);
     if (records.length === 0) return;
 
     const headers = [

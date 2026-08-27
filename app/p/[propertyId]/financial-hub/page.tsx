@@ -111,10 +111,89 @@ export default function FinancialHubPage({
     }
   }, [activeRole, activeTab]);
 
-  // Timeline Filter State (This Month, Last Month, Quarter, Year, All Time)
+  // Timeline Filter State & Custom Date Range
   const [selectedTimelineFilter, setSelectedTimelineFilter] = useState<
-    "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_YEAR" | "ALL_TIME"
+    "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_YEAR" | "ALL_TIME" | "CUSTOM"
   >("THIS_MONTH");
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split("T")[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [showCustomDateModal, setShowCustomDateModal] = useState<boolean>(false);
+
+  // Helper: Resolve active start and end date bounds based on timeline filter
+  const resolveActiveDateBounds = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    switch (selectedTimelineFilter) {
+      case "THIS_MONTH": {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        return {
+          startDate: firstDay.toISOString().split("T")[0],
+          endDate: lastDay.toISOString().split("T")[0],
+          label: `This Month (${firstDay.toLocaleString("en-IN", { month: "short", year: "numeric" })})`,
+          isAllTime: false,
+        };
+      }
+      case "LAST_MONTH": {
+        const firstDay = new Date(year, month - 1, 1);
+        const lastDay = new Date(year, month, 0);
+        return {
+          startDate: firstDay.toISOString().split("T")[0],
+          endDate: lastDay.toISOString().split("T")[0],
+          label: `Last Month (${firstDay.toLocaleString("en-IN", { month: "short", year: "numeric" })})`,
+          isAllTime: false,
+        };
+      }
+      case "THIS_QUARTER": {
+        const qStartMonth = Math.floor(month / 3) * 3;
+        const firstDay = new Date(year, qStartMonth, 1);
+        const lastDay = new Date(year, qStartMonth + 3, 0);
+        const qNum = Math.floor(month / 3) + 1;
+        return {
+          startDate: firstDay.toISOString().split("T")[0],
+          endDate: lastDay.toISOString().split("T")[0],
+          label: `This Quarter (Q${qNum} ${year})`,
+          isAllTime: false,
+        };
+      }
+      case "THIS_YEAR": {
+        const fyStartYear = month >= 3 ? year : year - 1;
+        const firstDay = new Date(fyStartYear, 3, 1);
+        const lastDay = new Date(fyStartYear + 1, 2, 31);
+        return {
+          startDate: firstDay.toISOString().split("T")[0],
+          endDate: lastDay.toISOString().split("T")[0],
+          label: `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`,
+          isAllTime: false,
+        };
+      }
+      case "CUSTOM": {
+        return {
+          startDate: customStartDate,
+          endDate: customEndDate,
+          label: `Custom (${customStartDate} to ${customEndDate})`,
+          isAllTime: false,
+        };
+      }
+      case "ALL_TIME":
+      default:
+        return {
+          startDate: "2000-01-01",
+          endDate: "2099-12-31",
+          label: "All Time Records",
+          isAllTime: true,
+        };
+    }
+  };
+
+  const activeDateBounds = resolveActiveDateBounds();
 
   // Form state
   const [amount, setAmount] = useState("");
@@ -180,9 +259,11 @@ export default function FinancialHubPage({
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
 
-  // 100% Real-Time Live Revenues Calculation Engine
+  // 100% Real-Time Date-Filtered Revenues Calculation Engine
   const computeLiveRevenueData = () => {
     const occupants = occupantStore.getOccupants(propertyId).filter((o) => o.lifecycleStatus !== "Past");
+    const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
+
     let totalGrossRevenue = 0;
     let totalBilledRent = 0;
     let totalUncollectedArrears = 0;
@@ -197,62 +278,96 @@ export default function FinancialHubPage({
     let occupiedCount = 0;
 
     occupants.forEach((occ) => {
-      if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
+      const isOccupied = occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice";
+      if (isOccupied) {
         occupiedCount++;
       }
+
       const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-      totalGrossRevenue += stmt.totalPaid;
+      
+      // Calculate billed rent for the cycle/period
       totalBilledRent += stmt.proRataRent + stmt.priorArrears;
       totalUncollectedArrears += stmt.netOutstandingBalance;
 
-      rentStream += stmt.totalRentPaid;
-      if (stmt.isDepositCleared) {
-        depositStream += stmt.securityDepositRequired;
-      }
-      if (occ.stayType === "Guest") {
-        guestStream += stmt.totalRentPaid;
-      } else {
-        utilityStream += Math.round(stmt.proRataRent * 0.05);
-      }
+      // Filter occupant's payment receipts strictly within the active date range
+      const history = occ.paymentHistory || [];
+      const periodPayments = isAllTime
+        ? history
+        : history.filter((pm) => {
+            const pDate = pm.date || "";
+            return pDate >= startDate && pDate <= endDate;
+          });
 
-      (occ.paymentHistory || []).forEach((pm) => {
-        const mode = (pm.mode || "").toLowerCase();
-        if (mode.includes("upi") || mode.includes("phonepe") || mode.includes("gpay")) {
-          upiAmount += pm.amount;
-        } else if (mode.includes("bank") || mode.includes("neft") || mode.includes("transfer")) {
-          bankAmount += pm.amount;
-        } else {
-          cashAmount += pm.amount;
+      if (periodPayments.length > 0) {
+        periodPayments.forEach((pm) => {
+          totalGrossRevenue += pm.amount;
+
+          const isDeposit =
+            (pm.month || "").toLowerCase().includes("deposit") ||
+            (pm.receiptNo || "").toLowerCase().includes("dep");
+
+          if (isDeposit) {
+            depositStream += pm.amount;
+          } else {
+            rentStream += pm.amount;
+            if (occ.stayType === "Guest") {
+              guestStream += pm.amount;
+            } else {
+              utilityStream += Math.round(pm.amount * 0.05);
+            }
+          }
+
+          const mode = (pm.mode || "").toLowerCase();
+          if (mode.includes("upi") || mode.includes("phonepe") || mode.includes("gpay")) {
+            upiAmount += pm.amount;
+          } else if (mode.includes("bank") || mode.includes("neft") || mode.includes("transfer")) {
+            bankAmount += pm.amount;
+          } else {
+            cashAmount += pm.amount;
+          }
+        });
+      } else if (isAllTime) {
+        // Fallback for default state if no explicit history items exist
+        totalGrossRevenue += stmt.totalPaid;
+        rentStream += stmt.totalRentPaid;
+        if (stmt.isDepositCleared) {
+          depositStream += stmt.securityDepositRequired;
         }
-      });
+      }
     });
 
-    // Query check-out and cancellation logs for penalties, damages, and maintenance deductions
+    // Query check-out and cancellation logs within date range
     const complianceLogs = complianceLogStore.getLogs(propertyId);
     let penaltyDamageStream = 0;
     let maintenanceStream = 0;
 
     complianceLogs.forEach((log) => {
-      penaltyDamageStream += (log.penaltyPaid || 0);
-      maintenanceStream += (log.maintenancePaid || 0);
+      const logDate = log.checkOutDate
+        ? log.checkOutDate
+        : log.timestamp
+        ? new Date(log.timestamp).toISOString().slice(0, 10)
+        : "";
+      if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
+        penaltyDamageStream += log.penaltyPaid || 0;
+        maintenanceStream += log.maintenancePaid || 0;
+      }
     });
 
-    totalGrossRevenue += (penaltyDamageStream + maintenanceStream);
+    totalGrossRevenue += penaltyDamageStream + maintenanceStream;
 
-    const collectionEfficiency = totalBilledRent > 0
-      ? Math.min(100, (totalGrossRevenue / totalBilledRent) * 100).toFixed(1)
-      : "100.0";
+    const collectionEfficiency =
+      totalBilledRent > 0
+        ? Math.min(100, (totalGrossRevenue / totalBilledRent) * 100).toFixed(1)
+        : "100.0";
 
-    const arpb = occupiedCount > 0
-      ? Math.round(totalGrossRevenue / occupiedCount)
-      : 0;
+    const arpb = occupiedCount > 0 ? Math.round(totalGrossRevenue / occupiedCount) : 0;
 
-    const totalChannel = (upiAmount + bankAmount) + cashAmount || 1;
+    const totalChannel = upiAmount + bankAmount + cashAmount || 1;
     const onlineTotal = upiAmount + bankAmount;
     const upiPct = Math.round((onlineTotal / totalChannel) * 100) || 85;
     const cashPct = 100 - upiPct;
 
-    const totalStreams = (rentStream + depositStream + maintenanceStream + penaltyDamageStream) || 1;
+    const totalStreams = rentStream + depositStream + maintenanceStream + penaltyDamageStream || 1;
     const rentPct = Math.round((rentStream / totalStreams) * 100);
     const depositPct = Math.round((depositStream / totalStreams) * 100);
     const maintenancePct = Math.round((maintenanceStream / totalStreams) * 100);
@@ -282,6 +397,17 @@ export default function FinancialHubPage({
 
   const [revenueMetrics, setRevenueMetrics] = useState(computeLiveRevenueData);
 
+  // Sync state whenever timeline filter or custom dates change
+  useEffect(() => {
+    const { startDate, endDate } = resolveActiveDateBounds();
+    setExpenseList(expenseStore.getExpenses(propertyId, startDate, endDate));
+    setCategoryWeightages(expenseStore.getCategoryWeightages(propertyId, startDate, endDate));
+    setHighestCat(expenseStore.getHighestCategory(propertyId, startDate, endDate));
+    setTotalSpent(expenseStore.getTotalSpentThisMonth(propertyId, startDate, endDate));
+    setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId, startDate, endDate));
+    setRevenueMetrics(computeLiveRevenueData());
+  }, [selectedTimelineFilter, customStartDate, customEndDate, propertyId]);
+
   useEffect(() => {
     partnerStore.initFirebaseListener(propertyId);
     setPartners(partnerStore.getPartners(propertyId));
@@ -299,11 +425,12 @@ export default function FinancialHubPage({
     recurringBillStore.initPropertyFirebase(propertyId);
 
     const updateExpenseState = () => {
-      setExpenseList(expenseStore.getExpenses(propertyId));
-      setCategoryWeightages(expenseStore.getCategoryWeightages(propertyId));
-      setHighestCat(expenseStore.getHighestCategory(propertyId));
-      setTotalSpent(expenseStore.getTotalSpentThisMonth(propertyId));
-      setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId));
+      const { startDate, endDate } = resolveActiveDateBounds();
+      setExpenseList(expenseStore.getExpenses(propertyId, startDate, endDate));
+      setCategoryWeightages(expenseStore.getCategoryWeightages(propertyId, startDate, endDate));
+      setHighestCat(expenseStore.getHighestCategory(propertyId, startDate, endDate));
+      setTotalSpent(expenseStore.getTotalSpentThisMonth(propertyId, startDate, endDate));
+      setPartnerContributions(expenseStore.getPartnerPersonalContributions(propertyId, startDate, endDate));
     };
 
     const updateRecurringBillsState = () => {
@@ -332,7 +459,7 @@ export default function FinancialHubPage({
       unsubProperty();
       unsubCompliance();
     };
-  }, [propertyId]);
+  }, [propertyId, selectedTimelineFilter, customStartDate, customEndDate]);
 
   // Toast, Inline Category & Modal States
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -590,15 +717,33 @@ export default function FinancialHubPage({
                   <Calendar className="w-4 h-4 text-[#c2652a] shrink-0" />
                   <select
                     value={selectedTimelineFilter}
-                    onChange={(e) => setSelectedTimelineFilter(e.target.value as any)}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      if (val === "CUSTOM") {
+                        setShowCustomDateModal(true);
+                      }
+                      setSelectedTimelineFilter(val);
+                    }}
                     className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none cursor-pointer pr-2"
                   >
                     <option value="THIS_MONTH">This Month (Aug 2026)</option>
                     <option value="LAST_MONTH">Last Month (Jul 2026)</option>
                     <option value="THIS_QUARTER">This Quarter (Q3 2026)</option>
-                    <option value="THIS_YEAR">This Year (2026)</option>
+                    <option value="THIS_YEAR">Financial Year (FY 2026-27)</option>
                     <option value="ALL_TIME">All Time Records</option>
+                    <option value="CUSTOM">
+                      📅 {selectedTimelineFilter === "CUSTOM" ? `${customStartDate} → ${customEndDate}` : "Custom Date Range..."}
+                    </option>
                   </select>
+                  {selectedTimelineFilter === "CUSTOM" && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomDateModal(true)}
+                      className="text-[10px] text-[#c2652a] underline font-bold ml-1 hover:opacity-80 cursor-pointer shrink-0"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
 
                 {activeTab === "Expenses" && (
@@ -768,7 +913,7 @@ export default function FinancialHubPage({
                 <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      GROSS REVENUE (THIS MONTH)
+                      GROSS REVENUE ({activeDateBounds.label.toUpperCase()})
                     </span>
                     <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
                       <TrendingUp className="w-4 h-4" />
@@ -1047,7 +1192,7 @@ export default function FinancialHubPage({
                 <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
-                      TOTAL SPENT THIS MONTH
+                      TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
                     </span>
                     <div className="flex items-baseline gap-4 mt-2">
                       <h2 className="font-sans font-bold text-3xl md:text-4xl text-gray-900 tracking-tight">
@@ -1277,7 +1422,7 @@ export default function FinancialHubPage({
                     {/* Export CSV Button */}
                     <button
                       type="button"
-                      onClick={() => expenseStore.exportLedgerToCSV(propertyId)}
+                      onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
                       className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                     >
                       <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
@@ -2095,7 +2240,7 @@ export default function FinancialHubPage({
                         <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
                           <th className="py-3 px-4 font-bold">Partner</th>
                           <th className="py-3 px-4 font-bold">Ownership %</th>
-                          <th className="py-3 px-4 font-bold">Paid Out-Of-Pocket (This Month)</th>
+                          <th className="py-3 px-4 font-bold">Paid Out-Of-Pocket ({activeDateBounds.label})</th>
                           <th className="py-3 px-4 font-bold">Profit Share</th>
                           <th className="py-3 px-4 font-bold">Receivable / Payable</th>
                           <th className="py-3 px-4 font-bold text-right">Status</th>
@@ -2600,6 +2745,144 @@ export default function FinancialHubPage({
                   className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold shadow-md cursor-pointer active:scale-95"
                 >
                   Update Name
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM DATE RANGE FILTER MODAL */}
+      {showCustomDateModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-[#c2652a]" /> Custom Timeline Filter
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Select exact date range to recalculate revenues, expenses & settlements
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomDateModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick 1-Tap Presets */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quick Presets</span>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const d7 = new Date();
+                    d7.setDate(now.getDate() - 7);
+                    setCustomStartDate(d7.toISOString().split("T")[0]);
+                    setCustomEndDate(now.toISOString().split("T")[0]);
+                  }}
+                  className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const d30 = new Date();
+                    d30.setDate(now.getDate() - 30);
+                    setCustomStartDate(d30.toISOString().split("T")[0]);
+                    setCustomEndDate(now.toISOString().split("T")[0]);
+                  }}
+                  className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
+                >
+                  Last 30 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const d90 = new Date();
+                    d90.setDate(now.getDate() - 90);
+                    setCustomStartDate(d90.toISOString().split("T")[0]);
+                    setCustomEndDate(now.toISOString().split("T")[0]);
+                  }}
+                  className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
+                >
+                  Last 90 Days
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Date Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (customStartDate > customEndDate) {
+                  alert("⚠️ Start Date cannot be after End Date.");
+                  return;
+                }
+                setSelectedTimelineFilter("CUSTOM");
+                setShowCustomDateModal(false);
+                triggerToast(`📅 Filter applied: ${customStartDate} to ${customEndDate}`);
+              }}
+              className="space-y-4 pt-2"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Start Date (From) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] font-sans font-semibold text-xs text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    End Date (To) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] font-sans font-semibold text-xs text-gray-900"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-orange-50/80 border border-orange-200/60 text-orange-900 text-[11px]">
+                <p className="font-bold flex items-center gap-1.5 text-xs">
+                  <span>⚡</span> Live Recalculation Notice
+                </p>
+                <p className="mt-0.5 text-orange-800">
+                  Applies strictly to transaction dates recorded in this property's cloud ledger.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDateModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold shadow-md cursor-pointer active:scale-95 transition-all"
+                >
+                  Apply Filter ➔
                 </button>
               </div>
             </form>
