@@ -379,11 +379,10 @@ export default function FinancialHubPage({
       }
     });
 
-    totalGrossRevenue += penaltyDamageStream + maintenanceStream;
-
+    const totalExpectedRent = rentStream + totalUncollectedArrears;
     const collectionEfficiency =
-      totalBilledRent > 0
-        ? Math.min(100, (totalGrossRevenue / totalBilledRent) * 100).toFixed(1)
+      totalExpectedRent > 0
+        ? Math.min(100, Math.max(0, (rentStream / totalExpectedRent) * 100)).toFixed(1)
         : "100.0";
 
     const arpb = occupiedCount > 0 ? Math.round(totalGrossRevenue / occupiedCount) : 0;
@@ -960,7 +959,7 @@ export default function FinancialHubPage({
                     {revenueMetrics.collectionEfficiency}%
                   </h2>
                   <p className="text-[11px] text-gray-500 font-medium">
-                    ₹{(revenueMetrics.totalGrossRevenue / 100000).toFixed(2)}L collected of ₹{(revenueMetrics.totalBilledRent / 100000).toFixed(2)}L total due
+                    ₹{(revenueMetrics.rentStream / 100000).toFixed(2)}L collected of ₹{((revenueMetrics.rentStream + revenueMetrics.totalUncollectedArrears) / 100000).toFixed(2)}L total due
                   </p>
                 </div>
 
