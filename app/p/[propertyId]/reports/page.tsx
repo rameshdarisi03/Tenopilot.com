@@ -451,7 +451,7 @@ export default function ReportsAnalyticsPage({
     });
 
     if (rows.length === 0) {
-      triggerToast("⚠️ No rent roll records found in selected date range.");
+      triggerToast("⚠️ No rent records found in selected date range.");
       return;
     }
 
@@ -460,10 +460,10 @@ export default function ReportsAnalyticsPage({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Master_Rent_Roll_${propertyId}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.csv`;
+    a.download = `Rent_Payment_Report_${propertyId}_${activeDateBounds.startDate}_to_${activeDateBounds.endDate}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    triggerToast("✓ Master Rent Roll CSV downloaded successfully!");
+    triggerToast("✓ Rent Payment Report downloaded successfully!");
   };
 
   const handleExportDepositRegisterCSV = () => {
@@ -475,8 +475,8 @@ export default function ReportsAnalyticsPage({
         "Room Location": `Room ${occ.roomNumber} (${occ.bedCode})`,
         "Check-In Date": occ.joiningDate || "N/A",
         "Security Deposit Required (INR)": stmt.securityDepositRequired,
-        "Deposit Cleared": stmt.isDepositCleared ? "YES" : "NO",
-        "Deposit Status": stmt.isDepositCleared ? "HELD IN ESCROW" : "PENDING COLLECTION",
+        "Deposit Paid": stmt.isDepositCleared ? "YES" : "NO",
+        "Deposit Status": stmt.isDepositCleared ? "PAID" : "PENDING",
         "Contact Phone": occ.phone,
         "Emergency Phone": occ.emergencyContact?.phone || "N/A",
       };
@@ -487,16 +487,16 @@ export default function ReportsAnalyticsPage({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Security_Deposit_Register_${propertyId}.csv`;
+    a.download = `Security_Deposit_Report_${propertyId}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    triggerToast("✓ Security Deposit Register CSV downloaded successfully!");
+    triggerToast("✓ Security Deposit Report downloaded successfully!");
   };
 
   const handleExportFullExcelWorkbook = () => {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Master Rent Roll
+    // Sheet 1: Rent Payment Report
     const rentRows = occupants.map((occ) => {
       const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
       return {
@@ -512,7 +512,7 @@ export default function ReportsAnalyticsPage({
       };
     });
     const wsRent = XLSX.utils.json_to_sheet(rentRows);
-    XLSX.utils.book_append_sheet(wb, wsRent, "Rent Roll");
+    XLSX.utils.book_append_sheet(wb, wsRent, "Rent Payments");
 
     // Sheet 2: Operational Expenses
     const expRows = expenses.map((e) => ({
@@ -524,24 +524,24 @@ export default function ReportsAnalyticsPage({
       "Notes": e.notes || "",
     }));
     const wsExp = XLSX.utils.json_to_sheet(expRows);
-    XLSX.utils.book_append_sheet(wb, wsExp, "Expenses Ledger");
+    XLSX.utils.book_append_sheet(wb, wsExp, "PG Expenses");
 
-    // Sheet 3: Sharing Yield Matrix
+    // Sheet 3: Room Sharing Performance
     const yieldRows = businessAnalytics.sharingMatrix.map((s) => ({
       "Sharing Type": s.sharingName,
       "Total Beds": s.totalBeds,
       "Occupied Beds": s.occupiedBeds,
       "Occupancy %": `${s.occPct}%`,
       "Avg Rent Per Bed": s.avgRentPerBed,
-      "Realized Monthly Yield (INR)": s.realizedYield,
-      "Capacity Potential Yield (INR)": s.capacityYield,
-      "Vacancy Loss (INR)": s.vacancyLoss,
+      "Total Monthly Earnings (INR)": s.realizedYield,
+      "Full Capacity Potential (INR)": s.capacityYield,
+      "Lost Earnings from Vacant Beds (INR)": s.vacancyLoss,
     }));
     const wsYield = XLSX.utils.json_to_sheet(yieldRows);
-    XLSX.utils.book_append_sheet(wb, wsYield, "Yield Matrix");
+    XLSX.utils.book_append_sheet(wb, wsYield, "Room Performance");
 
-    XLSX.writeFile(wb, `TenoPilot_CA_Financial_Pack_${propertyId}.xlsx`);
-    triggerToast("✓ Comprehensive CA Multi-Sheet Excel Workbook downloaded!");
+    XLSX.writeFile(wb, `TenoPilot_CA_Accounts_Pack_${propertyId}.xlsx`);
+    triggerToast("✓ CA & Accounts Excel Workbook downloaded successfully!");
   };
 
   return (
@@ -570,14 +570,14 @@ export default function ReportsAnalyticsPage({
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="font-serif font-bold text-2xl md:text-3xl text-gray-900">
-                  Reports & Business Intelligence
+                  Reports & Business Insights
                 </h1>
                 <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                  GAAP & CA READY 🟢
+                  CA & TAX READY 🟢
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-gray-500 mt-1 font-medium">
-                {propertySettings.propertyName || "Sunshine PG"} • Export master audit files and track room yield analytics
+                {propertySettings.propertyName || "Sunshine PG"} • Download financial reports and track room earnings
               </p>
             </div>
 
@@ -655,10 +655,10 @@ export default function ReportsAnalyticsPage({
                       activeTab === "FINANCIAL_REPORTS" ? "text-[#c2652a]" : "text-gray-900"
                     }`}
                   >
-                    Financial & Escrow Reports
+                    Security Deposits & Downloads
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
-                    Security deposit escrow balance & 1-click audit downloads
+                    Track security deposits and Reports
                   </p>
                 </div>
               </div>
@@ -692,10 +692,10 @@ export default function ReportsAnalyticsPage({
                       activeTab === "BUSINESS_ANALYTICS" ? "text-[#c2652a]" : "text-gray-900"
                     }`}
                   >
-                    Business & Yield Analytics
+                    Business Insights
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
-                    6-Month revenue trend, sharing yield matrix & cost per bed
+                    Monthly collections, room earnings, and cost per bed
                   </p>
                 </div>
               </div>
@@ -710,13 +710,13 @@ export default function ReportsAnalyticsPage({
           {/* ========================================================= */}
           {activeTab === "FINANCIAL_REPORTS" && (
             <div className="space-y-8 animate-in fade-in">
-              {/* 1. Security Deposit Collateral Balance Sheet Cards */}
+              {/* 1. Security Deposit Balance Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Deposit Stat 1: Active Deposits Held */}
+                {/* Deposit Stat 1: Security Deposit in Hand */}
                 <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      ACTIVE DEPOSIT ESCROW
+                      SECURITY DEPOSIT IN HAND
                     </span>
                     <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
                       <ShieldCheck className="w-4 h-4" />
@@ -726,15 +726,15 @@ export default function ReportsAnalyticsPage({
                     ₹{depositEscrowMetrics.activeDepositsHeld.toLocaleString("en-IN")}
                   </h2>
                   <p className="text-[11px] text-emerald-700 font-medium">
-                    Total collateral liability held in custody
+                    Total security deposit collected from active tenants
                   </p>
                 </div>
 
-                {/* Deposit Stat 2: Pending Uncollected Deposits */}
+                {/* Deposit Stat 2: Pending Security Deposit */}
                 <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      PENDING TO COLLECT
+                      PENDING SECURITY DEPOSIT
                     </span>
                     <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
                       <Clock className="w-4 h-4" />
@@ -744,11 +744,11 @@ export default function ReportsAnalyticsPage({
                     ₹{depositEscrowMetrics.pendingDeposits.toLocaleString("en-IN")}
                   </h2>
                   <p className="text-[11px] text-amber-700 font-medium">
-                    Unpaid collateral from new admissions
+                    Deposit yet to be collected from tenants
                   </p>
                 </div>
 
-                {/* Deposit Stat 3: Total Deposits Refunded */}
+                {/* Deposit Stat 3: Deposits Refunded */}
                 <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-blue-400 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
@@ -762,15 +762,15 @@ export default function ReportsAnalyticsPage({
                     ₹{depositEscrowMetrics.totalRefunded.toLocaleString("en-IN")}
                   </h2>
                   <p className="text-[11px] text-blue-700 font-medium">
-                    Settled on tenant move-outs ({activeDateBounds.label})
+                    Refunded to tenants who moved out ({activeDateBounds.label})
                   </p>
                 </div>
 
-                {/* Deposit Stat 4: Retained Damage Deductions */}
+                {/* Deposit Stat 4: Deductions / Repairs */}
                 <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-purple-400 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      RETAINED DEDUCTIONS
+                      DEDUCTIONS & REPAIRS
                     </span>
                     <div className="p-2 rounded-xl bg-purple-50 text-purple-700">
                       <ReceiptRupeeIcon className="w-4 h-4" />
@@ -780,7 +780,7 @@ export default function ReportsAnalyticsPage({
                     ₹{depositEscrowMetrics.totalDamageDeductions.toLocaleString("en-IN")}
                   </h2>
                   <p className="text-[11px] text-purple-700 font-medium">
-                    Move-out penalties & repairs retained
+                    Deducted for room damage or notice shortfall
                   </p>
                 </div>
               </div>
@@ -790,24 +790,24 @@ export default function ReportsAnalyticsPage({
                 <div className="border-b border-gray-100 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
                     <h3 className="font-serif font-bold text-xl text-gray-900">
-                      1-Click CA & Audit Export Center
+                      Download Reports (Excel & CSV)
                     </h3>
                     <p className="text-xs text-gray-500 font-medium">
-                      Download standardized audit logs formatted for Income Tax, Chartered Accountants, and Bank Financing
+                      Download ready-made files for your accounts or Chartered Accountant (CA)
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Export Box 1: Master Rent Roll */}
+                  {/* Export Box 1: Rent Payment Report */}
                   <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-2">
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
                         <FileSpreadsheet className="w-5 h-5" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">Master Rent Roll (.csv)</h4>
+                      <h4 className="font-bold text-sm text-gray-900">Rent Payment Report (.csv)</h4>
                       <p className="text-xs text-gray-500 leading-relaxed">
-                        Complete ledger of all tenant receipts, payment dates, UPI references, and billing cycles.
+                        All rent payments, dates, UPI references, and tenant details in the selected timeline.
                       </p>
                     </div>
                     <button
@@ -815,19 +815,19 @@ export default function ReportsAnalyticsPage({
                       onClick={handleExportRentRollCSV}
                       className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                     >
-                      <Download className="w-4 h-4" /> Download Rent Roll
+                      <Download className="w-4 h-4" /> Download Rent Report
                     </button>
                   </div>
 
-                  {/* Export Box 2: Operational Expense Ledger */}
+                  {/* Export Box 2: Expense & Bill Report */}
                   <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-2">
                       <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
-                        <ReceiptRupeeIcon className="w-4 h-4" />
+                        <ReceiptRupeeIcon className="w-5 h-5" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">Expense Ledger (.csv)</h4>
+                      <h4 className="font-bold text-sm text-gray-900">Expense & Bill Report (.csv)</h4>
                       <p className="text-xs text-gray-500 leading-relaxed">
-                        Date-filtered operational expenses with categories, payment accounts, and receipt links.
+                        All PG operational expenses, bills, and vendor payments with category breakdown.
                       </p>
                     </div>
                     <button
@@ -835,19 +835,19 @@ export default function ReportsAnalyticsPage({
                       onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
                       className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                     >
-                      <Download className="w-4 h-4" /> Download Expense Ledger
+                      <Download className="w-4 h-4" /> Download Expense Report
                     </button>
                   </div>
 
-                  {/* Export Box 3: Security Deposit Escrow Register */}
+                  {/* Export Box 3: Security Deposit Report */}
                   <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
                     <div className="space-y-2">
                       <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
                         <ShieldCheck className="w-5 h-5" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">Deposit Escrow Register (.csv)</h4>
+                      <h4 className="font-bold text-sm text-gray-900">Security Deposit Report (.csv)</h4>
                       <p className="text-xs text-gray-500 leading-relaxed">
-                        Security deposit liability register per resident with check-in dates and emergency contacts.
+                        Tenant security deposit status list with joining dates and emergency contacts.
                       </p>
                     </div>
                     <button
@@ -855,21 +855,21 @@ export default function ReportsAnalyticsPage({
                       onClick={handleExportDepositRegisterCSV}
                       className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                     >
-                      <Download className="w-4 h-4" /> Download Escrow Register
+                      <Download className="w-4 h-4" /> Download Deposit Report
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* 3. Security Deposit Custody Roster Table */}
+              {/* 3. Security Deposit Custody List Table */}
               <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
                   <div>
                     <h3 className="font-serif font-bold text-xl text-gray-900">
-                      Security Deposit Custody Roster
+                      Tenant Security Deposit List
                     </h3>
                     <p className="text-xs text-gray-500 font-medium">
-                      Live collateral escrow verification for active residents
+                      Deposit status for all active residents
                     </p>
                   </div>
                 </div>
@@ -882,7 +882,7 @@ export default function ReportsAnalyticsPage({
                         <th className="py-3 px-4">Room & Bed</th>
                         <th className="py-3 px-4">Joining Date</th>
                         <th className="py-3 px-4 text-right">Deposit Required</th>
-                        <th className="py-3 px-4 text-center">Escrow Status</th>
+                        <th className="py-3 px-4 text-center">Deposit Status</th>
                         <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
                       </tr>
                     </thead>
@@ -916,7 +916,7 @@ export default function ReportsAnalyticsPage({
                                     : "bg-amber-100 text-amber-900 border border-amber-200"
                                 }`}
                               >
-                                {stmt.isDepositCleared ? "✓ HELD IN ESCROW" : "⚠️ PENDING COLLECTION"}
+                                {stmt.isDepositCleared ? "✓ DEPOSIT PAID" : "⚠️ PENDING"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-right">
@@ -948,7 +948,7 @@ export default function ReportsAnalyticsPage({
                 <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-[#c2652a] transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      AVERAGE REVENUE / BED (ARPB)
+                      AVERAGE RENT / BED
                     </span>
                     <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
                       <Zap className="w-4 h-4" />
@@ -958,7 +958,7 @@ export default function ReportsAnalyticsPage({
                     ₹{businessAnalytics.arpb.toLocaleString("en-IN")}
                   </h2>
                   <p className="text-[11px] text-gray-500 font-medium">
-                    Realized monthly intake per active occupant
+                    Average rent earned per occupied bed
                   </p>
                 </div>
 
@@ -966,7 +966,7 @@ export default function ReportsAnalyticsPage({
                 <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-amber-400 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      COST PER OCCUPIED BED (CPB)
+                      MONTHLY EXPENSE / BED
                     </span>
                     <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
                       <Clock className="w-4 h-4" />
@@ -976,15 +976,15 @@ export default function ReportsAnalyticsPage({
                     ₹{businessAnalytics.cpb.toLocaleString("en-IN")}
                   </h2>
                   <p className="text-[11px] text-amber-700 font-medium">
-                    Operating expense to sustain 1 resident/mo
+                    PG running cost per resident this month
                   </p>
                 </div>
 
-                {/* KPI 3: Net Operating Margin */}
+                {/* KPI 3: Net Profit Margin */}
                 <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-emerald-400 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      NET OPERATING MARGIN (NOI)
+                      NET PROFIT MARGIN
                     </span>
                     <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
                       <TrendingUp className="w-4 h-4" />
@@ -994,15 +994,15 @@ export default function ReportsAnalyticsPage({
                     {businessAnalytics.operatingMargin}%
                   </h2>
                   <p className="text-[11px] text-emerald-700 font-medium">
-                    ₹{(businessAnalytics.netOperatingProfit / 100000).toFixed(2)}L Net Profit after expenses
+                    Profit left after paying all PG bills & expenses
                   </p>
                 </div>
 
-                {/* KPI 4: Occupancy Rate */}
+                {/* KPI 4: Bed Occupancy */}
                 <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-blue-400 transition-all">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      OCCUPANCY EFFICIENCY
+                      BED OCCUPANCY
                     </span>
                     <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
                       <Building2 className="w-4 h-4" />
@@ -1014,24 +1014,24 @@ export default function ReportsAnalyticsPage({
                       : "0.0"}%
                   </h2>
                   <p className="text-[11px] text-blue-700 font-medium">
-                    {businessAnalytics.occupiedBeds} of {businessAnalytics.totalBeds} total physical beds occupied
+                    {businessAnalytics.occupiedBeds} of {businessAnalytics.totalBeds} beds occupied ({businessAnalytics.totalBeds - businessAnalytics.occupiedBeds} vacant)
                   </p>
                 </div>
               </div>
 
-              {/* 2. 6-Month Historical Revenue & Occupancy Trend Chart */}
+              {/* 2. 6-Month Collections & Occupancy Trend Chart */}
               <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-100 pb-4">
                   <div>
                     <h3 className="font-serif font-bold text-xl text-gray-900">
-                      6-Month Revenue & Occupancy Trend (MoM Growth)
+                      6-Month Collections & Occupancy Trend
                     </h3>
                     <p className="text-xs text-gray-500 font-medium">
-                      Month-over-month trajectory of cash collections and bed occupancy
+                      Track how your monthly collections and filled beds are growing over time
                     </p>
                   </div>
                   <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                    📈 +14.2% MoM Revenue Trajectory
+                    📈 +14.2% Compared to Last Month
                   </span>
                 </div>
 
@@ -1073,24 +1073,24 @@ export default function ReportsAnalyticsPage({
                   <div className="flex items-center justify-center gap-6 pt-2 text-xs font-bold">
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-md bg-[#c2652a]"></span>
-                      <span className="text-gray-700">Gross Collections (₹)</span>
+                      <span className="text-gray-700">Rent Collected (₹)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-md bg-emerald-500"></span>
-                      <span className="text-gray-700">Occupancy Fill Rate (%)</span>
+                      <span className="text-gray-700">Bed Occupancy (%)</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 3. Sharing-Type Profitability & RevPAB Yield Matrix */}
+              {/* 3. Room Sharing Performance Matrix */}
               <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
                 <div className="border-b border-gray-100 pb-4">
                   <h3 className="font-serif font-bold text-xl text-gray-900">
-                    Sharing-Type Profitability & RevPAB Yield Matrix
+                    Room Sharing Performance
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
-                    Hospitality RevPAB (Revenue Per Available Bed) benchmark across room configurations
+                    See which room type (Single, 2-Sharing, 3-Sharing) makes the most money
                   </p>
                 </div>
 
@@ -1098,13 +1098,13 @@ export default function ReportsAnalyticsPage({
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
-                        <th className="py-3 px-4 rounded-l-xl">Sharing Configuration</th>
-                        <th className="py-3 px-4 text-center">Total Inventory</th>
+                        <th className="py-3 px-4 rounded-l-xl">Room Sharing Type</th>
+                        <th className="py-3 px-4 text-center">Total Beds</th>
                         <th className="py-3 px-4 text-center">Occupied Beds</th>
-                        <th className="py-3 px-4 text-center">Fill Rate (%)</th>
-                        <th className="py-3 px-4 text-right">Avg Rent / Bed</th>
-                        <th className="py-3 px-4 text-right">Realized Monthly Yield</th>
-                        <th className="py-3 px-4 text-right rounded-r-xl">Vacancy Lost Revenue</th>
+                        <th className="py-3 px-4 text-center">Occupancy %</th>
+                        <th className="py-3 px-4 text-right">Average Rent</th>
+                        <th className="py-3 px-4 text-right">Total Monthly Earnings</th>
+                        <th className="py-3 px-4 text-right rounded-r-xl">Lost Earnings (Empty Beds)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-medium">
@@ -1141,14 +1141,14 @@ export default function ReportsAnalyticsPage({
                 </div>
               </div>
 
-              {/* 4. Payment Channels Breakdown */}
+              {/* 4. Payment Mode Breakdown */}
               <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
                 <div className="border-b border-gray-100 pb-4">
                   <h3 className="font-serif font-bold text-xl text-gray-900">
-                    Payment Gateway & Settlement Distribution
+                    Payment Mode Breakdown
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
-                    Split between online instant UPI and physical front desk cash desk
+                    How residents paid their rent (UPI vs Cash vs Bank)
                   </p>
                 </div>
 
@@ -1208,7 +1208,7 @@ export default function ReportsAnalyticsPage({
                   <Calendar className="w-5 h-5 text-[#c2652a]" /> Custom Report Timeline
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Select exact date range to compile reports and yield analytics
+                  Select exact date range to compile reports and room earnings
                 </p>
               </div>
               <button

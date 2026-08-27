@@ -348,7 +348,7 @@ export default function PropertyOverviewPage({
                   {formatCompactCurrency(totalCollectedThisMonth)}
                 </p>
                 <p className="text-xs font-bold text-emerald-700 mt-1">
-                  Collected this month • Real-time SSOT 🟢
+                  Collected this month
                 </p>
               </div>
             </div>
@@ -469,10 +469,10 @@ export default function PropertyOverviewPage({
                     <h3 className="font-serif font-bold text-xl text-gray-900">
                       Recent Property Activity
                     </h3>
-                    <p className="text-xs text-gray-500 font-medium">Live audit trail of rent collections & check-ins</p>
+                    <p className="text-xs text-gray-500 font-medium">Live updates of rent payments & check-ins</p>
                   </div>
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
-                    REAL-TIME FEED
+                    LATEST UPDATES
                   </span>
                 </div>
 
@@ -582,7 +582,7 @@ export default function PropertyOverviewPage({
                         KYC & Police Compliance
                       </h4>
                       <p className="text-xs text-gray-500 font-medium">
-                        DPDP Act 2023 & Aadhaar verification status
+                        Aadhaar & Police verification status
                       </p>
                     </div>
                   </div>
@@ -601,7 +601,7 @@ export default function PropertyOverviewPage({
                 </div>
 
                 <p className="text-[11px] text-gray-500 leading-snug">
-                  🛡️ Ensures permanent police verification compliance and instant audit trail generation.
+                  🛡️ Keeps your PG safe and verified for local police records.
                 </p>
               </div>
 
