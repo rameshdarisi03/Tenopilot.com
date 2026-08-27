@@ -2161,7 +2161,7 @@ export default function FinancialHubPage({
                 <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      Total Rent Collected
+                      Gross Revenue Collected
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                       <Wallet className="w-4 h-4" />
