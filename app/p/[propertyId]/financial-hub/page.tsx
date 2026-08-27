@@ -507,15 +507,10 @@ export default function FinancialHubPage({
       return;
     }
 
-    const dateObj = expenseDate ? new Date(expenseDate) : new Date();
-    const dateFormatted = dateObj.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    const isoDateStr = expenseDate || new Date().toISOString().split("T")[0];
 
     await expenseStore.addExpense(propertyId, {
-      date: dateFormatted,
+      date: isoDateStr,
       category,
       paidFrom,
       property: propertySettings.propertyName || "Sunshine PG",
@@ -548,15 +543,11 @@ export default function FinancialHubPage({
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    const todayIso = new Date().toISOString().split("T")[0];
 
     // Log the expense entry
     await expenseStore.addExpense(propertyId, {
-      date: todayStr,
+      date: todayIso,
       category: recurringModal.category,
       paidFrom: recurringModal.paidFrom,
       property: propertySettings.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Luxury PG" : "My Property"),

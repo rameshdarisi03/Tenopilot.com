@@ -218,7 +218,8 @@ export async function saveExpenseToFirestore(
 ): Promise<boolean> {
   try {
     const expenseRef = doc(db, "properties", propertyId, "expenses", expense.id);
-    await setDoc(expenseRef, expense, { merge: true });
+    const sanitizedExpense = sanitizeForFirestore(expense);
+    await setDoc(expenseRef, sanitizedExpense, { merge: true });
     return true;
   } catch (error) {
     console.warn("Firestore save expense fallback:", error);

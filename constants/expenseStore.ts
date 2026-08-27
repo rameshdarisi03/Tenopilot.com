@@ -136,8 +136,21 @@ class ExpenseStore {
     let records = this.expenses.filter((e) => e.propertyId === propertyId);
     if (startDate && endDate) {
       records = records.filter((e) => {
-        const expDate = e.date || "";
-        return expDate >= startDate && expDate <= endDate;
+        const rawDate = e.date || e.createdAt || "";
+        let isoDate = "";
+
+        if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          isoDate = rawDate.slice(0, 10);
+        } else {
+          // Parse formats like "27 Aug 2026", "27/08/2026", "Aug 27, 2026"
+          const parsed = new Date(rawDate);
+          if (!isNaN(parsed.getTime())) {
+            isoDate = parsed.toISOString().slice(0, 10);
+          }
+        }
+
+        if (!isoDate) return true; // If unparseable, keep in ledger rather than hiding
+        return isoDate >= startDate && isoDate <= endDate;
       });
     }
     return records;
