@@ -241,134 +241,129 @@ export default function ApexCommandMonitoringPage() {
             </div>
           </div>
 
-          {/* Section 2: Global Platform Announcement & Broadcast Center */}
-          <div className="bg-[#16191f] border border-white/8 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-white/8 pb-4">
+          {/* Section 2: Infrastructure Vitals (Cloud Firestore, Gemini Vision AI, WhatsApp Cloud API) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Firestore Telemetry */}
+            <div className="p-6 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Cloud Firestore</h4>
+                    <p className="text-[10px] text-slate-400">Database & Realtime Listeners</p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Healthy 🟢
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Active Snapshot Listeners</span>
+                  <span className="font-bold text-white">48 Client Nodes</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Read / Write Latency</span>
+                  <span className="font-bold text-emerald-400">42ms (P95)</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Sync Success Rate</span>
+                  <span className="font-bold text-white">99.98%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Gemini Vision AI Engine */}
+            <div className="p-6 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
+                    <Cpu className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Gemini Vision AI</h4>
+                    <p className="text-[10px] text-slate-400">FastTrack Document OCR Engine</p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                  Ready ⚡
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Ledger Ingestion Speed</span>
+                  <span className="font-bold text-purple-400">1.8s / Register Page</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Extraction Accuracy</span>
+                  <span className="font-bold text-white">99.4% Multi-Bed Match</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Model Version</span>
+                  <span className="font-bold text-slate-300 font-mono text-[10px]">Gemini 1.5 Flash</span>
+                </div>
+              </div>
+            </div>
+
+            {/* WhatsApp Cloud Gateway */}
+            <div className="p-6 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#ff3366]/10 text-[#ff5436] flex items-center justify-center font-bold">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">WhatsApp Cloud API</h4>
+                    <p className="text-[10px] text-slate-400">Meta Business Messaging</p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Connected 🟢
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Webhook Delivery</span>
+                  <span className="font-bold text-emerald-400">100% Up</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Average Dispatch Time</span>
+                  <span className="font-bold text-white">210ms</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f12] border border-white/6">
+                  <span className="text-slate-400">Simulation Sandbox</span>
+                  <span className="font-bold text-[#ff5436]">Zero-Config Ready</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Broadcast Quick Banner Link */}
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-[#ff3366]/15 via-[#ff5436]/10 to-[#ff8400]/15 border border-[#ff3366]/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#ff3366]/20 text-[#ff5436] flex items-center justify-center shrink-0">
+                <Radio className="w-5 h-5" />
+              </div>
               <div>
-                <h3 className="font-serif font-bold text-xl text-white flex items-center gap-2">
-                  <Radio className="w-5 h-5 text-[#ff5436]" />
-                  Global Platform Announcement & Broadcast Desk
-                </h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  Push in-app announcement banners or WhatsApp broadcast messages to all onboarded PG dashboards
+                <h4 className="font-bold text-sm text-white">
+                  Looking to push global announcements or notices?
+                </h4>
+                <p className="text-xs text-slate-300">
+                  Create and manage in-app banners and WhatsApp broadcasts in the dedicated Broadcast Center.
                 </p>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Broadcast Composer Form */}
-              <form onSubmit={handleSendBroadcast} className="space-y-4 p-5 rounded-2xl bg-[#0d0f12] border border-white/8">
-                <h4 className="font-bold text-white text-xs uppercase tracking-wider">
-                  Compose Live Platform Broadcast
-                </h4>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
-                    Announcement Headline *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. New Feature: Instant GST Invoicing is now live!"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#16191f] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
-                    Broadcast Message Details *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Explain the update clearly for PG owners..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#16191f] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436] resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
-                      Banner Type *
-                    </label>
-                    <select
-                      value={type}
-                      onChange={(e) => setType(e.target.value as any)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#16191f] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
-                    >
-                      <option value="FEATURE">🚀 Feature Update</option>
-                      <option value="NOTICE">📢 General Notice</option>
-                      <option value="MAINTENANCE">⚠️ Maintenance Alert</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
-                      Target Audience *
-                    </label>
-                    <select
-                      value={target}
-                      onChange={(e) => setTarget(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#16191f] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
-                    >
-                      <option value="ALL">All 48 PG Clients (All India)</option>
-                      <option value="BLR">Bangalore PGs Only (26)</option>
-                      <option value="HYD">Hyderabad PGs Only (14)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSending}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all disabled:opacity-50"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{isSending ? "Broadcasting..." : "Dispatch Broadcast to Clients ➔"}</span>
-                </button>
-              </form>
-
-              {/* Past Broadcast History */}
-              <div className="space-y-3">
-                <h4 className="font-bold text-white text-xs uppercase tracking-wider">
-                  Recent Broadcast Dispatches
-                </h4>
-
-                <div className="space-y-2.5">
-                  {broadcasts.map((bc) => (
-                    <div
-                      key={bc.id}
-                      className="p-4 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-2 hover:border-white/15 transition-all"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                            bc.type === "FEATURE"
-                              ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                              : "bg-[#ff3366]/20 text-[#ff5436] border border-[#ff3366]/30"
-                          }`}
-                        >
-                          {bc.type}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono">{bc.timestamp}</span>
-                      </div>
-
-                      <h5 className="font-bold text-xs text-white">{bc.title}</h5>
-                      <p className="text-[11px] text-slate-400 line-clamp-2">{bc.message}</p>
-
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-white/6">
-                        <span>Audience: <strong className="text-slate-300">{bc.target}</strong></span>
-                        <span className="text-emerald-400 font-bold">✓ Delivered ({bc.deliveredCount})</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <a
+              href="/apex-command/broadcast"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] text-white text-xs font-bold shrink-0 hover:opacity-95 transition-all shadow-md shadow-[#ff3366]/25 active:scale-95"
+            >
+              Open Broadcast Center ➔
+            </a>
           </div>
         </main>
       </div>

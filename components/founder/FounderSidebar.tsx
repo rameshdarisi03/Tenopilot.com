@@ -32,6 +32,12 @@ export function FounderSidebar({ mobileOpen, onMobileClose }: FounderSidebarProp
       badgeColor: "bg-white/10 text-white/80 border border-white/10",
     },
     {
+      label: "Broadcast",
+      href: "/apex-command/broadcast",
+      badge: "ACTIVE",
+      badgeColor: "bg-[#ff3366]/20 text-[#ff5436] border border-[#ff3366]/30",
+    },
+    {
       label: "Risk and Alerts",
       href: "/apex-command/churn-radar",
       badge: "2 Alerts",
