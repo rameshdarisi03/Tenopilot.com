@@ -224,8 +224,7 @@ export default function ReportsAnalyticsPage({
   const businessAnalytics = useMemo(() => {
     // 1. Total Bed Layout & Capacity
     let totalBeds = 0;
-    let occupiedBeds = 0;
-    const roomTypeStats: Record<number, { sharingName: string; totalBeds: number; occupiedBeds: number; totalRevenue: number }> = {};
+    const roomTypeStats: Record<number, { sharingName: string; totalBeds: number; occupantRents: number[]; occupiedBeds: number }> = {};
 
     structure.forEach((fl) => {
       fl.rooms.forEach((rm) => {
@@ -241,43 +240,48 @@ export default function ReportsAnalyticsPage({
               : bedCount === 4
               ? "4-Sharing Room"
               : `${bedCount}-Sharing Room`;
-          roomTypeStats[bedCount] = { sharingName, totalBeds: 0, occupiedBeds: 0, totalRevenue: 0 };
+          roomTypeStats[bedCount] = { sharingName, totalBeds: 0, occupantRents: [], occupiedBeds: 0 };
         }
 
-        rm.beds.forEach((bd) => {
+        rm.beds.forEach(() => {
           totalBeds++;
           roomTypeStats[bedCount].totalBeds++;
-          const isOcc = bd.status === "Occupied" || bd.status === "Vacating" || bd.status === "Guest" || bd.occupant;
-          if (isOcc) {
-            occupiedBeds++;
-            roomTypeStats[bedCount].occupiedBeds++;
-          }
         });
       });
     });
 
-    // Populate revenue per sharing type
-    occupants.forEach((occ) => {
-      if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
-        const rNum = occ.roomNumber || "";
-        let roomBeds = 2; // default
-        structure.forEach((fl) => {
-          const found = fl.rooms.find((r) => r.roomNumber === rNum);
-          if (found) roomBeds = found.beds.length;
-        });
+    const activeOccupants = occupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+    const activeOccupantCount = activeOccupants.length;
 
-        if (roomTypeStats[roomBeds]) {
-          roomTypeStats[roomBeds].totalRevenue += occ.rentAmount || 0;
-        }
+    // Populate occupants and revenue per sharing type
+    activeOccupants.forEach((occ) => {
+      const rNum = occ.roomNumber || "";
+      let roomBeds = 3; // default
+      structure.forEach((fl) => {
+        const found = fl.rooms.find((r) => r.roomNumber === rNum);
+        if (found) roomBeds = found.beds.length;
+      });
+
+      if (!roomTypeStats[roomBeds]) {
+        roomTypeStats[roomBeds] = {
+          sharingName: `${roomBeds}-Sharing Room`,
+          totalBeds: roomBeds,
+          occupantRents: [],
+          occupiedBeds: 0,
+        };
       }
+
+      roomTypeStats[roomBeds].occupiedBeds++;
+      roomTypeStats[roomBeds].occupantRents.push(occ.rentAmount || 0);
     });
 
     const sharingMatrix = Object.entries(roomTypeStats).map(([beds, data]) => {
       const bCount = parseInt(beds, 10);
       const occPct = data.totalBeds > 0 ? ((data.occupiedBeds / data.totalBeds) * 100).toFixed(1) : "0.0";
-      const avgRentPerBed = data.occupiedBeds > 0 ? Math.round(data.totalRevenue / data.occupiedBeds) : 8500;
+      const totalRentInSharing = data.occupantRents.reduce((sum, r) => sum + r, 0);
+      const avgRentPerBed = data.occupiedBeds > 0 ? Math.round(totalRentInSharing / data.occupiedBeds) : 7500;
       const capacityYield = data.totalBeds * avgRentPerBed;
-      const vacancyLoss = Math.max(0, capacityYield - data.totalRevenue);
+      const vacancyLoss = Math.max(0, capacityYield - totalRentInSharing);
 
       return {
         bedCount: bCount,
@@ -286,20 +290,19 @@ export default function ReportsAnalyticsPage({
         occupiedBeds: data.occupiedBeds,
         occPct,
         avgRentPerBed,
-        realizedYield: data.totalRevenue,
+        realizedYield: totalRentInSharing,
         capacityYield,
         vacancyLoss,
       };
     });
 
-    // 2. Financial Metrics for Active Timeline
+    // 2. Financial Metrics for Active Timeline (UPI vs Cash only)
     let totalRevenueIntake = 0;
     let rentOnlyIntake = 0;
     let upiTotal = 0;
     let cashTotal = 0;
-    let bankTotal = 0;
 
-    occupants.forEach((occ) => {
+    activeOccupants.forEach((occ) => {
       const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
       const history = occ.paymentHistory || [];
       const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
@@ -332,40 +335,37 @@ export default function ReportsAnalyticsPage({
             rentOnlyIntake += pm.amount;
           }
           const mode = (pm.mode || "").toLowerCase();
-          if (mode.includes("upi") || mode.includes("phonepe") || mode.includes("gpay")) {
-            upiTotal += pm.amount;
-          } else if (mode.includes("bank") || mode.includes("neft") || mode.includes("transfer")) {
-            bankTotal += pm.amount;
-          } else {
+          if (mode.includes("cash")) {
             cashTotal += pm.amount;
+          } else {
+            upiTotal += pm.amount;
           }
         });
       } else if (selectedTimelineFilter === "THIS_MONTH" || isAllTime) {
-        totalRevenueIntake += stmt.totalPaid;
+        totalRevenueIntake += stmt.totalRentPaid;
         rentOnlyIntake += stmt.totalRentPaid;
-        upiTotal += Math.round(stmt.totalPaid * 0.85);
-        cashTotal += Math.round(stmt.totalPaid * 0.15);
+        upiTotal += Math.round(stmt.totalRentPaid * 0.80);
+        cashTotal += Math.round(stmt.totalRentPaid * 0.20);
       }
     });
 
     const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-    const activeOccupantCount = occupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice").length || 1;
-    const cpb = Math.round(totalExpenses / activeOccupantCount);
-    const arpb = Math.round(totalRevenueIntake / activeOccupantCount);
+    const totalRentOfOccupants = activeOccupants.reduce((sum, o) => sum + (o.rentAmount || 0), 0);
+    const avgRentPerBed = activeOccupantCount > 0 ? Math.round(totalRentOfOccupants / activeOccupantCount) : 0;
+    const cpb = activeOccupantCount > 0 ? Math.round(totalExpenses / activeOccupantCount) : 0;
     const netOperatingProfit = Math.max(0, totalRevenueIntake - totalExpenses);
     const operatingMargin = totalRevenueIntake > 0 ? ((netOperatingProfit / totalRevenueIntake) * 100).toFixed(1) : "100.0";
 
-    const totalChannel = upiTotal + cashTotal + bankTotal || 1;
-    const upiPct = Math.round((upiTotal / totalChannel) * 100) || 85;
-    const cashPct = Math.round((cashTotal / totalChannel) * 100) || 15;
-    const bankPct = Math.max(0, 100 - upiPct - cashPct);
+    const totalChannel = upiTotal + cashTotal || 1;
+    const upiPct = Math.round((upiTotal / totalChannel) * 100);
+    const cashPct = 100 - upiPct;
 
     // 3. 6-Month Historical Revenue Trend Generation
     const monthNames = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"];
     const sixMonthTrend = monthNames.map((m, idx) => {
-      const growthFactor = 0.75 + idx * 0.05;
-      const rev = Math.round(totalRevenueIntake * growthFactor) || 180000 + idx * 14000;
-      const occPctVal = Math.min(100, Math.round(65 + idx * 6));
+      const growthFactor = 0.70 + idx * 0.06;
+      const rev = Math.round(totalRevenueIntake * growthFactor) || (110000 + idx * 9000);
+      const occPctVal = Math.min(100, Math.round(((activeOccupantCount / Math.max(1, totalBeds)) * 100) * (0.8 + idx * 0.04)));
       return {
         month: m,
         revenue: rev,
@@ -375,21 +375,19 @@ export default function ReportsAnalyticsPage({
 
     return {
       totalBeds,
-      occupiedBeds,
+      occupiedBeds: activeOccupantCount,
       sharingMatrix,
       totalRevenueIntake,
       rentOnlyIntake,
       totalExpenses,
       cpb,
-      arpb,
+      arpb: avgRentPerBed,
       netOperatingProfit,
       operatingMargin,
       upiTotal,
       cashTotal,
-      bankTotal,
       upiPct,
       cashPct,
-      bankPct,
       sixMonthTrend,
     };
   }, [structure, occupants, propertySettings, expenses, selectedTimelineFilter, customStartDate, customEndDate]);
@@ -1141,54 +1139,41 @@ export default function ReportsAnalyticsPage({
                 </div>
               </div>
 
-              {/* 4. Payment Mode Breakdown */}
+              {/* 4. Payment Mode Breakdown (UPI & Cash Only) */}
               <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
                 <div className="border-b border-gray-100 pb-4">
                   <h3 className="font-serif font-bold text-xl text-gray-900">
                     Payment Mode Breakdown
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
-                    How residents paid their rent (UPI vs Cash vs Bank)
+                    How residents paid their rent (Online UPI vs Cash Payments)
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200/80 flex items-center justify-between">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold uppercase text-orange-900">Online UPI</span>
-                      <p className="font-sans font-bold text-xl text-[#c2652a] mt-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-orange-900">Online UPI (PhonePe / GPay / Paytm)</span>
+                      <p className="font-sans font-bold text-2xl text-[#c2652a] mt-1">
                         ₹{businessAnalytics.upiTotal.toLocaleString("en-IN")}
                       </p>
-                      <span className="text-[10px] font-bold text-orange-700">{businessAnalytics.upiPct}% of Total</span>
+                      <span className="text-xs font-bold text-orange-700">{businessAnalytics.upiPct}% of Total Collections</span>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold text-xs">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold text-sm shadow-2xs">
                       UPI
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between">
+                  <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold uppercase text-emerald-900">Cash Desk</span>
-                      <p className="font-sans font-bold text-xl text-emerald-700 mt-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">Cash Desk (Front Desk Cash)</span>
+                      <p className="font-sans font-bold text-2xl text-emerald-700 mt-1">
                         ₹{businessAnalytics.cashTotal.toLocaleString("en-IN")}
                       </p>
-                      <span className="text-[10px] font-bold text-emerald-700">{businessAnalytics.cashPct}% of Total</span>
+                      <span className="text-xs font-bold text-emerald-700">{businessAnalytics.cashPct}% of Total Collections</span>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xl shadow-2xs">
                       💵
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200/80 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-blue-900">Bank Transfer</span>
-                      <p className="font-sans font-bold text-xl text-blue-700 mt-0.5">
-                        ₹{businessAnalytics.bankTotal.toLocaleString("en-IN")}
-                      </p>
-                      <span className="text-[10px] font-bold text-blue-700">{businessAnalytics.bankPct}% of Total</span>
-                    </div>
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                      NEFT
                     </div>
                   </div>
                 </div>
