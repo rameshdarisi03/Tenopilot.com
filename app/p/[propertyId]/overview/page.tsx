@@ -219,6 +219,11 @@ export default function PropertyOverviewPage({
     return list.slice(0, 5);
   }, [occupants, complaints]);
 
+  // Calculate KYC & Police verification metrics
+  const activeOccupants = occupants.filter((o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice");
+  const kycVerifiedCount = activeOccupants.filter((o) => o.kycVerified).length;
+  const noticeOccupants = occupants.filter((o) => o.lifecycleStatus === "Notice");
+
   const handleSendWhatsAppReminders = () => {
     const overdueOccupants = occupants.filter((o) => o.paymentStatus === "Overdue" || o.daysDiff < 0);
     if (overdueOccupants.length === 0) {
@@ -231,7 +236,7 @@ export default function PropertyOverviewPage({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#fff8f6] text-[#201a17]">
+    <div className="flex min-h-screen bg-[#f8fafc] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
       {/* 256px Left Sidebar */}
       <PropertySidebar
         propertyId={propertyId}
@@ -249,129 +254,140 @@ export default function PropertyOverviewPage({
         />
 
         {/* Workspace Body */}
-        <div className="p-4 md:p-8 space-y-6 flex-1 max-w-[1240px] mx-auto w-full pb-24">
+        <div className="p-4 md:p-8 space-y-6 flex-1 max-w-[1280px] mx-auto w-full pb-24">
           {/* Greeting Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-[#f8ede3] text-[#964407] px-3 py-1 rounded-full border border-[#d7c2b9]">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full border border-orange-200">
                   10-DAY FREE TRIAL ACTIVE
                 </span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   OPERATIONAL HEALTHY 🟢
                 </span>
               </div>
-              <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] mt-2 tracking-tight">
+              <h1 className="font-serif font-bold text-3xl sm:text-4xl text-gray-900 mt-2 tracking-tight">
                 {greetingText}
               </h1>
-              <p className="text-xs sm:text-sm text-[#554339] mt-1 font-medium">
+              <p className="text-xs sm:text-sm text-gray-500 mt-1 font-medium">
                 {propertySettings.propertyName} • {propertySettings.propertyAddress} • {totalBeds} Total Beds • {occRatePct}% Occupancy
               </p>
             </div>
 
-            <Link
-              href={`/p/${propertyId}/financial-hub`}
-              className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 active:scale-95 cursor-pointer shrink-0"
-            >
-              <span>Go to Financial Hub</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/p/${propertyId}/financial-hub`}
+                className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer shrink-0"
+              >
+                <span>Go to Financial Hub</span>
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
 
           {/* Urgent Attention Alert Banner */}
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-amber-100 text-amber-900 shrink-0">
+              <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 shrink-0">
                 <AlertCircle className="w-5 h-5 text-amber-800" />
               </div>
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
                   URGENT ATTENTION NEEDED
                 </span>
-                <p className="text-xs sm:text-sm font-bold text-[#201a17]">
-                  {overdueCount > 0 ? `${overdueCount} Overdue Rent Payments Pending` : "No Overdue Rent Payments"} • {occupants.filter(o => o.lifecycleStatus === "Notice").length} Rooms Vacating Soon
+                <p className="text-xs sm:text-sm font-bold text-gray-900">
+                  {overdueCount > 0 ? `${overdueCount} Overdue Rent Payments Pending` : "No Overdue Rent Payments"} • {noticeOccupants.length} Residents on Vacating Notice
                 </p>
               </div>
             </div>
 
             <button
               onClick={handleSendWhatsAppReminders}
-              className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
+              className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Send WhatsApp Reminders</span>
             </button>
           </div>
 
-          {/* 4 Core Real-Time KPI Bento Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Occupancy */}
-            <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+          {/* 4 High-Impact Operational KPI Bento Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Vacant Inventory & Occupancy */}
+            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-[#c2652a]/60 transition-all flex flex-col justify-between group">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                  OCCUPANCY
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  VACANT INVENTORY
                 </span>
-                <div className="p-2 rounded-xl bg-[#f8ede3] text-[#964407]">
+                <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a] group-hover:scale-105 transition-transform">
                   <Building2 className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <p className="font-serif font-bold text-3xl text-[#964407] tracking-tight">
-                  {occRatePct}%
+                <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                  {totalBeds - occupiedBeds} <span className="text-lg font-semibold text-gray-500">Vacant Beds</span>
                 </p>
-                <p className="text-xs font-bold text-[#554339] mt-0.5">
-                  {occupiedBeds} / {totalBeds} Beds Occupied
+                <p className="text-xs font-bold text-[#c2652a] mt-1">
+                  {occupiedBeds} / {totalBeds} Beds Occupied ({occRatePct}%)
                 </p>
               </div>
-            </MagneticGlowCard>
+            </div>
 
             {/* Card 2: Rent Collected */}
-            <MagneticGlowCard glowColor="rgba(16, 185, 129, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-emerald-500/60 transition-all flex flex-col justify-between group">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                   RENT COLLECTED
                 </span>
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-105 transition-transform">
                   <Wallet className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <p className="font-serif font-bold text-3xl text-emerald-600 tracking-tight">
+                <p className="font-sans font-bold text-3xl text-emerald-600 tracking-tight">
                   {formatCompactCurrency(totalCollectedThisMonth)}
                 </p>
-                <p className="text-xs font-bold text-emerald-700 mt-0.5">
-                  Collected this month
+                <p className="text-xs font-bold text-emerald-700 mt-1">
+                  Collected this month • Real-time SSOT 🟢
                 </p>
               </div>
-            </MagneticGlowCard>
+            </div>
 
             {/* Card 3: Pending Due */}
-            <MagneticGlowCard glowColor="rgba(217, 119, 6, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-amber-500/60 transition-all flex flex-col justify-between group">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                   PENDING DUE
                 </span>
-                <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <p className="font-serif font-bold text-3xl text-amber-600 tracking-tight">
+                <p className="font-sans font-bold text-3xl text-amber-600 tracking-tight">
                   {formatCompactCurrency(totalPendingDue)}
                 </p>
-                <p className="text-xs font-bold text-[#554339] mt-0.5">
-                  Across {pendingCount} residents
-                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs font-bold text-gray-600">
+                    Across {pendingCount} residents
+                  </p>
+                  <Link
+                    href={`/p/${propertyId}/tenants`}
+                    className="text-[11px] font-bold text-[#c2652a] hover:underline"
+                  >
+                    View List ➔
+                  </Link>
+                </div>
               </div>
-            </MagneticGlowCard>
+            </div>
 
             {/* Card 4: Maintenance */}
-            <MagneticGlowCard glowColor="rgba(190, 18, 60, 0.12)" className="p-5 rounded-3xl bg-white border border-[#d7c2b9] shadow-xs flex flex-col justify-between">
+            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-rose-500/60 transition-all flex flex-col justify-between group">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#554339]">
-                  MAINTENANCE
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  MAINTENANCE TICKETS
                 </span>
-                <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
+                <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600 group-hover:scale-105 transition-transform">
                   <Wrench className="w-4 h-4" />
                 </div>
               </div>
@@ -380,143 +396,234 @@ export default function PropertyOverviewPage({
                   <p className="font-serif font-bold text-3xl text-rose-600 tracking-tight">
                     {openComplaintsCount}
                   </p>
-                  <p className="text-xs font-bold text-rose-700 mt-0.5">
+                  <p className="text-xs font-bold text-rose-700 mt-1">
                     Open Complaints
                   </p>
                 </div>
                 <Link
                   href={`/p/${propertyId}/complaints`}
-                  className="text-xs font-extrabold text-[#964407] hover:underline flex items-center gap-0.5"
+                  className="text-xs font-extrabold text-[#c2652a] hover:underline flex items-center gap-0.5"
                 >
                   <span>View Tickets</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
-            </MagneticGlowCard>
+            </div>
           </div>
 
           {/* Main 2-Column Split View */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column (60%): Recent Activity Audit Timeline Feed */}
-            <div className="lg:col-span-7 bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-6">
-              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-4">
-                <h3 className="font-serif font-bold text-2xl text-[#201a17]">
-                  Recent Activity
-                </h3>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#964407] bg-[#f8ede3] px-2.5 py-1 rounded-full border border-[#d7c2b9]">
-                  REAL-TIME FEED
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {recentActivities.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-[#554339] space-y-2">
-                    <p className="font-bold text-sm text-[#201a17]">No Activity Logged Yet</p>
-                    <p>Onboard your first resident or configure property setup to get started.</p>
-                  </div>
-                ) : (
-                  recentActivities.map((act) => (
-                    <div key={act.id} className="flex items-start gap-4 p-3.5 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9]/40 hover:border-[#964407]/40 transition-all">
-                      <div className={`p-2.5 rounded-xl border ${act.color} shrink-0 mt-0.5`}>
-                        {act.type === "PAYMENT" && <Wallet className="w-4 h-4" />}
-                        {act.type === "ONBOARDING" && <UserPlus className="w-4 h-4" />}
-                        {act.type === "COMPLAINT" && <Wrench className="w-4 h-4" />}
-                        {act.type === "NOTICE" && <Clock className="w-4 h-4" />}
+            {/* Left Column (60%): Move-out Notice Radar & Recent Activity Feed */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Notice & Vacancy Radar */}
+              {noticeOccupants.length > 0 && (
+                <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-amber-50 text-amber-700 font-bold">
+                        <Clock className="w-4 h-4" />
                       </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-bold text-xs text-[#201a17]">{act.title}</p>
-                          <span className="text-[10px] text-[#554339] font-medium">{act.time}</span>
-                        </div>
-                        <p className="text-xs text-[#554339] mt-0.5 leading-snug">{act.subtitle}</p>
+                      <div>
+                        <h3 className="font-serif font-bold text-lg text-gray-900">
+                          Notice Period Radar ({noticeOccupants.length} Vacating Soon)
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium">
+                          Market and assign these beds to upcoming leads in advance
+                        </p>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                      ACTION REQUIRED
+                    </span>
+                  </div>
 
-              <div className="pt-2 border-t border-[#f8ede3]">
-                <Link
-                  href={`/p/${propertyId}/tenants`}
-                  className="text-xs font-bold text-[#964407] hover:underline flex items-center gap-1"
-                >
-                  <span>View Full Directory & Log</span>
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
+                  <div className="divide-y divide-gray-100">
+                    {noticeOccupants.slice(0, 3).map((occ) => (
+                      <div key={occ.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-xs">
+                            {occ.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900">{occ.name}</p>
+                            <p className="text-[11px] text-gray-500">Room {occ.roomNumber} ({occ.bedCode}) • Vacating Soon</p>
+                          </div>
+                        </div>
+
+                        <Link
+                          href={`/p/${propertyId}/tenants/${occ.id}`}
+                          className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold transition-all"
+                        >
+                          View Tenant ➔
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Activity Audit Timeline Feed */}
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-6">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-xl text-gray-900">
+                      Recent Property Activity
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">Live audit trail of rent collections & check-ins</p>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+                    REAL-TIME FEED
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {recentActivities.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-gray-500 space-y-2">
+                      <p className="font-bold text-sm text-gray-900">No Activity Logged Yet</p>
+                      <p>Onboard your first resident or configure property setup to get started.</p>
+                    </div>
+                  ) : (
+                    recentActivities.map((act) => (
+                      <div key={act.id} className="flex items-start gap-4 p-3.5 rounded-2xl bg-gray-50 border border-gray-200/70 hover:border-[#c2652a]/40 hover:bg-white transition-all">
+                        <div className={`p-2.5 rounded-xl border ${act.color} shrink-0 mt-0.5`}>
+                          {act.type === "PAYMENT" && <Wallet className="w-4 h-4" />}
+                          {act.type === "ONBOARDING" && <UserPlus className="w-4 h-4" />}
+                          {act.type === "COMPLAINT" && <Wrench className="w-4 h-4" />}
+                          {act.type === "NOTICE" && <Clock className="w-4 h-4" />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="font-bold text-xs text-gray-900">{act.title}</p>
+                            <span className="text-[10px] text-gray-400 font-mono">{act.time}</span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5 leading-snug">{act.subtitle}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-gray-100">
+                  <Link
+                    href={`/p/${propertyId}/tenants`}
+                    className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1"
+                  >
+                    <span>View Full Resident Directory & Log</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
             </div>
 
-            {/* Right Column (40%): Quick Actions & Resident Portal */}
+            {/* Right Column (40%): Quick Actions, KYC Pulse & Resident Portal */}
             <div className="lg:col-span-5 space-y-6">
               {/* Quick Actions Card */}
-              <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-4">
-                <h3 className="font-serif font-bold text-2xl text-[#201a17]">
-                  Quick Actions
-                </h3>
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+                <div>
+                  <h3 className="font-serif font-bold text-xl text-gray-900">
+                    Quick Actions
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">1-Tap shortcuts for daily front desk operations</p>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <Link
                     href={`/p/${propertyId}/tenants/onboard-tenant`}
-                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
                   >
-                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
                       <UserPlus className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-bold text-[#201a17]">Onboard</span>
+                    <span className="text-xs font-bold text-gray-900">Onboard Tenant</span>
                   </Link>
 
                   <button
                     onClick={handleSendWhatsAppReminders}
-                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs cursor-pointer"
+                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs cursor-pointer"
                   >
-                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
                       <Bell className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-bold text-[#201a17]">Reminders</span>
+                    <span className="text-xs font-bold text-gray-900">Reminders</span>
                   </button>
 
                   <Link
-                    href={`/p/${propertyId}/complaints`}
-                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+                    href={`/p/${propertyId}/financial-hub`}
+                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
                   >
-                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
-                      <Wrench className="w-5 h-5" />
+                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
+                      <Receipt className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-bold text-[#201a17]">Log Ticket</span>
+                    <span className="text-xs font-bold text-gray-900">Financial Hub</span>
                   </Link>
 
                   <Link
                     href={`/p/${propertyId}/property-setup`}
-                    className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#f8ede3] text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
                   >
-                    <div className="p-2.5 rounded-xl bg-white border border-[#d7c2b9] text-[#964407] group-hover:scale-110 transition-transform">
+                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
                       <Settings className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-bold text-[#201a17]">Setup</span>
+                    <span className="text-xs font-bold text-gray-900">Property Setup</span>
                   </Link>
                 </div>
               </div>
 
+              {/* KYC & Police Compliance Pulse */}
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-base text-gray-900">
+                        KYC & Police Compliance
+                      </h4>
+                      <p className="text-xs text-gray-500 font-medium">
+                        DPDP Act 2023 & Aadhaar verification status
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    {kycVerifiedCount} / {activeOccupants.length} Verified
+                  </span>
+                </div>
+
+                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${activeOccupants.length > 0 ? (kycVerifiedCount / activeOccupants.length) * 100 : 100}%`,
+                    }}
+                  ></div>
+                </div>
+
+                <p className="text-[11px] text-gray-500 leading-snug">
+                  🛡️ Ensures permanent police verification compliance and instant audit trail generation.
+                </p>
+              </div>
+
               {/* Resident Complaint Portal QR Code Card */}
-              <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 shadow-xs space-y-4 text-center">
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4 text-center">
                 <div className="flex items-center justify-center gap-2">
-                  <div className="p-2 rounded-xl bg-orange-50 text-[#964407]">
+                  <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
                     <QrCode className="w-5 h-5" />
                   </div>
-                  <h3 className="font-serif font-bold text-2xl text-[#201a17]">
-                    Complaints Portal
+                  <h3 className="font-serif font-bold text-xl text-gray-900">
+                    Complaints Portal QR
                   </h3>
                 </div>
-                <p className="text-xs text-[#554339] max-w-xs mx-auto font-medium">
-                  Print or share this QR code for residents to report maintenance issues and lodge 24/7 complaints directly.
+                <p className="text-xs text-gray-500 max-w-xs mx-auto font-medium">
+                  Print or share this QR code for residents to report maintenance issues directly.
                 </p>
 
-                <div className="w-40 h-40 bg-white p-3 rounded-2xl border border-[#d7c2b9] shadow-sm mx-auto flex items-center justify-center">
+                <div className="w-40 h-40 bg-white p-3 rounded-2xl border border-gray-200 shadow-2xs mx-auto flex items-center justify-center">
                   <QRCodeSVG
                     value={portalUrl || (typeof window !== "undefined" ? `${window.location.origin}/p/${propertyId}/public-complaint` : `/p/${propertyId}/public-complaint`)}
                     size={140}
-                    fgColor="#201a17"
+                    fgColor="#111827"
                     bgColor="#ffffff"
                     level="H"
                   />
@@ -526,7 +633,7 @@ export default function PropertyOverviewPage({
                   <button
                     type="button"
                     onClick={() => setQrModalOpen(true)}
-                    className="w-full py-3 px-4 rounded-xl bg-[#964407] hover:bg-[#803804] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                   >
                     <Download className="w-4 h-4 text-white" />
                     <span>Download / Print QR Poster</span>
@@ -536,7 +643,7 @@ export default function PropertyOverviewPage({
                     href={`/p/${propertyId}/public-complaint`}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#fff8f6] text-[#554339] hover:text-[#964407] font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Test Complaints Portal</span>
@@ -545,7 +652,7 @@ export default function PropertyOverviewPage({
                   <button
                     type="button"
                     onClick={handleCopyLink}
-                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#fff8f6] text-[#554339] hover:text-[#964407] font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {copiedLink ? (
                       <>
