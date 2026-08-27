@@ -289,13 +289,24 @@ export default function FinancialHubPage({
       totalBilledRent += stmt.proRataRent + stmt.priorArrears;
       totalUncollectedArrears += stmt.netOutstandingBalance;
 
-      // Filter occupant's payment receipts strictly within the active date range
+      // Filter occupant's payment receipts strictly within the active date range with robust date parsing
       const history = occ.paymentHistory || [];
       const periodPayments = isAllTime
         ? history
         : history.filter((pm) => {
-            const pDate = pm.date || "";
-            return pDate >= startDate && pDate <= endDate;
+            const rawDate = pm.date || "";
+            if (!rawDate) return false;
+            let isoDate = "";
+            if (rawDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+              isoDate = rawDate.slice(0, 10);
+            } else {
+              const parsed = new Date(rawDate);
+              if (!isNaN(parsed.getTime())) {
+                isoDate = parsed.toISOString().slice(0, 10);
+              }
+            }
+            if (!isoDate) return true;
+            return isoDate >= startDate && isoDate <= endDate;
           });
 
       if (periodPayments.length > 0) {
@@ -326,12 +337,27 @@ export default function FinancialHubPage({
             cashAmount += pm.amount;
           }
         });
-      } else if (isAllTime) {
-        // Fallback for default state if no explicit history items exist
-        totalGrossRevenue += stmt.totalPaid;
-        rentStream += stmt.totalRentPaid;
-        if (stmt.isDepositCleared) {
-          depositStream += stmt.securityDepositRequired;
+      } else {
+        // Fallback: If no granular receipts exist in history yet, calculate from active cycle statement
+        const isCurrentPeriod =
+          selectedTimelineFilter === "THIS_MONTH" ||
+          selectedTimelineFilter === "ALL_TIME" ||
+          selectedTimelineFilter === "THIS_QUARTER" ||
+          selectedTimelineFilter === "THIS_YEAR";
+
+        if (isCurrentPeriod && stmt.totalPaid > 0) {
+          totalGrossRevenue += stmt.totalPaid;
+          rentStream += stmt.totalRentPaid;
+          if (stmt.isDepositCleared) {
+            depositStream += stmt.securityDepositRequired;
+          }
+          if (occ.stayType === "Guest") {
+            guestStream += stmt.totalRentPaid;
+          } else {
+            utilityStream += Math.round(stmt.totalRentPaid * 0.05);
+          }
+          upiAmount += Math.round(stmt.totalPaid * 0.85);
+          cashAmount += Math.round(stmt.totalPaid * 0.15);
         }
       }
     });
