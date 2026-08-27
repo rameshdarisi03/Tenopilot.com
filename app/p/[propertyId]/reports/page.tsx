@@ -562,15 +562,15 @@ export default function ReportsAnalyticsPage({
         />
 
         {/* Workspace Body */}
-        <div className="p-4 md:p-8 space-y-8 flex-1 max-w-[1280px] mx-auto w-full pb-24">
+        <div className="p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8 flex-1 max-w-[1280px] mx-auto w-full pb-28">
           {/* Top Title & Timeline Selector Bar */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="font-serif font-bold text-2xl md:text-3xl text-gray-900">
+            <div className="w-full sm:w-auto">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="font-serif font-bold text-2xl sm:text-3xl text-gray-900 tracking-tight">
                   Reports & Business Insights
                 </h1>
-                <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                   CA & TAX READY 🟢
                 </span>
               </div>
@@ -579,30 +579,33 @@ export default function ReportsAnalyticsPage({
               </p>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
+            {/* Controls Row (Full width on mobile) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
               {/* Timeline Filter Selector */}
-              <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs">
-                <Calendar className="w-4 h-4 text-[#c2652a] shrink-0" />
-                <select
-                  value={selectedTimelineFilter}
-                  onChange={(e) => {
-                    const val = e.target.value as any;
-                    if (val === "CUSTOM") {
-                      setShowCustomDateModal(true);
-                    }
-                    setSelectedTimelineFilter(val);
-                  }}
-                  className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none cursor-pointer pr-2"
-                >
-                  <option value="THIS_MONTH">This Month (Aug 2026)</option>
-                  <option value="LAST_MONTH">Last Month (Jul 2026)</option>
-                  <option value="THIS_QUARTER">This Quarter (Q3 2026)</option>
-                  <option value="THIS_YEAR">Financial Year (FY 2026-27)</option>
-                  <option value="ALL_TIME">All Time Records</option>
-                  <option value="CUSTOM">
-                    📅 {selectedTimelineFilter === "CUSTOM" ? `${customStartDate} → ${customEndDate}` : "Custom Date Range..."}
-                  </option>
-                </select>
+              <div className="relative flex items-center justify-between sm:justify-start gap-2 px-3 py-2 sm:py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs w-full sm:w-auto">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Calendar className="w-4 h-4 text-[#c2652a] shrink-0" />
+                  <select
+                    value={selectedTimelineFilter}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      if (val === "CUSTOM") {
+                        setShowCustomDateModal(true);
+                      }
+                      setSelectedTimelineFilter(val);
+                    }}
+                    className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none cursor-pointer pr-2 truncate"
+                  >
+                    <option value="THIS_MONTH">This Month (Aug 2026)</option>
+                    <option value="LAST_MONTH">Last Month (Jul 2026)</option>
+                    <option value="THIS_QUARTER">This Quarter (Q3 2026)</option>
+                    <option value="THIS_YEAR">Financial Year (FY 2026-27)</option>
+                    <option value="ALL_TIME">All Time Records</option>
+                    <option value="CUSTOM">
+                      📅 {selectedTimelineFilter === "CUSTOM" ? `${customStartDate} → ${customEndDate}` : "Custom Date Range..."}
+                    </option>
+                  </select>
+                </div>
                 {selectedTimelineFilter === "CUSTOM" && (
                   <button
                     type="button"
@@ -618,87 +621,87 @@ export default function ReportsAnalyticsPage({
               <button
                 type="button"
                 onClick={handleExportFullExcelWorkbook}
-                className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95 cursor-pointer min-h-[42px]"
               >
-                <FileSpreadsheet className="w-4 h-4" />
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
                 <span>Export CA Pack (.xlsx)</span>
               </button>
             </div>
           </div>
 
           {/* Section Navigation Tabs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <button
               type="button"
               onClick={() => setActiveTab("FINANCIAL_REPORTS")}
-              className={`p-5 rounded-3xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+              className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                 activeTab === "FINANCIAL_REPORTS"
                   ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
                   : "bg-gray-50/70 border-gray-200 hover:bg-white hover:border-gray-300"
               }`}
             >
-              <div className="flex items-center gap-3.5">
+              <div className="flex items-center gap-3">
                 <div
-                  className={`p-3 rounded-2xl transition-colors ${
+                  className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-colors shrink-0 ${
                     activeTab === "FINANCIAL_REPORTS"
                       ? "bg-[#c2652a] text-white shadow-xs"
                       : "bg-emerald-50 text-emerald-700 group-hover:bg-[#c2652a] group-hover:text-white"
                   }`}
                 >
-                  <FileText className="w-5 h-5" />
+                  <FileText className="w-4 sm:w-5 h-4 sm:h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3
-                    className={`font-serif font-bold text-base ${
+                    className={`font-serif font-bold text-sm sm:text-base truncate ${
                       activeTab === "FINANCIAL_REPORTS" ? "text-[#c2652a]" : "text-gray-900"
                     }`}
                   >
                     Security Deposits & Downloads
                   </h3>
-                  <p className="text-xs text-gray-500 font-medium">
+                  <p className="text-[11px] sm:text-xs text-gray-500 font-medium truncate">
                     Track security deposits and Reports
                   </p>
                 </div>
               </div>
               {activeTab === "FINANCIAL_REPORTS" && (
-                <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse shrink-0 ml-2"></span>
               )}
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("BUSINESS_ANALYTICS")}
-              className={`p-5 rounded-3xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+              className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
                 activeTab === "BUSINESS_ANALYTICS"
                   ? "bg-white border-[#c2652a] ring-2 ring-[#c2652a]/20 shadow-md scale-[1.01]"
                   : "bg-gray-50/70 border-gray-200 hover:bg-white hover:border-gray-300"
               }`}
             >
-              <div className="flex items-center gap-3.5">
+              <div className="flex items-center gap-3">
                 <div
-                  className={`p-3 rounded-2xl transition-colors ${
+                  className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-colors shrink-0 ${
                     activeTab === "BUSINESS_ANALYTICS"
                       ? "bg-[#c2652a] text-white shadow-xs"
                       : "bg-purple-50 text-purple-700 group-hover:bg-[#c2652a] group-hover:text-white"
                   }`}
                 >
-                  <BarChart3 className="w-5 h-5" />
+                  <BarChart3 className="w-4 sm:w-5 h-4 sm:h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3
-                    className={`font-serif font-bold text-base ${
+                    className={`font-serif font-bold text-sm sm:text-base truncate ${
                       activeTab === "BUSINESS_ANALYTICS" ? "text-[#c2652a]" : "text-gray-900"
                     }`}
                   >
                     Business Insights
                   </h3>
-                  <p className="text-xs text-gray-500 font-medium">
+                  <p className="text-[11px] sm:text-xs text-gray-500 font-medium truncate">
                     Monthly collections, room earnings, and cost per bed
                   </p>
                 </div>
               </div>
               {activeTab === "BUSINESS_ANALYTICS" && (
-                <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#c2652a] animate-pulse shrink-0 ml-2"></span>
               )}
             </button>
           </div>
@@ -707,151 +710,157 @@ export default function ReportsAnalyticsPage({
           {/* TAB 1: FINANCIAL & ESCROW REPORTS                         */}
           {/* ========================================================= */}
           {activeTab === "FINANCIAL_REPORTS" && (
-            <div className="space-y-8 animate-in fade-in">
-              {/* 1. Security Deposit Balance Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in">
+              {/* 1. Security Deposit Balance Cards (2x2 on Mobile, 4 on Desktop) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* Deposit Stat 1: Security Deposit in Hand */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      SECURITY DEPOSIT IN HAND
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      DEPOSIT IN HAND
                     </span>
-                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
-                      <ShieldCheck className="w-4 h-4" />
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
+                      <ShieldCheck className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                     </div>
                   </div>
-                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                    ₹{depositEscrowMetrics.activeDepositsHeld.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-emerald-700 font-medium">
-                    Total security deposit collected from active tenants
-                  </p>
-                </div>
-
-                {/* Deposit Stat 2: Pending Security Deposit */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      PENDING SECURITY DEPOSIT
-                    </span>
-                    <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h2 className="font-sans font-bold text-3xl text-amber-900 tracking-tight">
-                    ₹{depositEscrowMetrics.pendingDeposits.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-amber-700 font-medium">
-                    Deposit yet to be collected from tenants
-                  </p>
-                </div>
-
-                {/* Deposit Stat 3: Deposits Refunded */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-blue-400 transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      DEPOSITS REFUNDED
-                    </span>
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
-                      <Wallet className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h2 className="font-sans font-bold text-3xl text-blue-900 tracking-tight">
-                    ₹{depositEscrowMetrics.totalRefunded.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-blue-700 font-medium">
-                    Refunded to tenants who moved out ({activeDateBounds.label})
-                  </p>
-                </div>
-
-                {/* Deposit Stat 4: Deductions / Repairs */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-purple-400 transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      DEDUCTIONS & REPAIRS
-                    </span>
-                    <div className="p-2 rounded-xl bg-purple-50 text-purple-700">
-                      <ReceiptRupeeIcon className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h2 className="font-sans font-bold text-3xl text-purple-900 tracking-tight">
-                    ₹{depositEscrowMetrics.totalDamageDeductions.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-purple-700 font-medium">
-                    Deducted for room damage or notice shortfall
-                  </p>
-                </div>
-              </div>
-
-              {/* 2. 1-Click Master Audit Export Center */}
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
-                <div className="border-b border-gray-100 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
-                    <h3 className="font-serif font-bold text-xl text-gray-900">
-                      Download Reports (Excel & CSV)
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">
-                      Download ready-made files for your accounts or Chartered Accountant (CA)
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-gray-900 tracking-tight truncate">
+                      ₹{depositEscrowMetrics.activeDepositsHeld.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-0.5 line-clamp-2">
+                      Deposit collected from active tenants
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Deposit Stat 2: Pending Security Deposit */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      PENDING DEPOSIT
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-700 shrink-0">
+                      <Clock className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-amber-900 tracking-tight truncate">
+                      ₹{depositEscrowMetrics.pendingDeposits.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-0.5 line-clamp-2">
+                      Deposit yet to be collected
+                    </p>
+                  </div>
+                </div>
+
+                {/* Deposit Stat 3: Deposits Refunded */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-blue-400 transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      DEPOSITS REFUNDED
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0">
+                      <Wallet className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-blue-900 tracking-tight truncate">
+                      ₹{depositEscrowMetrics.totalRefunded.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-blue-700 font-medium mt-0.5 line-clamp-2">
+                      Refunded to move-outs ({activeDateBounds.label})
+                    </p>
+                  </div>
+                </div>
+
+                {/* Deposit Stat 4: Deductions / Repairs */}
+                <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-purple-400 transition-all flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      DEDUCTIONS & REPAIRS
+                    </span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-purple-50 text-purple-700 shrink-0">
+                      <ReceiptRupeeIcon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-purple-900 tracking-tight truncate">
+                      ₹{depositEscrowMetrics.totalDamageDeductions.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-purple-700 font-medium mt-0.5 line-clamp-2">
+                      Deducted for room damage or shortfall
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. 1-Click Master Audit Export Center */}
+              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4 sm:space-y-6">
+                <div className="border-b border-gray-100 pb-3 sm:pb-4">
+                  <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
+                    Download Reports (Excel & CSV)
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                    Download ready-made files for your accounts or Chartered Accountant (CA)
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                   {/* Export Box 1: Rent Payment Report */}
-                  <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
-                    <div className="space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                        <FileSpreadsheet className="w-5 h-5" />
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                        <FileSpreadsheet className="w-4 sm:w-5 h-4 sm:h-5" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">Rent Payment Report (.csv)</h4>
-                      <p className="text-xs text-gray-500 leading-relaxed">
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Rent Payment Report (.csv)</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
                         All rent payments, dates, UPI references, and tenant details in the selected timeline.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleExportRentRollCSV}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
                     >
                       <Download className="w-4 h-4" /> Download Rent Report
                     </button>
                   </div>
 
                   {/* Export Box 2: Expense & Bill Report */}
-                  <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
-                    <div className="space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
-                        <ReceiptRupeeIcon className="w-5 h-5" />
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold">
+                        <ReceiptRupeeIcon className="w-4 sm:w-5 h-4 sm:h-5" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">Expense & Bill Report (.csv)</h4>
-                      <p className="text-xs text-gray-500 leading-relaxed">
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Expense & Bill Report (.csv)</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
                         All PG operational expenses, bills, and vendor payments with category breakdown.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
                     >
                       <Download className="w-4 h-4" /> Download Expense Report
                     </button>
                   </div>
 
                   {/* Export Box 3: Security Deposit Report */}
-                  <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group">
-                    <div className="space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
-                        <ShieldCheck className="w-5 h-5" />
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-gray-50 border border-gray-200 flex flex-col justify-between space-y-3 sm:space-y-4 hover:border-[#c2652a]/60 hover:bg-orange-50/20 transition-all group sm:col-span-2 md:col-span-1">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
+                        <ShieldCheck className="w-4 sm:w-5 h-4 sm:h-5" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">Security Deposit Report (.csv)</h4>
-                      <p className="text-xs text-gray-500 leading-relaxed">
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Security Deposit Report (.csv)</h4>
+                      <p className="text-[11px] sm:text-xs text-gray-500 leading-relaxed">
                         Tenant security deposit status list with joining dates and emergency contacts.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleExportDepositRegisterCSV}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                      className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-300 group-hover:border-[#c2652a] group-hover:bg-[#c2652a] group-hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs min-h-[42px] active:scale-95"
                     >
                       <Download className="w-4 h-4" /> Download Deposit Report
                     </button>
@@ -860,20 +869,23 @@ export default function ReportsAnalyticsPage({
               </div>
 
               {/* 3. Security Deposit Custody List Table */}
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-4 border-b border-gray-100 pb-3 sm:pb-4">
                   <div>
-                    <h3 className="font-serif font-bold text-xl text-gray-900">
+                    <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
                       Tenant Security Deposit List
                     </h3>
                     <p className="text-xs text-gray-500 font-medium">
                       Deposit status for all active residents
                     </p>
                   </div>
+                  <span className="text-[10px] text-gray-400 font-semibold sm:hidden">
+                    👉 Swipe horizontally to view all
+                  </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <table className="min-w-[620px] w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
                         <th className="py-3 px-4 rounded-l-xl">Resident</th>
@@ -891,22 +903,22 @@ export default function ReportsAnalyticsPage({
                           <tr key={occ.id} className="hover:bg-gray-50/60 transition-colors">
                             <td className="py-3.5 px-4 font-bold text-gray-900">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs">
+                                <div className="w-7 h-7 rounded-full bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs shrink-0">
                                   {occ.name.charAt(0)}
                                 </div>
-                                <span>{occ.name}</span>
+                                <span className="truncate max-w-[140px]">{occ.name}</span>
                               </div>
                             </td>
-                            <td className="py-3.5 px-4 text-gray-600 font-medium">
+                            <td className="py-3.5 px-4 text-gray-600 font-medium whitespace-nowrap">
                               Room {occ.roomNumber} ({occ.bedCode})
                             </td>
-                            <td className="py-3.5 px-4 text-gray-500 font-mono">
+                            <td className="py-3.5 px-4 text-gray-500 font-mono whitespace-nowrap">
                               {occ.joiningDate || "Active Cycle"}
                             </td>
-                            <td className="py-3.5 px-4 text-right font-bold text-gray-900 font-mono text-sm">
+                            <td className="py-3.5 px-4 text-right font-bold text-gray-900 font-mono text-sm whitespace-nowrap">
                               ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
                             </td>
-                            <td className="py-3.5 px-4 text-center">
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               <span
                                 className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
                                   stmt.isDepositCleared
@@ -917,7 +929,7 @@ export default function ReportsAnalyticsPage({
                                 {stmt.isDepositCleared ? "✓ DEPOSIT PAID" : "⚠️ PENDING"}
                               </span>
                             </td>
-                            <td className="py-3.5 px-4 text-right">
+                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
                               <Link
                                 href={`/p/${propertyId}/tenants/${occ.id}`}
                                 className="text-xs font-bold text-[#c2652a] hover:underline"
@@ -939,117 +951,125 @@ export default function ReportsAnalyticsPage({
           {/* TAB 2: BUSINESS & YIELD ANALYTICS                         */}
           {/* ========================================================= */}
           {activeTab === "BUSINESS_ANALYTICS" && (
-            <div className="space-y-8 animate-in fade-in">
-              {/* 1. Core Yield & Cost KPI Bento Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in">
+              {/* 1. Core Yield & Cost KPI Bento Grid (2x2 on Mobile, 4 on Desktop) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* KPI 1: ARPB */}
-                <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-[#c2652a] transition-all">
+                <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-gray-200 shadow-xs space-y-2 sm:space-y-3 hover:border-[#c2652a] transition-all flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       AVERAGE RENT / BED
                     </span>
-                    <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
-                      <Zap className="w-4 h-4" />
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                      <Zap className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                     </div>
                   </div>
-                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                    ₹{businessAnalytics.arpb.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-gray-500 font-medium">
-                    Average rent earned per occupied bed
-                  </p>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-gray-900 tracking-tight truncate">
+                      ₹{businessAnalytics.arpb.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-2">
+                      Average rent earned per occupied bed
+                    </p>
+                  </div>
                 </div>
 
                 {/* KPI 2: CPB */}
-                <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-amber-400 transition-all">
+                <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-gray-200 shadow-xs space-y-2 sm:space-y-3 hover:border-amber-400 transition-all flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       MONTHLY EXPENSE / BED
                     </span>
-                    <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                      <Clock className="w-4 h-4" />
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-700 shrink-0">
+                      <Clock className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                     </div>
                   </div>
-                  <h2 className="font-sans font-bold text-3xl text-amber-900 tracking-tight">
-                    ₹{businessAnalytics.cpb.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-amber-700 font-medium">
-                    PG running cost per resident this month
-                  </p>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-amber-900 tracking-tight truncate">
+                      ₹{businessAnalytics.cpb.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-0.5 line-clamp-2">
+                      PG running cost per resident this month
+                    </p>
+                  </div>
                 </div>
 
                 {/* KPI 3: Net Profit Margin */}
-                <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-emerald-400 transition-all">
+                <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-gray-200 shadow-xs space-y-2 sm:space-y-3 hover:border-emerald-400 transition-all flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       NET PROFIT MARGIN
                     </span>
-                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
-                      <TrendingUp className="w-4 h-4" />
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
+                      <TrendingUp className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                     </div>
                   </div>
-                  <h2 className="font-sans font-bold text-3xl text-emerald-700 tracking-tight">
-                    {businessAnalytics.operatingMargin}%
-                  </h2>
-                  <p className="text-[11px] text-emerald-700 font-medium">
-                    Profit left after paying all PG bills & expenses
-                  </p>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-emerald-700 tracking-tight truncate">
+                      {businessAnalytics.operatingMargin}%
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-emerald-700 font-medium mt-0.5 line-clamp-2">
+                      Profit left after paying all PG bills
+                    </p>
+                  </div>
                 </div>
 
                 {/* KPI 4: Bed Occupancy */}
-                <div className="p-6 rounded-3xl bg-white border border-gray-200 shadow-xs space-y-3 hover:border-blue-400 transition-all">
+                <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-gray-200 shadow-xs space-y-2 sm:space-y-3 hover:border-blue-400 transition-all flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500">
                       BED OCCUPANCY
                     </span>
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
-                      <Building2 className="w-4 h-4" />
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0">
+                      <Building2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                     </div>
                   </div>
-                  <h2 className="font-sans font-bold text-3xl text-blue-900 tracking-tight">
-                    {businessAnalytics.totalBeds > 0
-                      ? ((businessAnalytics.occupiedBeds / businessAnalytics.totalBeds) * 100).toFixed(1)
-                      : "0.0"}%
-                  </h2>
-                  <p className="text-[11px] text-blue-700 font-medium">
-                    {businessAnalytics.occupiedBeds} of {businessAnalytics.totalBeds} beds occupied ({businessAnalytics.totalBeds - businessAnalytics.occupiedBeds} vacant)
-                  </p>
+                  <div>
+                    <h2 className="font-sans font-bold text-lg sm:text-2xl md:text-3xl text-blue-900 tracking-tight truncate">
+                      {businessAnalytics.totalBeds > 0
+                        ? ((businessAnalytics.occupiedBeds / businessAnalytics.totalBeds) * 100).toFixed(1)
+                        : "0.0"}%
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-blue-700 font-medium mt-0.5 line-clamp-2">
+                      {businessAnalytics.occupiedBeds} of {businessAnalytics.totalBeds} beds occupied
+                    </p>
+                  </div>
                 </div>
               </div>
 
               {/* 2. 6-Month Collections & Occupancy Trend Chart */}
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-100 pb-4">
+              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-100 pb-3 sm:pb-4">
                   <div>
-                    <h3 className="font-serif font-bold text-xl text-gray-900">
+                    <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
                       6-Month Collections & Occupancy Trend
                     </h3>
-                    <p className="text-xs text-gray-500 font-medium">
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
                       Track how your monthly collections and filled beds are growing over time
                     </p>
                   </div>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                    📈 +14.2% Compared to Last Month
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shrink-0">
+                    📈 +14.2% Growth Trajectory
                   </span>
                 </div>
 
                 {/* Visual CSS/SVG Interactive Bar Chart */}
                 <div className="space-y-3">
-                  <div className="grid grid-cols-6 gap-2 sm:gap-4 items-end h-64 pt-8 pb-2 border-b border-gray-100">
+                  <div className="grid grid-cols-6 gap-1.5 sm:gap-4 items-end h-52 sm:h-64 pt-6 sm:pt-8 pb-2 border-b border-gray-100">
                     {businessAnalytics.sixMonthTrend.map((item, idx) => {
                       const maxRev = Math.max(...businessAnalytics.sixMonthTrend.map((t) => t.revenue)) || 1;
                       const heightPct = Math.max(15, Math.round((item.revenue / maxRev) * 100));
 
                       return (
-                        <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end group">
-                          {/* Tooltip on hover */}
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[10px] font-bold py-1 px-2 rounded-lg shadow-lg mb-1 whitespace-nowrap">
-                            ₹{(item.revenue / 1000).toFixed(0)}K ({item.occupancyPct}%)
+                        <div key={item.month} className="flex flex-col items-center gap-1.5 sm:gap-2 h-full justify-end group">
+                          {/* Tooltip on hover/touch */}
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[9px] sm:text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg shadow-lg mb-1 whitespace-nowrap pointer-events-none">
+                            ₹{(item.revenue / 1000).toFixed(0)}K
                           </div>
 
                           {/* Bar Graphic */}
                           <div
-                            className="w-full max-w-[48px] rounded-2xl transition-all duration-500 relative flex items-end justify-center shadow-xs overflow-hidden"
+                            className="w-full max-w-[36px] sm:max-w-[48px] rounded-xl sm:rounded-2xl transition-all duration-500 relative flex items-end justify-center shadow-xs overflow-hidden"
                             style={{
                               height: `${heightPct}%`,
                               backgroundColor: idx === businessAnalytics.sixMonthTrend.length - 1 ? "#c2652a" : "#cbd5e1",
@@ -1062,19 +1082,19 @@ export default function ReportsAnalyticsPage({
                           </div>
 
                           {/* Month Label */}
-                          <span className="text-xs font-bold text-gray-700">{item.month}</span>
+                          <span className="text-[10px] sm:text-xs font-bold text-gray-700">{item.month}</span>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="flex items-center justify-center gap-6 pt-2 text-xs font-bold">
+                  <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2 text-[11px] sm:text-xs font-bold flex-wrap">
                     <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-md bg-[#c2652a]"></span>
+                      <span className="w-3 h-3 rounded-md bg-[#c2652a] shrink-0"></span>
                       <span className="text-gray-700">Rent Collected (₹)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-md bg-emerald-500"></span>
+                      <span className="w-3 h-3 rounded-md bg-emerald-500 shrink-0"></span>
                       <span className="text-gray-700">Bed Occupancy (%)</span>
                     </div>
                   </div>
@@ -1082,18 +1102,23 @@ export default function ReportsAnalyticsPage({
               </div>
 
               {/* 3. Room Sharing Performance Matrix */}
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
-                <div className="border-b border-gray-100 pb-4">
-                  <h3 className="font-serif font-bold text-xl text-gray-900">
-                    Room Sharing Performance
-                  </h3>
-                  <p className="text-xs text-gray-500 font-medium">
-                    See which room type (Single, 2-Sharing, 3-Sharing) makes the most money
-                  </p>
+              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-4 border-b border-gray-100 pb-3 sm:pb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
+                      Room Sharing Performance
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">
+                      See which room type (Single, 2-Sharing, 3-Sharing) makes the most money
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-semibold sm:hidden">
+                    👉 Swipe horizontally to view all
+                  </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <table className="min-w-[640px] w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
                         <th className="py-3 px-4 rounded-l-xl">Room Sharing Type</th>
@@ -1108,28 +1133,28 @@ export default function ReportsAnalyticsPage({
                     <tbody className="divide-y divide-gray-100 font-medium">
                       {businessAnalytics.sharingMatrix.map((item) => (
                         <tr key={item.bedCount} className="hover:bg-gray-50/60 transition-colors">
-                          <td className="py-4 px-4 font-bold text-gray-900 flex items-center gap-2">
-                            <Layers className="w-4 h-4 text-[#c2652a]" />
+                          <td className="py-4 px-4 font-bold text-gray-900 flex items-center gap-2 whitespace-nowrap">
+                            <Layers className="w-4 h-4 text-[#c2652a] shrink-0" />
                             <span>{item.sharingName}</span>
                           </td>
-                          <td className="py-4 px-4 text-center font-bold text-gray-700">
+                          <td className="py-4 px-4 text-center font-bold text-gray-700 whitespace-nowrap">
                             {item.totalBeds} Beds
                           </td>
-                          <td className="py-4 px-4 text-center font-bold text-[#c2652a]">
+                          <td className="py-4 px-4 text-center font-bold text-[#c2652a] whitespace-nowrap">
                             {item.occupiedBeds}
                           </td>
-                          <td className="py-4 px-4 text-center">
+                          <td className="py-4 px-4 text-center whitespace-nowrap">
                             <span className="bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-full font-bold text-[11px] border border-emerald-200">
                               {item.occPct}%
                             </span>
                           </td>
-                          <td className="py-4 px-4 text-right font-mono font-bold text-gray-900">
+                          <td className="py-4 px-4 text-right font-mono font-bold text-gray-900 whitespace-nowrap">
                             ₹{item.avgRentPerBed.toLocaleString("en-IN")}
                           </td>
-                          <td className="py-4 px-4 text-right font-mono font-bold text-emerald-700">
+                          <td className="py-4 px-4 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
                             ₹{item.realizedYield.toLocaleString("en-IN")}
                           </td>
-                          <td className="py-4 px-4 text-right font-mono font-bold text-amber-700">
+                          <td className="py-4 px-4 text-right font-mono font-bold text-amber-700 whitespace-nowrap">
                             ₹{item.vacancyLoss.toLocaleString("en-IN")}
                           </td>
                         </tr>
@@ -1140,9 +1165,9 @@ export default function ReportsAnalyticsPage({
               </div>
 
               {/* 4. Payment Mode Breakdown (UPI & Cash Only) */}
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
-                <div className="border-b border-gray-100 pb-4">
-                  <h3 className="font-serif font-bold text-xl text-gray-900">
+              <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
+                <div className="border-b border-gray-100 pb-3 sm:pb-4">
+                  <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
                     Payment Mode Breakdown
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
@@ -1150,29 +1175,29 @@ export default function ReportsAnalyticsPage({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-5 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-between">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-orange-900">Online UPI (PhonePe / GPay / Paytm)</span>
-                      <p className="font-sans font-bold text-2xl text-[#c2652a] mt-1">
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-orange-900">Online UPI (PhonePe / GPay / Paytm)</span>
+                      <p className="font-sans font-bold text-xl sm:text-2xl text-[#c2652a] mt-1">
                         ₹{businessAnalytics.upiTotal.toLocaleString("en-IN")}
                       </p>
                       <span className="text-xs font-bold text-orange-700">{businessAnalytics.upiPct}% of Total Collections</span>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold text-sm shadow-2xs">
+                    <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center font-bold text-xs sm:text-sm shadow-2xs shrink-0">
                       UPI
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                  <div className="p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">Cash Desk (Front Desk Cash)</span>
-                      <p className="font-sans font-bold text-2xl text-emerald-700 mt-1">
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-900">Cash Desk (Front Desk Cash)</span>
+                      <p className="font-sans font-bold text-xl sm:text-2xl text-emerald-700 mt-1">
                         ₹{businessAnalytics.cashTotal.toLocaleString("en-IN")}
                       </p>
                       <span className="text-xs font-bold text-emerald-700">{businessAnalytics.cashPct}% of Total Collections</span>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xl shadow-2xs">
+                    <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg sm:text-xl shadow-2xs shrink-0">
                       💵
                     </div>
                   </div>
@@ -1185,11 +1210,11 @@ export default function ReportsAnalyticsPage({
 
       {/* CUSTOM DATE RANGE FILTER MODAL */}
       {showCustomDateModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full p-5 sm:p-8 space-y-5 sm:space-y-6 animate-in zoom-in-95 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
-                <h3 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2">
+                <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900 flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-[#c2652a]" /> Custom Report Timeline
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -1218,7 +1243,7 @@ export default function ReportsAnalyticsPage({
                     setCustomStartDate(d7.toISOString().split("T")[0]);
                     setCustomEndDate(now.toISOString().split("T")[0]);
                   }}
-                  className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
+                  className="py-2 px-2 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer min-h-[38px]"
                 >
                   Last 7 Days
                 </button>
@@ -1231,7 +1256,7 @@ export default function ReportsAnalyticsPage({
                     setCustomStartDate(d30.toISOString().split("T")[0]);
                     setCustomEndDate(now.toISOString().split("T")[0]);
                   }}
-                  className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
+                  className="py-2 px-2 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer min-h-[38px]"
                 >
                   Last 30 Days
                 </button>
@@ -1244,7 +1269,7 @@ export default function ReportsAnalyticsPage({
                     setCustomStartDate(d90.toISOString().split("T")[0]);
                     setCustomEndDate(now.toISOString().split("T")[0]);
                   }}
-                  className="py-2 px-2.5 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer"
+                  className="py-2 px-2 rounded-xl border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/50 text-[11px] font-bold text-gray-700 text-center transition-all cursor-pointer min-h-[38px]"
                 >
                   Last 90 Days
                 </button>
@@ -1265,7 +1290,7 @@ export default function ReportsAnalyticsPage({
               }}
               className="space-y-4 pt-2"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
                     Start Date (From) *
@@ -1292,19 +1317,19 @@ export default function ReportsAnalyticsPage({
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+              <div className="flex justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowCustomDateModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 cursor-pointer min-h-[42px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold shadow-md cursor-pointer active:scale-95 transition-all"
+                  className="px-5 sm:px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold shadow-md cursor-pointer active:scale-95 transition-all min-h-[42px]"
                 >
-                  Apply Report Window ➔
+                  Apply Window ➔
                 </button>
               </div>
             </form>
@@ -1314,8 +1339,8 @@ export default function ReportsAnalyticsPage({
 
       {/* Floating Luxury Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="bg-[#201a17] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-[#c2652a]/40 flex items-center gap-3 max-w-md text-xs font-bold">
+        <div className="fixed bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-[#201a17] text-white px-4 sm:px-5 py-3.5 rounded-2xl shadow-2xl border border-[#c2652a]/40 flex items-center gap-3 max-w-md text-xs font-bold">
             <span className="shrink-0">{toastMessage}</span>
             <button
               type="button"
