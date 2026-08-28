@@ -70,9 +70,11 @@ export function getCleanAuthErrorMessage(err: any): string {
     code === "auth/user-not-found" ||
     msg.includes("invalid-credential") ||
     msg.includes("user-not-found") ||
-    msg.includes("No registered account found")
+    msg.includes("No registered account found") ||
+    msg.includes("Unsupported field value") ||
+    msg.includes("undefined")
   ) {
-    return "Invalid email or password. Please verify your credentials or sign up if you do not have an account.";
+    return "No active TenoPilot account found for this Google email. Please click Sign Up below to create or activate your property.";
   }
   if (code === "auth/user-disabled") {
     return "This account has been suspended. Please contact platform support.";
@@ -208,17 +210,21 @@ export async function loginWithGoogle(
         const all = staffStore.getAllGlobalStaff();
         const match = all.find((s) => s.email.toLowerCase() === email);
 
-        profile = {
+        const newProfile: any = {
           uid: user.uid,
           email: email,
-          displayName: matchStaffData?.name || match?.name || user.displayName || "Staff Member",
+          displayName: matchStaffData?.name || match?.name || user.displayName || "Property Owner",
           organizationId: "org_estate",
           role: matchStaffData?.role || match?.role || "master_admin",
           assignedPropertyId: matchStaffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
-          hasSetPin: matchStaffData?.hasSetPin ?? match?.hasSetPin ?? false,
-          securityPin: matchStaffData?.securityPin ?? match?.securityPin ?? undefined,
+          hasSetPin: Boolean(matchStaffData?.hasSetPin ?? match?.hasSetPin),
         };
-        await setDoc(userDocRef, profile, { merge: true });
+        const pin = matchStaffData?.securityPin ?? match?.securityPin;
+        if (pin) {
+          newProfile.securityPin = pin;
+        }
+        await setDoc(userDocRef, newProfile, { merge: true });
+        profile = newProfile as AuthUserProfile;
       }
 
       return { user, profile };
@@ -233,20 +239,22 @@ export async function loginWithGoogle(
       const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
       const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
 
-      const profile: AuthUserProfile = {
+      const profile: any = {
         uid: user.uid,
         email: email,
         displayName: user.displayName || "Property Owner",
         organizationId: orgId,
-        photoURL: user.photoURL || undefined,
         role: "master_admin",
         assignedPropertyId: assignedPropertyId,
         isNewUser: true,
         hasSetPin: false,
       };
+      if (user.photoURL) {
+        profile.photoURL = user.photoURL;
+      }
 
       await setDoc(userDocRef, profile, { merge: true });
-      return { user, profile };
+      return { user, profile: profile as AuthUserProfile };
     }
   } catch (error: any) {
     console.error("Google Auth Error:", error);
