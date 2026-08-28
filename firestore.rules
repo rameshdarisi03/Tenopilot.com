@@ -55,6 +55,28 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /properties/{propertyId}/settings/{settingId} {
+      allow read: if true;
+      allow write: if isOrgAdmin();
+    }
+
+    match /properties/{propertyId}/occupants/{occupantId} {
+      allow read, write: if true;
+    }
+
+    match /properties/{propertyId}/complaints/{complaintId} {
+      allow read, create: if true; // Public complaint submission
+      allow update, delete: if isAuthenticated();
+    }
+
+    match /properties/{propertyId}/financials/{docId} {
+      allow read, write: if true;
+    }
+
+    match /properties/{propertyId}/staff/{staffId} {
+      allow read, write: if true;
+    }
+
     // ==========================================
     // 👑 5. FOUNDER & APEX COMMAND PORTAL
     // ==========================================
