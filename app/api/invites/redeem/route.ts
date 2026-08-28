@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, getDocs, collection, updateDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function POST(req: NextRequest) {
@@ -153,6 +153,37 @@ export async function POST(req: NextRequest) {
         status: "REDEEMED",
         redeemedAt: foundInvite.redeemedAt,
       });
+
+      // Atomically guarantee properties/{propertyId}/settings/config exists
+      const propId = `prop-${foundInvite.id}`;
+      const propSettingsDoc = {
+        propertyName: foundInvite.pgName,
+        propertyAddress: `${foundInvite.city || "Bengaluru"}, India`,
+        managerPhone: foundInvite.ownerPhone || "",
+        managerEmail: foundInvite.ownerEmail || "",
+        approxBeds: foundInvite.approxBeds || 80,
+        defaultSecurityDeposit: 0,
+        billingCycleDates: "1st to End of Month",
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, "properties", propId, "settings", "config"), propSettingsDoc, { merge: true });
+
+      // Atomically update Organization Portfolio document
+      const sanitizedEmail = (foundInvite.ownerEmail || cleanIdentifier).replace(/[^a-z0-9]/g, "_");
+      const portfolioDoc = {
+        properties: [
+          {
+            id: propId,
+            name: foundInvite.pgName,
+            location: `${foundInvite.city || "Bengaluru"}, India`,
+            totalBeds: foundInvite.approxBeds || 80,
+            occupiedBeds: 0,
+            active: true,
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, "users", `portfolio_${sanitizedEmail}`), portfolioDoc, { merge: true });
     } catch (e) {
       console.warn("Firestore updateDoc in /api/invites/redeem error:", e);
     }

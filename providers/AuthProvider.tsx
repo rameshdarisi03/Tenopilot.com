@@ -112,14 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
-            // Upgrade owner accounts to master_admin if they had stale admin role
-            const finalRole = staffAccountDoc?.role || (data.role === "admin" ? "master_admin" : data.role || "master_admin");
+            const isExplicitStaff = Boolean(staffAccountDoc?.role || staffMatch?.role);
+            const finalRole = isExplicitStaff
+              ? (staffAccountDoc?.role || staffMatch?.role || "receptionist")
+              : (data.role === "admin" ? "master_admin" : data.role || "master_admin");
             data.role = finalRole;
-            data.assignedPropertyId = data.assignedPropertyId || resolvedProp;
+            data.assignedPropertyId = (isExplicitStaff && (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId)) || data.assignedPropertyId || resolvedProp;
             setProfile(data);
             staffStore.setActiveRole(data.role);
 
-            // Persist the upgraded master_admin role back to Firestore
+            // Persist the verified role back to Firestore
             if (data.role !== snap.data()?.role) {
               setDoc(userDocRef, { role: data.role }, { merge: true }).catch(() => {});
             }

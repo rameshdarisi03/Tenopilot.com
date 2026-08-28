@@ -114,6 +114,37 @@ export async function POST(req: NextRequest) {
 
     try {
       await setDoc(doc(db, "founder_invites", inviteRecord.id), inviteRecord);
+
+      // Atomically provision properties/{propertyId}/settings/config in Cloud Firestore
+      const propId = `prop-${inviteRecord.id}`;
+      const propSettingsDoc = {
+        propertyName: inviteRecord.pgName,
+        propertyAddress: `${inviteRecord.city}, India`,
+        managerPhone: inviteRecord.ownerPhone,
+        managerEmail: inviteRecord.ownerEmail,
+        approxBeds: 80,
+        defaultSecurityDeposit: 0,
+        billingCycleDates: "1st to End of Month",
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, "properties", propId, "settings", "config"), propSettingsDoc, { merge: true });
+
+      // Atomically provision Organization Portfolio doc
+      const sanitizedEmail = inviteRecord.ownerEmail.replace(/[^a-z0-9]/g, "_");
+      const portfolioDoc = {
+        properties: [
+          {
+            id: propId,
+            name: inviteRecord.pgName,
+            location: `${inviteRecord.city}, India`,
+            totalBeds: 80,
+            occupiedBeds: 0,
+            active: true,
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, "users", `portfolio_${sanitizedEmail}`), portfolioDoc, { merge: true });
     } catch (fsErr) {
       console.warn("Firestore write in POST /api/invites fallback:", fsErr);
     }
