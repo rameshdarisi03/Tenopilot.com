@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { founderStore } from "@/constants/founderStore";
 import { staffStore } from "@/lib/staffStore";
+import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
+import { initializeCleanProperty } from "@/lib/accountInitializer";
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -136,6 +138,22 @@ function SignUpPageContent() {
           }),
           securityPin: password.slice(0, 6),
         });
+
+        const newPropertyRecord: PortfolioProperty = {
+          id: propId,
+          name: invite.pgName,
+          location: `${invite.city || "Bengaluru"}, India`,
+          bedsCount: 80,
+          occupancyRate: "0.0%",
+          collectionRate: "0%",
+          status: "HEALTHY",
+          createdAt: new Date().toISOString(),
+          ownerEmail: invite.ownerEmail,
+        };
+
+        // Initialize clean property layout and add to isolated portfolio
+        initializeCleanProperty(propId, invite.pgName, invite.ownerName);
+        portfolioStore.addProperty(newPropertyRecord, invite.ownerEmail);
 
         localStorage.setItem(
           "tenopilot_saved_session",

@@ -146,10 +146,23 @@ export default function HomeWorkspacePage() {
     const syncAndRefreshProperties = () => {
       let customProps = portfolioStore.getProperties();
 
-      // If newly registered tenant owner has NO properties yet, automatically provision their first building!
+      let savedSessionData: any = null;
+      if (typeof window !== "undefined") {
+        try {
+          const s = localStorage.getItem("tenopilot_saved_session");
+          if (s) savedSessionData = JSON.parse(s);
+        } catch {}
+      }
+
+      // Filter out demo Sunshine PG and dummy Main Executive PG for non-master real client accounts
+      if (!isMasterAccount) {
+        customProps = customProps.filter((p) => p.id !== "sunshine-pg" && p.id !== "main-executive-pg");
+      }
+
+      // If newly registered tenant owner has NO properties yet, provision their actual registered building!
       if (!isMasterAccount && customProps.length === 0 && isMasterAdminRole) {
-        const initialOwnerBuildingName = `${profile?.displayName || "Main"} Executive PG`;
-        const initialSlug = initialOwnerBuildingName
+        const initialOwnerBuildingName = savedSessionData?.propertyName || `${profile?.displayName || "My"} PG`;
+        const initialSlug = savedSessionData?.propertyId || initialOwnerBuildingName
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "");
@@ -158,16 +171,16 @@ export default function HomeWorkspacePage() {
           id: initialSlug || "my-first-pg",
           name: initialOwnerBuildingName,
           location: "Bengaluru, Karnataka",
-          bedsCount: 100,
+          bedsCount: 80,
           occupancyRate: "0.0%",
           collectionRate: "0%",
           status: "HEALTHY",
           createdAt: new Date().toISOString(),
-          ownerEmail: profile?.email || "",
+          ownerEmail: profile?.email || savedSessionData?.email || "",
         };
 
-        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, profile?.displayName || "Property Owner");
-        portfolioStore.addProperty(defaultOwnerBuilding, profile?.email);
+        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, profile?.displayName || savedSessionData?.name || "Property Owner");
+        portfolioStore.addProperty(defaultOwnerBuilding, profile?.email || savedSessionData?.email);
         customProps = [defaultOwnerBuilding];
       }
 
@@ -185,16 +198,13 @@ export default function HomeWorkspacePage() {
         }
       }
 
-      // Compute live real-time metrics
-      let liveSunshine: PortfolioProperty | null = null;
-      if (isMasterAccount || isMasterAdminRole) {
-        liveSunshine = computeLiveSunshineMetrics();
-      }
-
-      if ((isMasterAccount || isMasterAdminRole) && liveSunshine) {
+      // Compute live real-time metrics ONLY for master platform demo account
+      if (isMasterAccount) {
+        const liveSunshine = computeLiveSunshineMetrics();
         const customWithoutSunshine = customProps.filter((p) => p.id !== "sunshine-pg");
         setProperties([liveSunshine, ...customWithoutSunshine]);
       } else {
+        // Real customer account -> show ONLY their actual properties!
         setProperties(customProps);
       }
     };
@@ -206,21 +216,21 @@ export default function HomeWorkspacePage() {
     const unsubPortfolio = portfolioStore.subscribe(syncAndRefreshProperties);
 
     const unsubProperty = propertyStore.subscribe(() => {
-      if (isMasterAccount || isMasterAdminRole) {
+      if (isMasterAccount) {
         const updatedLive = computeLiveSunshineMetrics();
         setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
       }
     });
 
     const unsubOccupant = occupantStore.subscribe(() => {
-      if (isMasterAccount || isMasterAdminRole) {
+      if (isMasterAccount) {
         const updatedLive = computeLiveSunshineMetrics();
         setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
       }
     });
 
     const unsubSettings = propertySettingsStore.subscribe(() => {
-      if (isMasterAccount || isMasterAdminRole) {
+      if (isMasterAccount) {
         const updatedLive = computeLiveSunshineMetrics();
         setProperties((prev) => [updatedLive, ...prev.filter((p) => p.id !== "sunshine-pg")]);
       }
