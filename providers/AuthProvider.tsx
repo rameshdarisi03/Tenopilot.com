@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staffAccountDoc?.role ||
           staffMatch?.role ||
           savedSessionRole ||
-          (email.includes("rec") ? "receptionist" : email.includes("admin") && !email.includes("master") ? "admin" : "master_admin");
+          (email.includes("receptionist") ? "receptionist" : "master_admin");
 
         const resolvedName =
           staffAccountDoc?.name ||
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           savedSessionName ||
           currentUser.displayName ||
           sanitizeTitleCase(email.split("@")[0]) ||
-          (resolvedRole === "master_admin" ? "Master Admin" : "Team Member");
+          "Property Owner";
 
         const resolvedProp =
           staffAccountDoc?.assignedPropertyId ||
@@ -112,10 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
-            data.role = data.role || resolvedRole;
+            // Upgrade owner accounts to master_admin if they had stale admin role
+            const finalRole = staffAccountDoc?.role || (data.role === "admin" ? "master_admin" : data.role || "master_admin");
+            data.role = finalRole;
             data.assignedPropertyId = data.assignedPropertyId || resolvedProp;
             setProfile(data);
             staffStore.setActiveRole(data.role);
+
+            // Persist the upgraded master_admin role back to Firestore
+            if (data.role !== snap.data()?.role) {
+              setDoc(userDocRef, { role: data.role }, { merge: true }).catch(() => {});
+            }
           } else {
             const newProf: UserProfile = {
               uid: currentUser.uid,
@@ -155,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 email: parsed.email || "staff@tenopilot.com",
                 displayName: sanitizeTitleCase(parsed.name || parsed.email?.split("@")[0] || "Team Member"),
                 organizationId: "org_estate_01",
-                role: (parsed.role as UserRole) || "admin",
+                role: (parsed.role as UserRole) || "master_admin",
                 assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
               };
               setProfile(fallbackProf);

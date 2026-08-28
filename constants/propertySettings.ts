@@ -165,9 +165,20 @@ export const propertySettingsStore = {
       } catch {}
     }
 
+    let customFallbackName = "New Property Estate";
+    if (typeof window !== "undefined") {
+      try {
+        const s = localStorage.getItem("tenopilot_saved_session");
+        if (s) {
+          const parsed = JSON.parse(s);
+          if (parsed?.propertyName) customFallbackName = parsed.propertyName;
+        }
+      } catch {}
+    }
+
     const initial = propertyId === "sunshine-pg"
       ? { ...DEFAULT_PROPERTY_SETTINGS }
-      : { ...CLEAN_ZERO_PROPERTY_SETTINGS };
+      : { ...CLEAN_ZERO_PROPERTY_SETTINGS, propertyName: customFallbackName };
     PROPERTY_SETTINGS_MAP.set(propertyId, initial);
     return initial;
   },
