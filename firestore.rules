@@ -54,5 +54,24 @@ service cloud.firestore {
     match /properties/{propertyId}/{document=**} {
       allow read, write: if true;
     }
+
+    // ==========================================
+    // 👑 5. FOUNDER & APEX COMMAND PORTAL
+    // ==========================================
+    match /founder_invites/{inviteId} {
+      allow read, write: if true;
+    }
+
+    match /founder_clients/{clientId} {
+      allow read, write: if true;
+    }
+
+    match /platform_admin/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /apex_monitoring/{document=**} {
+      allow read, write: if true;
+    }
   }
 }
