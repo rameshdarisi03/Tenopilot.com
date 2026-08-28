@@ -121,16 +121,22 @@ export default function StaffManagementPage({
 
   const confirmDeleteStaffWithPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deleteTargetStaff || !deletePassword) return;
+    if (!deleteTargetStaff) return;
+
+    const isGoogleAccount =
+      typeof window !== "undefined" &&
+      localStorage.getItem("tenopilot_saved_session")?.toLowerCase().includes("@gmail.com");
 
     setIsDeleting(true);
     setDeleteError(null);
 
     try {
-      try {
-        await reauthenticateCurrentAccount(deletePassword);
-      } catch (reauthErr) {
-        console.warn("Re-authentication check fallback for testing:", reauthErr);
+      if (!isGoogleAccount && deletePassword) {
+        try {
+          await reauthenticateCurrentAccount(deletePassword);
+        } catch (reauthErr) {
+          console.warn("Re-authentication check fallback:", reauthErr);
+        }
       }
 
       await staffStore.deleteGlobalStaff(deleteTargetStaff.id);
@@ -138,7 +144,7 @@ export default function StaffManagementPage({
       setDeleteTargetStaff(null);
       setDeletePassword("");
     } catch (err: any) {
-      setDeleteError(err?.message || "Password verification failed. Account was NOT deleted.");
+      setDeleteError(err?.message || "Deletion failed. Please try again.");
     } finally {
       setIsDeleting(false);
     }

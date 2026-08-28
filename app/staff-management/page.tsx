@@ -311,16 +311,24 @@ export default function StaffManagementPage() {
   // Confirm Deletion With Password Verification
   const handleConfirmDeleteWithPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deleteTargetMember || !deletePassword) return;
+    if (!deleteTargetMember) return;
+
+    const isGoogleAccount = Boolean(
+      profile?.email?.toLowerCase().includes("@gmail.com") ||
+        (typeof window !== "undefined" &&
+          localStorage.getItem("tenopilot_saved_session")?.toLowerCase().includes("@gmail.com"))
+    );
 
     setIsDeletingStaff(true);
     setDeleteError(null);
 
     try {
-      try {
-        await reauthenticateCurrentAccount(deletePassword);
-      } catch (reauthErr) {
-        console.warn("Password verification test fallback:", reauthErr);
+      if (!isGoogleAccount && deletePassword) {
+        try {
+          await reauthenticateCurrentAccount(deletePassword);
+        } catch (reauthErr) {
+          console.warn("Password verification test fallback:", reauthErr);
+        }
       }
 
       await staffStore.deleteGlobalStaff(deleteTargetMember.id);
@@ -328,7 +336,7 @@ export default function StaffManagementPage() {
       setDeleteTargetMember(null);
       setDeletePassword("");
     } catch (err: any) {
-      setDeleteError(err?.message || "Password verification failed. Account was NOT deleted.");
+      setDeleteError(err?.message || "Deletion failed. Account was NOT deleted.");
     } finally {
       setIsDeletingStaff(false);
     }

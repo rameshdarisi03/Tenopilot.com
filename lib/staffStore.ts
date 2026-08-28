@@ -335,13 +335,28 @@ class StaffStore {
   }
 
   async deleteGlobalStaff(staffId: string): Promise<boolean> {
-    const target = this.globalStaffList.find((s) => s.id === staffId);
-    this.globalStaffList = this.globalStaffList.filter((s) => s.id !== staffId);
+    const target = this.globalStaffList.find((s) => s.id === staffId || s.email === staffId);
+    this.globalStaffList = this.globalStaffList.filter((s) => s.id !== staffId && s.email !== staffId);
     this.saveGlobalStaffToStorage();
     this.notify();
 
-    if (target && target.assignedPropertyId) {
-      await this.deleteStaff(target.assignedPropertyId, staffId);
+    if (target) {
+      if (target.assignedPropertyId) {
+        await this.deleteStaff(target.assignedPropertyId, target.id);
+      }
+      if (target.assignedPropertyIds) {
+        for (const pid of target.assignedPropertyIds) {
+          if (pid !== "*") await this.deleteStaff(pid, target.id);
+        }
+      }
+      // Also delete from staff_accounts collection in Cloud Firestore
+      if (target.email) {
+        try {
+          await deleteDoc(doc(db, "staff_accounts", target.email.toLowerCase()));
+        } catch (e) {
+          console.warn("Failed to delete staff_accounts doc:", e);
+        }
+      }
     }
     return true;
   }
