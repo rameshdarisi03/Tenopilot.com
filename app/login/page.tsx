@@ -879,9 +879,9 @@ export default function LoginPage() {
                 </form>
 
                 <div className="text-center text-xs text-gray-500 pt-2">
-                  New property?{" "}
+                  Don&apos;t have an account?{" "}
                   <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
-                    Activate with Code
+                    Sign Up
                   </Link>
                 </div>
               </div>

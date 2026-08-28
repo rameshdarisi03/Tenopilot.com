@@ -444,7 +444,7 @@ function SignUpPageContent() {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Activate My Property ➔</span>
+                    <span>Proceed with Sign Up ➔</span>
                   </>
                 )}
               </button>
