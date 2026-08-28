@@ -469,6 +469,11 @@ export const founderStore = {
     };
 
     inMemoryInvites = [newInvite, ...inMemoryInvites];
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_local_invites", JSON.stringify(inMemoryInvites));
+      } catch {}
+    }
     this.notify();
 
     // Persist to Cloud Firestore
@@ -490,10 +495,48 @@ export const founderStore = {
     const cleanIdentifier = identifier.trim().toLowerCase();
     const cleanPhone = identifier.replace(/\D/g, "");
 
-    const invite = inMemoryInvites.find((inv) => {
+    // 1. Check in-memory state
+    let invite = inMemoryInvites.find((inv) => {
       const invCode = inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
       return invCode === formattedCode;
     });
+
+    // 2. Check localStorage cache
+    if (!invite && typeof window !== "undefined") {
+      try {
+        const local = localStorage.getItem("tenopilot_local_invites");
+        if (local) {
+          const parsed = JSON.parse(local) as FounderVipInvite[];
+          const found = parsed.find((inv) => inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "") === formattedCode);
+          if (found) {
+            invite = found;
+            inMemoryInvites = [found, ...inMemoryInvites.filter((i) => i.id !== found.id)];
+          }
+        }
+      } catch (err) {
+        console.warn("Local storage invite check error:", err);
+      }
+    }
+
+    // 3. Fallback: Query Cloud Firestore directly in real-time
+    if (!invite) {
+      try {
+        const snap = await getDocs(collection(db, "founder_invites"));
+        if (!snap.empty) {
+          snap.docs.forEach((d) => {
+            const data = { id: d.id, ...d.data() } as FounderVipInvite;
+            if (data.activationCode && data.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "") === formattedCode) {
+              invite = data;
+            }
+            if (!inMemoryInvites.some((i) => i.id === data.id)) {
+              inMemoryInvites.push(data);
+            }
+          });
+        }
+      } catch (fsErr) {
+        console.warn("Direct Firestore lookup failed:", fsErr);
+      }
+    }
 
     if (!invite) {
       return { success: false, message: "⚠️ Invalid activation code. Please verify the code issued by your onboarding representative." };
@@ -508,12 +551,13 @@ export const founderStore = {
     const invEmail = invite.ownerEmail.toLowerCase().trim();
 
     const matchesEmail = cleanIdentifier.includes("@") && invEmail === cleanIdentifier;
-    const matchesPhone = cleanPhone.length >= 10 && (invPhone.endsWith(cleanPhone) || cleanPhone.endsWith(invPhone));
+    const matchesPhone = cleanPhone.length >= 7 && (invPhone.endsWith(cleanPhone) || cleanPhone.endsWith(invPhone) || invPhone.includes(cleanPhone) || cleanPhone.includes(invPhone));
 
     if (!matchesEmail && !matchesPhone) {
+      const maskedPhone = invite.ownerPhone.length >= 4 ? `${invite.ownerPhone.slice(0, 3)}***${invite.ownerPhone.slice(-2)}` : "your registered phone";
       return {
         success: false,
-        message: `⚠️ This activation code is bound to registered contact details. Please enter the exact Mobile Number (${invite.ownerPhone.slice(0, 3)}***${invite.ownerPhone.slice(-2)}) or Email used during onboarding.`,
+        message: `⚠️ This activation code is bound to registered contact details. Please enter the exact Mobile Number (${maskedPhone}) or Email used during onboarding.`,
       };
     }
 
@@ -521,6 +565,12 @@ export const founderStore = {
     invite.status = "REDEEMED";
     invite.redeemedAt = new Date().toISOString();
     this.notify();
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tenopilot_local_invites", JSON.stringify(inMemoryInvites));
+      } catch {}
+    }
 
     // Persist redemption to Cloud Firestore
     try {
