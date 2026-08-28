@@ -150,38 +150,36 @@ export default function HomeWorkspacePage() {
     };
   };
 
-  // Load properties dynamically with STRICT RBAC ISOLATION & Real-Time Cloud Firestore Sync
   useEffect(() => {
-    const role = staffStore.getActiveRole();
-    setActiveRole(role);
+    let savedSessionData: any = null;
+    if (typeof window !== "undefined") {
+      try {
+        const s = localStorage.getItem("tenopilot_saved_session");
+        if (s) savedSessionData = JSON.parse(s);
+      } catch {}
+    }
 
-    const email = profile?.email?.toLowerCase() || "";
+    const email = profile?.email?.toLowerCase() || savedSessionData?.email?.toLowerCase() || "";
     const isMasterAccount = email === "isharapandey01@gmail.com";
+    const role = staffStore.getActiveRole() || savedSessionData?.role || "master_admin";
+    setActiveRole(role);
     const isMasterAdminRole = role === "master_admin";
 
     // 🔒 STRICT RBAC GUARD 1: Receptionists are NEVER allowed on the multi-building portfolio page!
     if (role === "receptionist") {
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === email);
-      const targetProperty = match?.assignedPropertyId || profile?.assignedPropertyId || "sunshine-pg";
+      const targetProperty = match?.assignedPropertyId || profile?.assignedPropertyId || savedSessionData?.propertyId || "sunshine-pg";
       router.replace(`/p/${targetProperty}/overview`);
       return;
     }
 
     // Initialize Real-Time Cloud Firestore Sync
-    portfolioStore.initFirebaseListener(profile?.email);
+    portfolioStore.initFirebaseListener(email);
     propertyStore.initFirebaseListener("sunshine-pg");
 
     const syncAndRefreshProperties = () => {
       let customProps = portfolioStore.getProperties();
-
-      let savedSessionData: any = null;
-      if (typeof window !== "undefined") {
-        try {
-          const s = localStorage.getItem("tenopilot_saved_session");
-          if (s) savedSessionData = JSON.parse(s);
-        } catch {}
-      }
 
       // Filter out demo Sunshine PG and dummy Main Executive PG for non-master real client accounts
       if (!isMasterAccount) {
@@ -190,7 +188,7 @@ export default function HomeWorkspacePage() {
 
       // If newly registered tenant owner has NO properties yet, provision their actual registered building!
       if (!isMasterAccount && customProps.length === 0 && isMasterAdminRole) {
-        const initialOwnerBuildingName = savedSessionData?.propertyName || `${profile?.displayName || "My"} PG`;
+        const initialOwnerBuildingName = savedSessionData?.propertyName || `${profile?.displayName || savedSessionData?.name || "My"} PG`;
         const initialSlug = savedSessionData?.propertyId || initialOwnerBuildingName
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
@@ -205,11 +203,11 @@ export default function HomeWorkspacePage() {
           collectionRate: "0%",
           status: "HEALTHY",
           createdAt: new Date().toISOString(),
-          ownerEmail: profile?.email || savedSessionData?.email || "",
+          ownerEmail: email,
         };
 
         initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, profile?.displayName || savedSessionData?.name || "Property Owner");
-        portfolioStore.addProperty(defaultOwnerBuilding, profile?.email || savedSessionData?.email);
+        portfolioStore.addProperty(defaultOwnerBuilding, email);
         customProps = [defaultOwnerBuilding];
       }
 

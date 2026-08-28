@@ -47,9 +47,17 @@ export function PropertyHeader({
   );
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(10);
 
-  const displayName = profile?.displayName || "Ishara Pandey";
-  const userEmail = profile?.email || "isharapandey01@gmail.com";
-  const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "IP";
+  let savedSessionData: any = null;
+  if (typeof window !== "undefined") {
+    try {
+      const s = localStorage.getItem("tenopilot_saved_session");
+      if (s) savedSessionData = JSON.parse(s);
+    } catch {}
+  }
+
+  const displayName = profile?.displayName || savedSessionData?.name || "Property Owner";
+  const userEmail = profile?.email || savedSessionData?.email || "owner@tenopilot.com";
+  const userInitials = displayName.split(" ").map((n: string) => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "PO";
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);

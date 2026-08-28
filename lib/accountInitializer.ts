@@ -5,6 +5,19 @@ import { propertySettingsStore, CLEAN_ZERO_PROPERTY_SETTINGS } from "@/constants
 import { partnerStore, getDefaultPartners } from "@/constants/partnerStore";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
+import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
+import { staffStore } from "@/lib/staffStore";
+
+export interface ProvisionWorkspaceParams {
+  propertyId: string;
+  propertyName: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPhone?: string;
+  city?: string;
+  approxBeds?: number;
+  securityPin?: string;
+}
 
 /**
  * Universal Property Initializer
@@ -18,7 +31,8 @@ import { occupantStore } from "@/constants/mockOccupants";
 export async function initializeCleanProperty(
   propertyId: string,
   propertyName: string = "New Property Estate",
-  ownerName?: string
+  ownerName?: string,
+  city?: string
 ) {
   if (typeof window === "undefined" || !propertyId) return;
 
@@ -27,6 +41,7 @@ export async function initializeCleanProperty(
     const initialSettings = {
       ...CLEAN_ZERO_PROPERTY_SETTINGS,
       propertyName: propertyName,
+      propertyAddress: city ? `${city}, India` : "Bengaluru, Karnataka",
     };
     await propertySettingsStore.updateSettings(initialSettings, propertyId);
 
@@ -42,4 +57,73 @@ export async function initializeCleanProperty(
   } catch (e) {
     console.warn(`Property initialization notice for ${propertyId}:`, e);
   }
+}
+
+/**
+ * Master Centralized Provisioning Bridge
+ * Atomically ties Founder Invites, Portfolio Store, Property Settings, and Staff Auth into ONE single unified execution.
+ */
+export async function provisionNewPropertyWorkspace(params: ProvisionWorkspaceParams) {
+  const {
+    propertyId,
+    propertyName,
+    ownerName,
+    ownerEmail,
+    ownerPhone = "",
+    city = "Bengaluru",
+    approxBeds = 80,
+    securityPin = "123456",
+  } = params;
+
+  if (typeof window === "undefined" || !propertyId) return;
+
+  // 1. Initialize clean property database
+  await initializeCleanProperty(propertyId, propertyName, ownerName, city);
+
+  // 2. Provision building inside Owner's Organization Portfolio
+  const portfolioProperty: PortfolioProperty = {
+    id: propertyId,
+    name: propertyName,
+    location: city ? `${city}, India` : "Bengaluru, India",
+    bedsCount: approxBeds,
+    occupancyRate: "0.0%",
+    collectionRate: "0%",
+    status: "HEALTHY",
+    createdAt: new Date().toISOString(),
+    ownerEmail: ownerEmail,
+  };
+  await portfolioStore.addProperty(portfolioProperty, ownerEmail);
+
+  // 3. Register user as MASTER ADMIN in Staff Accounts
+  staffStore.addGlobalStaff({
+    id: `owner-${Date.now()}`,
+    name: ownerName,
+    email: ownerEmail,
+    phone: ownerPhone,
+    role: "master_admin",
+    assignedPropertyId: propertyId,
+    assignedPropertyIds: [propertyId],
+    propertyName: propertyName,
+    status: "Active",
+    joinedDate: new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }),
+    securityPin: securityPin.slice(0, 6),
+  });
+
+  // 4. Store active saved session for immediate zero-latency hydration
+  localStorage.setItem(
+    "tenopilot_saved_session",
+    JSON.stringify({
+      email: ownerEmail,
+      phone: ownerPhone,
+      name: ownerName,
+      role: "master_admin",
+      propertyName: propertyName,
+      propertyId: propertyId,
+    })
+  );
+  staffStore.setActiveRole("master_admin");
 }

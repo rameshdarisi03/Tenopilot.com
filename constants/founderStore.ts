@@ -31,12 +31,13 @@ export interface FounderClientRecord {
 
 export interface FounderVipInvite {
   id: string;
-  activationCode: string; // 6-digit e.g. "842-913"
+  activationCode: string; // e.g. "8K4N-9X2M"
   pgName: string;
   ownerName: string;
   ownerPhone: string;
   ownerEmail: string;
   city: string;
+  approxBeds?: number;
   assignedPlan: "14_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP";
   trialDurationDays: number;
   status: "PENDING" | "REDEEMED" | "EXPIRED";

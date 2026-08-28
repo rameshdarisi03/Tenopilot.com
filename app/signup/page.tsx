@@ -18,7 +18,7 @@ import {
 import { founderStore } from "@/constants/founderStore";
 import { staffStore } from "@/lib/staffStore";
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
-import { initializeCleanProperty } from "@/lib/accountInitializer";
+import { provisionNewPropertyWorkspace } from "@/lib/accountInitializer";
 import { loginWithGoogle } from "@/lib/authService";
 
 function SignUpPageContent() {
@@ -106,50 +106,15 @@ function SignUpPageContent() {
           setActivatedSuccess(invite);
 
           const propId = `prop-${invite.id}`;
-          staffStore.addGlobalStaff({
-            id: `owner-${Date.now()}`,
-            name: invite.ownerName || userName,
-            email: invite.ownerEmail || userEmail,
-            phone: invite.ownerPhone,
-            role: "master_admin",
-            assignedPropertyId: propId,
-            assignedPropertyIds: [propId],
+          await provisionNewPropertyWorkspace({
+            propertyId: propId,
             propertyName: invite.pgName,
-            status: "Active",
-            joinedDate: new Date().toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
-          });
-
-          const newPropertyRecord: PortfolioProperty = {
-            id: propId,
-            name: invite.pgName,
-            location: `${invite.city || "Bengaluru"}, India`,
-            bedsCount: 80,
-            occupancyRate: "0.0%",
-            collectionRate: "0%",
-            status: "HEALTHY",
-            createdAt: new Date().toISOString(),
+            ownerName: invite.ownerName || userName,
             ownerEmail: invite.ownerEmail || userEmail,
-          };
-
-          initializeCleanProperty(propId, invite.pgName, invite.ownerName || userName);
-          portfolioStore.addProperty(newPropertyRecord, invite.ownerEmail || userEmail);
-
-          localStorage.setItem(
-            "tenopilot_saved_session",
-            JSON.stringify({
-              email: invite.ownerEmail || userEmail,
-              phone: invite.ownerPhone,
-              name: invite.ownerName || userName,
-              role: "master_admin",
-              propertyName: invite.pgName,
-              propertyId: propId,
-            })
-          );
-          staffStore.setActiveRole("master_admin");
+            ownerPhone: invite.ownerPhone || "",
+            city: invite.city || "Bengaluru",
+            approxBeds: invite.approxBeds || 80,
+          });
 
           setTimeout(() => {
             router.push(`/p/${propId}/overview`);
@@ -208,54 +173,17 @@ function SignUpPageContent() {
         const invite = res.invite;
         setActivatedSuccess(invite);
 
-        // Register local session
         const propId = `prop-${invite.id}`;
-        staffStore.addGlobalStaff({
-          id: `owner-${Date.now()}`,
-          name: invite.ownerName,
-          email: invite.ownerEmail,
-          phone: invite.ownerPhone,
-          role: "master_admin",
-          assignedPropertyId: propId,
-          assignedPropertyIds: [propId],
+        await provisionNewPropertyWorkspace({
+          propertyId: propId,
           propertyName: invite.pgName,
-          status: "Active",
-          joinedDate: new Date().toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          }),
+          ownerName: invite.ownerName,
+          ownerEmail: invite.ownerEmail,
+          ownerPhone: invite.ownerPhone,
+          city: invite.city || "Bengaluru",
+          approxBeds: invite.approxBeds || 80,
           securityPin: password.slice(0, 6),
         });
-
-        const newPropertyRecord: PortfolioProperty = {
-          id: propId,
-          name: invite.pgName,
-          location: `${invite.city || "Bengaluru"}, India`,
-          bedsCount: 80,
-          occupancyRate: "0.0%",
-          collectionRate: "0%",
-          status: "HEALTHY",
-          createdAt: new Date().toISOString(),
-          ownerEmail: invite.ownerEmail,
-        };
-
-        // Initialize clean property layout and add to isolated portfolio
-        initializeCleanProperty(propId, invite.pgName, invite.ownerName);
-        portfolioStore.addProperty(newPropertyRecord, invite.ownerEmail);
-
-        localStorage.setItem(
-          "tenopilot_saved_session",
-          JSON.stringify({
-            email: invite.ownerEmail,
-            phone: invite.ownerPhone,
-            name: invite.ownerName,
-            role: "master_admin",
-            propertyName: invite.pgName,
-            propertyId: propId,
-          })
-        );
-        staffStore.setActiveRole("master_admin");
 
         setTimeout(() => {
           router.push(`/p/${propId}/overview`);
