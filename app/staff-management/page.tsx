@@ -68,9 +68,7 @@ export default function StaffManagementPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
 
-  const [properties, setProperties] = useState<{ id: string; name: string }[]>([
-    { id: "sunshine-pg", name: "Sunshine Luxury PG" },
-  ]);
+  const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     // Initialize Real-time Firestore Portfolio Listener
@@ -78,14 +76,23 @@ export default function StaffManagementPage() {
 
     const refreshProperties = () => {
       const liveProps = portfolioStore.getProperties();
-      const defaultList = [{ id: "sunshine-pg", name: "Sunshine Luxury PG" }];
-      const combined = [
-        ...defaultList,
-        ...liveProps.filter((p) => p.id !== "sunshine-pg").map((p) => ({ id: p.id, name: p.name })),
-      ];
-      setProperties(combined);
-      if (combined.length > 0 && !assignedPropertyId) {
-        setAssignedPropertyId(combined[0].id);
+      const isDemoAccount = profile?.email === "isharapandey01@gmail.com";
+
+      let propList = liveProps.map((p) => ({ id: p.id, name: p.name }));
+      if (!isDemoAccount) {
+        propList = propList.filter((p) => p.id !== "sunshine-pg");
+      }
+      if (propList.length === 0) {
+        if (isDemoAccount) {
+          propList = [{ id: "sunshine-pg", name: "Sunshine Luxury PG" }];
+        } else if (profile?.assignedPropertyId && profile.assignedPropertyId !== "sunshine-pg") {
+          propList = [{ id: profile.assignedPropertyId, name: "Primary Property" }];
+        }
+      }
+
+      setProperties(propList);
+      if (propList.length > 0 && (!assignedPropertyId || assignedPropertyId === "sunshine-pg")) {
+        setAssignedPropertyId(propList[0].id);
       }
     };
 

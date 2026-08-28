@@ -483,12 +483,77 @@ export async function sendUserEmailVerification(): Promise<boolean> {
 }
 
 /**
- * 📧 Sign In with Email & Password
+ * 📱 Universal Phone-to-Email Cloud Resolver
+ * Resolves 10-digit mobile phone numbers to registered work emails across staff_accounts, founder_invites, and users
+ */
+export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
+  const clean = (identifier || "").trim().toLowerCase();
+  if (!clean) return "";
+  if (clean.includes("@")) return clean;
+
+  const cleanPhone = clean.replace(/\D/g, "");
+  if (cleanPhone.length < 7) return clean;
+
+  // 1. Check staffStore in-memory
+  const allStaff = staffStore.getAllGlobalStaff();
+  const staffMemMatch = allStaff.find((s) => {
+    const p = (s.phone || "").replace(/\D/g, "");
+    return p.endsWith(cleanPhone) || cleanPhone.endsWith(p);
+  });
+  if (staffMemMatch?.email) return staffMemMatch.email.toLowerCase();
+
+  // 2. Check Firestore staff_accounts collection
+  try {
+    const snap = await getDocs(collection(db, "staff_accounts"));
+    for (const d of snap.docs) {
+      const data = d.data() as any;
+      const p = (data.phone || "").replace(/\D/g, "");
+      if (p && (p.endsWith(cleanPhone) || cleanPhone.endsWith(p) || p.includes(cleanPhone))) {
+        if (data.email) return data.email.toLowerCase();
+      }
+    }
+  } catch (e) {
+    console.warn("Firestore staff_accounts phone lookup error:", e);
+  }
+
+  // 3. Check Firestore founder_invites collection
+  try {
+    const invSnap = await getDocs(collection(db, "founder_invites"));
+    for (const d of invSnap.docs) {
+      const data = d.data() as any;
+      const p = (data.ownerPhone || "").replace(/\D/g, "");
+      if (p && (p.endsWith(cleanPhone) || cleanPhone.endsWith(p) || p.includes(cleanPhone))) {
+        if (data.ownerEmail) return data.ownerEmail.toLowerCase();
+      }
+    }
+  } catch (e) {
+    console.warn("Firestore founder_invites phone lookup error:", e);
+  }
+
+  // 4. Check Firestore users collection
+  try {
+    const userSnap = await getDocs(collection(db, "users"));
+    for (const d of userSnap.docs) {
+      const data = d.data() as any;
+      const p = (data.phone || "").replace(/\D/g, "");
+      if (p && (p.endsWith(cleanPhone) || cleanPhone.endsWith(p))) {
+        if (data.email) return data.email.toLowerCase();
+      }
+    }
+  } catch (e) {
+    console.warn("Firestore users phone lookup error:", e);
+  }
+
+  return clean;
+}
+
+/**
+ * 📧 Sign In with Email or Mobile Phone & Password
  */
 export async function loginWithEmailPassword(
-  email: string,
+  emailOrPhone: string,
   pass: string
-): Promise<User | null> {
+): Promise<{ user: User | null; email: string }> {
   try {
     try {
       if (typeof window !== "undefined") {
@@ -500,24 +565,28 @@ export async function loginWithEmailPassword(
       } catch {}
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const result = await signInWithEmailAndPassword(auth, cleanEmail, pass);
-    return result.user;
-  } catch (error: any) {
-    // Check if account is in staff_accounts Firestore collection
-    try {
-      const staffDoc = await getDoc(doc(db, "staff_accounts", email.trim().toLowerCase()));
-      if (staffDoc.exists()) {
-        const data = staffDoc.data();
-        if (data.password === pass) {
-          // Password matches staff record!
-          return null; // Return successfully without throwing
-        }
-      }
-    } catch (checkErr) {
-      console.warn("Staff credentials fallback check notice:", checkErr);
-    }
+    const cleanEmail = await resolvePhoneOrEmail(emailOrPhone);
 
+    try {
+      const result = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+      return { user: result.user, email: cleanEmail };
+    } catch (fbErr: any) {
+      // Check if account is in staff_accounts Firestore collection
+      try {
+        const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
+        if (staffDoc.exists()) {
+          const data = staffDoc.data();
+          if (data.password === pass) {
+            // Password matches staff record!
+            return { user: null, email: cleanEmail };
+          }
+        }
+      } catch (checkErr) {
+        console.warn("Staff credentials fallback check notice:", checkErr);
+      }
+      throw fbErr;
+    }
+  } catch (error: any) {
     console.error("Email Login Error:", error);
     throw error;
   }

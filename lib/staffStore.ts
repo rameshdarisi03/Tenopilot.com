@@ -304,7 +304,22 @@ class StaffStore {
         } catch {}
       }
     }
-    return list;
+
+    // Deduplicate by email address to prevent duplicate cards
+    const uniqueMap = new Map<string, StaffMember>();
+    for (const member of list) {
+      const emailKey = (member.email || "").toLowerCase().trim();
+      if (!emailKey) continue;
+      if (!uniqueMap.has(emailKey)) {
+        uniqueMap.set(emailKey, member);
+      } else {
+        const existing = uniqueMap.get(emailKey)!;
+        if (member.role === "master_admin" || (existing.role !== "master_admin" && member.securityPin)) {
+          uniqueMap.set(emailKey, { ...existing, ...member });
+        }
+      }
+    }
+    return Array.from(uniqueMap.values());
   }
 
   async addGlobalStaff(member: StaffMember): Promise<boolean> {

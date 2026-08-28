@@ -246,26 +246,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      let cleanEmail = email.trim().toLowerCase();
-
-      // If user entered a phone number (no @), resolve to linked account email
-      if (!cleanEmail.includes("@")) {
-        const cleanPhone = cleanEmail.replace(/\D/g, "");
-        const allStaff = staffStore.getAllGlobalStaff();
-        const staffMatch = allStaff.find((s) => s.phone.replace(/\D/g, "").endsWith(cleanPhone) || cleanPhone.endsWith(s.phone.replace(/\D/g, "")));
-        if (staffMatch) {
-          cleanEmail = staffMatch.email.toLowerCase();
-        } else {
-          const invites = founderStore.getInvites();
-          const inviteMatch = invites.find((inv) => inv.ownerPhone.replace(/\D/g, "").endsWith(cleanPhone));
-          if (inviteMatch) {
-            cleanEmail = inviteMatch.ownerEmail.toLowerCase();
-          }
-        }
-      }
-
-      // Sign in with Firebase Auth or staff credentials
-      await loginWithEmailPassword(cleanEmail, password);
+      // Sign in with Firebase Auth or staff credentials (supports both Phone Number & Email)
+      const loginResult = await loginWithEmailPassword(email, password);
+      const cleanEmail = loginResult.email || email.trim().toLowerCase();
 
       // Successfully authenticated with credentials -> Immediately clear lockout
       clearLockout();
