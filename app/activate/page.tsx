@@ -64,11 +64,11 @@ export default function ClientActivationPage() {
           <div className="flex items-center justify-center gap-1.5 pt-1">
             <h1 className="font-serif font-bold text-2xl text-white">Activate Your Property</h1>
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#ff3366]/20 text-[#ff5436] border border-[#ff3366]/30">
-              VIP ACCESS
+              EXCLUSIVE ACCESS
             </span>
           </div>
           <p className="text-xs text-slate-400 font-medium max-w-xs mx-auto">
-            Enter the 6-digit VIP Activation Code provided by your TenoPilot onboarding representative
+            Enter the Activation Code provided by your TenoPilot onboarding representative
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export default function ClientActivationPage() {
                 {activatedSuccess.pgName} is Live!
               </h2>
               <p className="text-xs text-emerald-400 font-medium mt-1">
-                ✓ VIP Code {activatedSuccess.activationCode} redeemed successfully
+                ✓ Activation Code {activatedSuccess.activationCode} redeemed successfully
               </p>
             </div>
             <p className="text-xs text-slate-400 animate-pulse">
@@ -101,42 +101,35 @@ export default function ClientActivationPage() {
 
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                Your Registered Email Address *
+                Mobile Number or Email Address *
               </label>
               <input
-                type="email"
+                type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-2xl bg-[#0d0f12] border border-white/10 focus:outline-none focus:border-[#ff5436] focus:ring-2 focus:ring-[#ff3366]/20 text-xs font-semibold text-white placeholder-slate-600 transition-all"
-                placeholder="e.g. suresh.lakshmi@gmail.com"
+                placeholder="9876543210 or owner@gmail.com"
               />
             </div>
 
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                6-Digit VIP Activation Code *
+                Activation Code *
               </label>
               <div className="relative">
                 <input
                   type="text"
                   required
-                  maxLength={7}
                   value={activationCode}
-                  onChange={(e) => {
-                    let val = e.target.value.replace(/[^\d-]/g, "");
-                    if (val.length === 3 && !val.includes("-")) {
-                      val = val + "-";
-                    }
-                    setActivationCode(val);
-                  }}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-[#0d0f12] border border-white/10 focus:outline-none focus:border-[#ff5436] focus:ring-2 focus:ring-[#ff3366]/20 font-mono font-black text-lg text-center tracking-widest text-[#ff5436] placeholder-slate-600 transition-all"
-                  placeholder="842-913"
+                  onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-3.5 rounded-2xl bg-[#0d0f12] border border-white/10 focus:outline-none focus:border-[#ff5436] focus:ring-2 focus:ring-[#ff3366]/20 font-mono font-black text-lg text-center tracking-widest text-[#ff5436] placeholder-slate-600 transition-all uppercase"
+                  placeholder="8K4N-9X2M"
                 />
                 <Ticket className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
               <p className="text-[10px] text-slate-500 mt-1 text-center">
-                Strict 1-time code: Bound strictly to your verified email
+                Strict 1-time pass: Bound strictly to your verified contact details
               </p>
             </div>
 

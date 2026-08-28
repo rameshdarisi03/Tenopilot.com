@@ -145,10 +145,29 @@ const DEFAULT_METRICS: PlatformMacroMetrics = {
   ],
 };
 
+export function generateSecureActivationCode(): string {
+  const CHARSET = "23456789ABCDEFGHJKMNPQRSTVWXYZ";
+  const length = 8;
+  const randomBytes = new Uint8Array(length);
+  if (typeof window !== "undefined" && window.crypto) {
+    window.crypto.getRandomValues(randomBytes);
+  } else {
+    for (let i = 0; i < length; i++) {
+      randomBytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  let code = "";
+  for (let i = 0; i < length; i++) {
+    code += CHARSET[randomBytes[i] % CHARSET.length];
+  }
+  return `${code.slice(0, 4)}-${code.slice(4, 8)}`;
+}
+
 const DEFAULT_INVITES: FounderVipInvite[] = [
   {
     id: "inv-101",
-    activationCode: "842-913",
+    activationCode: "8K4N-9X2M",
     pgName: "Sri Lakshmi Luxury PG",
     ownerName: "Suresh Reddy",
     ownerPhone: "9876543210",
@@ -164,7 +183,7 @@ const DEFAULT_INVITES: FounderVipInvite[] = [
   },
   {
     id: "inv-102",
-    activationCode: "419-782",
+    activationCode: "7P9V-4W8Q",
     pgName: "Zolo Haven Co-living",
     ownerName: "Vikram Malhotra",
     ownerPhone: "9812345678",
@@ -179,7 +198,7 @@ const DEFAULT_INVITES: FounderVipInvite[] = [
   },
   {
     id: "inv-103",
-    activationCode: "630-155",
+    activationCode: "5R7B-2Y9H",
     pgName: "Balaji Executive Stays",
     ownerName: "Anand Sharma",
     ownerPhone: "9845612345",
@@ -430,10 +449,8 @@ export const founderStore = {
     generatedByStaffName: string;
     generatedByStaffEmail: string;
   }): Promise<FounderVipInvite> {
-    // Generate clean 6-digit code e.g. "739-184"
-    const part1 = Math.floor(100 + Math.random() * 900);
-    const part2 = Math.floor(100 + Math.random() * 900);
-    const activationCode = `${part1}-${part2}`;
+    // Generate true random 8-character CSPRNG code e.g. "8K4N-9X2M"
+    const activationCode = generateSecureActivationCode();
 
     const newInvite: FounderVipInvite = {
       id: `inv-${Date.now()}`,
@@ -466,29 +483,41 @@ export const founderStore = {
   },
 
   /**
-   * Redeem a VIP Activation Code
+   * Redeem a Secure Activation Code (Validates against either Mobile Number or Email)
    */
-  async redeemActivationCode(code: string, userEmail: string): Promise<{ success: boolean; message: string; invite?: FounderVipInvite }> {
-    const formattedCode = code.trim().replace(/\s+/g, "");
-    const formattedEmail = userEmail.trim().toLowerCase();
+  async redeemActivationCode(code: string, identifier: string): Promise<{ success: boolean; message: string; invite?: FounderVipInvite }> {
+    const formattedCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const cleanIdentifier = identifier.trim().toLowerCase();
+    const cleanPhone = identifier.replace(/\D/g, "");
 
-    const invite = inMemoryInvites.find(
-      (inv) => inv.activationCode.replace("-", "") === formattedCode.replace("-", "")
-    );
+    const invite = inMemoryInvites.find((inv) => {
+      const invCode = inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return invCode === formattedCode;
+    });
 
     if (!invite) {
-      return { success: false, message: "⚠️ Invalid VIP activation code. Please check with the TenoPilot onboarding team." };
+      return { success: false, message: "⚠️ Invalid activation code. Please verify the code issued by your onboarding representative." };
     }
 
     if (invite.status === "REDEEMED") {
-      return { success: false, message: "⚠️ This activation code has already been redeemed and is no longer valid." };
+      return { success: false, message: "⚠️ This activation code has already been redeemed and is no longer valid. Please log in to your account." };
     }
 
-    if (invite.ownerEmail.toLowerCase() !== formattedEmail) {
-      return { success: false, message: `⚠️ This code was issued specifically to ${invite.ownerEmail}. Please log in with that email address.` };
+    // 2-Factor Check: Match either registered Email or registered Mobile Number
+    const invPhone = invite.ownerPhone.replace(/\D/g, "");
+    const invEmail = invite.ownerEmail.toLowerCase().trim();
+
+    const matchesEmail = cleanIdentifier.includes("@") && invEmail === cleanIdentifier;
+    const matchesPhone = cleanPhone.length >= 10 && (invPhone.endsWith(cleanPhone) || cleanPhone.endsWith(invPhone));
+
+    if (!matchesEmail && !matchesPhone) {
+      return {
+        success: false,
+        message: `⚠️ This activation code is bound to registered contact details. Please enter the exact Mobile Number (${invite.ownerPhone.slice(0, 3)}***${invite.ownerPhone.slice(-2)}) or Email used during onboarding.`,
+      };
     }
 
-    // Mark as redeemed
+    // Mark as redeemed (Burn single-use code)
     invite.status = "REDEEMED";
     invite.redeemedAt = new Date().toISOString();
     this.notify();

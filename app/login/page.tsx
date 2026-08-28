@@ -34,6 +34,7 @@ import {
   syncUserSecurityPinToCloud,
 } from "@/lib/authService";
 import { staffStore, StaffMember } from "@/lib/staffStore";
+import { founderStore } from "@/constants/founderStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -245,7 +246,23 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const cleanEmail = email.trim().toLowerCase();
+      let cleanEmail = email.trim().toLowerCase();
+
+      // If user entered a phone number (no @), resolve to linked account email
+      if (!cleanEmail.includes("@")) {
+        const cleanPhone = cleanEmail.replace(/\D/g, "");
+        const allStaff = staffStore.getAllGlobalStaff();
+        const staffMatch = allStaff.find((s) => s.phone.replace(/\D/g, "").endsWith(cleanPhone) || cleanPhone.endsWith(s.phone.replace(/\D/g, "")));
+        if (staffMatch) {
+          cleanEmail = staffMatch.email.toLowerCase();
+        } else {
+          const invites = founderStore.getInvites();
+          const inviteMatch = invites.find((inv) => inv.ownerPhone.replace(/\D/g, "").endsWith(cleanPhone));
+          if (inviteMatch) {
+            cleanEmail = inviteMatch.ownerEmail.toLowerCase();
+          }
+        }
+      }
 
       // Sign in with Firebase Auth or staff credentials
       await loginWithEmailPassword(cleanEmail, password);
@@ -798,23 +815,23 @@ export default function LoginPage() {
                 <div className="relative flex items-center justify-center my-3">
                   <div className="border-t border-gray-200 w-full" />
                   <span className="bg-white px-3 text-[10px] uppercase font-bold tracking-widest text-gray-400">
-                    Or Continue with Email
+                    Or Sign In with Phone / Email
                   </span>
                 </div>
 
                 <form onSubmit={handleCredentialsSubmit} className="space-y-3.5">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">
-                      Work Email / Staff ID
+                      Mobile Number or Email Address
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
-                        type="email"
+                        type="text"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="e.g. staff@ranapg.com"
+                        placeholder="9876543210 or owner@gmail.com"
                         className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-[#c2652a] focus:outline-hidden bg-white text-gray-900"
                       />
                     </div>
@@ -862,9 +879,9 @@ export default function LoginPage() {
                 </form>
 
                 <div className="text-center text-xs text-gray-500 pt-2">
-                  Don&apos;t have an account?{" "}
+                  New property?{" "}
                   <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
-                    Sign up
+                    Activate with Code
                   </Link>
                 </div>
               </div>

@@ -79,11 +79,11 @@ export default function ApexCommandInvitesPage() {
     const cleanPhone = invite.ownerPhone.replace(/\D/g, "");
     const text = encodeURIComponent(
       `Hello ${invite.ownerName} ji! 🙏\n\n` +
-      `Welcome to TenoPilot! Your exclusive VIP activation code for *${invite.pgName}* is:\n\n` +
+      `Welcome to TenoPilot! Your official Activation Code for *${invite.pgName}* is:\n\n` +
       `🔑 *${invite.activationCode}*\n\n` +
-      `To activate your PG operating dashboard, simply click the link below and enter your code:\n` +
-      `👉 https://tenopilot.com/activate\n\n` +
-      `Your 14-Day Full VIP Trial is ready. If you need any assistance, our team is always here for you!`
+      `To activate your property command dashboard, click the direct access link below:\n` +
+      `👉 https://tenopilot.com/signup?code=${invite.activationCode}\n\n` +
+      `Your 14-Day Free Trial is ready. If you need any assistance, our team is always here for you!`
     );
 
     const waUrl = cleanPhone.length === 10 ? `https://wa.me/91${cleanPhone}?text=${text}` : `https://wa.me/${cleanPhone}?text=${text}`;
@@ -418,13 +418,13 @@ export default function ApexCommandInvitesPage() {
                 <div className="p-6 rounded-3xl bg-gradient-to-tr from-[#ff3366] via-[#7928ca] to-[#0070f3] shadow-2xl space-y-4 text-white relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-widest bg-black/30 px-2.5 py-1 rounded-full border border-white/20">
-                      TENOPILOT VIP ACCESS
+                      EXCLUSIVE ACCESS PASS
                     </span>
-                    <span className="text-xs font-bold">14-DAY VIP PASS</span>
+                    <span className="text-xs font-bold">14-DAY FREE TRIAL</span>
                   </div>
 
                   <div className="py-2">
-                    <p className="text-xs text-white/80 font-medium">1-Time Activation Code:</p>
+                    <p className="text-xs text-white/80 font-medium">Activation Code:</p>
                     <h2 className="font-mono font-black text-4xl tracking-widest text-white mt-1 drop-shadow-md">
                       {newInviteSuccess.activationCode}
                     </h2>
@@ -445,7 +445,7 @@ export default function ApexCommandInvitesPage() {
                 <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/8 text-xs text-slate-300 space-y-1">
                   <p className="font-bold text-white">✅ Code saved to Cloud Firestore!</p>
                   <p className="text-[11px] text-slate-400">
-                    Send this code to {newInviteSuccess.ownerName} ({newInviteSuccess.ownerPhone}). When they log in at <span className="text-[#ff5436] font-mono">tenopilot.com/activate</span>, this code will unlock their PG.
+                    Send this code to {newInviteSuccess.ownerName} ({newInviteSuccess.ownerPhone}). When they register at <span className="text-[#ff5436] font-mono">tenopilot.com/signup</span>, this code will unlock their PG.
                   </p>
                 </div>
 

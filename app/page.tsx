@@ -147,9 +147,9 @@ export default function Home() {
             <Link
               href="/signup"
               id="nav-signup-btn"
-              className="px-5 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:border-[#964407] text-[#201a17] font-bold text-sm transition-all shadow-xs hover:shadow-sm"
+              className="px-5 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-sm transition-all shadow-xs hover:shadow-sm flex items-center gap-1.5"
             >
-              Sign up
+              <span>Activate Property</span>
             </Link>
           </div>
         </div>
@@ -158,13 +158,13 @@ export default function Home() {
       {/* 2. Hero Section */}
       <header className="relative pt-16 pb-24 md:pt-24 md:pb-32 overflow-hidden">
         <div className="max-w-[1240px] mx-auto px-6 text-center relative z-10">
-          {/* Item 5 PRECISION RENTAL OS with blinking status dot */}
+          {/* Status Badge with Private Access */}
           <div className="inline-flex items-center gap-2 bg-[#f8ede3] text-[#964407] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-8 border border-[#d7c2b9]">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            Precision Rental OS
+            <span>Private Access • Verified PG Operators</span>
           </div>
 
           <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-[#201a17] max-w-5xl mx-auto leading-[1.15]">
@@ -177,21 +177,22 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 mb-16">
-            {/* Item 6 Start 10-Day Free Trial */}
+            {/* Primary CTA: Activate Property */}
             <Link
               href="/signup"
               id="hero-primary-cta"
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-base font-bold transition-all shadow-xl hover:shadow-[#964407]/20 hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
             >
-              Start 10-Day Free Trial <ArrowRight className="w-5 h-5" />
+              <span>Activate Property with Code</span> <ArrowRight className="w-5 h-5" />
             </Link>
             <a
-              href="#features"
+              href="https://wa.me/919876543210?text=Hi%20TenoPilot%2C%20I%20am%20a%20PG%20owner%20and%20I%20would%20like%20to%20request%20an%20Activation%20Pass."
+              target="_blank"
+              rel="noopener noreferrer"
               id="hero-secondary-cta"
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-white text-[#201a17] text-base font-bold border border-[#d7c2b9] shadow-md hover:bg-[#f8ede3] hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
             >
-              <PlayCircle className="w-5 h-5 text-[#964407]" />
-              Explore Features
+              <span>Request Access Pass ➔</span>
             </a>
           </div>
 
