@@ -6,10 +6,6 @@ import { useRouter } from "next/navigation";
 import { FounderSidebar } from "@/components/founder/FounderSidebar";
 import { FounderHeader } from "@/components/founder/FounderHeader";
 import {
-  founderStore,
-  FounderClientRecord,
-} from "@/constants/founderStore";
-import {
   Building2,
   Search,
   Eye,
@@ -30,527 +26,531 @@ import {
   ChevronRight,
   Filter,
   Plus,
+  Trash2,
+  RefreshCw,
+  Zap,
+  HardDrive,
+  UserX,
+  FileSpreadsheet,
+  AlertOctagon,
 } from "lucide-react";
+import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 
 export default function ApexCommandClientsPage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [clients, setClients] = useState<FounderClientRecord[]>(() => founderStore.getClients());
+  const [accounts, setAccounts] = useState<ScannedAccountRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [planFilter, setPlanFilter] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [cityFilter, setCityFilter] = useState<string>("ALL");
-  const [selectedClient, setSelectedClient] = useState<FounderClientRecord | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"ALL" | "ACTIVE_VIP" | "BETA_LEGACY" | "PENDING_VIP" | "SUSPENDED">("ALL");
 
-  useEffect(() => {
-    founderStore.initFirebase();
-    const unsub = founderStore.subscribe(() => {
-      setClients(founderStore.getClients());
-    });
-    return () => {
-      unsub();
-    };
-  }, []);
+  // Selected account for Deep Purge modal
+  const [accountToPurge, setAccountToPurge] = useState<ScannedAccountRecord | null>(null);
+  const [purgeConfirmationInput, setPurgeConfirmationInput] = useState("");
+  const [isPurging, setIsPurging] = useState(false);
+
+  // Selected account for Upgrade to VIP modal
+  const [accountToUpgrade, setAccountToUpgrade] = useState<ScannedAccountRecord | null>(null);
+  const [upgradePgName, setUpgradePgName] = useState("");
+  const [upgradePlan, setUpgradePlan] = useState("PRO_MONTHLY");
+  const [isUpgrading, setIsUpgrading] = useState(false);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleImpersonate = (client: FounderClientRecord) => {
-    triggerToast(`👑 Entering God-Mode for ${client.pgName}...`);
-    setTimeout(() => {
-      router.push(`/p/${client.id}/overview?impersonate=true`);
-    }, 600);
+  const fetchScannedAccounts = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/apex/scan-accounts");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.accounts)) {
+          setAccounts(data.accounts);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to scan Firestore accounts:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleExtendTrial = async (client: FounderClientRecord, days: number = 7) => {
-    await founderStore.extendClientTrial(client.id, days);
-    triggerToast(`✓ Free trial extended by +${days} days for ${client.pgName}!`);
+  useEffect(() => {
+    fetchScannedAccounts();
+  }, []);
+
+  // Handle Deep Purge Execution
+  const handleExecuteDeepPurge = async () => {
+    if (!accountToPurge) return;
+    setIsPurging(true);
+
+    try {
+      const res = await fetch("/api/apex/purge-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: accountToPurge.email,
+          userId: accountToPurge.userId,
+          propertyIds: accountToPurge.propertyIds,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`✓ Zero-Footprint Deep Purge complete for ${accountToPurge.email}!`);
+        setAccounts((prev) => prev.filter((a) => a.email !== accountToPurge.email));
+        setAccountToPurge(null);
+        setPurgeConfirmationInput("");
+      } else {
+        triggerToast(`⚠️ Purge error: ${data.message}`);
+      }
+    } catch (err: any) {
+      triggerToast(`⚠️ Purge failed: ${err.message}`);
+    } finally {
+      setIsPurging(false);
+    }
   };
 
-  const handleToggleSuspend = async (client: FounderClientRecord) => {
-    await founderStore.toggleClientSuspension(client.id);
-    const newStatus = client.status === "SUSPENDED" ? "Active" : "Suspended";
-    triggerToast(`✓ ${client.pgName} account status changed to ${newStatus}`);
+  // Handle Suspend / Resume
+  const handleToggleSuspend = async (account: ScannedAccountRecord) => {
+    const isCurrentlySuspended = account.classification === "SUSPENDED";
+    const targetStatus = isCurrentlySuspended ? "ACTIVE" : "SUSPENDED";
+
+    try {
+      const res = await fetch("/api/apex/toggle-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: account.userId,
+          email: account.email,
+          newStatus: targetStatus,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`✓ Account ${account.email} status changed to ${targetStatus}`);
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.email === account.email
+              ? {
+                  ...a,
+                  classification: targetStatus === "SUSPENDED" ? "SUSPENDED" : "ACTIVE_VIP",
+                }
+              : a
+          )
+        );
+      }
+    } catch (err: any) {
+      triggerToast(`⚠️ Status update failed: ${err.message}`);
+    }
   };
 
-  // Filtered Clients
-  const filteredClients = clients.filter((c) => {
+  // Filter accounts
+  const filteredAccounts = accounts.filter((acc) => {
     const matchesSearch =
-      c.pgName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.ownerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.ownerPhone.includes(searchQuery) ||
-      c.ownerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.area.toLowerCase().includes(searchQuery.toLowerCase());
+      acc.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      acc.phone.includes(searchQuery) ||
+      (acc.primaryPropertyName || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesPlan = planFilter === "ALL" ? true : c.plan === planFilter;
-    const matchesStatus = statusFilter === "ALL" ? true : c.status === statusFilter;
-    const matchesCity = cityFilter === "ALL" ? true : c.city === cityFilter;
+    const matchesTab = activeTab === "ALL" ? true : acc.classification === activeTab;
 
-    return matchesSearch && matchesPlan && matchesStatus && matchesCity;
+    return matchesSearch && matchesTab;
   });
 
-  const totalClients = clients.length;
-  const activePaidCount = clients.filter((c) => c.status === "ACTIVE").length;
-  const trialCount = clients.filter((c) => c.status === "TRIAL").length;
-  const totalBedsAcrossPlatform = clients.reduce((sum, c) => sum + c.totalBeds, 0);
+  const totalCount = accounts.length;
+  const betaCount = accounts.filter((a) => a.classification === "BETA_LEGACY").length;
+  const activeVipCount = accounts.filter((a) => a.classification === "ACTIVE_VIP").length;
+  const pendingCount = accounts.filter((a) => a.classification === "PENDING_VIP").length;
+  const suspendedCount = accounts.filter((a) => a.classification === "SUSPENDED").length;
 
   return (
-    <div className="flex min-h-screen bg-[#0d0f12] text-slate-100 font-sans selection:bg-[#ff3366]/30 selection:text-white">
+    <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden font-sans">
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl bg-emerald-500 text-black font-bold text-xs shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-3">
+          <CheckCircle2 className="w-4 h-4 text-black" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Sidebar */}
       <FounderSidebar
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 md:pl-64">
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#0d1117]">
         <FounderHeader
-          title="PG Master CRM"
-          subtitle="Directory of all onboarded PG properties with 1-click client impersonation"
+          title="Account Intelligence & Deep Purge"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
-          actionElement={
-            <Link
-              href="/apex-command/invites"
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-lg shadow-[#ff3366]/20 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Onboard Customer</span>
-            </Link>
-          }
         />
 
-        <main className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 flex-1 max-w-[1400px] mx-auto w-full pb-24">
-          {/* Top 4 KPI Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                TOTAL CUSTOMERS
-              </span>
-              <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-white">
-                {totalClients} Customers
-              </h2>
-              <p className="text-[11px] text-slate-400">Active organizations</p>
+        <div className="p-4 sm:p-8 space-y-8 max-w-[1440px] mx-auto w-full pb-28">
+          {/* Header & Controls */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-widest bg-[#ff3366]/20 text-[#ff3366] px-2.5 py-0.5 rounded-full border border-[#ff3366]/30">
+                  APEX LIVE DATABASE SCANNER ⚡
+                </span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  Cloud Firestore Real-Time
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+                <span>Customer & Beta Account Registry</span>
+              </h1>
+              <p className="text-xs text-gray-400 mt-1">
+                Deep audit of all authenticated Google & email accounts, orphan prototype workspaces, and official VIP properties.
+              </p>
             </div>
 
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                PAID SUBSCRIBERS
-              </span>
-              <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-emerald-400">
-                {activePaidCount} Paid PGs
-              </h2>
-              <p className="text-[11px] text-emerald-400/80">Active Pro / Annual</p>
-            </div>
-
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                FREE TRIALS
-              </span>
-              <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-[#ff5436]">
-                {trialCount} In Trial
-              </h2>
-              <p className="text-[11px] text-slate-400">14-Day Free Passes</p>
-            </div>
-
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                MANAGED BED INVENTORY
-              </span>
-              <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-blue-400">
-                {totalBedsAcrossPlatform} Beds
-              </h2>
-              <p className="text-[11px] text-blue-400/80">Across all customer PGs</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchScannedAccounts}
+                disabled={isLoading}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs border border-white/10 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#ff3366]" : ""}`} />
+                <span>{isLoading ? "Scanning Firestore..." : "Scan Database Now"}</span>
+              </button>
+              <Link
+                href="/apex-command/invites"
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff3366] to-[#ff8400] text-white font-bold text-xs shadow-lg shadow-[#ff3366]/20 hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Issue New VIP Pass</span>
+              </Link>
             </div>
           </div>
 
-          {/* Search & Multi-Filter Control Bar */}
-          <div className="p-4 rounded-2xl bg-[#16191f] border border-white/8 space-y-3">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          {/* 4 Metric Bento Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 rounded-3xl bg-[#161b22] border border-white/10 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">TOTAL ACCOUNTS</span>
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                  <Layers className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-white mt-3">{totalCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Scanned across all Firestore collections</p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-[#161b22] border border-emerald-500/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">VIP ACTIVATED</span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-emerald-400 mt-3">{activeVipCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Verified door-to-door onboarded PGs</p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-[#161b22] border border-purple-500/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-purple-400">BETA / LEGACY TESTERS</span>
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-purple-300 mt-3">{betaCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Old prototype logins (Zero pass attached)</p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-[#161b22] border border-rose-500/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">SUSPENDED / LOCKED</span>
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
+                  <Ban className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-rose-400 mt-3">{suspendedCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Blocked from workspace access</p>
+            </div>
+          </div>
+
+          {/* Search & Filter Nav */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by PG name, owner, phone, email, area, or city..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#0d0f12] border border-white/8 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-[#ff5436]"
+                  placeholder="Search by email, name, phone..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#161b22] border border-white/10 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-[#ff3366]"
                 />
               </div>
 
-              {/* City Filter */}
-              <select
-                value={cityFilter}
-                onChange={(e) => setCityFilter(e.target.value)}
-                className="px-3 py-2.5 rounded-xl bg-[#0d0f12] border border-white/8 text-xs font-bold text-white focus:outline-none focus:border-[#ff5436] shrink-0"
-              >
-                <option value="ALL">All Cities</option>
-                <option value="Bangalore">Bangalore</option>
-                <option value="Hyderabad">Hyderabad</option>
-                <option value="Pune">Pune</option>
-                <option value="Delhi-NCR">Delhi-NCR</option>
-              </select>
-
-              {/* Plan Filter */}
-              <select
-                value={planFilter}
-                onChange={(e) => setPlanFilter(e.target.value)}
-                className="px-3 py-2.5 rounded-xl bg-[#0d0f12] border border-white/8 text-xs font-bold text-white focus:outline-none focus:border-[#ff5436] shrink-0"
-              >
-                <option value="ALL">All Plans</option>
-                <option value="FREE_TRIAL">Free Trial</option>
-                <option value="PRO_MONTHLY">Pro Monthly</option>
-                <option value="GROWTH_ANNUAL">Growth Annual</option>
-              </select>
-
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2.5 rounded-xl bg-[#0d0f12] border border-white/8 text-xs font-bold text-white focus:outline-none focus:border-[#ff5436] shrink-0"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="ACTIVE">Active Paid</option>
-                <option value="TRIAL">Trial</option>
-                <option value="EXPIRED">Expired</option>
-                <option value="SUSPENDED">Suspended</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Master PG Client Table */}
-          <div className="bg-[#16191f] border border-white/8 rounded-3xl p-4 sm:p-6 md:p-8 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-white/8 pb-4">
-              <div>
-                <h3 className="font-serif font-bold text-xl text-white">
-                  Client Directory & God-Mode Access
-                </h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  Click &apos;Impersonate&apos; to instantly log in as any PG owner without a password
-                </p>
+              {/* Classification Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto p-1 bg-[#161b22] rounded-2xl border border-white/10 text-xs font-bold">
+                <button
+                  onClick={() => setActiveTab("ALL")}
+                  className={`px-3 py-1.5 rounded-xl transition-all ${
+                    activeTab === "ALL" ? "bg-white/10 text-white shadow-sm" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  All ({totalCount})
+                </button>
+                <button
+                  onClick={() => setActiveTab("BETA_LEGACY")}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    activeTab === "BETA_LEGACY" ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span>🟣 Beta / Legacy</span>
+                  <span className="text-[10px] bg-purple-500/20 px-1.5 py-0.2 rounded-full">{betaCount}</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("ACTIVE_VIP")}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    activeTab === "ACTIVE_VIP" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span>🟢 VIP Active</span>
+                  <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded-full">{activeVipCount}</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("PENDING_VIP")}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    activeTab === "PENDING_VIP" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span>🟠 Pending</span>
+                  <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.2 rounded-full">{pendingCount}</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("SUSPENDED")}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    activeTab === "SUSPENDED" ? "bg-rose-500/20 text-rose-300 border border-rose-500/30" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span>🔴 Suspended</span>
+                  <span className="text-[10px] bg-rose-500/20 px-1.5 py-0.2 rounded-full">{suspendedCount}</span>
+                </button>
               </div>
-              <span className="text-xs font-mono text-slate-400">
-                Showing {filteredClients.length} of {totalClients} PGs
-              </span>
             </div>
 
-            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <table className="min-w-[900px] w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-white/8 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-white/2">
-                    <th className="py-3 px-4 rounded-l-xl">PG Brand & Location</th>
-                    <th className="py-3 px-4">Owner Contact</th>
-                    <th className="py-3 px-4 text-center">Beds & Health</th>
-                    <th className="py-3 px-4">Subscription Plan</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right rounded-r-xl">God-Mode Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/6 font-medium">
-                  {filteredClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-white/2 transition-colors">
-                      {/* PG Info */}
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-[#ff3366]/20 to-[#ff8400]/20 border border-[#ff3366]/30 flex items-center justify-center text-[#ff5436] font-bold text-xs shrink-0">
-                            <Building2 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedClient(client)}
-                              className="font-bold text-xs text-white hover:text-[#ff5436] text-left transition-colors cursor-pointer"
-                            >
-                              {client.pgName}
-                            </button>
-                            <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                              <MapPin className="w-3 h-3 text-[#ff5436]" /> {client.area}, {client.city}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
+            {/* Accounts Card List */}
+            {isLoading ? (
+              <div className="py-20 text-center space-y-3 bg-[#161b22]/50 rounded-3xl border border-white/10">
+                <RefreshCw className="w-8 h-8 text-[#ff3366] animate-spin mx-auto" />
+                <p className="font-bold text-sm text-gray-300">Scanning Cloud Firestore Collections...</p>
+                <p className="text-xs text-gray-500">Correlating user profiles, VIP passes, and attached property footprints.</p>
+              </div>
+            ) : filteredAccounts.length === 0 ? (
+              <div className="py-16 text-center bg-[#161b22]/30 rounded-3xl border border-dashed border-white/10 p-8">
+                <UserX className="w-10 h-10 text-gray-600 mx-auto mb-2" />
+                <h3 className="font-bold text-sm text-gray-300">No matching accounts found</h3>
+                <p className="text-xs text-gray-500 mt-1">Try adjusting your search query or switching tabs.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {filteredAccounts.map((acc) => (
+                  <div
+                    key={acc.id}
+                    className={`p-5 rounded-3xl border transition-all ${
+                      acc.classification === "BETA_LEGACY"
+                        ? "bg-[#161b22] border-purple-500/30 hover:border-purple-400/60"
+                        : acc.classification === "SUSPENDED"
+                        ? "bg-[#1c1214] border-rose-500/30"
+                        : acc.classification === "ACTIVE_VIP"
+                        ? "bg-[#161b22] border-emerald-500/20 hover:border-emerald-400/40"
+                        : "bg-[#161b22] border-amber-500/20"
+                    }`}
+                  >
+                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                      {/* Left: Info */}
+                      <div className="space-y-2 max-w-xl">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-sm text-white">{acc.displayName}</span>
+                          <span className="text-xs font-mono text-gray-400">{acc.email}</span>
 
-                      {/* Owner Contact */}
-                      <td className="py-4 px-4">
-                        <div className="space-y-0.5">
-                          <div className="font-bold text-white text-xs">{client.ownerName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{client.ownerPhone}</div>
-                          <div className="text-[10px] text-slate-500 truncate max-w-[150px]">{client.ownerEmail}</div>
+                          {/* Classification Badge */}
+                          {acc.classification === "BETA_LEGACY" && (
+                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                              <span>🟣 BETA TESTER</span>
+                            </span>
+                          )}
+                          {acc.classification === "ACTIVE_VIP" && (
+                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>VIP ONBOARDED</span>
+                            </span>
+                          )}
+                          {acc.classification === "PENDING_VIP" && (
+                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              🟠 PENDING PASS
+                            </span>
+                          )}
+                          {acc.classification === "SUSPENDED" && (
+                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                              🔴 SUSPENDED
+                            </span>
+                          )}
                         </div>
-                      </td>
 
-                      {/* Beds & Health */}
-                      <td className="py-4 px-4 text-center">
-                        <div className="space-y-1">
-                          <div className="font-bold text-white text-xs">
-                            {client.occupiedBeds} / {client.totalBeds} Beds
-                          </div>
-                          <span
-                            className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider border ${
-                              client.healthScore === "HEALTHY"
-                                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                                : client.healthScore === "ATTENTION"
-                                ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                                : "bg-rose-500/15 text-rose-400 border-rose-500/30 animate-pulse"
-                            }`}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
+                          {acc.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-gray-500" />
+                              {acc.phone}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-gray-500" />
+                            {acc.primaryPropertyName}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-gray-500" />
+                            {acc.city}
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] text-gray-500 font-mono">
+                            IDs: {acc.propertyIds.join(", ") || "None"}
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-gray-500 italic">
+                          Detection Note: {acc.detectionReason}
+                        </p>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto justify-end">
+                        {/* God-mode button if property exists */}
+                        {acc.propertyIds.length > 0 && acc.propertyIds[0] !== "sunshine-pg" && (
+                          <Link
+                            href={`/p/${acc.propertyIds[0]}/overview?impersonate=true`}
+                            target="_blank"
+                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
                           >
-                            {client.healthScore === "HEALTHY" ? "🟢 HEALTHY" : client.healthScore === "ATTENTION" ? "🟡 ATTENTION" : "🔴 AT RISK"}
-                          </span>
-                        </div>
-                      </td>
+                            <Eye className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Preview</span>
+                          </Link>
+                        )}
 
-                      {/* Subscription Plan */}
-                      <td className="py-4 px-4">
-                        <div>
-                          <span className="text-[11px] font-bold text-white bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
-                            {client.plan === "PRO_MONTHLY"
-                              ? "Pro (₹1,499/mo)"
-                              : client.plan === "GROWTH_ANNUAL"
-                              ? "Annual Growth"
-                              : "14-Day Trial"}
-                          </span>
-                          <p className="text-[10px] text-slate-400 mt-1">
-                            {client.trialDaysLeft !== undefined
-                              ? `${client.trialDaysLeft} days left`
-                              : `Renews on ${client.planRenewsOn}`}
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-4 px-4 text-center">
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                            client.status === "ACTIVE"
-                              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                              : client.status === "TRIAL"
-                              ? "bg-[#ff3366]/15 text-[#ff5436] border-[#ff3366]/30"
-                              : client.status === "SUSPENDED"
-                              ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
-                              : "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                        {/* Suspend / Resume Button */}
+                        <button
+                          onClick={() => handleToggleSuspend(acc)}
+                          className={`px-3 py-2 rounded-xl font-bold text-xs border transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                            acc.classification === "SUSPENDED"
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                              : "bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
                           }`}
                         >
-                          {client.status}
-                        </span>
-                      </td>
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>{acc.classification === "SUSPENDED" ? "Resume Access" : "Suspend"}</span>
+                        </button>
 
-                      {/* God Mode Actions */}
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                          {/* Impersonate */}
-                          <button
-                            type="button"
-                            onClick={() => handleImpersonate(client)}
-                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] text-white text-xs font-bold transition-all shadow-md shadow-[#ff3366]/20 flex items-center gap-1.5 cursor-pointer active:scale-95"
-                            title="Log in as this client"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Impersonate</span>
-                          </button>
-
-                          {/* Extend Trial */}
-                          {client.status === "TRIAL" && (
-                            <button
-                              type="button"
-                              onClick={() => handleExtendTrial(client, 7)}
-                              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-xs font-bold transition-all cursor-pointer"
-                              title="Add +7 days to free trial"
-                            >
-                              +7d
-                            </button>
-                          )}
-
-                          {/* Quick Inspect */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedClient(client)}
-                            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 cursor-pointer"
-                            title="Inspect details"
-                          >
-                            <ChevronRight className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* CUSTOMER ORGANIZATION DOSSIER DRAWER / MODAL */}
-      {selectedClient && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#16191f] rounded-3xl border border-white/10 shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs text-white max-h-[90vh] overflow-y-auto">
-            {/* Header with Org ID */}
-            <div className="flex items-start justify-between pb-4 border-b border-white/8 gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff3366] via-[#ff5436] to-[#ff8400] flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-[#ff3366]/20 shrink-0">
-                  🏢
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-sans font-black text-xl text-white">
-                      {selectedClient.ownerName}
-                    </h3>
-                    <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-white/10 text-white/90 border border-white/10 flex items-center gap-1.5">
-                      Org ID: ORG-{selectedClient.id.toUpperCase()}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {selectedClient.area}, {selectedClient.city} • Onboarded by {selectedClient.onboardedBy}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedClient(null)}
-                className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Owner Contact Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-2xl bg-[#0d0f12] border border-white/8 text-xs">
-              <div className="space-y-0.5">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">WhatsApp Phone</span>
-                <p className="font-mono font-bold text-white flex items-center gap-1.5">
-                  <Phone className="w-3 h-3 text-emerald-400" />
-                  {selectedClient.ownerPhone}
-                </p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">Email Address</span>
-                <p className="font-mono text-slate-300 truncate">{selectedClient.ownerEmail}</p>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">SaaS Billing Tier</span>
-                <p className="font-bold text-emerald-400">{selectedClient.plan}</p>
-              </div>
-            </div>
-
-            {/* Properties Under This Organization (Multi-Building Matrix) */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-2">
-                  <Building2 className="w-3.5 h-3.5 text-[#ff5436]" />
-                  Buildings Under This Customer Org (1 Active Property)
-                </h4>
-                <Link
-                  href="/apex-command/invites"
-                  onClick={() => setSelectedClient(null)}
-                  className="text-[11px] font-bold text-[#ff5436] hover:underline flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" /> Issue Additional Building Pass
-                </Link>
-              </div>
-
-              {/* Property Card 1 (Primary) */}
-              <div className="p-4 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-3 hover:border-white/20 transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-white">{selectedClient.pgName}</span>
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-400">
-                        Primary (prop-{selectedClient.id})
-                      </span>
+                        {/* Deep Purge / Wipe Button */}
+                        <button
+                          onClick={() => setAccountToPurge(acc)}
+                          className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Wipe & Purge 🗑️</span>
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-[#ff5436]" /> {selectedClient.area}, {selectedClient.city}
-                    </p>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedClient(null);
-                      handleImpersonate(selectedClient);
-                    }}
-                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#ff3366]/20 flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all self-start sm:self-auto"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>⚡ Jump into Dashboard</span>
-                  </button>
-                </div>
-
-                {/* Live Occupancy Bar */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
-                    <span>Occupancy: {selectedClient.occupiedBeds} of {selectedClient.totalBeds} Beds Filled</span>
-                    <span className="text-emerald-400 font-bold">
-                      {selectedClient.totalBeds > 0 ? Math.round((selectedClient.occupiedBeds / selectedClient.totalBeds) * 100) : 0}% Occupied
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-                      style={{
-                        width: `${selectedClient.totalBeds > 0 ? Math.round((selectedClient.occupiedBeds / selectedClient.totalBeds) * 100) : 0}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
+                ))}
               </div>
-            </div>
-
-            {/* Telemetry & Usage Stats */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/6 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">FastTrack AI Scans</span>
-                <p className="font-bold text-base text-[#ff5436]">{selectedClient.fastTrackScansCount} Registers Scanned</p>
-                <p className="text-[10px] text-slate-400">Gemini Vision OCR</p>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/6 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">Meta WhatsApp Balance</span>
-                <p className="font-bold text-base text-purple-400">{selectedClient.whatsappCreditsUsed} Credits Sent</p>
-                <p className="text-[10px] text-slate-400">Automated KYC & rent slips</p>
-              </div>
-            </div>
-
-            {/* Bottom Actions Bar */}
-            <div className="flex items-center justify-between pt-3 border-t border-white/8 gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => handleToggleSuspend(selectedClient)}
-                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  selectedClient.status === "SUSPENDED"
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                    : "border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
-                }`}
-              >
-                {selectedClient.status === "SUSPENDED" ? "Reactivate Organization" : "Suspend Organization"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleExtendTrial(selectedClient, 7)}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-all cursor-pointer"
-              >
-                +7 Days Trial Extension
-              </button>
-            </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Floating Luxury Toast */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="bg-[#16191f] text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-[#ff3366]/40 flex items-center gap-3 max-w-md text-xs font-bold">
-            <span className="shrink-0">{toastMessage}</span>
-            <button
-              type="button"
-              onClick={() => setToastMessage(null)}
-              className="p-1 rounded-full hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer ml-auto"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+      {/* Deep Purge Modal */}
+      {accountToPurge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in-50">
+          <div className="w-full max-w-lg bg-[#161b22] border-2 border-rose-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertOctagon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-white">Zero-Footprint Deep Purge</h3>
+                  <p className="text-xs text-rose-300 font-mono">{accountToPurge.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAccountToPurge(null);
+                  setPurgeConfirmationInput("");
+                }}
+                className="text-gray-400 hover:text-white p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-800/40 text-xs text-rose-200 space-y-2">
+              <p className="font-bold flex items-center gap-1.5 text-rose-300">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                Warning: Irreversible Deletion
+              </p>
+              <p className="leading-relaxed">
+                This will atomically purge all database and physical storage records for this account:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-gray-300 text-[11px]">
+                <li><strong className="text-white">Firestore:</strong> users/{accountToPurge.userId || "uid"}</li>
+                <li><strong className="text-white">Portfolio:</strong> users/portfolio_{accountToPurge.email.replace(/[^a-z0-9]/g, "_")}</li>
+                <li><strong className="text-white">Properties:</strong> {accountToPurge.propertyIds.join(", ") || "None"} & all subcollections</li>
+                <li><strong className="text-white">Storage:</strong> Tenant Aadhaar cards, KYC photos, complaint pictures, & QR images</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <label className="block text-gray-400">
+                Type <span className="font-bold text-rose-400 font-mono">PURGE</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={purgeConfirmationInput}
+                onChange={(e) => setPurgeConfirmationInput(e.target.value.toUpperCase())}
+                placeholder="PURGE"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-rose-500/40 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountToPurge(null);
+                  setPurgeConfirmationInput("");
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteDeepPurge}
+                disabled={purgeConfirmationInput !== "PURGE" || isPurging}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/30"
+              >
+                {isPurging ? (
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Confirm Deep Purge</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

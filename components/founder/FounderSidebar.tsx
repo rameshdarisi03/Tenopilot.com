@@ -26,10 +26,10 @@ export function FounderSidebar({ mobileOpen, onMobileClose }: FounderSidebarProp
       href: "/apex-command/invites",
     },
     {
-      label: "PG Master CRM",
+      label: "Account Audit & Deep Purge",
       href: "/apex-command/clients",
-      badge: "48 PGs",
-      badgeColor: "bg-white/10 text-white/80 border border-white/10",
+      badge: "LIVE SCAN",
+      badgeColor: "bg-purple-500/20 text-purple-300 border border-purple-500/30",
     },
     {
       label: "Broadcast",
