@@ -35,45 +35,8 @@ export async function POST(req: NextRequest) {
       console.warn("Firestore lookup in /api/invites/redeem error:", fsErr);
     }
 
-    // 2. Default hardcoded seeds fallback
-    const seeds = [
-      {
-        id: "inv-101",
-        activationCode: "8K4N-9X2M",
-        pgName: "Sri Lakshmi Luxury PG",
-        ownerName: "Suresh Reddy",
-        ownerPhone: "9876543210",
-        ownerEmail: "suresh.lakshmi@gmail.com",
-        city: "Bangalore",
-        assignedPlan: "14_DAY_TRIAL",
-        trialDurationDays: 14,
-        status: "REDEEMED",
-      },
-      {
-        id: "inv-102",
-        activationCode: "7P9V-4W8Q",
-        pgName: "Zolo Haven Co-living",
-        ownerName: "Vikram Malhotra",
-        ownerPhone: "9812345678",
-        ownerEmail: "vikram.zolo@yahoo.com",
-        city: "Hyderabad",
-        assignedPlan: "PRO_MONTHLY",
-        trialDurationDays: 14,
-        status: "PENDING",
-      },
-      {
-        id: "inv-103",
-        activationCode: "5R7B-2Y9H",
-        pgName: "Stanza Living Elite",
-        ownerName: "Ananya Sharma",
-        ownerPhone: "9734567890",
-        ownerEmail: "ananya.stanza@gmail.com",
-        city: "Pune",
-        assignedPlan: "ANNUAL_VIP",
-        trialDurationDays: 30,
-        status: "PENDING",
-      },
-    ];
+    // 2. 100% Clean Zero Mock Seeds
+    const seeds: any[] = [];
 
     seeds.forEach((s) => {
       if (!allInvites.some((i) => i.id === s.id)) {

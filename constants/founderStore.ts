@@ -165,180 +165,14 @@ export function generateSecureActivationCode(): string {
   return `${code.slice(0, 4)}-${code.slice(4, 8)}`;
 }
 
-const DEFAULT_INVITES: FounderVipInvite[] = [
-  {
-    id: "inv-101",
-    activationCode: "8K4N-9X2M",
-    pgName: "Sri Lakshmi Luxury PG",
-    ownerName: "Suresh Reddy",
-    ownerPhone: "9876543210",
-    ownerEmail: "suresh.lakshmi@gmail.com",
-    city: "Bangalore",
-    assignedPlan: "14_DAY_TRIAL",
-    trialDurationDays: 14,
-    status: "REDEEMED",
-    generatedByStaffName: "Ramesh (Founder)",
-    generatedByStaffEmail: "admin@tenopilot.com",
-    createdAt: "2026-08-27T10:30:00Z",
-    redeemedAt: "2026-08-27T14:18:00Z",
-  },
-  {
-    id: "inv-102",
-    activationCode: "7P9V-4W8Q",
-    pgName: "Zolo Haven Co-living",
-    ownerName: "Vikram Malhotra",
-    ownerPhone: "9812345678",
-    ownerEmail: "vikram.zolo@yahoo.com",
-    city: "Hyderabad",
-    assignedPlan: "PRO_MONTHLY",
-    trialDurationDays: 14,
-    status: "PENDING",
-    generatedByStaffName: "Ravi Kumar (Sales)",
-    generatedByStaffEmail: "ravi.sales@tenopilot.com",
-    createdAt: "2026-08-27T16:45:00Z",
-  },
-  {
-    id: "inv-103",
-    activationCode: "5R7B-2Y9H",
-    pgName: "Balaji Executive Stays",
-    ownerName: "Anand Sharma",
-    ownerPhone: "9845612345",
-    ownerEmail: "anand.balaji@gmail.com",
-    city: "Pune",
-    assignedPlan: "14_DAY_TRIAL",
-    trialDurationDays: 14,
-    status: "PENDING",
-    generatedByStaffName: "Ramesh (Founder)",
-    generatedByStaffEmail: "admin@tenopilot.com",
-    createdAt: "2026-08-27T18:20:00Z",
-  },
-];
-
-const DEFAULT_CLIENTS: FounderClientRecord[] = [
-  {
-    id: "sunshine-pg",
-    pgName: "Sunshine PG",
-    ownerName: "Ramesh Darisi",
-    ownerPhone: "9876543210",
-    ownerEmail: "ramesh@sunshinepg.com",
-    city: "Bangalore",
-    area: "HSR Layout",
-    totalBeds: 36,
-    occupiedBeds: 15,
-    monthlyRevenue: 106500,
-    plan: "PRO_MONTHLY",
-    planAmount: 1499,
-    planRenewsOn: "2026-09-15",
-    status: "ACTIVE",
-    healthScore: "HEALTHY",
-    lastActiveDate: "Just now",
-    fastTrackScansCount: 4,
-    whatsappCreditsUsed: 1420,
-    sentryErrorsCount: 0,
-    onboardedBy: "Ramesh (Founder)",
-    createdAt: "2026-08-01",
-  },
-  {
-    id: "sri-lakshmi-pg",
-    pgName: "Sri Lakshmi Luxury PG",
-    ownerName: "Suresh Reddy",
-    ownerPhone: "9876543210",
-    ownerEmail: "suresh.lakshmi@gmail.com",
-    city: "Bangalore",
-    area: "Koramangala",
-    totalBeds: 60,
-    occupiedBeds: 48,
-    monthlyRevenue: 340000,
-    plan: "FREE_TRIAL",
-    planAmount: 0,
-    planRenewsOn: "2026-09-10",
-    trialDaysLeft: 14,
-    status: "TRIAL",
-    healthScore: "HEALTHY",
-    lastActiveDate: "12 mins ago",
-    fastTrackScansCount: 2,
-    whatsappCreditsUsed: 310,
-    sentryErrorsCount: 0,
-    onboardedBy: "Ramesh (Founder)",
-    createdAt: "2026-08-27",
-  },
-  {
-    id: "meghana-haven-pg",
-    pgName: "Meghana Haven PG",
-    ownerName: "K. Meghana",
-    ownerPhone: "9834567890",
-    ownerEmail: "meghana.haven@gmail.com",
-    city: "Hyderabad",
-    area: "Gachibowli",
-    totalBeds: 84,
-    occupiedBeds: 78,
-    monthlyRevenue: 546000,
-    plan: "GROWTH_ANNUAL",
-    planAmount: 14990,
-    planRenewsOn: "2027-08-01",
-    status: "ACTIVE",
-    healthScore: "HEALTHY",
-    lastActiveDate: "2 hours ago",
-    fastTrackScansCount: 6,
-    whatsappCreditsUsed: 2840,
-    sentryErrorsCount: 0,
-    onboardedBy: "Ravi Kumar (Sales)",
-    createdAt: "2026-07-15",
-  },
-  {
-    id: "royal-comfort-pg",
-    pgName: "Royal Comfort PG",
-    ownerName: "Venkat Rao",
-    ownerPhone: "9811223344",
-    ownerEmail: "venkat.royal@gmail.com",
-    city: "Bangalore",
-    area: "Whitefield",
-    totalBeds: 45,
-    occupiedBeds: 22,
-    monthlyRevenue: 154000,
-    plan: "FREE_TRIAL",
-    planAmount: 0,
-    planRenewsOn: "2026-08-29",
-    trialDaysLeft: 2,
-    status: "TRIAL",
-    healthScore: "ATTENTION",
-    lastActiveDate: "3 days ago",
-    fastTrackScansCount: 1,
-    whatsappCreditsUsed: 85,
-    sentryErrorsCount: 0,
-    onboardedBy: "Ravi Kumar (Sales)",
-    createdAt: "2026-08-15",
-  },
-  {
-    id: "balaji-executive",
-    pgName: "Balaji Executive Stays",
-    ownerName: "Anand Sharma",
-    ownerPhone: "9845612345",
-    ownerEmail: "anand.balaji@gmail.com",
-    city: "Pune",
-    area: "Hinjewadi",
-    totalBeds: 50,
-    occupiedBeds: 12,
-    monthlyRevenue: 84000,
-    plan: "FREE_TRIAL",
-    planAmount: 0,
-    planRenewsOn: "2026-08-20",
-    trialDaysLeft: 0,
-    status: "EXPIRED",
-    healthScore: "AT_RISK",
-    lastActiveDate: "8 days ago",
-    fastTrackScansCount: 0,
-    whatsappCreditsUsed: 12,
-    sentryErrorsCount: 0,
-    onboardedBy: "Ramesh (Founder)",
-    createdAt: "2026-08-06",
-  },
-];
+// 100% Clean Seed - Zero Mock Invites/Clients
+const DEFAULT_INVITES: FounderVipInvite[] = [];
+const DEFAULT_CLIENTS: FounderClientRecord[] = [];
 
 // Reactive In-Memory State
 let inMemoryMetrics: PlatformMacroMetrics = { ...DEFAULT_METRICS };
-let inMemoryInvites: FounderVipInvite[] = [...DEFAULT_INVITES];
-let inMemoryClients: FounderClientRecord[] = [...DEFAULT_CLIENTS];
+let inMemoryInvites: FounderVipInvite[] = [];
+let inMemoryClients: FounderClientRecord[] = [];
 const listeners = new Set<() => void>();
 let isInitialized = false;
 
@@ -407,10 +241,13 @@ export const founderStore = {
       onSnapshot(
         invitesColRef,
         (snap) => {
-          if (!snap.empty) {
-            inMemoryInvites = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FounderVipInvite));
-            this.notify();
+          inMemoryInvites = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FounderVipInvite));
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("tenopilot_local_invites", JSON.stringify(inMemoryInvites));
+            } catch {}
           }
+          this.notify();
         },
         (error) => {
           console.warn("Cloud Firestore invites listener error:", error);
@@ -422,10 +259,8 @@ export const founderStore = {
       onSnapshot(
         clientsColRef,
         (snap) => {
-          if (!snap.empty) {
-            inMemoryClients = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FounderClientRecord));
-            this.notify();
-          }
+          inMemoryClients = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FounderClientRecord));
+          this.notify();
         },
         (error) => {
           console.warn("Cloud Firestore clients listener error:", error);
