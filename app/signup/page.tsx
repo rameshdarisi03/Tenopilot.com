@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -23,7 +23,11 @@ function SignUpPageContent() {
   const searchParams = useSearchParams();
 
   const [identifier, setIdentifier] = useState("");
-  const [activationCode, setActivationCode] = useState(() => searchParams?.get("code") || "");
+  const [codePart1, setCodePart1] = useState("");
+  const [codePart2, setCodePart2] = useState("");
+  const part1Ref = useRef<HTMLInputElement>(null);
+  const part2Ref = useRef<HTMLInputElement>(null);
+
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -33,20 +37,63 @@ function SignUpPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [activatedSuccess, setActivatedSuccess] = useState<any | null>(null);
 
+  // Auto-populate from URL query ?code=XXXX-XXXX or ?code=XXXXXXXX
+  useEffect(() => {
+    const urlCode = searchParams?.get("code");
+    if (urlCode) {
+      const clean = urlCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (clean.length >= 8) {
+        setCodePart1(clean.slice(0, 4));
+        setCodePart2(clean.slice(4, 8));
+      } else if (clean.length > 4) {
+        setCodePart1(clean.slice(0, 4));
+        setCodePart2(clean.slice(4));
+      } else {
+        setCodePart1(clean);
+      }
+    }
+  }, [searchParams]);
+
+  const handlePart1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (raw.length > 4) {
+      // User pasted full code (e.g. 8K4N9X2M or 8K4N-9X2M)
+      setCodePart1(raw.slice(0, 4));
+      setCodePart2(raw.slice(4, 8));
+      part2Ref.current?.focus();
+    } else {
+      setCodePart1(raw);
+      if (raw.length === 4) {
+        part2Ref.current?.focus();
+      }
+    }
+  };
+
+  const handlePart2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    setCodePart2(raw.slice(0, 4));
+  };
+
+  const handlePart2KeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && codePart2 === "") {
+      part1Ref.current?.focus();
+    }
+  };
+
   const handleActivationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const cleanId = identifier.trim();
-    const cleanCode = activationCode.trim().toUpperCase();
+    const cleanCode = `${codePart1}-${codePart2}`.toUpperCase().trim();
 
     if (!cleanId) {
       setError("Please enter your registered Mobile Number or Email Address.");
       return;
     }
 
-    if (!cleanCode) {
-      setError("Please enter the Activation Code provided by your onboarding representative.");
+    if (codePart1.length !== 4 || codePart2.length !== 4) {
+      setError("Please enter your complete 8-character Activation Code.");
       return;
     }
 
@@ -224,22 +271,45 @@ function SignUpPageContent() {
                 </div>
               </div>
 
-              {/* 2. Activation Code */}
+              {/* 2. Activation Code (Dual-Box Split Input) */}
               <div>
                 <label className="block font-bold text-gray-700 mb-1">
                   Activation Code *
                 </label>
-                <div className="relative">
-                  <Ticket className="w-4 h-4 text-[#c2652a] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    value={activationCode}
-                    onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. 8K4N-9X2M"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs tracking-wider uppercase"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Ticket className="w-4 h-4 text-[#c2652a] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      ref={part1Ref}
+                      type="text"
+                      maxLength={4}
+                      required
+                      value={codePart1}
+                      onChange={handlePart1Change}
+                      placeholder="8K4N"
+                      className="w-full pl-9 pr-2 py-2.5 rounded-xl border border-gray-300 font-mono font-black text-center text-sm tracking-widest text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white uppercase shadow-2xs"
+                    />
+                  </div>
+
+                  <span className="text-gray-400 font-black text-lg select-none shrink-0">—</span>
+
+                  <div className="relative flex-1">
+                    <input
+                      ref={part2Ref}
+                      type="text"
+                      maxLength={4}
+                      required
+                      value={codePart2}
+                      onChange={handlePart2Change}
+                      onKeyDown={handlePart2KeyDown}
+                      placeholder="9X2M"
+                      className="w-full px-2 py-2.5 rounded-xl border border-gray-300 font-mono font-black text-center text-sm tracking-widest text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white uppercase shadow-2xs"
+                    />
+                  </div>
                 </div>
+                <p className="text-[10px] text-gray-400 mt-1 text-center">
+                  Auto-advances to the second box on 4th character
+                </p>
               </div>
 
               {/* 3. Password */}

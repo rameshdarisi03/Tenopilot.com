@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Ticket,
@@ -15,27 +15,82 @@ import {
   Lock,
 } from "lucide-react";
 import { founderStore } from "@/constants/founderStore";
+import { Suspense } from "react";
 
-export default function ClientActivationPage() {
+function ClientActivationContent() {
   const router = useRouter();
-  const [activationCode, setActivationCode] = useState("");
+  const searchParams = useSearchParams();
+
+  const [codePart1, setCodePart1] = useState("");
+  const [codePart2, setCodePart2] = useState("");
+  const part1Ref = useRef<HTMLInputElement>(null);
+  const part2Ref = useRef<HTMLInputElement>(null);
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activatedSuccess, setActivatedSuccess] = useState<any | null>(null);
 
+  useEffect(() => {
+    const urlCode = searchParams?.get("code");
+    if (urlCode) {
+      const clean = urlCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (clean.length >= 8) {
+        setCodePart1(clean.slice(0, 4));
+        setCodePart2(clean.slice(4, 8));
+      } else if (clean.length > 4) {
+        setCodePart1(clean.slice(0, 4));
+        setCodePart2(clean.slice(4));
+      } else {
+        setCodePart1(clean);
+      }
+    }
+  }, [searchParams]);
+
+  const handlePart1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (raw.length > 4) {
+      setCodePart1(raw.slice(0, 4));
+      setCodePart2(raw.slice(4, 8));
+      part2Ref.current?.focus();
+    } else {
+      setCodePart1(raw);
+      if (raw.length === 4) {
+        part2Ref.current?.focus();
+      }
+    }
+  };
+
+  const handlePart2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    setCodePart2(raw.slice(0, 4));
+  };
+
+  const handlePart2KeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && codePart2 === "") {
+      part1Ref.current?.focus();
+    }
+  };
+
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const cleanCode = `${codePart1}-${codePart2}`.toUpperCase().trim();
+    if (codePart1.length !== 4 || codePart2.length !== 4) {
+      setError("Please enter your complete 8-character Activation Code.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await founderStore.redeemActivationCode(activationCode, email);
+      founderStore.initFirebase();
+      const res = await founderStore.redeemActivationCode(cleanCode, email);
 
       if (res.success && res.invite) {
         setActivatedSuccess(res.invite);
         setLoading(false);
-        // Automatically redirect after celebration
         setTimeout(() => {
           router.push("/p/sunshine-pg/overview");
         }, 2200);
@@ -117,19 +172,39 @@ export default function ClientActivationPage() {
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
                 Activation Code *
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  value={activationCode}
-                  onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-3.5 rounded-2xl bg-[#0d0f12] border border-white/10 focus:outline-none focus:border-[#ff5436] focus:ring-2 focus:ring-[#ff3366]/20 font-mono font-black text-lg text-center tracking-widest text-[#ff5436] placeholder-slate-600 transition-all uppercase"
-                  placeholder="8K4N-9X2M"
-                />
-                <Ticket className="w-5 h-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Ticket className="w-4 h-4 text-[#ff5436] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={part1Ref}
+                    type="text"
+                    maxLength={4}
+                    required
+                    value={codePart1}
+                    onChange={handlePart1Change}
+                    placeholder="8K4N"
+                    className="w-full pl-9 pr-2 py-3 rounded-2xl bg-[#0d0f12] border border-white/10 focus:outline-none focus:border-[#ff5436] focus:ring-2 focus:ring-[#ff3366]/20 font-mono font-black text-center text-sm tracking-widest text-[#ff5436] placeholder-slate-600 transition-all uppercase"
+                  />
+                </div>
+
+                <span className="text-slate-500 font-black text-lg select-none shrink-0">—</span>
+
+                <div className="relative flex-1">
+                  <input
+                    ref={part2Ref}
+                    type="text"
+                    maxLength={4}
+                    required
+                    value={codePart2}
+                    onChange={handlePart2Change}
+                    onKeyDown={handlePart2KeyDown}
+                    placeholder="9X2M"
+                    className="w-full px-2 py-3 rounded-2xl bg-[#0d0f12] border border-white/10 focus:outline-none focus:border-[#ff5436] focus:ring-2 focus:ring-[#ff3366]/20 font-mono font-black text-center text-sm tracking-widest text-[#ff5436] placeholder-slate-600 transition-all uppercase"
+                  />
+                </div>
               </div>
               <p className="text-[10px] text-slate-500 mt-1 text-center">
-                Strict 1-time pass: Bound strictly to your verified contact details
+                Strict 1-time pass: Auto-advances on 4th character
               </p>
             </div>
 
@@ -174,5 +249,13 @@ export default function ClientActivationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ClientActivationPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0d0f12] flex items-center justify-center text-slate-400 text-xs">Loading...</div>}>
+      <ClientActivationContent />
+    </Suspense>
   );
 }
