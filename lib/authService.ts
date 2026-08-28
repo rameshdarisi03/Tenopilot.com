@@ -73,16 +73,14 @@ export function getCleanAuthErrorMessage(err: any): string {
     msg.includes("No registered account found") ||
     msg.includes("No active account found") ||
     msg.includes("No active staff or owner account") ||
+    msg.includes("No active TenoPilot account found") ||
     msg.includes("Unsupported field value") ||
     msg.includes("undefined")
   ) {
-    if (msg.includes("mobile number")) {
-      return "No active account found for this mobile number. Please check the number or contact your Master Admin.";
-    }
-    return "Invalid credentials or no active account found. Please verify your email / password or contact your Master Admin.";
+    return "No active TenoPilot account found for these credentials. Please check your details or click Sign Up below to activate your property.";
   }
   if (code === "auth/user-disabled") {
-    return "This account has been suspended or deleted. Please contact platform support.";
+    return "This account has been suspended or deactivated. Please contact platform support.";
   }
   if (code === "auth/too-many-requests") {
     return "Too many failed login attempts. Please wait a moment or reset your password.";
@@ -103,7 +101,7 @@ export function getCleanAuthErrorMessage(err: any): string {
     return "This sign-in method is temporarily unavailable. Please try another method.";
   }
   if (code === "auth/invalid-email") {
-    return "No active account found for this identifier. Please enter a valid registered mobile number or email.";
+    return "No active TenoPilot account found for this identifier. Please check your details or click Sign Up below.";
   }
   if (msg.includes("already-initialized") || msg.includes("Database is closing") || msg.includes("closing")) {
     return "Connecting to secure authentication session. Please try again.";
@@ -550,7 +548,7 @@ export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
   }
 
   if (!clean.includes("@")) {
-    throw new Error("No active staff or owner account found for this mobile number. Please check the number or contact your Master Admin.");
+    throw new Error("No active TenoPilot account found for this mobile number. Please check your details or click Sign Up below to activate your property.");
   }
 
   return clean;
