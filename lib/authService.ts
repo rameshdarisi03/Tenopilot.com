@@ -71,13 +71,18 @@ export function getCleanAuthErrorMessage(err: any): string {
     msg.includes("invalid-credential") ||
     msg.includes("user-not-found") ||
     msg.includes("No registered account found") ||
+    msg.includes("No active account found") ||
+    msg.includes("No active staff or owner account") ||
     msg.includes("Unsupported field value") ||
     msg.includes("undefined")
   ) {
-    return "No active TenoPilot account found for this Google email. Please click Sign Up below to create or activate your property.";
+    if (msg.includes("mobile number")) {
+      return "No active account found for this mobile number. Please check the number or contact your Master Admin.";
+    }
+    return "Invalid credentials or no active account found. Please verify your email / password or contact your Master Admin.";
   }
   if (code === "auth/user-disabled") {
-    return "This account has been suspended. Please contact platform support.";
+    return "This account has been suspended or deleted. Please contact platform support.";
   }
   if (code === "auth/too-many-requests") {
     return "Too many failed login attempts. Please wait a moment or reset your password.";
@@ -98,7 +103,7 @@ export function getCleanAuthErrorMessage(err: any): string {
     return "This sign-in method is temporarily unavailable. Please try another method.";
   }
   if (code === "auth/invalid-email") {
-    return "Please enter a valid email address.";
+    return "No active account found for this identifier. Please enter a valid registered mobile number or email.";
   }
   if (msg.includes("already-initialized") || msg.includes("Database is closing") || msg.includes("closing")) {
     return "Connecting to secure authentication session. Please try again.";
@@ -542,6 +547,10 @@ export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
     }
   } catch (e) {
     console.warn("Firestore users phone lookup error:", e);
+  }
+
+  if (!clean.includes("@")) {
+    throw new Error("No active staff or owner account found for this mobile number. Please check the number or contact your Master Admin.");
   }
 
   return clean;
