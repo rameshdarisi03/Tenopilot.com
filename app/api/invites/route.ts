@@ -1,0 +1,129 @@
+import { NextRequest, NextResponse } from "next/server";
+import { doc, setDoc, getDocs, collection } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+// Server-side cache for high availability
+let serverInvites: any[] = [
+  {
+    id: "inv-101",
+    activationCode: "8K4N-9X2M",
+    pgName: "Sri Lakshmi Luxury PG",
+    ownerName: "Suresh Reddy",
+    ownerPhone: "9876543210",
+    ownerEmail: "suresh.lakshmi@gmail.com",
+    city: "Bangalore",
+    assignedPlan: "14_DAY_TRIAL",
+    trialDurationDays: 14,
+    status: "REDEEMED",
+    generatedByStaffName: "Ramesh (Founder)",
+    generatedByStaffEmail: "admin@tenopilot.com",
+    createdAt: "2026-08-27T10:30:00Z",
+    redeemedAt: "2026-08-27T14:18:00Z",
+  },
+  {
+    id: "inv-102",
+    activationCode: "7P9V-4W8Q",
+    pgName: "Zolo Haven Co-living",
+    ownerName: "Vikram Malhotra",
+    ownerPhone: "9812345678",
+    ownerEmail: "vikram.zolo@yahoo.com",
+    city: "Hyderabad",
+    assignedPlan: "PRO_MONTHLY",
+    trialDurationDays: 14,
+    status: "PENDING",
+    generatedByStaffName: "Ravi Kumar (Sales)",
+    generatedByStaffEmail: "ravi.sales@tenopilot.com",
+    createdAt: "2026-08-27T16:45:00Z",
+  },
+  {
+    id: "inv-103",
+    activationCode: "5R7B-2Y9H",
+    pgName: "Stanza Living Elite",
+    ownerName: "Ananya Sharma",
+    ownerPhone: "9734567890",
+    ownerEmail: "ananya.stanza@gmail.com",
+    city: "Pune",
+    assignedPlan: "ANNUAL_VIP",
+    trialDurationDays: 30,
+    status: "PENDING",
+    generatedByStaffName: "Sneha Patel (Field Rep)",
+    generatedByStaffEmail: "sneha.patel@tenopilot.com",
+    createdAt: "2026-08-27T18:00:00Z",
+  },
+];
+
+export async function GET() {
+  try {
+    const snap = await getDocs(collection(db, "founder_invites"));
+    if (!snap.empty) {
+      const firestoreDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      firestoreDocs.forEach((doc: any) => {
+        if (!serverInvites.some((i) => i.id === doc.id)) {
+          serverInvites.unshift(doc);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("Firestore fetch in GET /api/invites fallback:", err);
+  }
+
+  return NextResponse.json({ success: true, invites: serverInvites });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const {
+      id,
+      activationCode,
+      pgName,
+      ownerName,
+      ownerPhone,
+      ownerEmail,
+      city,
+      assignedPlan,
+      trialDurationDays,
+      generatedByStaffName,
+      generatedByStaffEmail,
+    } = body;
+
+    if (!activationCode || !ownerPhone || !ownerEmail) {
+      return NextResponse.json(
+        { error: "activationCode, ownerPhone, and ownerEmail are required." },
+        { status: 400 }
+      );
+    }
+
+    const inviteRecord = {
+      id: id || `inv-${Date.now()}`,
+      activationCode,
+      pgName: pgName || "PG Property",
+      ownerName: ownerName || "Property Owner",
+      ownerPhone,
+      ownerEmail: ownerEmail.toLowerCase().trim(),
+      city: city || "India",
+      assignedPlan: assignedPlan || "14_DAY_TRIAL",
+      trialDurationDays: trialDurationDays || 14,
+      status: "PENDING",
+      generatedByStaffName: generatedByStaffName || "Founder (Apex)",
+      generatedByStaffEmail: generatedByStaffEmail || "admin@tenopilot.com",
+      createdAt: new Date().toISOString(),
+    };
+
+    serverInvites = [inviteRecord, ...serverInvites.filter((i) => i.id !== inviteRecord.id)];
+
+    try {
+      await setDoc(doc(db, "founder_invites", inviteRecord.id), inviteRecord);
+    } catch (fsErr) {
+      console.warn("Firestore write in POST /api/invites fallback:", fsErr);
+    }
+
+    return NextResponse.json({ success: true, invite: inviteRecord });
+  } catch (err: any) {
+    console.error("POST /api/invites error:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to create invite." },
+      { status: 500 }
+    );
+  }
+}

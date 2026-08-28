@@ -476,7 +476,18 @@ export const founderStore = {
     }
     this.notify();
 
-    // Persist to Cloud Firestore
+    // 1. Persist to Next.js Server API
+    try {
+      if (typeof window !== "undefined") {
+        fetch("/api/invites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newInvite),
+        }).catch((err) => console.warn("API /api/invites async warning:", err));
+      }
+    } catch {}
+
+    // 2. Persist to Cloud Firestore
     try {
       const inviteDocRef = doc(db, "founder_invites", newInvite.id);
       await setDoc(inviteDocRef, newInvite);
@@ -495,13 +506,41 @@ export const founderStore = {
     const cleanIdentifier = identifier.trim().toLowerCase();
     const cleanPhone = identifier.replace(/\D/g, "");
 
-    // 1. Check in-memory state
+    // 1. Primary: Verify via Next.js Serverless API Route (guarantees cross-device & cross-worker recognition)
+    if (typeof window !== "undefined") {
+      try {
+        const apiRes = await fetch("/api/invites/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: formattedCode, identifier }),
+        });
+
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (apiData.success && apiData.invite) {
+            // Update in-memory and local cache
+            inMemoryInvites = [apiData.invite, ...inMemoryInvites.filter((i) => i.id !== apiData.invite.id)];
+            this.notify();
+            try {
+              localStorage.setItem("tenopilot_local_invites", JSON.stringify(inMemoryInvites));
+            } catch {}
+            return { success: true, message: apiData.message, invite: apiData.invite };
+          } else if (apiData.message) {
+            return { success: false, message: apiData.message };
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Server API /api/invites/redeem fallback to client:", apiErr);
+      }
+    }
+
+    // 2. Client-side check in-memory state
     let invite = inMemoryInvites.find((inv) => {
       const invCode = inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
       return invCode === formattedCode;
     });
 
-    // 2. Check localStorage cache
+    // 3. Client-side check localStorage cache
     if (!invite && typeof window !== "undefined") {
       try {
         const local = localStorage.getItem("tenopilot_local_invites");
@@ -518,7 +557,7 @@ export const founderStore = {
       }
     }
 
-    // 3. Fallback: Query Cloud Firestore directly in real-time
+    // 4. Client-side fallback: Query Cloud Firestore directly in real-time
     if (!invite) {
       try {
         const snap = await getDocs(collection(db, "founder_invites"));
