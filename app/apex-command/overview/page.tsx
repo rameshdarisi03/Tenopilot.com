@@ -92,11 +92,11 @@ export default function ApexCommandOverviewPage() {
                     All-India Network Status: <span className="text-emerald-400 font-bold">100% Operational 🟢</span>
                   </span>
                 </div>
-                <h1 className="font-serif font-bold text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight">
-                  TenoPilot SaaS Command Hub
+                <h1 className="font-sans font-bold text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight">
+                  Tenopilot Command Hub
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-400 max-w-2xl font-medium">
-                  Real-time visibility across all onboarded PG properties, active door-to-door VIP leads, and macro subscription health.
+                  Real-time visibility across all onboarded properties, active onboarding leads, and macro customer health.
                 </p>
               </div>
 
@@ -104,10 +104,10 @@ export default function ApexCommandOverviewPage() {
               <div className="flex items-center gap-3 shrink-0 flex-wrap">
                 <Link
                   href="/apex-command/invites"
-                  className="px-4 py-2.5 rounded-2xl bg-[#1d222a] border border-white/10 hover:border-[#ff3366]/60 text-xs font-bold text-white transition-all flex items-center gap-2 shadow-xs group"
+                  className="px-4 py-2.5 rounded-2xl bg-[#1d222a] border border-white/10 hover:border-[#ff5436]/60 text-xs font-bold text-white transition-all flex items-center gap-2 shadow-xs group"
                 >
                   <Ticket className="w-4 h-4 text-[#ff5436] group-hover:rotate-12 transition-transform" />
-                  <span>{pendingInvitesCount} Pending VIP Invites</span>
+                  <span>{pendingInvitesCount} Pending Onboardings</span>
                 </Link>
 
                 <Link
@@ -115,7 +115,7 @@ export default function ApexCommandOverviewPage() {
                   className="px-4 py-2.5 rounded-2xl bg-[#1d222a] border border-white/10 hover:border-amber-500/60 text-xs font-bold text-white transition-all flex items-center gap-2 shadow-xs group"
                 >
                   <AlertTriangle className="w-4 h-4 text-amber-400 group-hover:animate-bounce" />
-                  <span>{atRiskClientsCount} Churn Warnings</span>
+                  <span>{atRiskClientsCount} At-Risk Customer{atRiskClientsCount !== 1 ? "s" : ""}</span>
                 </Link>
               </div>
             </div>
@@ -154,11 +154,11 @@ export default function ApexCommandOverviewPage() {
               </div>
             </div>
 
-            {/* Bento 2: Active Clients */}
+            {/* Bento 2: Active Customers */}
             <div className="p-4 sm:p-6 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all flex flex-col justify-between space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  ACTIVE PG CLIENTS
+                  ACTIVE CUSTOMERS
                 </span>
                 <div className="p-2 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   <Building2 className="w-4 h-4" />
@@ -167,14 +167,14 @@ export default function ApexCommandOverviewPage() {
 
               <div>
                 <h2 className="font-sans font-extrabold text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight truncate">
-                  {metrics.activePaidClients + metrics.activeTrialClients} Brands
+                  {metrics.activePaidClients + metrics.activeTrialClients} Customers
                 </h2>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   <span className="text-[10px] font-bold text-white bg-white/10 px-2 py-0.5 rounded-full">
-                    {metrics.activePaidClients} Paid Pro
+                    {metrics.activePaidClients} Paid PGs
                   </span>
-                  <span className="text-[10px] font-bold text-[#ff5436] bg-[#ff3366]/10 px-2 py-0.5 rounded-full border border-[#ff3366]/20">
-                    {metrics.activeTrialClients} VIP Trials
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    {metrics.activeTrialClients} Trial PGs
                   </span>
                 </div>
               </div>

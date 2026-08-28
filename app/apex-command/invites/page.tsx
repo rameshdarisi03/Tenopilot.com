@@ -46,6 +46,7 @@ export default function ApexCommandInvitesPage() {
   const [ownerPhone, setOwnerPhone] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [city, setCity] = useState("Bangalore");
+  const [approxBeds, setApproxBeds] = useState("80");
   const [assignedPlan, setAssignedPlan] = useState<"14_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP">("14_DAY_TRIAL");
   const [trialDurationDays, setTrialDurationDays] = useState(14);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -164,7 +165,7 @@ export default function ApexCommandInvitesPage() {
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-lg shadow-[#ff3366]/20 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Generate VIP Invite</span>
+              <span>+ Onboard Customer</span>
             </button>
           }
         />
@@ -176,10 +177,10 @@ export default function ApexCommandInvitesPage() {
             <div className="p-5 sm:p-6 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex items-center justify-between group hover:border-white/20 transition-all">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  TOTAL VIP CODES ISSUED
+                  TOTAL ACTIVATIONS ISSUED
                 </span>
                 <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-white mt-1">
-                  {totalInvites} Leads
+                  {totalInvites} Customers
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">Door-to-door registrations</p>
               </div>
@@ -279,15 +280,15 @@ export default function ApexCommandInvitesPage() {
           <div className="bg-[#16191f] border border-white/8 rounded-3xl p-4 sm:p-6 md:p-8 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/8 pb-4">
               <div>
-                <h3 className="font-serif font-bold text-xl text-white">
-                  VIP Activation Registry
+                <h3 className="font-sans font-bold text-xl text-white">
+                  Customer Onboarding Registry
                 </h3>
                 <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  1-time codes issued to PG owners during door-to-door onboarding
+                  1-time activation codes issued to PG owners during door-to-door onboarding
                 </p>
               </div>
               <span className="text-xs font-mono text-slate-400">
-                Showing {filteredInvites.length} of {totalInvites} invites
+                Showing {filteredInvites.length} of {totalInvites} customers
               </span>
             </div>
 
@@ -297,7 +298,7 @@ export default function ApexCommandInvitesPage() {
                   <tr className="border-b border-white/8 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-white/2">
                     <th className="py-3 px-4 rounded-l-xl">PG Brand & Location</th>
                     <th className="py-3 px-4">Owner Details</th>
-                    <th className="py-3 px-4 text-center">1-Time VIP Code</th>
+                    <th className="py-3 px-4 text-center">Activation Code</th>
                     <th className="py-3 px-4">Plan Assigned</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-right rounded-r-xl">Actions</th>
@@ -349,7 +350,7 @@ export default function ApexCommandInvitesPage() {
                       <td className="py-4 px-4">
                         <span className="text-[11px] font-bold text-slate-300 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
                           {inv.assignedPlan === "14_DAY_TRIAL"
-                            ? "14-Day VIP Trial"
+                            ? "14-Day Free Trial"
                             : inv.assignedPlan === "PRO_MONTHLY"
                             ? "Pro Monthly (₹1,499)"
                             : "Annual VIP"}
@@ -388,14 +389,14 @@ export default function ApexCommandInvitesPage() {
         </main>
       </div>
 
-      {/* CREATE VIP INVITE MODAL */}
+      {/* CREATE ONBOARDING PASS MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#16191f] rounded-3xl border border-white/10 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs text-white">
             <div className="flex items-center justify-between pb-3 border-b border-white/8">
               <div>
-                <h3 className="font-serif font-bold text-xl text-white flex items-center gap-2">
-                  <Ticket className="w-5 h-5 text-[#ff5436]" /> Generate VIP 1-Time Invite
+                <h3 className="font-sans font-bold text-xl text-white flex items-center gap-2">
+                  <Ticket className="w-5 h-5 text-[#ff5436]" /> Issue Customer Onboarding Pass
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Creates an exclusive 6-digit activation code for door-to-door onboarding
@@ -532,7 +533,7 @@ export default function ApexCommandInvitesPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
                       City / Territory *
@@ -552,6 +553,19 @@ export default function ApexCommandInvitesPage() {
 
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                      Approx. Bed Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={approxBeds}
+                      onChange={(e) => setApproxBeds(e.target.value)}
+                      placeholder="e.g. 80"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d0f12] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
                       Assigned Initial Plan *
                     </label>
                     <select
@@ -559,9 +573,9 @@ export default function ApexCommandInvitesPage() {
                       onChange={(e) => setAssignedPlan(e.target.value as any)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d0f12] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
                     >
-                      <option value="14_DAY_TRIAL">14-Day Full VIP Trial (Free)</option>
+                      <option value="14_DAY_TRIAL">14-Day Free Trial (Full)</option>
                       <option value="PRO_MONTHLY">Pro Monthly (₹1,499/mo)</option>
-                      <option value="ANNUAL_VIP">Annual VIP Growth</option>
+                      <option value="ANNUAL_VIP">Annual Growth (₹14,999/yr)</option>
                     </select>
                   </div>
                 </div>
@@ -579,7 +593,7 @@ export default function ApexCommandInvitesPage() {
                     disabled={isSubmitting}
                     className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] text-white font-bold shadow-lg cursor-pointer active:scale-95 transition-all disabled:opacity-50"
                   >
-                    {isSubmitting ? "Generating..." : "Generate 6-Digit VIP Code ➔"}
+                    {isSubmitting ? "Generating..." : "Generate 6-Digit Activation Code ➔"}
                   </button>
                 </div>
               </form>

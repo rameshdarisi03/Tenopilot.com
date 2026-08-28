@@ -116,7 +116,7 @@ export default function ApexCommandClientsPage() {
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-lg shadow-[#ff3366]/20 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Onboard New PG</span>
+              <span>+ Onboard Customer</span>
             </Link>
           }
         />
@@ -126,12 +126,12 @@ export default function ApexCommandClientsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                TOTAL PG BRANDS
+                TOTAL CUSTOMERS
               </span>
               <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-white">
-                {totalClients} Clients
+                {totalClients} Customers
               </h2>
-              <p className="text-[11px] text-slate-400">Managed organizations</p>
+              <p className="text-[11px] text-slate-400">Active organizations</p>
             </div>
 
             <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
@@ -139,29 +139,29 @@ export default function ApexCommandClientsPage() {
                 PAID SUBSCRIBERS
               </span>
               <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-emerald-400">
-                {activePaidCount} Paid
+                {activePaidCount} Paid PGs
               </h2>
               <p className="text-[11px] text-emerald-400/80">Active Pro / Annual</p>
             </div>
 
             <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                ACTIVE VIP TRIALS
+                FREE TRIALS
               </span>
               <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-[#ff5436]">
                 {trialCount} In Trial
               </h2>
-              <p className="text-[11px] text-slate-400">14-Day Full VIP Pass</p>
+              <p className="text-[11px] text-slate-400">14-Day Free Passes</p>
             </div>
 
             <div className="p-4 sm:p-5 rounded-3xl bg-[#16191f] border border-white/8 shadow-xl flex flex-col justify-between space-y-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                TOTAL LIVE BEDS
+                MANAGED BED INVENTORY
               </span>
               <h2 className="font-sans font-extrabold text-2xl sm:text-3xl text-blue-400">
                 {totalBedsAcrossPlatform} Beds
               </h2>
-              <p className="text-[11px] text-blue-400/80">Layout inventory</p>
+              <p className="text-[11px] text-blue-400/80">Across all customer PGs</p>
             </div>
           </div>
 
@@ -382,20 +382,26 @@ export default function ApexCommandClientsPage() {
         </main>
       </div>
 
-      {/* CLIENT DEEP DIVE DRAWER / MODAL */}
+      {/* CUSTOMER ORGANIZATION DOSSIER DRAWER / MODAL */}
       {selectedClient && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#16191f] rounded-3xl border border-white/10 shadow-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-white/8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#ff3366] to-[#ff8400] flex items-center justify-center text-white font-bold text-base shadow-md">
+          <div className="bg-[#16191f] rounded-3xl border border-white/10 shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-6 animate-in zoom-in-95 text-xs text-white max-h-[90vh] overflow-y-auto">
+            {/* Header with Org ID */}
+            <div className="flex items-start justify-between pb-4 border-b border-white/8 gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff3366] via-[#ff5436] to-[#ff8400] flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-[#ff3366]/20 shrink-0">
                   🏢
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-xl text-white">
-                    {selectedClient.pgName}
-                  </h3>
-                  <p className="text-xs text-slate-400">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-sans font-black text-xl text-white">
+                      {selectedClient.ownerName}
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-md bg-white/10 text-white/90 border border-white/10 flex items-center gap-1.5">
+                      Org ID: ORG-{selectedClient.id.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
                     {selectedClient.area}, {selectedClient.city} • Onboarded by {selectedClient.onboardedBy}
                   </p>
                 </div>
@@ -403,93 +409,131 @@ export default function ApexCommandClientsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedClient(null)}
-                className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Quick Metrics Grid */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black">Capacity</span>
-                <p className="font-bold text-base text-white">{selectedClient.occupiedBeds} / {selectedClient.totalBeds} Beds</p>
-                <p className="text-[10px] text-emerald-400">
-                  {selectedClient.totalBeds > 0 ? Math.round((selectedClient.occupiedBeds / selectedClient.totalBeds) * 100) : 0}% Occupied
+            {/* Owner Contact Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-2xl bg-[#0d0f12] border border-white/8 text-xs">
+              <div className="space-y-0.5">
+                <span className="text-slate-500 text-[10px] uppercase font-bold">WhatsApp Phone</span>
+                <p className="font-mono font-bold text-white flex items-center gap-1.5">
+                  <Phone className="w-3 h-3 text-emerald-400" />
+                  {selectedClient.ownerPhone}
                 </p>
               </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black">AI Scans</span>
-                <p className="font-bold text-base text-[#ff5436]">{selectedClient.fastTrackScansCount} FastTrack</p>
-                <p className="text-[10px] text-slate-400">Registers ingested</p>
+              <div className="space-y-0.5">
+                <span className="text-slate-500 text-[10px] uppercase font-bold">Email Address</span>
+                <p className="font-mono text-slate-300 truncate">{selectedClient.ownerEmail}</p>
               </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-black">WA Credits</span>
-                <p className="font-bold text-base text-purple-400">{selectedClient.whatsappCreditsUsed} Used</p>
-                <p className="text-[10px] text-slate-400">Reminders sent</p>
+              <div className="space-y-0.5">
+                <span className="text-slate-500 text-[10px] uppercase font-bold">SaaS Billing Tier</span>
+                <p className="font-bold text-emerald-400">{selectedClient.plan}</p>
               </div>
             </div>
 
-            {/* Owner Contact */}
-            <div className="p-4 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-2">
-              <h4 className="font-bold text-white text-xs">Owner & Billing Details</h4>
-              <div className="grid grid-cols-2 gap-2 text-slate-300 text-xs">
-                <div>
-                  <span className="text-slate-500 text-[10px]">Owner Name:</span>
-                  <p className="font-bold">{selectedClient.ownerName}</p>
+            {/* Properties Under This Organization (Multi-Building Matrix) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 text-[#ff5436]" />
+                  Buildings Under This Customer Org (1 Active Property)
+                </h4>
+                <Link
+                  href="/apex-command/invites"
+                  onClick={() => setSelectedClient(null)}
+                  className="text-[11px] font-bold text-[#ff5436] hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Issue Additional Building Pass
+                </Link>
+              </div>
+
+              {/* Property Card 1 (Primary) */}
+              <div className="p-4 rounded-2xl bg-[#0d0f12] border border-white/8 space-y-3 hover:border-white/20 transition-all">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-white">{selectedClient.pgName}</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-400">
+                        Primary (prop-{selectedClient.id})
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3 text-[#ff5436]" /> {selectedClient.area}, {selectedClient.city}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClient(null);
+                      handleImpersonate(selectedClient);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#ff3366]/20 flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all self-start sm:self-auto"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>⚡ Jump into Dashboard</span>
+                  </button>
                 </div>
-                <div>
-                  <span className="text-slate-500 text-[10px]">Phone Number:</span>
-                  <p className="font-mono font-bold">{selectedClient.ownerPhone}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[10px]">Email Address:</span>
-                  <p className="font-mono truncate">{selectedClient.ownerEmail}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-[10px]">Current Plan:</span>
-                  <p className="font-bold text-emerald-400">{selectedClient.plan}</p>
+
+                {/* Live Occupancy Bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                    <span>Occupancy: {selectedClient.occupiedBeds} of {selectedClient.totalBeds} Beds Filled</span>
+                    <span className="text-emerald-400 font-bold">
+                      {selectedClient.totalBeds > 0 ? Math.round((selectedClient.occupiedBeds / selectedClient.totalBeds) * 100) : 0}% Occupied
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
+                      style={{
+                        width: `${selectedClient.totalBeds > 0 ? Math.round((selectedClient.occupiedBeds / selectedClient.totalBeds) * 100) : 0}%`,
+                      }}
+                    ></div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/8 gap-3">
+            {/* Telemetry & Usage Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/6 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">FastTrack AI Scans</span>
+                <p className="font-bold text-base text-[#ff5436]">{selectedClient.fastTrackScansCount} Registers Scanned</p>
+                <p className="text-[10px] text-slate-400">Gemini Vision OCR</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#0d0f12] border border-white/6 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Meta WhatsApp Balance</span>
+                <p className="font-bold text-base text-purple-400">{selectedClient.whatsappCreditsUsed} Credits Sent</p>
+                <p className="text-[10px] text-slate-400">Automated KYC & rent slips</p>
+              </div>
+            </div>
+
+            {/* Bottom Actions Bar */}
+            <div className="flex items-center justify-between pt-3 border-t border-white/8 gap-3 flex-wrap">
               <button
                 type="button"
                 onClick={() => handleToggleSuspend(selectedClient)}
-                className={`px-4 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   selectedClient.status === "SUSPENDED"
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                     : "border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
                 }`}
               >
-                {selectedClient.status === "SUSPENDED" ? "Reactivate Account" : "Suspend Client"}
+                {selectedClient.status === "SUSPENDED" ? "Reactivate Organization" : "Suspend Organization"}
               </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleExtendTrial(selectedClient, 7)}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-all cursor-pointer"
-                >
-                  +7 Days Trial
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedClient(null);
-                    handleImpersonate(selectedClient);
-                  }}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] text-white font-bold text-xs shadow-lg flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>Impersonate Client ➔</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleExtendTrial(selectedClient, 7)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-all cursor-pointer"
+              >
+                +7 Days Trial Extension
+              </button>
             </div>
           </div>
         </div>

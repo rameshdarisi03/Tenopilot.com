@@ -81,19 +81,8 @@ export function FounderHeader({
           <span>IST: {timeStr || "10:30 PM"}</span>
         </div>
 
-        {/* Action element or Default VIP Invite CTA */}
-        {actionElement ? (
-          actionElement
-        ) : (
-          <Link
-            href="/apex-command/invites"
-            className="px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff3366] via-[#ff5436] to-[#ff8400] hover:opacity-95 text-white font-bold text-xs shadow-lg shadow-[#ff3366]/20 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
-          >
-            <Ticket className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">+ Create VIP Lead</span>
-            <span className="sm:hidden">+ Lead</span>
-          </Link>
-        )}
+        {/* Optional Action element */}
+        {actionElement}
       </div>
     </header>
   );
