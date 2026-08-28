@@ -55,7 +55,21 @@ export async function GET(req: NextRequest) {
       console.warn("Scanner founder_clients fetch error:", e);
     }
 
-    // 3. Scan Users Collection in Cloud Firestore
+    // 3. Fetch Staff Accounts to identify internal organization staff
+    const staffAccountsSet = new Set<string>();
+    try {
+      const staffSnap = await getDocs(collection(db, "staff_accounts"));
+      staffSnap.docs.forEach((d) => {
+        const data = d.data() as any;
+        if (data.email) {
+          staffAccountsSet.add(data.email.toLowerCase().trim());
+        }
+      });
+    } catch (e) {
+      console.warn("Scanner staff_accounts fetch error:", e);
+    }
+
+    // 4. Scan Users Collection in Cloud Firestore
     try {
       const usersSnap = await getDocs(collection(db, "users"));
       for (const d of usersSnap.docs) {
@@ -68,10 +82,19 @@ export async function GET(req: NextRequest) {
         }
 
         if (!email) continue;
-        processedEmails.add(email);
 
         const vipInvite = vipInvitesMap.get(email);
         const founderClient = founderClientsMap.get(email);
+
+        // 🔒 Exclude internal organization staff (Receptionists/Branch Admins) from top-level Client Registry
+        const isStaff = staffAccountsSet.has(email) || data.role === "admin" || data.role === "receptionist";
+        const isMasterAdmin = data.role === "master_admin" || Boolean(vipInvite) || Boolean(founderClient);
+
+        if (isStaff && !isMasterAdmin) {
+          continue;
+        }
+
+        processedEmails.add(email);
 
         let classification: "ACTIVE_VIP" | "BETA_LEGACY" | "PENDING_VIP" | "SUSPENDED" = "BETA_LEGACY";
         let detectionReason = "Direct Google / Email login created prior to Founder VIP Gatekeeper";

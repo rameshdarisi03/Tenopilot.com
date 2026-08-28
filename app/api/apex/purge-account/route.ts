@@ -116,7 +116,25 @@ export async function POST(req: NextRequest) {
         console.warn(`Occupants subcollection purge error on ${propId}:`, e);
       }
 
-      // C. Delete Settings & Layout Subcollections
+      // C. Extract and Cascade Delete Staff Subcollection & Global staff_accounts Docs
+      try {
+        const staffSnap = await getDocs(collection(db, "properties", propId, "staff"));
+        for (const sDoc of staffSnap.docs) {
+          const sData = sDoc.data() as any;
+          if (sData.email) {
+            try {
+              await deleteDoc(doc(db, "staff_accounts", sData.email.toLowerCase().trim()));
+              deletedDocsCount++;
+            } catch {}
+          }
+          await deleteDoc(doc(db, "properties", propId, "staff", sDoc.id));
+          deletedDocsCount++;
+        }
+      } catch (e) {
+        console.warn(`Staff subcollection purge error on ${propId}:`, e);
+      }
+
+      // D. Delete Settings & Layout Subcollections
       try {
         await deleteDoc(doc(db, `properties/${propId}/settings/config`));
         deletedDocsCount++;
@@ -127,13 +145,27 @@ export async function POST(req: NextRequest) {
         deletedDocsCount++;
       } catch {}
 
-      // D. Delete Main Property Document
+      // E. Delete Main Property Document
       try {
         await deleteDoc(doc(db, "properties", propId));
         deletedDocsCount++;
       } catch (e) {
         console.warn(`Property doc deletion error on ${propId}:`, e);
       }
+    }
+
+    // 6. Delete VIP Invite from founder_invites if present
+    try {
+      const invSnap = await getDocs(collection(db, "founder_invites"));
+      for (const invDoc of invSnap.docs) {
+        const invData = invDoc.data() as any;
+        if (invData.ownerEmail?.toLowerCase().trim() === cleanEmail) {
+          await deleteDoc(doc(db, "founder_invites", invDoc.id));
+          deletedDocsCount++;
+        }
+      }
+    } catch (e) {
+      console.warn("Founder invites purge error:", e);
     }
 
     return NextResponse.json({

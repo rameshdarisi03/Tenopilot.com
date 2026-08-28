@@ -469,6 +469,19 @@ export const founderStore = {
       createdAt: new Date().toISOString(),
     };
 
+    // 1. Persist to Next.js Server API with strict uniqueness validation
+    if (typeof window !== "undefined") {
+      const res = await fetch("/api/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newInvite),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to create VIP invite due to duplicate credentials.");
+      }
+    }
+
     inMemoryInvites = [newInvite, ...inMemoryInvites];
     if (typeof window !== "undefined") {
       try {
@@ -476,17 +489,6 @@ export const founderStore = {
       } catch {}
     }
     this.notify();
-
-    // 1. Persist to Next.js Server API
-    try {
-      if (typeof window !== "undefined") {
-        fetch("/api/invites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newInvite),
-        }).catch((err) => console.warn("API /api/invites async warning:", err));
-      }
-    } catch {}
 
     // 2. Persist to Cloud Firestore
     try {

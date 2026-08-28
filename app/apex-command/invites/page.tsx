@@ -26,6 +26,7 @@ import {
   Sparkles,
   ShieldCheck,
   Filter,
+  AlertCircle,
 } from "lucide-react";
 
 export default function ApexCommandInvitesPage() {
@@ -50,6 +51,7 @@ export default function ApexCommandInvitesPage() {
   const [assignedPlan, setAssignedPlan] = useState<"14_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP">("14_DAY_TRIAL");
   const [trialDurationDays, setTrialDurationDays] = useState(14);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     founderStore.initFirebase();
@@ -78,22 +80,21 @@ export default function ApexCommandInvitesPage() {
   const handleShareWhatsApp = (invite: FounderVipInvite) => {
     const cleanPhone = invite.ownerPhone.replace(/\D/g, "");
     const text = encodeURIComponent(
-      `Hello ${invite.ownerName} ji! 🙏\n\n` +
-      `Welcome to TenoPilot! Your official Activation Code for *${invite.pgName}* is:\n\n` +
-      `🔑 *${invite.activationCode}*\n\n` +
-      `To activate your property command dashboard, click the direct access link below:\n` +
-      `👉 https://tenopilot.com/signup?code=${invite.activationCode}\n\n` +
-      `Your 14-Day Free Trial is ready. If you need any assistance, our team is always here for you!`
+      `🎉 Welcome to TenoPilot!\n\n` +
+        `Hi ${invite.ownerName}, your VIP onboarding pass for *${invite.pgName}* has been issued.\n\n` +
+        `🔑 *1-Time Activation Code:* ${invite.activationCode}\n\n` +
+        `📲 Complete your 30-second setup here: https://tenopilot.com/signup\n\n` +
+        `Need help? Reply to this message.`
     );
-
-    const waUrl = cleanPhone.length === 10 ? `https://wa.me/91${cleanPhone}?text=${text}` : `https://wa.me/${cleanPhone}?text=${text}`;
+    const waUrl = `https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`;
     window.open(waUrl, "_blank");
   };
 
   const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateError(null);
     if (!pgName || !ownerName || !ownerPhone || !ownerEmail) {
-      alert("Please fill in all required fields.");
+      setCreateError("Please fill in all required fields.");
       return;
     }
 
@@ -119,8 +120,9 @@ export default function ApexCommandInvitesPage() {
       setOwnerName("");
       setOwnerPhone("");
       setOwnerEmail("");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setCreateError(err.message || "Failed to create VIP invite. Contact credentials may already be in use.");
       setIsSubmitting(false);
     }
   };
@@ -473,6 +475,13 @@ export default function ApexCommandInvitesPage() {
               </div>
             ) : (
               <form onSubmit={handleCreateInvite} className="space-y-4">
+                {createError && (
+                  <div className="p-3 bg-red-950/80 border border-red-500/50 rounded-xl text-red-300 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>{createError}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">

@@ -94,13 +94,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanPhone = ownerPhone.replace(/\D/g, "");
+    const cleanEmail = ownerEmail.toLowerCase().trim();
+
+    // 🔒 Enforce Global Uniqueness for Master Admin Contact Credentials
+    try {
+      const snap = await getDocs(collection(db, "founder_invites"));
+      for (const d of snap.docs) {
+        if (id && d.id === id) continue;
+        const data = d.data() as any;
+        const p = (data.ownerPhone || "").replace(/\D/g, "");
+        const em = (data.ownerEmail || "").toLowerCase().trim();
+
+        if (em && em === cleanEmail) {
+          return NextResponse.json(
+            { error: `⚠️ Email '${cleanEmail}' is already registered to ${data.ownerName || "another client"} (${data.pgName}). Master Admin emails must be globally unique.` },
+            { status: 409 }
+          );
+        }
+
+        if (p && cleanPhone.length >= 7 && (p.endsWith(cleanPhone) || cleanPhone.endsWith(p))) {
+          return NextResponse.json(
+            { error: `⚠️ Mobile number '${ownerPhone}' is already registered to ${data.ownerName || "another client"} (${data.pgName}). A Master Admin cannot share phone credentials.` },
+            { status: 409 }
+          );
+        }
+      }
+    } catch (e) {
+      console.warn("Uniqueness check notice:", e);
+    }
+
     const inviteRecord = {
       id: id || `inv-${Date.now()}`,
       activationCode,
       pgName: pgName || "PG Property",
       ownerName: ownerName || "Property Owner",
       ownerPhone,
-      ownerEmail: ownerEmail.toLowerCase().trim(),
+      ownerEmail: cleanEmail,
       city: city || "India",
       assignedPlan: assignedPlan || "14_DAY_TRIAL",
       trialDurationDays: trialDurationDays || 14,
