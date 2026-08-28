@@ -72,7 +72,7 @@ export const INITIAL_COMPLAINTS: Complaint[] = [
   },
 ];
 
-let inMemoryComplaintsStore: Complaint[] = [...INITIAL_COMPLAINTS];
+let inMemoryComplaintsStore: Complaint[] = [];
 const storeListeners: Set<(complaints: Complaint[]) => void> = new Set();
 
 function loadFromLocalStorage(propertyId: string): Complaint[] | null {

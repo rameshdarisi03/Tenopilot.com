@@ -34,6 +34,7 @@ import {
   QrCode,
   Download,
   Printer,
+  Sparkles,
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -285,6 +286,34 @@ export default function PropertyOverviewPage({
               </Link>
             </div>
           </div>
+
+          {/* If Property is Brand New (0 Beds Configured), show Setup Banner */}
+          {totalBeds === 0 && (
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-[#fff8f6] to-[#faefe8] border-2 border-dashed border-[#c2652a]/40 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#c2652a]/15 text-[#964407] flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Welcome to {propertySettings.propertyName}! 🏢
+                  </h3>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Your property layout has 0 rooms/beds. Set up your floors & beds or use FastTrack AI to import your ledger.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                <Link
+                  href={`/p/${propertyId}/property-setup`}
+                  className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-sm text-center flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Configure Property Layout</span>
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Urgent Attention Alert Banner */}
           <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
