@@ -95,72 +95,73 @@ function SignUpPageContent() {
 
       if (userEmail) {
         setIdentifier(userEmail);
-        const cleanCode = `${codePart1}-${codePart2}`.toUpperCase().trim();
-        if (codePart1.length === 4 && codePart2.length === 4) {
-          founderStore.initFirebase();
-          const res = await founderStore.redeemActivationCode(cleanCode, userEmail);
-          if (res.success && res.invite) {
-            const invite = res.invite;
-            setActivatedSuccess(invite);
+        const hasManualCode = codePart1.length === 4 && codePart2.length === 4;
+        const codeToRedeem = hasManualCode ? `${codePart1}-${codePart2}`.toUpperCase().trim() : "AUTO";
 
-            const propId = `prop-${invite.id}`;
-            staffStore.addGlobalStaff({
-              id: `owner-${Date.now()}`,
-              name: invite.ownerName || userName,
+        founderStore.initFirebase();
+        const res = await founderStore.redeemActivationCode(codeToRedeem, userEmail);
+
+        if (res.success && res.invite) {
+          const invite = res.invite;
+          setActivatedSuccess(invite);
+
+          const propId = `prop-${invite.id}`;
+          staffStore.addGlobalStaff({
+            id: `owner-${Date.now()}`,
+            name: invite.ownerName || userName,
+            email: invite.ownerEmail || userEmail,
+            phone: invite.ownerPhone,
+            role: "master_admin",
+            assignedPropertyId: propId,
+            assignedPropertyIds: [propId],
+            propertyName: invite.pgName,
+            status: "Active",
+            joinedDate: new Date().toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
+          });
+
+          const newPropertyRecord: PortfolioProperty = {
+            id: propId,
+            name: invite.pgName,
+            location: `${invite.city || "Bengaluru"}, India`,
+            bedsCount: 80,
+            occupancyRate: "0.0%",
+            collectionRate: "0%",
+            status: "HEALTHY",
+            createdAt: new Date().toISOString(),
+            ownerEmail: invite.ownerEmail || userEmail,
+          };
+
+          initializeCleanProperty(propId, invite.pgName, invite.ownerName || userName);
+          portfolioStore.addProperty(newPropertyRecord, invite.ownerEmail || userEmail);
+
+          localStorage.setItem(
+            "tenopilot_saved_session",
+            JSON.stringify({
               email: invite.ownerEmail || userEmail,
               phone: invite.ownerPhone,
+              name: invite.ownerName || userName,
               role: "master_admin",
-              assignedPropertyId: propId,
-              assignedPropertyIds: [propId],
               propertyName: invite.pgName,
-              status: "Active",
-              joinedDate: new Date().toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              }),
-            });
+              propertyId: propId,
+            })
+          );
+          staffStore.setActiveRole("master_admin");
 
-            const newPropertyRecord: PortfolioProperty = {
-              id: propId,
-              name: invite.pgName,
-              location: `${invite.city || "Bengaluru"}, India`,
-              bedsCount: 80,
-              occupancyRate: "0.0%",
-              collectionRate: "0%",
-              status: "HEALTHY",
-              createdAt: new Date().toISOString(),
-              ownerEmail: invite.ownerEmail || userEmail,
-            };
-
-            initializeCleanProperty(propId, invite.pgName, invite.ownerName || userName);
-            portfolioStore.addProperty(newPropertyRecord, invite.ownerEmail || userEmail);
-
-            localStorage.setItem(
-              "tenopilot_saved_session",
-              JSON.stringify({
-                email: invite.ownerEmail || userEmail,
-                phone: invite.ownerPhone,
-                name: invite.ownerName || userName,
-                role: "master_admin",
-                propertyName: invite.pgName,
-                propertyId: propId,
-              })
-            );
-            staffStore.setActiveRole("master_admin");
-
-            setTimeout(() => {
-              router.push(`/p/${propId}/overview`);
-              if (typeof window !== "undefined") {
-                window.location.href = `/p/${propId}/overview`;
-              }
-            }, 2000);
-            return;
-          } else {
-            setError(res.message);
-          }
+          setTimeout(() => {
+            router.push(`/p/${propId}/overview`);
+            if (typeof window !== "undefined") {
+              window.location.href = `/p/${propId}/overview`;
+            }
+          }, 1800);
+          return;
         } else {
-          part1Ref.current?.focus();
+          // If no auto-pass was found, populate email and prompt for code
+          setError(`Google account verified (${userEmail}). Please enter your Activation Code to link your PG.`);
+          setTimeout(() => part1Ref.current?.focus(), 150);
         }
       }
     } catch (err: any) {

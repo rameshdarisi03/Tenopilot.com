@@ -501,8 +501,9 @@ export const founderStore = {
   /**
    * Redeem a Secure Activation Code (Validates against either Mobile Number or Email)
    */
-  async redeemActivationCode(code: string, identifier: string): Promise<{ success: boolean; message: string; invite?: FounderVipInvite }> {
-    const formattedCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  async redeemActivationCode(code: string, identifier: string): Promise<{ success: boolean; message: string; invite?: FounderVipInvite; autoLinked?: boolean }> {
+    const isAutoLink = !code || code === "AUTO" || code === "GOOGLE_AUTO_LINK";
+    const formattedCode = code ? code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
     const cleanIdentifier = identifier.trim().toLowerCase();
     const cleanPhone = identifier.replace(/\D/g, "");
 
@@ -512,7 +513,7 @@ export const founderStore = {
         const apiRes = await fetch("/api/invites/redeem", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: formattedCode, identifier }),
+          body: JSON.stringify({ code: isAutoLink ? "AUTO" : formattedCode, identifier }),
         });
 
         if (apiRes.ok) {
@@ -524,7 +525,7 @@ export const founderStore = {
             try {
               localStorage.setItem("tenopilot_local_invites", JSON.stringify(inMemoryInvites));
             } catch {}
-            return { success: true, message: apiData.message, invite: apiData.invite };
+            return { success: true, message: apiData.message, invite: apiData.invite, autoLinked: apiData.autoLinked };
           } else if (apiData.message) {
             return { success: false, message: apiData.message };
           }
@@ -536,6 +537,11 @@ export const founderStore = {
 
     // 2. Client-side check in-memory state
     let invite = inMemoryInvites.find((inv) => {
+      if (isAutoLink) {
+        const invEmail = inv.ownerEmail.toLowerCase().trim();
+        const invPhone = inv.ownerPhone.replace(/\D/g, "");
+        return (cleanIdentifier.includes("@") && invEmail === cleanIdentifier) || (cleanPhone.length >= 7 && invPhone.endsWith(cleanPhone));
+      }
       const invCode = inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
       return invCode === formattedCode;
     });
@@ -546,7 +552,14 @@ export const founderStore = {
         const local = localStorage.getItem("tenopilot_local_invites");
         if (local) {
           const parsed = JSON.parse(local) as FounderVipInvite[];
-          const found = parsed.find((inv) => inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "") === formattedCode);
+          const found = parsed.find((inv) => {
+            if (isAutoLink) {
+              const invEmail = inv.ownerEmail.toLowerCase().trim();
+              const invPhone = inv.ownerPhone.replace(/\D/g, "");
+              return (cleanIdentifier.includes("@") && invEmail === cleanIdentifier) || (cleanPhone.length >= 7 && invPhone.endsWith(cleanPhone));
+            }
+            return inv.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "") === formattedCode;
+          });
           if (found) {
             invite = found;
             inMemoryInvites = [found, ...inMemoryInvites.filter((i) => i.id !== found.id)];
@@ -564,7 +577,13 @@ export const founderStore = {
         if (!snap.empty) {
           snap.docs.forEach((d) => {
             const data = { id: d.id, ...d.data() } as FounderVipInvite;
-            if (data.activationCode && data.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "") === formattedCode) {
+            if (isAutoLink) {
+              const invEmail = (data.ownerEmail || "").toLowerCase().trim();
+              const invPhone = (data.ownerPhone || "").replace(/\D/g, "");
+              if ((cleanIdentifier.includes("@") && invEmail === cleanIdentifier) || (cleanPhone.length >= 7 && invPhone.endsWith(cleanPhone))) {
+                invite = data;
+              }
+            } else if (data.activationCode && data.activationCode.toUpperCase().replace(/[^A-Z0-9]/g, "") === formattedCode) {
               invite = data;
             }
             if (!inMemoryInvites.some((i) => i.id === data.id)) {
@@ -578,11 +597,17 @@ export const founderStore = {
     }
 
     if (!invite) {
+      if (isAutoLink) {
+        return {
+          success: false,
+          message: `⚠️ No pending activation pass found for ${cleanIdentifier}. Please enter your Activation Code or contact onboarding desk.`,
+        };
+      }
       return { success: false, message: "⚠️ Invalid activation code. Please verify the code issued by your onboarding representative." };
     }
 
     if (invite.status === "REDEEMED") {
-      return { success: false, message: "⚠️ This activation code has already been redeemed and is no longer valid. Please log in to your account." };
+      return { success: true, message: `Welcome back! "${invite.pgName}" is already activated.`, invite };
     }
 
     // 2-Factor Check: Match either registered Email or registered Mobile Number
