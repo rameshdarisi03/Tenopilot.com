@@ -354,18 +354,18 @@ export default function ReportsAnalyticsPage({
     const avgRentPerBed = activeOccupantCount > 0 ? Math.round(totalRentOfOccupants / activeOccupantCount) : 0;
     const cpb = activeOccupantCount > 0 ? Math.round(totalExpenses / activeOccupantCount) : 0;
     const netOperatingProfit = Math.max(0, totalRevenueIntake - totalExpenses);
-    const operatingMargin = totalRevenueIntake > 0 ? ((netOperatingProfit / totalRevenueIntake) * 100).toFixed(1) : "100.0";
+    const operatingMargin = totalRevenueIntake > 0 ? ((netOperatingProfit / totalRevenueIntake) * 100).toFixed(1) : "0.0";
 
-    const totalChannel = upiTotal + cashTotal || 1;
-    const upiPct = Math.round((upiTotal / totalChannel) * 100);
-    const cashPct = 100 - upiPct;
+    const totalChannel = upiTotal + cashTotal;
+    const upiPct = totalChannel > 0 ? Math.round((upiTotal / totalChannel) * 100) : 0;
+    const cashPct = totalChannel > 0 ? 100 - upiPct : 0;
 
-    // 3. 6-Month Historical Revenue Trend Generation
+    // 3. 6-Month Historical Revenue Trend Generation (True Zero for New Properties)
     const monthNames = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"];
     const sixMonthTrend = monthNames.map((m, idx) => {
-      const growthFactor = 0.70 + idx * 0.06;
-      const rev = Math.round(totalRevenueIntake * growthFactor) || (110000 + idx * 9000);
-      const occPctVal = Math.min(100, Math.round(((activeOccupantCount / Math.max(1, totalBeds)) * 100) * (0.8 + idx * 0.04)));
+      const growthFactor = totalRevenueIntake > 0 ? (0.70 + idx * 0.06) : 0;
+      const rev = totalRevenueIntake > 0 ? Math.round(totalRevenueIntake * growthFactor) : 0;
+      const occPctVal = totalBeds > 0 ? Math.min(100, Math.round(((activeOccupantCount / totalBeds) * 100) * (0.8 + idx * 0.04))) : 0;
       return {
         month: m,
         revenue: rev,
@@ -1048,8 +1048,12 @@ export default function ReportsAnalyticsPage({
                       Track how your monthly collections and filled beds are growing over time
                     </p>
                   </div>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shrink-0">
-                    📈 +14.2% Growth Trajectory
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full border shrink-0 ${
+                    businessAnalytics.totalRevenueIntake > 0
+                      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                      : "text-gray-600 bg-gray-50 border-gray-200"
+                  }`}>
+                    {businessAnalytics.totalRevenueIntake > 0 ? "📈 Active Trend" : "📊 Baseline Initialized"}
                   </span>
                 </div>
 
@@ -1057,8 +1061,8 @@ export default function ReportsAnalyticsPage({
                 <div className="space-y-3">
                   <div className="grid grid-cols-6 gap-1.5 sm:gap-4 items-end h-52 sm:h-64 pt-6 sm:pt-8 pb-2 border-b border-gray-100">
                     {businessAnalytics.sixMonthTrend.map((item, idx) => {
-                      const maxRev = Math.max(...businessAnalytics.sixMonthTrend.map((t) => t.revenue)) || 1;
-                      const heightPct = Math.max(15, Math.round((item.revenue / maxRev) * 100));
+                      const maxRev = Math.max(...businessAnalytics.sixMonthTrend.map((t) => t.revenue));
+                      const heightPct = maxRev > 0 ? Math.max(12, Math.round((item.revenue / maxRev) * 100)) : 6;
 
                       return (
                         <div key={item.month} className="flex flex-col items-center gap-1.5 sm:gap-2 h-full justify-end group">
@@ -1072,7 +1076,7 @@ export default function ReportsAnalyticsPage({
                             className="w-full max-w-[36px] sm:max-w-[48px] rounded-xl sm:rounded-2xl transition-all duration-500 relative flex items-end justify-center shadow-xs overflow-hidden"
                             style={{
                               height: `${heightPct}%`,
-                              backgroundColor: idx === businessAnalytics.sixMonthTrend.length - 1 ? "#c2652a" : "#cbd5e1",
+                              backgroundColor: maxRev > 0 && idx === businessAnalytics.sixMonthTrend.length - 1 ? "#c2652a" : "#e2e8f0",
                             }}
                           >
                             <div

@@ -383,20 +383,20 @@ export default function FinancialHubPage({
     const collectionEfficiency =
       totalExpectedRent > 0
         ? Math.min(100, Math.max(0, (rentStream / totalExpectedRent) * 100)).toFixed(1)
-        : "100.0";
+        : "0.0";
 
     const arpb = occupiedCount > 0 ? Math.round(totalGrossRevenue / occupiedCount) : 0;
 
-    const totalChannel = upiAmount + bankAmount + cashAmount || 1;
+    const totalChannel = upiAmount + bankAmount + cashAmount;
     const onlineTotal = upiAmount + bankAmount;
-    const upiPct = Math.round((onlineTotal / totalChannel) * 100) || 85;
-    const cashPct = 100 - upiPct;
+    const upiPct = totalChannel > 0 ? Math.round((onlineTotal / totalChannel) * 100) : 0;
+    const cashPct = totalChannel > 0 ? 100 - upiPct : 0;
 
-    const totalStreams = rentStream + depositStream + maintenanceStream + penaltyDamageStream || 1;
-    const rentPct = Math.round((rentStream / totalStreams) * 100);
-    const depositPct = Math.round((depositStream / totalStreams) * 100);
-    const maintenancePct = Math.round((maintenanceStream / totalStreams) * 100);
-    const penaltyDamagePct = Math.max(0, 100 - rentPct - depositPct - maintenancePct);
+    const totalStreams = rentStream + depositStream + maintenanceStream + penaltyDamageStream;
+    const rentPct = totalStreams > 0 ? Math.round((rentStream / totalStreams) * 100) : 0;
+    const depositPct = totalStreams > 0 ? Math.round((depositStream / totalStreams) * 100) : 0;
+    const maintenancePct = totalStreams > 0 ? Math.round((maintenanceStream / totalStreams) * 100) : 0;
+    const penaltyDamagePct = totalStreams > 0 ? Math.max(0, 100 - rentPct - depositPct - maintenancePct) : 0;
 
     return {
       totalGrossRevenue,
