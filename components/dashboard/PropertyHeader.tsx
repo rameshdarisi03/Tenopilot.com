@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, ChevronLeft, UserCheck, Edit3 } from "lucide-react";
+import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, ChevronLeft, UserCheck, Edit3, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Complaint, subscribeToComplaints, INITIAL_COMPLAINTS } from "@/lib/complaintStore";
@@ -8,6 +8,7 @@ import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { initializePropertyTrial, calculateTrialDaysRemaining } from "@/lib/trialService";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -33,6 +34,7 @@ export function PropertyHeader({
   actionElement?: React.ReactNode;
 }) {
   const { profile, updateProfileName, logout } = useAuth();
+  const sub = evaluateSubscription(profile);
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -275,27 +277,61 @@ export function PropertyHeader({
               </div>
 
               <div className="max-h-72 overflow-y-auto space-y-2 pr-1 divide-y divide-gray-100">
-                {/* 1. Open Complaints Alerts */}
-                {openComplaints.map((c) => (
+                {/* 0. Subscription Renewal & Grace Notice */}
+                {sub.notificationMessage && (
+                  <Link
+                    href={`/p/${propertyId}/subscription`}
+                    onClick={() => setShowNotifications(false)}
+                    className={`block p-3 rounded-xl border transition-all ${
+                      sub.inGracePeriod
+                        ? "bg-amber-500/15 border-amber-300 text-amber-950"
+                        : sub.isPreExpiry
+                        ? "bg-blue-50 border-blue-200 text-blue-950"
+                        : "bg-rose-50 border-rose-200 text-rose-950"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-xs">
+                          {sub.inGracePeriod
+                            ? `⏳ Pro Grace Period: ${sub.graceDaysRemaining} Days Left`
+                            : sub.isPreExpiry
+                            ? `💎 Pro Renewal Notice (${sub.daysRemaining} Days)`
+                            : `⚡ Subscription Status`}
+                        </p>
+                        <p className="text-[11px] text-gray-700 mt-1 leading-relaxed">
+                          {sub.notificationMessage}
+                        </p>
+                        <p className="text-[10px] font-bold text-[#c2652a] mt-1.5 flex items-center gap-1">
+                          <span>View Billing Hub & Renew</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                )}
+
+                {/* 1. Open Maintenance Complaints */}
+                {openComplaints.slice(0, 3).map((c) => (
                   <Link
                     key={c.id}
                     href={`/p/${propertyId}/complaints`}
                     onClick={() => setShowNotifications(false)}
-                    className="pt-2 block hover:bg-orange-50/50 p-2 rounded-xl transition-colors"
+                    className="pt-2 block hover:bg-amber-50/50 p-2 rounded-xl transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 font-bold text-gray-900">
                         <Wrench className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Room {c.roomNumber} ({c.category})</span>
+                        <span>Room {c.roomNumber} - {c.category}</span>
                       </div>
                       <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">
-                        UNRESOLVED
+                        {c.status.toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-600 line-clamp-1 mt-0.5">{c.description}</p>
-                    <span className="text-[9px] text-gray-400 font-mono mt-1 block">
-                      Tenant: {c.tenantName} • {new Date(c.createdAt).toLocaleDateString("en-GB")}
-                    </span>
+                    <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
+                      {c.description}
+                    </p>
                   </Link>
                 ))}
 
@@ -345,7 +381,7 @@ export function PropertyHeader({
                   </Link>
                 ))}
 
-                {openComplaints.length === 0 && overdueOccupants.length === 0 && pendingKycOccupants.length === 0 && (
+                {openComplaints.length === 0 && overdueOccupants.length === 0 && pendingKycOccupants.length === 0 && !sub.notificationMessage && (
                   <div className="py-6 text-center text-gray-400 space-y-1">
                     <Check className="w-8 h-8 text-emerald-500 mx-auto" />
                     <p className="font-bold text-gray-700">All System Alerts Clear!</p>
@@ -357,11 +393,30 @@ export function PropertyHeader({
           )}
         </div>
 
-        {/* ⏳ Hack-Proof 10-Day Free Trial Badge */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold shadow-2xs">
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>10-Day Free Trial ({trialDaysLeft} Days Left)</span>
-        </div>
+        {/* ⏳ Dynamic Subscription Lifecycle Badge */}
+        <Link
+          href={`/p/${propertyId}/subscription`}
+          className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-2xs border transition-all hover:scale-[1.02] cursor-pointer ${
+            sub.status === "ACTIVE_PRO"
+              ? "bg-emerald-50 text-emerald-900 border-emerald-300"
+              : sub.inGracePeriod
+              ? "bg-amber-50 text-amber-900 border-amber-300 animate-pulse"
+              : sub.isPreExpiry
+              ? "bg-blue-50 text-blue-900 border-blue-300"
+              : "bg-amber-50 text-amber-900 border-amber-300"
+          }`}
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              sub.status === "ACTIVE_PRO"
+                ? "bg-emerald-500"
+                : sub.inGracePeriod
+                ? "bg-amber-500 animate-ping"
+                : "bg-amber-500 animate-pulse"
+            }`}
+          />
+          <span>{sub.badgeLabel}</span>
+        </Link>
 
         {actionElement && <div className="hidden sm:block">{actionElement}</div>}
 
@@ -404,6 +459,18 @@ export function PropertyHeader({
               </div>
 
               <div className="space-y-1">
+                {/* 💳 SUBSCRIPTION & BILLING */}
+                <Link
+                  href={`/p/${propertyId}/subscription`}
+                  onClick={() => setShowProfileMenu(false)}
+                  className="flex items-center justify-between p-2 rounded-xl hover:bg-amber-50 text-[#964407] font-bold transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-[#c2652a]" /> Subscription & Billing
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                </Link>
+
                 {/* ✏️ EDIT PROFILE BUTTON */}
                 <button
                   type="button"

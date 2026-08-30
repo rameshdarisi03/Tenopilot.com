@@ -22,6 +22,7 @@ import { useState, useEffect } from "react";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 
 export function PropertySidebar({
   propertyId = "sunshine-pg",
@@ -79,8 +80,14 @@ export function PropertySidebar({
       href: `/p/${propertyId}/staff`,
       icon: UserCheck,
     },
+    {
+      name: "Subscription & Billing",
+      href: `/p/${propertyId}/subscription`,
+      icon: Sparkles,
+    },
   ];
 
+  const sub = evaluateSubscription(profile);
   const displayName = profile?.displayName || (activeRole === "master_admin" ? "Master Admin" : "Property Admin");
   const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || (activeRole === "master_admin" ? "MA" : "PA");
   const roleDisplay = activeRole === "master_admin" ? "Master Admin 👑" : activeRole === "admin" ? "Property Admin 🏢" : "Receptionist 🔑";

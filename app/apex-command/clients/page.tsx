@@ -42,7 +42,7 @@ export default function ApexCommandClientsPage() {
   const [accounts, setAccounts] = useState<ScannedAccountRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "EXPIRED" | "SUSPENDED">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "GRACE_PERIOD" | "EXPIRED" | "SUSPENDED">("ALL");
 
   // Selected account for Deep Purge modal
   const [accountToPurge, setAccountToPurge] = useState<ScannedAccountRecord | null>(null);
@@ -241,14 +241,20 @@ export default function ApexCommandClientsPage() {
       (acc.city || "").toLowerCase().includes(q) ||
       (acc.organizationId || "").toLowerCase().includes(q);
 
-    const matchesTab = activeTab === "ALL" ? true : acc.subscriptionStatus === activeTab;
+    const matchesTab =
+      activeTab === "ALL"
+        ? true
+        : activeTab === "ACTIVE_PRO"
+        ? acc.subscriptionStatus === "ACTIVE_PRO" || acc.subscriptionStatus === "PRO_PRE_EXPIRY"
+        : acc.subscriptionStatus === activeTab;
 
     return matchesSearch && matchesTab;
   });
 
   const totalCount = accounts.length;
   const trialCount = accounts.filter((a) => a.subscriptionStatus === "TRIAL").length;
-  const proCount = accounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO").length;
+  const proCount = accounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO" || a.subscriptionStatus === "PRO_PRE_EXPIRY").length;
+  const graceCount = accounts.filter((a) => a.subscriptionStatus === "GRACE_PERIOD").length;
   const expiredCount = accounts.filter((a) => a.subscriptionStatus === "EXPIRED").length;
   const suspendedCount = accounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length;
 
@@ -314,50 +320,61 @@ export default function ApexCommandClientsPage() {
             </div>
           </div>
 
-          {/* 4 Metric Bento Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 5 Metric Bento Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="p-5 rounded-3xl bg-[#161b22] border border-white/10 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">TOTAL CUSTOMERS</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">TOTAL</span>
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-white mt-3">{totalCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">All registered property owners</p>
+              <p className="text-[11px] text-gray-500 mt-1">All owners</p>
             </div>
 
             <div className="p-5 rounded-3xl bg-[#161b22] border border-amber-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ 14-DAY TRIALS</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ 14D TRIALS</span>
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-amber-400 mt-3">{trialCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Active free trial accounts</p>
+              <p className="text-[11px] text-gray-500 mt-1">Free trials</p>
             </div>
 
             <div className="p-5 rounded-3xl bg-[#161b22] border border-emerald-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">💎 ACTIVE PRO PLANS</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">💎 ACTIVE PRO</span>
                 <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-emerald-400 mt-3">{proCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Paid monthly subscribers (₹999/mo)</p>
+              <p className="text-[11px] text-gray-500 mt-1">Paid subscribers</p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-[#161b22] border border-amber-500/50 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">⏳ PRO GRACE</span>
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 animate-pulse">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-amber-300 mt-3">{graceCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">7-Day grace active</p>
             </div>
 
             <div className="p-5 rounded-3xl bg-[#161b22] border border-rose-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">⚠️ EXPIRED / AT RISK</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">⚠️ EXPIRED</span>
                 <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-rose-400 mt-3">{expiredCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Trial ended • Needs renewal</p>
+              <p className="text-[11px] text-gray-500 mt-1">Needs renewal</p>
             </div>
           </div>
 
@@ -410,6 +427,15 @@ export default function ApexCommandClientsPage() {
                 >
                   <span>💎 Pro Active</span>
                   <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded-full">{proCount}</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("GRACE_PERIOD")}
+                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    activeTab === "GRACE_PERIOD" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span>⏳ Grace Period</span>
+                  <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.2 rounded-full">{graceCount}</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("EXPIRED")}
@@ -492,6 +518,18 @@ export default function ApexCommandClientsPage() {
                                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
                                   <ShieldCheck className="w-3 h-3" />
                                   <span>💎 PRO ACTIVE (₹999/mo)</span>
+                                </span>
+                              )}
+                              {acc.subscriptionStatus === "PRO_PRE_EXPIRY" && (
+                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-blue-400" />
+                                  <span>💎 PRO (RENEWS IN {acc.trialDaysLeft}D)</span>
+                                </span>
+                              )}
+                              {acc.subscriptionStatus === "GRACE_PERIOD" && (
+                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/50 flex items-center gap-1 animate-pulse">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>⏳ PRO GRACE ({acc.graceDaysRemaining || 7}D LEFT)</span>
                                 </span>
                               )}
                               {acc.subscriptionStatus === "TRIAL" && (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDocs, collection, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { evaluateSubscription, SubscriptionStatus } from "@/lib/subscriptionEngine";
 
 export interface ScannedAccountRecord {
   id: string;
@@ -10,9 +11,11 @@ export interface ScannedAccountRecord {
   phone: string;
   role: string;
   organizationId?: string;
-  classification: "ACTIVE_VIP" | "BETA_LEGACY" | "PENDING_VIP" | "SUSPENDED" | "ACTIVE_PRO" | "TRIAL" | "EXPIRED";
-  subscriptionStatus: "TRIAL" | "ACTIVE_PRO" | "EXPIRED" | "SUSPENDED";
+  classification: string;
+  subscriptionStatus: SubscriptionStatus;
   trialDaysLeft: number;
+  graceDaysRemaining?: number;
+  planExpiresAt?: string;
   detectionReason: string;
   propertyIds: string[];
   primaryPropertyName?: string;
@@ -140,35 +143,14 @@ export async function GET(req: NextRequest) {
           propIds.push(founderClient.id);
         }
 
-        // Compute Live Subscription Lifecycle
-        const createdAt = data.createdAt || founderClient?.createdAt || vipInvite?.createdAt || new Date().toISOString();
-        const createdTime = new Date(createdAt).getTime();
-        const daysElapsed = Math.max(0, Math.floor((Date.now() - (isNaN(createdTime) ? Date.now() : createdTime)) / (1000 * 60 * 60 * 24)));
-        const trialDaysLeft = Math.max(0, 14 - daysElapsed);
-
-        let subscriptionStatus: "TRIAL" | "ACTIVE_PRO" | "EXPIRED" | "SUSPENDED" = "TRIAL";
-        let classification: "ACTIVE_VIP" | "BETA_LEGACY" | "PENDING_VIP" | "SUSPENDED" | "ACTIVE_PRO" | "TRIAL" | "EXPIRED" = "TRIAL";
-        let detectionReason = "14-Day Free Express Trial";
-
-        const isProPlan = data.plan === "PRO_MONTHLY" || data.plan === "PRO_ANNUAL" || data.subscriptionPlan === "pro" || founderClient?.plan === "PRO_MONTHLY";
-
-        if (data.status === "SUSPENDED" || founderClient?.status === "SUSPENDED") {
-          subscriptionStatus = "SUSPENDED";
-          classification = "SUSPENDED";
-          detectionReason = "Account manually suspended by Founder";
-        } else if (isProPlan) {
-          subscriptionStatus = "ACTIVE_PRO";
-          classification = "ACTIVE_PRO";
-          detectionReason = "Active Pro Monthly Plan (₹999/mo)";
-        } else if (trialDaysLeft > 0) {
-          subscriptionStatus = "TRIAL";
-          classification = "TRIAL";
-          detectionReason = `14-Day Free Trial (${trialDaysLeft} days remaining)`;
-        } else {
-          subscriptionStatus = "EXPIRED";
-          classification = "EXPIRED";
-          detectionReason = "14-Day Free Trial Expired";
-        }
+        // Compute Live Subscription Lifecycle via SSOT Engine
+        const subEvaluation = evaluateSubscription({
+          ...data,
+          status: data.status || founderClient?.status,
+          plan: data.plan || founderClient?.plan,
+          planExpiresAt: data.planExpiresAt || founderClient?.planExpiresAt,
+          createdAt: data.createdAt || founderClient?.createdAt || vipInvite?.createdAt,
+        });
 
         const primaryPropName =
           mappedProps?.names[0] ||
@@ -187,16 +169,18 @@ export async function GET(req: NextRequest) {
           phone: data.phone || vipInvite?.ownerPhone || founderClient?.ownerPhone || "",
           role: data.role || "master_admin",
           organizationId: orgId,
-          classification: classification,
-          subscriptionStatus: subscriptionStatus,
-          trialDaysLeft: trialDaysLeft,
-          detectionReason: detectionReason,
+          classification: subEvaluation.status,
+          subscriptionStatus: subEvaluation.status,
+          trialDaysLeft: subEvaluation.daysRemaining,
+          graceDaysRemaining: subEvaluation.graceDaysRemaining,
+          planExpiresAt: data.planExpiresAt || founderClient?.planExpiresAt,
+          detectionReason: subEvaluation.badgeLabel,
           propertyIds: propIds,
           primaryPropertyName: primaryPropName,
           city: city,
-          plan: isProPlan ? "PRO_MONTHLY" : "14_DAY_TRIAL",
+          plan: subEvaluation.plan,
           totalBeds: totalBeds,
-          createdAt: createdAt,
+          createdAt: data.createdAt || founderClient?.createdAt || vipInvite?.createdAt || new Date().toISOString(),
           lastActive: data.lastActive || founderClient?.lastActiveDate || "Recently",
           hasStorageFootprints: propIds.length > 0,
         });
@@ -231,15 +215,24 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Sort: Active Trial & Pro first, then Expired, then Suspended
-    const sortWeights = { TRIAL: 1, ACTIVE_PRO: 2, EXPIRED: 3, SUSPENDED: 4, PENDING_VIP: 5, ACTIVE_VIP: 6, BETA_LEGACY: 7 };
+    // Sort: Grace Period & Pre-Expiry first (urgent attention), then Pro, Trial, Expired, Suspended
+    const sortWeights: Record<string, number> = {
+      GRACE_PERIOD: 1,
+      PRO_PRE_EXPIRY: 2,
+      ACTIVE_PRO: 3,
+      TRIAL: 4,
+      EXPIRED: 5,
+      SUSPENDED: 6,
+    };
     scannedAccounts.sort((a, b) => (sortWeights[a.subscriptionStatus] || 9) - (sortWeights[b.subscriptionStatus] || 9));
 
     return NextResponse.json({
       success: true,
       totalCount: scannedAccounts.length,
       trialCount: scannedAccounts.filter((a) => a.subscriptionStatus === "TRIAL").length,
-      proCount: scannedAccounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO").length,
+      proCount: scannedAccounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO" || a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
+      graceCount: scannedAccounts.filter((a) => a.subscriptionStatus === "GRACE_PERIOD").length,
+      preExpiryCount: scannedAccounts.filter((a) => a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
       expiredCount: scannedAccounts.filter((a) => a.subscriptionStatus === "EXPIRED").length,
       suspendedCount: scannedAccounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length,
       accounts: scannedAccounts,

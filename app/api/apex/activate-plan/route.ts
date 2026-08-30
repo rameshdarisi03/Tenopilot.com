@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { doc, getDoc, updateDoc, setDoc, collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { calculateStackedExpiry } from "@/lib/subscriptionEngine";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,9 +28,26 @@ export async function POST(req: NextRequest) {
 
     const cleanEmail = (email || "").toLowerCase().trim();
     const now = new Date();
-    const expiryDate = new Date(now.getTime() + Number(durationDays) * 24 * 60 * 60 * 1000);
-    const expiryIso = expiryDate.toISOString();
     const nowIso = now.toISOString();
+
+    // Check existing expiry for stacked renewal
+    let currentExpiryIso: string | null = null;
+    if (userId) {
+      try {
+        const existingSnap = await getDoc(doc(db, "users", userId));
+        if (existingSnap.exists()) {
+          const uData = existingSnap.data();
+          if (uData?.planExpiresAt) {
+            currentExpiryIso = uData.planExpiresAt;
+          }
+        }
+      } catch (e) {
+        console.warn("Notice checking existing expiry:", e);
+      }
+    }
+
+    // Calculate stacked expiry date (extends from current expiry if still active)
+    let expiryIso = calculateStackedExpiry(currentExpiryIso, Number(durationDays));
 
     const isTrialExtension = plan === "TRIAL_EXTENSION";
     const resolvedSubscriptionStatus = isTrialExtension ? "TRIAL" : "ACTIVE_PRO";
