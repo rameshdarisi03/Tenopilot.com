@@ -379,6 +379,160 @@ export default function SubscriptionBillingPage() {
             </div>
           </div>
 
+          {/* 🔍 FREE TRIAL VS PRO PLAN TRANSPARENCY MATRIX */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-[#d7c2b9]/60 shadow-xs space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#964407] bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                  FULL TRANSPARENCY MATRIX 🔍
+                </span>
+                <h3 className="text-lg font-black text-[#201a17] mt-1.5">
+                  14-Day Free Express Trial vs. Pro Plan Comparison
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Everything you get in your trial account versus unlocking unlimited power in TenoPilot Pro.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-gray-200 text-[#201a17]">
+                    <th className="py-3 px-4 font-black uppercase text-[11px] text-gray-500">Capabilities</th>
+                    <th className="py-3 px-4 font-black text-xs text-amber-900 bg-amber-50/60 rounded-t-xl w-48 text-center">
+                      ⚡ 14-Day Free Trial
+                    </th>
+                    <th className="py-3 px-4 font-black text-xs text-emerald-900 bg-emerald-50/60 rounded-t-xl w-48 text-center">
+                      💎 Pro Plan (₹999/mo)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Duration & Validity
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20 font-medium">
+                      14 Days Full Access
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Unlimited Recurring
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Tenant & Bed Capacity
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
+                      1 Property (Up to 15 beds)
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Unlimited Tenants & Beds
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Dual-Ledger Accounting Engine
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
+                      Basic Ledger
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Rent vs Security Deposit + Pro-Rata
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Automated WhatsApp Invoices & Reminders
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
+                      5 Test Reminders
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Unlimited Instant WhatsApp Dispatches
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      FastTrack AI 1-Click OCR Migration
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
+                      1 Free Ingestion Scan
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Unlimited Handwritten & PDF Ingestion
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Digital Police Verification & KYC Vault
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
+                      Basic Aadhaar Upload
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Full Legal Register & Cloud Storage
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      7-Day Trusted Pro Grace Period
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
+                      ❌ None
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      ✅ 7 Days Uninterrupted Grace Every Month
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Multi-Branch Receptionist Accounts (6-Digit PIN)
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
+                      Owner Only
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      Unlimited Staff Accounts & PIN Protection
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Partner Equity & Expense Profit Settlement
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
+                      ❌ None
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      ✅ Automatic Partner Splits
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Support Level
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
+                      Standard Email
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      24/7 WhatsApp & Dedicated Founder Call
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* SELF-PAYMENT / RENEWAL SUBMISSION FORM */}
           <div className="p-6 sm:p-8 rounded-3xl bg-white border border-[#d7c2b9]/60 shadow-xs space-y-6">
             <div>
