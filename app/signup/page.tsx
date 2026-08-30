@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -14,8 +14,12 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
+  RotateCcw,
+  ExternalLink,
+  Inbox,
 } from "lucide-react";
-import { loginWithGoogle, registerWithEmailPassword } from "@/lib/authService";
+import { loginWithGoogle, registerWithEmailPassword, sendUserEmailVerification } from "@/lib/authService";
+import { auth } from "@/lib/firebase";
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -28,7 +32,38 @@ function SignUpPageContent() {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+
+  // 🔄 Automatic Background Poller: Detects email verification seamlessly without user click
+  useEffect(() => {
+    if (!needsEmailVerification) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          await currentUser.reload();
+          if (currentUser.emailVerified) {
+            clearInterval(interval);
+            setVerificationNotice("✓ Email verified! Opening 2-step setup wizard...");
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("tenopilot_session_unlocked", "true");
+            }
+            setTimeout(() => {
+              router.push("/welcome");
+            }, 800);
+          }
+        }
+      } catch (e) {
+        console.warn("Auto-verification poll notice:", e);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [needsEmailVerification, router]);
 
   const handleGoogleSignUp = async () => {
     setError(null);
@@ -71,27 +106,77 @@ function SignUpPageContent() {
     setIsLoading(true);
 
     try {
-      const res = await registerWithEmailPassword(cleanEmail, password);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("tenopilot_session_unlocked", "true");
-        localStorage.setItem(
-          "tenopilot_saved_session",
-          JSON.stringify({
-            email: cleanEmail,
-            name: cleanEmail.split("@")[0],
-            role: "master_admin",
-            hasSetPin: false,
-          })
-        );
-      }
-      setSuccessNotice("Account created! Redirecting to setup your workspace...");
-      setTimeout(() => {
-        router.push("/welcome");
-      }, 800);
+      await registerWithEmailPassword(cleanEmail, password);
+      setNeedsEmailVerification(true);
+      setResendCooldown(60);
+      const timer = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err: any) {
       setError(err?.message || "An unexpected error occurred during registration.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    setError(null);
+    setVerificationNotice(null);
+    setIsVerifying(true);
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setError("Session expired. Please log in.");
+        return;
+      }
+
+      await currentUser.reload();
+
+      if (currentUser.emailVerified) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("tenopilot_session_unlocked", "true");
+        }
+        setVerificationNotice("✓ Email verified! Opening 2-step setup wizard...");
+        setTimeout(() => {
+          router.push("/welcome");
+        }, 800);
+      } else {
+        setVerificationNotice("⚠️ Email not verified yet! Please check your inbox (or Spam folder), click the link, and tap this button again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to check email verification status.");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    setVerificationNotice(null);
+
+    try {
+      await sendUserEmailVerification();
+      setVerificationNotice(`✓ Fresh verification link sent to ${email}. Please check your inbox.`);
+      setResendCooldown(60);
+      const timer = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message || "Failed to resend verification email.");
     }
   };
 
@@ -159,14 +244,125 @@ function SignUpPageContent() {
             </p>
           </div>
 
-          {successNotice ? (
-            <div className="p-6 rounded-3xl bg-emerald-50 border border-emerald-300 text-center space-y-3 animate-in zoom-in-95">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-xl">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+          {needsEmailVerification ? (
+            /* EMAIL VERIFICATION GATE (Anti-Spam & Bot Shield) */
+            <div className="p-6 sm:p-7 rounded-3xl bg-white border-2 border-amber-400/40 shadow-sm text-center space-y-4 animate-in zoom-in-95">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-[#c2652a] border border-amber-400/40 flex items-center justify-center mx-auto text-2xl shadow-inner">
+                <Inbox className="w-7 h-7 text-[#c2652a] animate-bounce" />
               </div>
-              <h3 className="font-bold text-base text-emerald-900">
-                {successNotice}
-              </h3>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-[#964407] px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                  ANTI-SPAM & BOT SHIELD 🛡️
+                </span>
+                <h3 className="font-serif font-bold text-xl text-[#201a17]">
+                  Verify Your Email Address
+                </h3>
+                <p className="text-xs text-gray-500 font-medium">
+                  We've sent a verification link to:
+                </p>
+                <p className="font-mono font-bold text-xs text-[#c2652a] bg-amber-50 py-1.5 px-3 rounded-xl border border-amber-200/60 inline-block">
+                  {email}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-left text-xs text-amber-950 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5 text-[#964407]">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Why verify?</span>
+                </p>
+                <p className="text-[11px] text-gray-600 leading-relaxed">
+                  To protect our multi-tenant cloud against bot registrations and secure your PG financial ledgers, please verify your email to unlock your property flight deck.
+                </p>
+              </div>
+
+              {verificationNotice && (
+                <div className={`p-3 rounded-xl border text-xs font-semibold flex items-start gap-2 text-left ${
+                  verificationNotice.startsWith("✓")
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                    : "bg-amber-50 border-amber-300 text-amber-900"
+                }`}>
+                  {verificationNotice.startsWith("✓") ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{verificationNotice}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800 font-semibold text-left">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCheckVerification}
+                  disabled={isVerifying}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 hover:opacity-95 transition-all cursor-pointer active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isVerifying ? (
+                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>I've Verified My Email ➔ Continue Setup</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Quick Webmail Bridges */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <a
+                    href="https://mail.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2 px-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <span>Open Gmail</span>
+                    <ExternalLink className="w-3 h-3 text-gray-400" />
+                  </a>
+                  <a
+                    href="https://outlook.live.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2 px-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <span>Open Outlook</span>
+                    <ExternalLink className="w-3 h-3 text-gray-400" />
+                  </a>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendCooldown > 0}
+                    className="text-[#c2652a] hover:underline font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend Verification Link"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNeedsEmailVerification(false);
+                      setEmail("");
+                      setPassword("");
+                      setConfirmPassword("");
+                    }}
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer"
+                  >
+                    Change Email
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

@@ -192,39 +192,12 @@ export default function HomeWorkspacePage() {
         );
       }
 
-      // If newly registered tenant owner has NO properties yet, provision their actual registered building!
+      // If newly registered tenant owner has NO properties yet, route them to 2-step onboarding wizard
       if (!isMasterAccount && customProps.length === 0 && isMasterAdminRole) {
-        const ownerDisplayName = profile?.displayName || savedSessionData?.name || "Vedant";
-        const initialOwnerBuildingName =
-          savedSessionData?.propertyName &&
-          savedSessionData?.propertyName !== "Sunshine Heights PG" &&
-          savedSessionData?.propertyName !== "All Properties"
-            ? savedSessionData.propertyName
-            : `${ownerDisplayName} PG`;
-
-        const initialSlug =
-          savedSessionData?.propertyId && savedSessionData?.propertyId !== "sunshine-pg"
-            ? savedSessionData.propertyId
-            : initialOwnerBuildingName
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, "");
-
-        const defaultOwnerBuilding: PortfolioProperty = {
-          id: initialSlug || "my-pg",
-          name: initialOwnerBuildingName,
-          location: "Bengaluru, Karnataka",
-          bedsCount: 80,
-          occupancyRate: "0.0%",
-          collectionRate: "0%",
-          status: "HEALTHY",
-          createdAt: new Date().toISOString(),
-          ownerEmail: email,
-        };
-
-        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, ownerDisplayName);
-        portfolioStore.addProperty(defaultOwnerBuilding, email);
-        customProps = [defaultOwnerBuilding];
+        if (profile?.onboardingCompleted !== true) {
+          router.replace("/welcome");
+          return;
+        }
       }
 
       // 🔒 STRICT RBAC GUARD 2: Property Admins only see their explicitly assigned buildings

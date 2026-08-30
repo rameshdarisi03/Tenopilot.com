@@ -372,7 +372,11 @@ export async function registerWithEmailPassword(
 
     // Send Firebase Email Verification Link to User Inbox
     try {
-      await sendEmailVerification(user);
+      const actionCodeSettings = typeof window !== "undefined" ? {
+        url: window.location.origin + "/welcome?verified=true",
+        handleCodeInApp: false,
+      } : undefined;
+      await sendEmailVerification(user, actionCodeSettings);
     } catch (verr) {
       console.warn("Email verification send notice:", verr);
     }
@@ -481,7 +485,11 @@ export async function provisionStaffFirebaseAccount(staff: {
 export async function sendUserEmailVerification(): Promise<boolean> {
   const user = auth.currentUser;
   if (!user) throw new Error("No active user session.");
-  await sendEmailVerification(user);
+  const actionCodeSettings = typeof window !== "undefined" ? {
+    url: window.location.origin + "/welcome?verified=true",
+    handleCodeInApp: false,
+  } : undefined;
+  await sendEmailVerification(user, actionCodeSettings);
   return true;
 }
 

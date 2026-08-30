@@ -110,6 +110,11 @@ export default function LoginPage() {
   // Check for saved local device session on mount (Fintech Quick Unlock + Cloud Revalidation)
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("verified") === "true") {
+        setRevokedNotice("✓ Email verified successfully! Please enter your PIN or credentials to access your dashboard.");
+      }
+
       const notice = sessionStorage.getItem("tenopilot_revoked_notice");
       if (notice) {
         setRevokedNotice(notice);
@@ -461,8 +466,25 @@ export default function LoginPage() {
 
       const role = updated.role || "master_admin";
       staffStore.setActiveRole(role);
+
+      const isMasterTest = targetEmail === "isharapandey01@gmail.com";
+      let hasCompletedOnboarding = true;
+      if (!isMasterTest && role === "master_admin") {
+        try {
+          if (auth.currentUser) {
+            const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+            if (userSnap.exists()) {
+              const uData = userSnap.data();
+              hasCompletedOnboarding = uData.onboardingCompleted === true;
+            }
+          }
+        } catch {}
+      }
+
       const targetProp = updated.assignedPropertyId || "sunshine-pg";
-      const targetPath = role === "master_admin" ? "/home" : `/p/${targetProp}/overview`;
+      const targetPath = !hasCompletedOnboarding
+        ? "/welcome"
+        : (role === "master_admin" ? "/home" : `/p/${targetProp}/overview`);
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
@@ -577,8 +599,24 @@ export default function LoginPage() {
       const role = updatedSession.role || "master_admin";
       staffStore.setActiveRole(role);
 
+      const isMasterTest = updatedSession.email === "isharapandey01@gmail.com";
+      let hasCompletedOnboarding = true;
+      if (!isMasterTest && role === "master_admin") {
+        try {
+          if (auth.currentUser) {
+            const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+            if (userSnap.exists()) {
+              const uData = userSnap.data();
+              hasCompletedOnboarding = uData.onboardingCompleted === true;
+            }
+          }
+        } catch {}
+      }
+
       const targetProperty = updatedSession.assignedPropertyId || "sunshine-pg";
-      const targetPath = role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`;
+      const targetPath = !hasCompletedOnboarding
+        ? "/welcome"
+        : (role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`);
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
