@@ -17,6 +17,8 @@ export interface UserProfile {
   role: "master_admin" | "admin" | "receptionist";
   assignedPropertyId: string;
   isNewUser?: boolean;
+  onboardingCompleted?: boolean;
+  hasSetPin?: boolean;
 }
 
 interface AuthContextType {
@@ -104,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staffAccountDoc?.assignedPropertyId ||
           staffMatch?.assignedPropertyId ||
           savedAssignedProp ||
-          "sunshine-pg";
+          (isMasterTest ? "sunshine-pg" : "");
 
         const userDocRef = doc(db, "users", currentUser.uid);
         try {
@@ -133,7 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               organizationId: orgId,
               role: resolvedRole,
               assignedPropertyId: resolvedProp,
-              isNewUser: false,
+              isNewUser: !isMasterTest,
+              onboardingCompleted: isMasterTest,
             };
             await setDoc(userDocRef, newProf, { merge: true });
             setProfile(newProf);
@@ -148,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             organizationId: orgId,
             role: resolvedRole,
             assignedPropertyId: resolvedProp,
+            onboardingCompleted: isMasterTest,
           };
           setProfile(fallbackProf);
           staffStore.setActiveRole(resolvedRole);
@@ -166,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 organizationId: "org_estate_01",
                 role: (parsed.role as UserRole) || "master_admin",
                 assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
+                onboardingCompleted: true,
               };
               setProfile(fallbackProf);
               staffStore.setActiveRole(fallbackProf.role);
@@ -203,9 +208,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       !isPublicComplaintPage &&
       !isSelfOnboardPage &&
       !isPublicMarketing &&
+      pathname !== "/welcome" &&
       (pathname?.startsWith("/p/") || pathname === "/home" || pathname === "/staff-management");
 
     const isAuthPage = pathname === "/login" || pathname === "/signup";
+    const isWelcomePage = pathname === "/welcome";
 
     const hasLocalSession =
       typeof window !== "undefined" && Boolean(localStorage.getItem("tenopilot_saved_session"));
@@ -218,21 +225,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
       if ((!user && !hasLocalSession) || !isSessionUnlocked) {
         router.replace("/login");
+      } else if (
+        profile &&
+        !profile.onboardingCompleted &&
+        profile.isNewUser &&
+        profile.email !== "isharapandey01@gmail.com"
+      ) {
+        router.replace("/welcome");
+      }
+    }
+
+    if (isWelcomePage && !loading) {
+      if (!user && !hasLocalSession) {
+        router.replace("/login");
+      } else if (
+        profile &&
+        (profile.onboardingCompleted || profile.email === "isharapandey01@gmail.com")
+      ) {
+        router.replace("/home");
       }
     }
 
     if (isAuthPage && !loading && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
-      let resolvedRole = profile?.role;
-      let resolvedProp = profile?.assignedPropertyId;
-      if (!resolvedRole && hasLocalSession) {
-        try {
-          const parsed = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
-          resolvedRole = parsed.role;
-          resolvedProp = parsed.assignedPropertyId;
-        } catch {}
+      if (
+        profile &&
+        !profile.onboardingCompleted &&
+        profile.isNewUser &&
+        profile.email !== "isharapandey01@gmail.com"
+      ) {
+        router.replace("/welcome");
+      } else {
+        let resolvedRole = profile?.role;
+        let resolvedProp = profile?.assignedPropertyId;
+        if (!resolvedRole && hasLocalSession) {
+          try {
+            const parsed = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+            resolvedRole = parsed.role;
+            resolvedProp = parsed.assignedPropertyId;
+          } catch {}
+        }
+        const dest = resolvedRole === "master_admin" ? "/home" : `/p/${resolvedProp || "sunshine-pg"}/overview`;
+        router.replace(dest);
       }
-      const dest = resolvedRole === "master_admin" ? "/home" : `/p/${resolvedProp || "sunshine-pg"}/overview`;
-      router.replace(dest);
     }
   }, [user, profile, loading, pathname, router]);
 

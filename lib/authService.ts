@@ -232,17 +232,17 @@ export async function loginWithGoogle(
 
       return { user, profile };
     } else {
-      // 🌟 SIGNUP MODE: If account already exists, redirect to login!
-      if (existsInDb && userSnap.exists()) {
-        await signOut(auth);
-        throw new Error("An account already exists for this Google email. Please sign in instead.");
+      // 🌟 SIGNUP MODE: If account already exists, seamlessly return existing profile
+      if (userSnap.exists()) {
+        const existingProfile = userSnap.data() as AuthUserProfile;
+        return { user, profile: existingProfile };
       }
 
       const isMasterTest = email === "isharapandey01@gmail.com";
       const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
       const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
 
-      const profile: any = {
+      const newSignupProfile: any = {
         uid: user.uid,
         email: email,
         displayName: user.displayName || "Property Owner",
@@ -253,11 +253,11 @@ export async function loginWithGoogle(
         hasSetPin: false,
       };
       if (user.photoURL) {
-        profile.photoURL = user.photoURL;
+        newSignupProfile.photoURL = user.photoURL;
       }
 
-      await setDoc(userDocRef, profile, { merge: true });
-      return { user, profile: profile as AuthUserProfile };
+      await setDoc(userDocRef, newSignupProfile, { merge: true });
+      return { user, profile: newSignupProfile as AuthUserProfile };
     }
   } catch (error: any) {
     console.error("Google Auth Error:", error);
