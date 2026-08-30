@@ -158,16 +158,6 @@ export async function loginWithGoogle(
   isSignUpMode: boolean = false
 ): Promise<{ user: User; profile: AuthUserProfile } | null> {
   try {
-    try {
-      if (typeof window !== "undefined") {
-        await setPersistence(auth, browserLocalPersistence);
-      }
-    } catch {
-      try {
-        await setPersistence(auth, inMemoryPersistence);
-      } catch {}
-    }
-
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     const email = user.email?.toLowerCase() || "";
@@ -329,24 +319,9 @@ export async function registerWithEmailPassword(
   displayName?: string
 ): Promise<{ user: User; profile: AuthUserProfile }> {
   try {
-    try {
-      if (typeof window !== "undefined") {
-        await setPersistence(auth, browserLocalPersistence);
-      }
-    } catch {
-      try {
-        await setPersistence(auth, inMemoryPersistence);
-      } catch {}
-    }
-
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check if email already exists as a provisioned staff member or customer
-    const alreadyExists = await checkIfEmailExists(cleanEmail);
-    if (alreadyExists) {
-      throw new Error("An account with this email address already exists. Please sign in instead.");
-    }
-
+    // Firebase Auth natively verifies unique emails without IndexedDB locking conflicts
     const result = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
     const user = result.user;
 
@@ -570,16 +545,6 @@ export async function loginWithEmailPassword(
   pass: string
 ): Promise<{ user: User | null; email: string }> {
   try {
-    try {
-      if (typeof window !== "undefined") {
-        await setPersistence(auth, browserLocalPersistence);
-      }
-    } catch {
-      try {
-        await setPersistence(auth, inMemoryPersistence);
-      } catch {}
-    }
-
     const cleanEmail = await resolvePhoneOrEmail(emailOrPhone);
 
     try {

@@ -18,7 +18,12 @@ import {
   ExternalLink,
   Inbox,
 } from "lucide-react";
-import { loginWithGoogle, registerWithEmailPassword, sendUserEmailVerification } from "@/lib/authService";
+import {
+  loginWithGoogle,
+  registerWithEmailPassword,
+  sendUserEmailVerification,
+  getCleanAuthErrorMessage,
+} from "@/lib/authService";
 import { auth } from "@/lib/firebase";
 
 function SignUpPageContent() {
@@ -37,17 +42,19 @@ function SignUpPageContent() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
 
-  // 🔄 Automatic Background Poller: Detects email verification seamlessly without user click
+  // 🔄 Smart Visibility & Polling Listener: Detects email verification cleanly without IndexedDB collisions
   useEffect(() => {
     if (!needsEmailVerification) return;
 
-    const interval = setInterval(async () => {
+    const checkVerificationStatus = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return; // Don't touch IndexedDB when tab is asleep/hidden in background
+      }
       try {
         const currentUser = auth.currentUser;
         if (currentUser) {
           await currentUser.reload();
           if (currentUser.emailVerified) {
-            clearInterval(interval);
             setVerificationNotice("✓ Email verified! Opening 2-step setup wizard...");
             if (typeof window !== "undefined") {
               sessionStorage.setItem("tenopilot_session_unlocked", "true");
@@ -58,11 +65,25 @@ function SignUpPageContent() {
           }
         }
       } catch (e) {
-        console.warn("Auto-verification poll notice:", e);
+        // Quietly ignore transient background closing errors
       }
-    }, 3000);
+    };
 
-    return () => clearInterval(interval);
+    // Check immediately when user switches back from email app
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        checkVerificationStatus();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // Light interval while tab is actively focused & visible
+    const interval = setInterval(checkVerificationStatus, 4000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      clearInterval(interval);
+    };
   }, [needsEmailVerification, router]);
 
   const handleGoogleSignUp = async () => {
@@ -119,7 +140,7 @@ function SignUpPageContent() {
         });
       }, 1000);
     } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred during registration.");
+      setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +172,11 @@ function SignUpPageContent() {
         setVerificationNotice("⚠️ Email not verified yet! Please check your inbox (or Spam folder), click the link, and tap this button again.");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to check email verification status.");
+      if (err?.message?.includes("closing") || err?.message?.includes("hidden")) {
+        setVerificationNotice("⚠️ Reconnecting to session. Please tap again in a moment.");
+      } else {
+        setError(getCleanAuthErrorMessage(err));
+      }
     } finally {
       setIsVerifying(false);
     }
