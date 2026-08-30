@@ -65,7 +65,29 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Deep Purge Properties and all Sub-Collections & Associated Storage Photos
-    const propsToPurge = Array.isArray(propertyIds) ? propertyIds : [propertyIds];
+    const explicitProps = Array.isArray(propertyIds) ? propertyIds : [propertyIds];
+    const propertyIdSet = new Set<string>(explicitProps.filter(Boolean));
+
+    // Automatically scan & collect all properties associated with this user
+    if (cleanEmail || userId) {
+      try {
+        const propsSnap = await getDocs(collection(db, "properties"));
+        for (const pDoc of propsSnap.docs) {
+          const pData = pDoc.data() as any;
+          if (
+            (cleanEmail && pData.ownerEmail?.toLowerCase().trim() === cleanEmail) ||
+            (cleanEmail && pData.email?.toLowerCase().trim() === cleanEmail) ||
+            (userId && pData.ownerUid === userId)
+          ) {
+            propertyIdSet.add(pDoc.id);
+          }
+        }
+      } catch (e) {
+        console.warn("Auto-discovery of properties for purge warning:", e);
+      }
+    }
+
+    const propsToPurge = Array.from(propertyIdSet);
 
     for (const propId of propsToPurge) {
       if (!propId || propId === "sunshine-pg") continue; // Guard master demo sandbox

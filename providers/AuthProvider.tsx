@@ -229,12 +229,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
     const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
+    const isMasterTestAccount = user?.email?.toLowerCase() === "isharapandey01@gmail.com";
     const hasCompletedSetup =
-      profile?.onboardingCompleted === true ||
-      Boolean(profile?.assignedPropertyId) ||
-      Boolean(localSavedPropertyId) ||
-      Boolean(localSavedPropertyName) ||
-      user?.email?.toLowerCase() === "isharapandey01@gmail.com";
+      isMasterTestAccount ||
+      (profile?.onboardingCompleted === true && Boolean(profile?.assignedPropertyId));
 
     if (isProtectedPage) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock

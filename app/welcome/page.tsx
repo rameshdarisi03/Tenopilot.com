@@ -58,7 +58,7 @@ function WelcomeOnboardingContent() {
   useEffect(() => {
     if (user) {
       setEmail(user.email || "");
-      if (user.displayName && !fullName) {
+      if (user.displayName && user.displayName !== "Property Owner" && !fullName) {
         setFullName(sanitizeTitleCase(user.displayName));
       }
     }

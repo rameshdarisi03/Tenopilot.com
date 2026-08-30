@@ -294,21 +294,21 @@ export default function LoginPage() {
         staffData?.securityPin ||
         match?.securityPin;
 
-      const ownerName = userData?.displayName || staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner";
+      const ownerName = userData?.displayName || staffData?.name || match?.name || "";
       const resolvedPropName =
         userData?.pgName ||
         userData?.propertyName ||
         userData?.primaryPropertyName ||
         staffData?.propertyName ||
         match?.propertyName ||
-        `${ownerName} PG`;
+        "";
 
       const resolvedPropId =
         userData?.assignedPropertyId ||
         userData?.propertyId ||
         staffData?.assignedPropertyId ||
         match?.assignedPropertyId ||
-        resolvedPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        (resolvedPropName ? resolvedPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "");
 
       const session: SavedSession = {
         email: cleanEmail,
