@@ -47,6 +47,7 @@ import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { lookupExistingOccupant } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 
 export default function OnboardGuestPage({
   params,
@@ -62,6 +63,7 @@ export default function OnboardGuestPage({
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showFastTrackModal, setShowFastTrackModal] = useState(false);
 
   // Wizard Step State (1: Guest Details, 2: Bed Allocation, 3: Quick KYC Photo — Streamlined 3 steps!)
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -480,31 +482,79 @@ export default function OnboardGuestPage({
           )}
 
           {!hasConfiguredRooms ? (
-            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 md:p-12 shadow-sm text-center space-y-5 animate-in fade-in my-6">
-              <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto shadow-inner">
-                <Building2 className="w-8 h-8 text-[#964407]" />
-              </div>
-              <div className="space-y-2 max-w-md mx-auto">
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 md:p-10 shadow-sm space-y-6 animate-in fade-in my-4">
+              <div className="text-center space-y-2 max-w-xl mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto shadow-inner">
+                  <Building2 className="w-7 h-7 text-[#964407]" />
+                </div>
                 <h2 className="font-serif font-bold text-2xl text-[#201a17]">
-                  Configure Property Setup First
+                  Setup Your Property Layout First
                 </h2>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  You haven&apos;t created any rooms or beds for this property yet. Please set up your floor layout and room matrix in <strong>Property Setup</strong> before allocating short-stay guests.
+                  You haven&apos;t added any floors or rooms to this property yet. Choose how you would like to set up your rooms and beds:
                 </p>
               </div>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                <Link
-                  href={`/p/${propertyId}/property-setup`}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Open Property Setup ➔</span>
-                </Link>
+
+              {/* DUAL PATHWAY CARDS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
+                {/* 🪄 Option 1: FastTrack AI Migration (Recommended) */}
+                <div className="rounded-2xl border-2 border-purple-300 bg-gradient-to-b from-purple-50/80 to-white p-5 space-y-3.5 flex flex-col justify-between shadow-sm hover:border-purple-400 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> Recommended
+                      </span>
+                      <span className="text-[10px] font-bold text-purple-600">⚡ 10 Seconds</span>
+                    </div>
+                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-1.5">
+                      FastTrack AI Migration
+                    </h3>
+                    <p className="text-[11px] text-gray-600 leading-relaxed">
+                      Have handwritten registers, paper diaries, or Excel printouts? Upload a photo or PDF — Gemini Vision AI builds your entire layout and imports occupants automatically.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFastTrackModal(true)}
+                    className="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md shadow-purple-700/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Launch FastTrack AI</span>
+                  </button>
+                </div>
+
+                {/* ⚙️ Option 2: Manual Property Setup */}
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3.5 flex flex-col justify-between hover:border-gray-300 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-[10px] font-bold uppercase tracking-wider">
+                        Step-by-Step
+                      </span>
+                    </div>
+                    <h3 className="font-serif font-bold text-base text-gray-900 flex items-center gap-1.5">
+                      Manual Property Setup
+                    </h3>
+                    <p className="text-[11px] text-gray-600 leading-relaxed">
+                      Manually add floors, name your rooms, set sharing types (1/2/3/4 sharing), and configure base rents at your own pace.
+                    </p>
+                  </div>
+
+                  <Link
+                    href={`/p/${propertyId}/property-setup`}
+                    className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer text-center"
+                  >
+                    <span>Configure Layout Manually ➔</span>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="text-center pt-2">
                 <Link
                   href={`/p/${propertyId}/overview`}
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-all"
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
                 >
-                  Back to Dashboard
+                  ← Back to Property Dashboard
                 </Link>
               </div>
             </div>
@@ -1251,6 +1301,17 @@ export default function OnboardGuestPage({
             </div>
           </div>
         )}
+
+        {/* ⚡ FastTrack 1-Click Migration Modal */}
+        <FastTrackImportModal
+          propertyId={propertyId}
+          isOpen={showFastTrackModal}
+          onClose={() => setShowFastTrackModal(false)}
+          onSuccess={() => {
+            setShowFastTrackModal(false);
+            router.refresh();
+          }}
+        />
       </div>
     </div>
   );
