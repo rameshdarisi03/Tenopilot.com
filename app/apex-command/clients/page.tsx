@@ -42,18 +42,12 @@ export default function ApexCommandClientsPage() {
   const [accounts, setAccounts] = useState<ScannedAccountRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"ALL" | "ACTIVE_VIP" | "BETA_LEGACY" | "PENDING_VIP" | "SUSPENDED">("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "EXPIRED" | "SUSPENDED">("ALL");
 
   // Selected account for Deep Purge modal
   const [accountToPurge, setAccountToPurge] = useState<ScannedAccountRecord | null>(null);
   const [purgeConfirmationInput, setPurgeConfirmationInput] = useState("");
   const [isPurging, setIsPurging] = useState(false);
-
-  // Selected account for Upgrade to VIP modal
-  const [accountToUpgrade, setAccountToUpgrade] = useState<ScannedAccountRecord | null>(null);
-  const [upgradePgName, setUpgradePgName] = useState("");
-  const [upgradePlan, setUpgradePlan] = useState("PRO_MONTHLY");
-  const [isUpgrading, setIsUpgrading] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -117,7 +111,7 @@ export default function ApexCommandClientsPage() {
 
   // Handle Suspend / Resume
   const handleToggleSuspend = async (account: ScannedAccountRecord) => {
-    const isCurrentlySuspended = account.classification === "SUSPENDED";
+    const isCurrentlySuspended = account.subscriptionStatus === "SUSPENDED";
     const targetStatus = isCurrentlySuspended ? "ACTIVE" : "SUSPENDED";
 
     try {
@@ -139,7 +133,8 @@ export default function ApexCommandClientsPage() {
             a.email === account.email
               ? {
                   ...a,
-                  classification: targetStatus === "SUSPENDED" ? "SUSPENDED" : "ACTIVE_VIP",
+                  subscriptionStatus: targetStatus === "SUSPENDED" ? "SUSPENDED" : "TRIAL",
+                  classification: targetStatus === "SUSPENDED" ? "SUSPENDED" : "ACTIVE_PRO",
                 }
               : a
           )
@@ -150,24 +145,32 @@ export default function ApexCommandClientsPage() {
     }
   };
 
-  // Filter accounts
+  // Instant Multi-Field Real-Time Search Filtering
   const filteredAccounts = accounts.filter((acc) => {
-    const matchesSearch =
-      acc.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      acc.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      acc.phone.includes(searchQuery) ||
-      (acc.primaryPropertyName || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase().trim();
+    const cleanPhone = (acc.phone || "").replace(/\D/g, "");
+    const searchClean = q.replace(/\D/g, "");
 
-    const matchesTab = activeTab === "ALL" ? true : acc.classification === activeTab;
+    const matchesSearch =
+      !q ||
+      acc.email.toLowerCase().includes(q) ||
+      acc.displayName.toLowerCase().includes(q) ||
+      (acc.phone && acc.phone.includes(q)) ||
+      (searchClean && cleanPhone.includes(searchClean)) ||
+      (acc.primaryPropertyName || "").toLowerCase().includes(q) ||
+      (acc.city || "").toLowerCase().includes(q) ||
+      (acc.organizationId || "").toLowerCase().includes(q);
+
+    const matchesTab = activeTab === "ALL" ? true : acc.subscriptionStatus === activeTab;
 
     return matchesSearch && matchesTab;
   });
 
   const totalCount = accounts.length;
-  const betaCount = accounts.filter((a) => a.classification === "BETA_LEGACY").length;
-  const activeVipCount = accounts.filter((a) => a.classification === "ACTIVE_VIP").length;
-  const pendingCount = accounts.filter((a) => a.classification === "PENDING_VIP").length;
-  const suspendedCount = accounts.filter((a) => a.classification === "SUSPENDED").length;
+  const trialCount = accounts.filter((a) => a.subscriptionStatus === "TRIAL").length;
+  const proCount = accounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO").length;
+  const expiredCount = accounts.filter((a) => a.subscriptionStatus === "EXPIRED").length;
+  const suspendedCount = accounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length;
 
   return (
     <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden font-sans">
@@ -188,7 +191,7 @@ export default function ApexCommandClientsPage() {
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#0d1117]">
         <FounderHeader
-          title="Account Intelligence & Deep Purge"
+          title="Customer Registry & Search"
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
@@ -205,10 +208,10 @@ export default function ApexCommandClientsPage() {
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-                <span>Customer & Beta Account Registry</span>
+                <span>Customer Registry & Real-Time Search</span>
               </h1>
               <p className="text-xs text-gray-400 mt-1">
-                Deep audit of all authenticated Google & email accounts, orphan prototype workspaces, and official VIP properties.
+                Real-time multi-field tracking across Owner Name, Mobile Number, Email, and Property Name.
               </p>
             </div>
 
@@ -219,7 +222,7 @@ export default function ApexCommandClientsPage() {
                 className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs border border-white/10 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#ff3366]" : ""}`} />
-                <span>{isLoading ? "Scanning Firestore..." : "Scan Database Now"}</span>
+                <span>{isLoading ? "Scanning Firestore..." : "Scan Database"}</span>
               </button>
               <Link
                 href="/apex-command/invites"
@@ -235,64 +238,72 @@ export default function ApexCommandClientsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-[#161b22] border border-white/10 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">TOTAL ACCOUNTS</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">TOTAL CUSTOMERS</span>
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-3xl font-black text-white mt-3">{totalCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Scanned across all Firestore collections</p>
+              <p className="text-[11px] text-gray-500 mt-1">All registered property owners</p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-[#161b22] border border-amber-500/30 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ 14-DAY TRIALS</span>
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-amber-400 mt-3">{trialCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Active free trial accounts</p>
             </div>
 
             <div className="p-5 rounded-3xl bg-[#161b22] border border-emerald-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">VIP ACTIVATED</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">💎 ACTIVE PRO PLANS</span>
                 <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-3xl font-black text-emerald-400 mt-3">{activeVipCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Verified door-to-door onboarded PGs</p>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-[#161b22] border border-purple-500/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-purple-400">BETA / LEGACY TESTERS</span>
-                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-3xl font-black text-purple-300 mt-3">{betaCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Old prototype logins (Zero pass attached)</p>
+              <p className="text-3xl font-black text-emerald-400 mt-3">{proCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Paid monthly subscribers (₹999/mo)</p>
             </div>
 
             <div className="p-5 rounded-3xl bg-[#161b22] border border-rose-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">SUSPENDED / LOCKED</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">⚠️ EXPIRED / AT RISK</span>
                 <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
-                  <Ban className="w-4 h-4" />
+                  <AlertTriangle className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-3xl font-black text-rose-400 mt-3">{suspendedCount}</p>
-              <p className="text-[11px] text-gray-500 mt-1">Blocked from workspace access</p>
+              <p className="text-3xl font-black text-rose-400 mt-3">{expiredCount}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Trial ended • Needs renewal</p>
             </div>
           </div>
 
           {/* Search & Filter Nav */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="relative w-full sm:w-80">
+              <div className="relative w-full sm:w-96">
                 <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by email, name, phone..."
+                  placeholder="Search by Name, Mobile Number, Email, PG Name..."
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#161b22] border border-white/10 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-[#ff3366]"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              {/* Classification Tabs */}
+              {/* Subscription Status Filter Tabs */}
               <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto p-1 bg-[#161b22] rounded-2xl border border-white/10 text-xs font-bold">
                 <button
                   onClick={() => setActiveTab("ALL")}
@@ -303,31 +314,31 @@ export default function ApexCommandClientsPage() {
                   All ({totalCount})
                 </button>
                 <button
-                  onClick={() => setActiveTab("BETA_LEGACY")}
+                  onClick={() => setActiveTab("TRIAL")}
                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                    activeTab === "BETA_LEGACY" ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" : "text-gray-400 hover:text-white"
+                    activeTab === "TRIAL" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  <span>🟣 Beta / Legacy</span>
-                  <span className="text-[10px] bg-purple-500/20 px-1.5 py-0.2 rounded-full">{betaCount}</span>
+                  <span>⚡ 14-Day Trials</span>
+                  <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.2 rounded-full">{trialCount}</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("ACTIVE_VIP")}
+                  onClick={() => setActiveTab("ACTIVE_PRO")}
                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                    activeTab === "ACTIVE_VIP" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "text-gray-400 hover:text-white"
+                    activeTab === "ACTIVE_PRO" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  <span>🟢 VIP Active</span>
-                  <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded-full">{activeVipCount}</span>
+                  <span>💎 Pro Active</span>
+                  <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded-full">{proCount}</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("PENDING_VIP")}
+                  onClick={() => setActiveTab("EXPIRED")}
                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                    activeTab === "PENDING_VIP" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-gray-400 hover:text-white"
+                    activeTab === "EXPIRED" ? "bg-rose-500/20 text-rose-300 border border-rose-500/30" : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  <span>🟠 Pending</span>
-                  <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.2 rounded-full">{pendingCount}</span>
+                  <span>⚠️ Expired</span>
+                  <span className="text-[10px] bg-rose-500/20 px-1.5 py-0.2 rounded-full">{expiredCount}</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("SUSPENDED")}
@@ -346,7 +357,7 @@ export default function ApexCommandClientsPage() {
               <div className="py-20 text-center space-y-3 bg-[#161b22]/50 rounded-3xl border border-white/10">
                 <RefreshCw className="w-8 h-8 text-[#ff3366] animate-spin mx-auto" />
                 <p className="font-bold text-sm text-gray-300">Scanning Cloud Firestore Collections...</p>
-                <p className="text-xs text-gray-500">Correlating user profiles, VIP passes, and attached property footprints.</p>
+                <p className="text-xs text-gray-500">Aggregating user profiles, properties, and subscription lifecycles.</p>
               </div>
             ) : filteredAccounts.length === 0 ? (
               <div className="py-16 text-center bg-[#161b22]/30 rounded-3xl border border-dashed border-white/10 p-8">
@@ -356,114 +367,161 @@ export default function ApexCommandClientsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {filteredAccounts.map((acc) => (
-                  <div
-                    key={acc.id}
-                    className={`p-5 rounded-3xl border transition-all ${
-                      acc.classification === "BETA_LEGACY"
-                        ? "bg-[#161b22] border-purple-500/30 hover:border-purple-400/60"
-                        : acc.classification === "SUSPENDED"
-                        ? "bg-[#1c1214] border-rose-500/30"
-                        : acc.classification === "ACTIVE_VIP"
-                        ? "bg-[#161b22] border-emerald-500/20 hover:border-emerald-400/40"
-                        : "bg-[#161b22] border-amber-500/20"
-                    }`}
-                  >
-                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                      {/* Left: Info */}
-                      <div className="space-y-2 max-w-xl">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-sm text-white">{acc.displayName}</span>
-                          <span className="text-xs font-mono text-gray-400">{acc.email}</span>
+                {filteredAccounts.map((acc) => {
+                  const cleanPhone = (acc.phone || "").replace(/\D/g, "");
+                  const initials = (acc.displayName || acc.email || "TP")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase();
 
-                          {/* Classification Badge */}
-                          {acc.classification === "BETA_LEGACY" && (
-                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
-                              <span>🟣 BETA TESTER</span>
-                            </span>
-                          )}
-                          {acc.classification === "ACTIVE_VIP" && (
-                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                              <ShieldCheck className="w-3 h-3" />
-                              <span>VIP ONBOARDED</span>
-                            </span>
-                          )}
-                          {acc.classification === "PENDING_VIP" && (
-                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                              🟠 PENDING PASS
-                            </span>
-                          )}
-                          {acc.classification === "SUSPENDED" && (
-                            <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                              🔴 SUSPENDED
-                            </span>
-                          )}
+                  const waUrl = cleanPhone
+                    ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(
+                        `Hi ${acc.displayName}, this is Ramesh from the TenoPilot team reaching out regarding your PG workspace (${acc.primaryPropertyName}). How can we support your property today?`
+                      )}`
+                    : null;
+
+                  return (
+                    <div
+                      key={acc.id}
+                      className={`p-5 rounded-3xl border transition-all ${
+                        acc.subscriptionStatus === "ACTIVE_PRO"
+                          ? "bg-[#161b22] border-emerald-500/30 hover:border-emerald-400/60"
+                          : acc.subscriptionStatus === "SUSPENDED"
+                          ? "bg-[#1c1214] border-rose-500/30"
+                          : acc.subscriptionStatus === "EXPIRED"
+                          ? "bg-[#161b22] border-rose-500/20 hover:border-rose-400/40"
+                          : "bg-[#161b22] border-amber-500/20 hover:border-amber-400/40"
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                        {/* Left: Info */}
+                        <div className="flex items-start gap-3.5 max-w-2xl">
+                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center font-bold text-sm shrink-0">
+                            {initials}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-base text-white">{acc.displayName}</span>
+                              <span className="text-xs font-mono text-gray-400">{acc.email}</span>
+
+                              {/* Subscription Badge */}
+                              {acc.subscriptionStatus === "ACTIVE_PRO" && (
+                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                  <ShieldCheck className="w-3 h-3" />
+                                  <span>💎 PRO ACTIVE (₹999/mo)</span>
+                                </span>
+                              )}
+                              {acc.subscriptionStatus === "TRIAL" && (
+                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>⚡ 14-DAY TRIAL ({acc.trialDaysLeft}D LEFT)</span>
+                                </span>
+                              )}
+                              {acc.subscriptionStatus === "EXPIRED" && (
+                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>⚠️ TRIAL EXPIRED</span>
+                                </span>
+                              )}
+                              {acc.subscriptionStatus === "SUSPENDED" && (
+                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                  🔴 SUSPENDED
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
+                              {/* WhatsApp Direct Chat Bridge */}
+                              {waUrl ? (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all font-mono font-bold text-xs"
+                                  title="Open WhatsApp Chat"
+                                >
+                                  <Phone className="w-3 h-3" />
+                                  <span>{acc.phone}</span>
+                                  <span className="text-[10px] text-emerald-400 ml-0.5">💬 WhatsApp</span>
+                                </a>
+                              ) : acc.phone ? (
+                                <span className="flex items-center gap-1 font-mono">
+                                  <Phone className="w-3 h-3 text-gray-500" />
+                                  {acc.phone}
+                                </span>
+                              ) : null}
+
+                              <span className="flex items-center gap-1 text-gray-300 font-medium">
+                                <Building2 className="w-3 h-3 text-gray-500" />
+                                {acc.primaryPropertyName}
+                              </span>
+
+                              <span className="flex items-center gap-1">
+                                <Layers className="w-3 h-3 text-gray-500" />
+                                {acc.totalBeds || 40} Beds
+                              </span>
+
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-gray-500" />
+                                {acc.city}
+                              </span>
+
+                              {acc.organizationId && (
+                                <span className="text-[11px] text-gray-500 font-mono">
+                                  Org: {acc.organizationId}
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] text-gray-500 italic">
+                              Status Note: {acc.detectionReason}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
-                          {acc.phone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-gray-500" />
-                              {acc.phone}
-                            </span>
+                        {/* Right: Actions */}
+                        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto justify-end">
+                          {/* Impersonate / Preview */}
+                          {acc.propertyIds.length > 0 && (
+                            <Link
+                              href={`/p/${acc.propertyIds[0]}/overview?impersonate=true`}
+                              target="_blank"
+                              className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-blue-400" />
+                              <span>Preview</span>
+                            </Link>
                           )}
-                          <span className="flex items-center gap-1">
-                            <Building2 className="w-3 h-3 text-gray-500" />
-                            {acc.primaryPropertyName}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-gray-500" />
-                            {acc.city}
-                          </span>
-                          <span className="flex items-center gap-1 text-[11px] text-gray-500 font-mono">
-                            IDs: {acc.propertyIds.join(", ") || "None"}
-                          </span>
-                        </div>
 
-                        <p className="text-[11px] text-gray-500 italic">
-                          Detection Note: {acc.detectionReason}
-                        </p>
-                      </div>
-
-                      {/* Right: Actions */}
-                      <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto justify-end">
-                        {/* God-mode button if property exists */}
-                        {acc.propertyIds.length > 0 && acc.propertyIds[0] !== "sunshine-pg" && (
-                          <Link
-                            href={`/p/${acc.propertyIds[0]}/overview?impersonate=true`}
-                            target="_blank"
-                            className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                          {/* Suspend / Resume Button */}
+                          <button
+                            onClick={() => handleToggleSuspend(acc)}
+                            className={`px-3 py-2 rounded-xl font-bold text-xs border transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                              acc.subscriptionStatus === "SUSPENDED"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                                : "bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
+                            }`}
                           >
-                            <Eye className="w-3.5 h-3.5 text-blue-400" />
-                            <span>Preview</span>
-                          </Link>
-                        )}
+                            <Ban className="w-3.5 h-3.5" />
+                            <span>{acc.subscriptionStatus === "SUSPENDED" ? "Resume Access" : "Suspend"}</span>
+                          </button>
 
-                        {/* Suspend / Resume Button */}
-                        <button
-                          onClick={() => handleToggleSuspend(acc)}
-                          className={`px-3 py-2 rounded-xl font-bold text-xs border transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
-                            acc.classification === "SUSPENDED"
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                              : "bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20"
-                          }`}
-                        >
-                          <Ban className="w-3.5 h-3.5" />
-                          <span>{acc.classification === "SUSPENDED" ? "Resume Access" : "Suspend"}</span>
-                        </button>
-
-                        {/* Deep Purge / Wipe Button */}
-                        <button
-                          onClick={() => setAccountToPurge(acc)}
-                          className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Wipe & Purge 🗑️</span>
-                        </button>
+                          {/* Deep Purge / Wipe Button */}
+                          <button
+                            onClick={() => setAccountToPurge(acc)}
+                            className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Wipe & Purge 🗑️</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
