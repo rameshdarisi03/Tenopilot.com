@@ -6,7 +6,6 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Lock,
-  User as UserIcon,
   Sparkles,
   AlertCircle,
   Eye,
@@ -21,7 +20,6 @@ import { loginWithGoogle, registerWithEmailPassword } from "@/lib/authService";
 function SignUpPageContent() {
   const router = useRouter();
 
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -53,13 +51,7 @@ function SignUpPageContent() {
     e.preventDefault();
     setError(null);
 
-    const cleanName = fullName.trim();
     const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanName) {
-      setError("Please enter your full name.");
-      return;
-    }
 
     if (!cleanEmail || !cleanEmail.includes("@")) {
       setError("Please enter a valid email address.");
@@ -79,14 +71,14 @@ function SignUpPageContent() {
     setIsLoading(true);
 
     try {
-      const res = await registerWithEmailPassword(cleanEmail, password, cleanName);
+      const res = await registerWithEmailPassword(cleanEmail, password);
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
         localStorage.setItem(
           "tenopilot_saved_session",
           JSON.stringify({
             email: cleanEmail,
-            name: cleanName,
+            name: cleanEmail.split("@")[0],
             role: "master_admin",
             hasSetPin: false,
           })
@@ -95,7 +87,7 @@ function SignUpPageContent() {
       setSuccessNotice("Account created! Redirecting to setup your workspace...");
       setTimeout(() => {
         router.push("/welcome");
-      }, 1000);
+      }, 800);
     } catch (err: any) {
       setError(err?.message || "An unexpected error occurred during registration.");
     } finally {
@@ -221,24 +213,6 @@ function SignUpPageContent() {
                     <span>{error}</span>
                   </div>
                 )}
-
-                {/* Full Name */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Your Full Name *
-                  </label>
-                  <div className="relative">
-                    <UserIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Ramesh Darisi"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
-                    />
-                  </div>
-                </div>
 
                 {/* Email Address */}
                 <div>
