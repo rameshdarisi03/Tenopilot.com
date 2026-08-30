@@ -165,23 +165,23 @@ export default function SubscriptionBillingPage() {
             </p>
           </div>
 
-          {/* ACTIVE PLAN STATUS HERO CARD */}
+          {/* SINGLE MINIMAL ACTIVE PLAN STATUS CARD */}
           <div
-            className={`p-6 sm:p-8 rounded-3xl border-2 transition-all shadow-sm ${
+            className={`p-5 sm:p-6 rounded-3xl border transition-all shadow-xs ${
               sub.status === "ACTIVE_PRO"
-                ? "bg-gradient-to-br from-emerald-50 via-white to-teal-50/40 border-emerald-500/40"
+                ? "bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/30 border-emerald-500/30"
                 : sub.inGracePeriod
-                ? "bg-gradient-to-br from-amber-50 via-white to-orange-50/40 border-amber-500/50"
+                ? "bg-gradient-to-br from-amber-50/70 via-white to-orange-50/30 border-amber-500/40"
                 : sub.isPreExpiry
-                ? "bg-gradient-to-br from-blue-50 via-white to-indigo-50/40 border-blue-500/40"
-                : "bg-gradient-to-br from-orange-50 via-white to-amber-50/40 border-amber-400/40"
+                ? "bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/30 border-blue-500/30"
+                : "bg-gradient-to-br from-amber-50/60 via-white to-orange-50/20 border-amber-400/30"
             }`}
           >
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-              <div className="space-y-3 max-w-2xl">
-                <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-2 max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide border flex items-center gap-1.5 shadow-2xs ${
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide border flex items-center gap-1.5 shadow-2xs ${
                       sub.status === "ACTIVE_PRO"
                         ? "bg-emerald-100 text-emerald-900 border-emerald-300"
                         : sub.inGracePeriod
@@ -192,96 +192,62 @@ export default function SubscriptionBillingPage() {
                     }`}
                   >
                     {sub.inGracePeriod ? (
-                      <Clock className="w-3.5 h-3.5" />
+                      <Clock className="w-3 h-3" />
+                    ) : sub.isPro ? (
+                      <ShieldCheck className="w-3 h-3" />
                     ) : (
-                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <Zap className="w-3 h-3 text-[#c2652a]" />
                     )}
                     <span>
                       {sub.status === "ACTIVE_PRO"
-                        ? "💎 Pro Monthly Plan Active"
+                        ? "💎 Pro Monthly Active"
                         : sub.inGracePeriod
-                        ? `⏳ 7-Day Pro Grace Period Active (${sub.graceDaysRemaining} Days Left)`
+                        ? `⏳ 7-Day Pro Grace (${sub.graceDaysRemaining}d Left)`
                         : sub.isPreExpiry
-                        ? `💎 Pro Plan (Renews in ${sub.daysRemaining} Days)`
-                        : `⚡ 14-Day Free Express Trial`}
+                        ? `💎 Pro (Renews in ${sub.daysRemaining}d)`
+                        : `⚡ 14-Day Free Express Trial (${sub.daysRemaining}d Left)`}
                     </span>
                   </span>
 
-                  <span className="text-xs font-mono text-gray-500">
+                  <span className="text-[11px] font-mono text-gray-500">
                     Cycle Validity: <strong>{sub.expiryDateFormatted}</strong>
                   </span>
                 </div>
 
-                <h2 className="text-xl sm:text-2xl font-black text-[#201a17]">
+                <p className="text-xs text-gray-700 leading-relaxed">
                   {sub.inGracePeriod
-                    ? "Your Pro Grace Period is Active — Full Access Uninterrupted"
-                    : sub.isPro
-                    ? "You are enjoying full TenoPilot Pro Unlimited Power"
-                    : "14-Day Free Express Trial Active"}
-                </h2>
-
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  {sub.inGracePeriod
-                    ? `Your previous Pro cycle completed on ${sub.expiryDateFormatted}. As a valued partner, we’ve granted you a 7-day grace period with 100% full feature access. Renew today to keep your operations running seamlessly.`
+                    ? `Your Pro cycle completed on ${sub.expiryDateFormatted}. All operations remain active during your 7-day grace period.`
                     : sub.isPreExpiry
-                    ? `Your Pro plan will renew in ${sub.daysRemaining} days (on ${sub.expiryDateFormatted}). Early renewals stack automatically onto your remaining days.`
+                    ? `Your Pro plan renews in ${sub.daysRemaining} days. Early renewals stack automatically onto your remaining days.`
                     : sub.isPro
-                    ? `Your automated rent collection, dual-ledger accounting, and WhatsApp dispatch engines are running at maximum capacity.`
-                    : `You have ${sub.daysRemaining} days remaining in your free express trial. Upgrade to Pro for ₹999/mo to continue after your trial ends.`}
+                    ? `You are enjoying full TenoPilot Pro power with unlimited WhatsApp reminders and automated dual-ledger computing.`
+                    : `You have 100% full access to all core modules. (Automated WhatsApp & Email reminders are locked during trial and unlock on Pro).`}
                 </p>
 
-                {/* Stacking Guarantee Callout */}
-                <div className="p-3 rounded-2xl bg-white/80 border border-[#d7c2b9]/60 flex items-center gap-2.5 text-[11px] text-gray-700 font-medium">
-                  <Sparkles className="w-4 h-4 text-[#c2652a] shrink-0" />
-                  <span>
-                    <strong>Seamless Stacking Guarantee:</strong> Any early renewal adds 30 days directly onto your existing expiry date. You never lose a single day.
-                  </span>
-                </div>
+                <p className="text-[11px] text-[#964407] font-medium flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>Early renewals stack seamlessly onto your expiry date — zero lost days.</span>
+                </p>
               </div>
 
               {/* Action Button */}
-              <div className="shrink-0 w-full lg:w-auto">
+              <div className="shrink-0 w-full sm:w-auto">
                 <a
                   href="#renewal-section"
-                  className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#c2652a] to-amber-600 hover:opacity-95 text-white font-black text-xs shadow-lg shadow-[#c2652a]/20 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#964407] text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>
                     {sub.inGracePeriod
-                      ? "Renew Now (₹999/mo)"
+                      ? "Renew Pro (₹999/mo)"
                       : sub.isPreExpiry
-                      ? "Renew Early (Stack 30 Days)"
+                      ? "Renew Early (Stack 30d)"
                       : sub.isPro
-                      ? "Extend Subscription (+30 Days)"
+                      ? "Extend Plan (+30d)"
                       : "Upgrade to Pro (₹999/mo)"}
                   </span>
                 </a>
               </div>
-            </div>
-          </div>
-
-          {/* ⚡ 14-DAY FREE EXPRESS TRIAL TRANSPARENCY BANNER */}
-          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border-2 border-amber-400/40 shadow-xs space-y-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-[#964407] px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                ⚡ 14-DAY FREE EXPRESS TRIAL TRANSPARENCY
-              </span>
-              {sub.status === "TRIAL" && (
-                <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
-                  {sub.daysRemaining} Days Left in Trial
-                </span>
-              )}
-            </div>
-
-            <p className="text-xs text-[#201a17] leading-relaxed">
-              <strong>100% Unrestricted Core Access:</strong> Your 14-day free trial gives you complete access to all management modules — unlimited rooms & beds, dual-ledger accounting, FastTrack AI OCR migration, digital police verification, and multi-staff accounts.
-            </p>
-
-            <div className="p-3 rounded-2xl bg-white/80 border border-amber-300/60 flex items-center gap-2.5 text-xs text-[#964407] font-bold">
-              <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>
-                Automated WhatsApp & Email reminder dispatches are <strong>🔒 Locked during trial</strong> and instantly unlock upon activating the Pro Plan.
-              </span>
             </div>
           </div>
 
