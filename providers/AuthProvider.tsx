@@ -7,6 +7,7 @@ import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import { sanitizeTitleCase } from "@/lib/authService";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
+import { portfolioStore } from "@/constants/portfolioStore";
 
 export interface UserProfile {
   uid: string;
@@ -430,6 +431,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("tenopilot_active_role");
       localStorage.removeItem("tenopilot_pin_lockout");
       localStorage.removeItem("tenopilot_session_version");
+      localStorage.removeItem("tenopilot_portfolio_properties");
+      portfolioStore.clear();
     }
     setProfile(null);
     setUser(null);

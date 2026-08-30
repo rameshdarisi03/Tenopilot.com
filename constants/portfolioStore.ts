@@ -21,22 +21,19 @@ export interface PortfolioProperty {
 // In-Memory Cloud Firestore Real-time Reactive Cache
 let IN_MEMORY_PROPERTIES: PortfolioProperty[] = [];
 let ACTIVE_PORTFOLIO_UNSUB: (() => void) | null = null;
-let currentOwnerKey = "global_master";
+let currentOwnerKey = "default_user";
 const listeners = new Set<() => void>();
 
 function sanitizeOwnerKey(email?: string | null): string {
-  if (!email || typeof email !== "string") return "global_master";
+  if (!email || typeof email !== "string") return "anonymous_user";
   const clean = email.toLowerCase().trim();
-  if (clean === "isharapandey01@gmail.com" || clean.includes("admin")) {
-    return "global_master";
-  }
   return clean.replace(/[^a-z0-9]/g, "_");
 }
 
-function loadInitialLocalStorage(): PortfolioProperty[] {
+function loadInitialLocalStorage(ownerKey: string): PortfolioProperty[] {
   if (typeof window === "undefined") return [];
   try {
-    const saved = localStorage.getItem("tenopilot_portfolio_properties");
+    const saved = localStorage.getItem(`tenopilot_portfolio_properties_${ownerKey}`);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) return parsed;
@@ -64,8 +61,20 @@ export const portfolioStore = {
   },
 
   /**
+   * Reset in-memory properties when signing out or switching users
+   */
+  clear() {
+    IN_MEMORY_PROPERTIES = [];
+    if (ACTIVE_PORTFOLIO_UNSUB) {
+      ACTIVE_PORTFOLIO_UNSUB();
+      ACTIVE_PORTFOLIO_UNSUB = null;
+    }
+    this.notify();
+  },
+
+  /**
    * Initialize Real-time Cloud Firestore WebSocket Listener for Portfolio
-   * Subscribes to: doc(db, "portfolios", ownerKey)
+   * Subscribes to: doc(db, "users", `portfolio_${ownerKey}`)
    */
   initFirebaseListener(ownerEmail?: string | null) {
     if (typeof window === "undefined") return;
@@ -81,12 +90,9 @@ export const portfolioStore = {
     }
 
     currentOwnerKey = ownerKey;
-
-    // Load initial local storage cache
-    const localProps = loadInitialLocalStorage();
-    if (localProps.length > 0 && IN_MEMORY_PROPERTIES.length === 0) {
-      IN_MEMORY_PROPERTIES = localProps;
-    }
+    // Load strictly scoped user local storage cache
+    const localProps = loadInitialLocalStorage(ownerKey);
+    IN_MEMORY_PROPERTIES = localProps;
 
     try {
       const portfolioRef = doc(db, "users", `portfolio_${ownerKey}`);
@@ -98,49 +104,20 @@ export const portfolioStore = {
             const data = snapshot.data();
             const remoteProps = Array.isArray(data?.properties) ? (data.properties as PortfolioProperty[]) : [];
 
-            // ID-based Map Merge: Merge remote properties with any unique local properties
-            const mergedMap = new Map<string, PortfolioProperty>();
-            remoteProps.forEach((p) => {
-              if (p?.id) mergedMap.set(p.id, p);
-            });
+            IN_MEMORY_PROPERTIES = remoteProps;
 
-            // Check if local cache has any property that remote doesn't have yet (Auto-Upload Migration)
-            let hasLocalOnly = false;
-            localProps.forEach((lp) => {
-              if (lp?.id && !mergedMap.has(lp.id)) {
-                mergedMap.set(lp.id, lp);
-                hasLocalOnly = true;
-              }
-            });
-
-            const mergedList = Array.from(mergedMap.values());
-            IN_MEMORY_PROPERTIES = mergedList;
-
-            // Sync to local storage for offline resilience
+            // Sync to strictly scoped user local storage
             try {
-              localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(mergedList));
+              localStorage.setItem(`tenopilot_portfolio_properties_${ownerKey}`, JSON.stringify(remoteProps));
             } catch {}
-
-            // If local properties were migrated, save merged back to Firestore
-            if (hasLocalOnly) {
-              try {
-                await setDoc(portfolioRef, { properties: mergedList, updatedAt: new Date().toISOString() }, { merge: true });
-              } catch (err) {
-                console.warn("Failed to sync migrated local properties to Firestore:", err);
-              }
-            }
 
             portfolioStore.notify();
           } else {
-            // Document doesn't exist yet on Firestore -> initialize it with existing local properties
-            if (localProps.length > 0) {
-              IN_MEMORY_PROPERTIES = localProps;
-              try {
-                await setDoc(portfolioRef, { properties: localProps, updatedAt: new Date().toISOString() }, { merge: true });
-              } catch (err) {
-                console.warn("Failed to initialize portfolio document in Firestore:", err);
-              }
-            }
+            // New user with no Firestore portfolio yet
+            IN_MEMORY_PROPERTIES = [];
+            try {
+              localStorage.removeItem(`tenopilot_portfolio_properties_${ownerKey}`);
+            } catch {}
             portfolioStore.notify();
           }
         },
@@ -157,15 +134,7 @@ export const portfolioStore = {
    * Get all currently synced properties
    */
   getProperties(): PortfolioProperty[] {
-    if (IN_MEMORY_PROPERTIES.length > 0) {
-      return IN_MEMORY_PROPERTIES;
-    }
-    const local = loadInitialLocalStorage();
-    if (local.length > 0) {
-      IN_MEMORY_PROPERTIES = local;
-      return local;
-    }
-    return [];
+    return IN_MEMORY_PROPERTIES;
   },
 
   /**
@@ -182,10 +151,10 @@ export const portfolioStore = {
       IN_MEMORY_PROPERTIES = [...IN_MEMORY_PROPERTIES, newProperty];
     }
 
-    // Save to local storage
+    // Save to scoped local storage
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(IN_MEMORY_PROPERTIES));
+        localStorage.setItem(`tenopilot_portfolio_properties_${ownerKey}`, JSON.stringify(IN_MEMORY_PROPERTIES));
       } catch {}
     }
 
@@ -219,7 +188,7 @@ export const portfolioStore = {
 
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(IN_MEMORY_PROPERTIES));
+        localStorage.setItem(`tenopilot_portfolio_properties_${ownerKey}`, JSON.stringify(IN_MEMORY_PROPERTIES));
       } catch {}
     }
 
@@ -250,7 +219,7 @@ export const portfolioStore = {
 
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("tenopilot_portfolio_properties", JSON.stringify(IN_MEMORY_PROPERTIES));
+        localStorage.setItem(`tenopilot_portfolio_properties_${ownerKey}`, JSON.stringify(IN_MEMORY_PROPERTIES));
       } catch {}
     }
 

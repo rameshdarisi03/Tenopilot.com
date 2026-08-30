@@ -35,6 +35,7 @@ import {
 } from "@/lib/authService";
 import { staffStore, StaffMember } from "@/lib/staffStore";
 import { founderStore } from "@/constants/founderStore";
+import { portfolioStore } from "@/constants/portfolioStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -300,6 +301,8 @@ export default function LoginPage() {
 
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
+      localStorage.removeItem("tenopilot_portfolio_properties");
+      portfolioStore.clear();
       staffStore.setActiveRole(session.role);
 
       // Route to PIN_PROMPT if PIN is already set, or SET_OR_RESET_PIN if not
