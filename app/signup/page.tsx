@@ -127,7 +127,17 @@ function SignUpPageContent() {
     setIsLoading(true);
 
     try {
-      await registerWithEmailPassword(cleanEmail, password);
+      const res = await registerWithEmailPassword(cleanEmail, password);
+      
+      // If the email is already verified (e.g. self-healed re-signup)
+      if (res.user.emailVerified) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("tenopilot_session_unlocked", "true");
+        }
+        router.push("/welcome");
+        return;
+      }
+
       setNeedsEmailVerification(true);
       setResendCooldown(60);
       const timer = setInterval(() => {

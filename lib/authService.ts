@@ -32,7 +32,9 @@ export interface AuthUserProfile {
   photoURL?: string;
   role: "master_admin" | "admin" | "receptionist";
   assignedPropertyId: string;
+  propertyName?: string;
   isNewUser?: boolean;
+  onboardingCompleted?: boolean;
   hasSetPin?: boolean;
   securityPin?: string;
   sessionVersion?: string;
@@ -67,17 +69,20 @@ export function getCleanAuthErrorMessage(err: any): string {
   if (
     code === "auth/invalid-credential" ||
     code === "auth/wrong-password" ||
-    code === "auth/user-not-found" ||
     msg.includes("invalid-credential") ||
+    msg.includes("wrong-password")
+  ) {
+    return "Invalid email or password. Please check your credentials or click 'Forgot Password' to reset your access.";
+  }
+  if (
+    code === "auth/user-not-found" ||
     msg.includes("user-not-found") ||
     msg.includes("No registered account found") ||
     msg.includes("No active account found") ||
     msg.includes("No active staff or owner account") ||
-    msg.includes("No active TenoPilot account found") ||
-    msg.includes("Unsupported field value") ||
-    msg.includes("undefined")
+    msg.includes("No active TenoPilot account found")
   ) {
-    return "No active TenoPilot account found for these credentials. Please check your details or click Sign Up below to activate your property.";
+    return "No active TenoPilot account found for this email. Please check your email or sign up below to create your account.";
   }
   if (code === "auth/user-disabled") {
     return "This account has been suspended or deactivated. Please contact platform support.";
@@ -101,7 +106,7 @@ export function getCleanAuthErrorMessage(err: any): string {
     return "This sign-in method is temporarily unavailable. Please try another method.";
   }
   if (code === "auth/invalid-email") {
-    return "No active TenoPilot account found for this identifier. Please check your details or click Sign Up below.";
+    return "Please enter a valid email address.";
   }
   if (msg.includes("already-initialized") || msg.includes("Database is closing") || msg.includes("closing")) {
     return "Connecting to secure authentication session. Please try again.";
@@ -191,64 +196,48 @@ export async function loginWithGoogle(
           } catch {}
         }
       } else {
-        // Find in staff registry or staff_accounts
-        let matchStaffData: any = null;
-        try {
-          const staffDoc = await getDoc(doc(db, "staff_accounts", email));
-          if (staffDoc.exists()) {
-            matchStaffData = staffDoc.data();
-          }
-        } catch {}
-
-        const all = staffStore.getAllGlobalStaff();
-        const match = all.find((s) => s.email.toLowerCase() === email);
-
-        const newProfile: any = {
+        const isMasterTest = email === "isharapandey01@gmail.com";
+        profile = {
           uid: user.uid,
           email: email,
-          displayName: matchStaffData?.name || match?.name || user.displayName || "Property Owner",
-          organizationId: "org_estate",
-          role: matchStaffData?.role || match?.role || "master_admin",
-          assignedPropertyId: matchStaffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
-          hasSetPin: Boolean(matchStaffData?.hasSetPin ?? match?.hasSetPin),
+          displayName: user.displayName ? sanitizeTitleCase(user.displayName) : "Property Owner",
+          organizationId: isMasterTest ? "org_demo_meghana" : `org_${user.uid}`,
+          role: "master_admin",
+          assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
+          onboardingCompleted: true,
+          hasSetPin: false,
         };
-        const pin = matchStaffData?.securityPin ?? match?.securityPin;
-        if (pin) {
-          newProfile.securityPin = pin;
-        }
-        await setDoc(userDocRef, newProfile, { merge: true });
-        profile = newProfile as AuthUserProfile;
+        await setDoc(userDocRef, profile, { merge: true });
       }
 
       return { user, profile };
-    } else {
-      // 🌟 SIGNUP MODE: If account already exists, seamlessly return existing profile
-      if (userSnap.exists()) {
-        const existingProfile = userSnap.data() as AuthUserProfile;
-        return { user, profile: existingProfile };
-      }
-
-      const isMasterTest = email === "isharapandey01@gmail.com";
-      const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
-      const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
-
-      const newSignupProfile: any = {
-        uid: user.uid,
-        email: email,
-        displayName: user.displayName || "Property Owner",
-        organizationId: orgId,
-        role: "master_admin",
-        assignedPropertyId: assignedPropertyId,
-        isNewUser: true,
-        hasSetPin: false,
-      };
-      if (user.photoURL) {
-        newSignupProfile.photoURL = user.photoURL;
-      }
-
-      await setDoc(userDocRef, newSignupProfile, { merge: true });
-      return { user, profile: newSignupProfile as AuthUserProfile };
     }
+
+    // 🚀 SIGN UP MODE: Check if already registered
+    if (existsInDb && userSnap.exists() && userSnap.data()?.onboardingCompleted === true) {
+      await signOut(auth);
+      throw new Error("An account with this Google email already exists. Please Sign In instead.");
+    }
+
+    const isMasterTest = email === "isharapandey01@gmail.com";
+    const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
+    const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
+
+    const profile: AuthUserProfile = {
+      uid: user.uid,
+      email: email,
+      displayName: user.displayName ? sanitizeTitleCase(user.displayName) : "Property Owner",
+      organizationId: orgId,
+      role: "master_admin",
+      assignedPropertyId: assignedPropertyId,
+      isNewUser: true,
+      onboardingCompleted: isMasterTest,
+      hasSetPin: false,
+    };
+
+    await setDoc(userDocRef, profile, { merge: true });
+
+    return { user, profile };
   } catch (error: any) {
     console.error("Google Auth Error:", error);
     throw error;
@@ -312,6 +301,7 @@ export async function syncUserSecurityPinToCloud(
 
 /**
  * 📧 Register New Customer with Email, Password & Send Email Verification Link
+ * Equipped with Smart Self-Healing for orphaned / purged accounts.
  */
 export async function registerWithEmailPassword(
   email: string,
@@ -321,9 +311,23 @@ export async function registerWithEmailPassword(
   try {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Firebase Auth natively verifies unique emails without IndexedDB locking conflicts
-    const result = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
-    const user = result.user;
+    let user: User;
+    try {
+      const result = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+      user = result.user;
+    } catch (createErr: any) {
+      if (createErr?.code === "auth/email-already-in-use") {
+        // 🔄 Smart Self-Healing: Attempt credential login to auto-resume orphaned / purged account
+        try {
+          const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+          user = signInRes.user;
+        } catch (signInErr: any) {
+          throw new Error("An account with this email address already exists. Please sign in on the Login page with your password.");
+        }
+      } else {
+        throw createErr;
+      }
+    }
 
     const isMasterTest = cleanEmail === "isharapandey01@gmail.com";
     const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
@@ -339,21 +343,24 @@ export async function registerWithEmailPassword(
       role: "master_admin",
       assignedPropertyId: assignedPropertyId,
       isNewUser: true,
+      onboardingCompleted: false,
       hasSetPin: false,
     };
 
     const userDocRef = doc(db, "users", user.uid);
     await setDoc(userDocRef, profile, { merge: true });
 
-    // Send Firebase Email Verification Link to User Inbox
-    try {
-      const actionCodeSettings = typeof window !== "undefined" ? {
-        url: window.location.origin + "/welcome?verified=true",
-        handleCodeInApp: false,
-      } : undefined;
-      await sendEmailVerification(user, actionCodeSettings);
-    } catch (verr) {
-      console.warn("Email verification send notice:", verr);
+    // Send Firebase Email Verification Link to User Inbox if unverified
+    if (!user.emailVerified) {
+      try {
+        const actionCodeSettings = typeof window !== "undefined" ? {
+          url: window.location.origin + "/welcome?verified=true",
+          handleCodeInApp: false,
+        } : undefined;
+        await sendEmailVerification(user, actionCodeSettings);
+      } catch (verr) {
+        console.warn("Email verification send notice:", verr);
+      }
     }
 
     return { user, profile };
