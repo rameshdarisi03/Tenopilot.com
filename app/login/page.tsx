@@ -289,12 +289,28 @@ export default function LoginPage() {
         staffData?.securityPin ||
         match?.securityPin;
 
+      const ownerName = userData?.displayName || staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner";
+      const resolvedPropName =
+        userData?.pgName ||
+        userData?.propertyName ||
+        userData?.primaryPropertyName ||
+        staffData?.propertyName ||
+        match?.propertyName ||
+        `${ownerName} PG`;
+
+      const resolvedPropId =
+        userData?.assignedPropertyId ||
+        userData?.propertyId ||
+        staffData?.assignedPropertyId ||
+        match?.assignedPropertyId ||
+        resolvedPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
       const session: SavedSession = {
         email: cleanEmail,
-        name: userData?.displayName || staffData?.name || match?.name || sanitizeTitleCase(cleanEmail.split("@")[0]) || "Property Owner",
+        name: ownerName,
         role: userData?.role || staffData?.role || match?.role || (cleanEmail.includes("rec") ? "receptionist" : "master_admin"),
-        propertyName: staffData?.propertyName || match?.propertyName || "Sunshine Heights PG",
-        assignedPropertyId: userData?.assignedPropertyId || staffData?.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
+        propertyName: resolvedPropName,
+        assignedPropertyId: resolvedPropId,
         securityPin: hasUserSetPin ? resolvedPin : undefined,
         hasSetPin: hasUserSetPin && Boolean(resolvedPin),
       };
@@ -344,19 +360,24 @@ export default function LoginPage() {
         (match && match.hasSetPin === true && Boolean(match.securityPin));
 
       const resolvedPin = result.profile.securityPin || match?.securityPin;
+      const gOwnerName = result.profile.displayName || match?.name || "Estate Master Admin";
+      const gPropName = match?.propertyName || `${gOwnerName} PG`;
+      const gPropId = result.profile.assignedPropertyId || match?.assignedPropertyId || gPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
       const session: SavedSession = {
         email: userEmail,
-        name: result.profile.displayName || match?.name || "Estate Master Admin",
+        name: gOwnerName,
         role: result.profile.role || match?.role || "master_admin",
-        propertyName: match?.propertyName || "All Properties",
-        assignedPropertyId: result.profile.assignedPropertyId || match?.assignedPropertyId || "sunshine-pg",
+        propertyName: gPropName,
+        assignedPropertyId: gPropId,
         securityPin: hasUserSetPin ? resolvedPin : undefined,
         hasSetPin: hasUserSetPin,
       };
 
       setSavedSession(session);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
+      localStorage.removeItem("tenopilot_portfolio_properties");
+      portfolioStore.clear();
       staffStore.setActiveRole(session.role);
 
       if (hasUserSetPin && resolvedPin) {

@@ -183,19 +183,35 @@ export default function HomeWorkspacePage() {
 
       // Filter out demo Sunshine PG and dummy Main Executive PG for non-master real client accounts
       if (!isMasterAccount) {
-        customProps = customProps.filter((p) => p.id !== "sunshine-pg" && p.id !== "main-executive-pg");
+        customProps = customProps.filter(
+          (p) =>
+            p.id !== "sunshine-pg" &&
+            p.id !== "main-executive-pg" &&
+            p.name !== "Sunshine Heights PG" &&
+            p.name !== "Sunshine Luxury PG"
+        );
       }
 
       // If newly registered tenant owner has NO properties yet, provision their actual registered building!
       if (!isMasterAccount && customProps.length === 0 && isMasterAdminRole) {
-        const initialOwnerBuildingName = savedSessionData?.propertyName || `${profile?.displayName || savedSessionData?.name || "My"} PG`;
-        const initialSlug = savedSessionData?.propertyId || initialOwnerBuildingName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
+        const ownerDisplayName = profile?.displayName || savedSessionData?.name || "Vedant";
+        const initialOwnerBuildingName =
+          savedSessionData?.propertyName &&
+          savedSessionData?.propertyName !== "Sunshine Heights PG" &&
+          savedSessionData?.propertyName !== "All Properties"
+            ? savedSessionData.propertyName
+            : `${ownerDisplayName} PG`;
+
+        const initialSlug =
+          savedSessionData?.propertyId && savedSessionData?.propertyId !== "sunshine-pg"
+            ? savedSessionData.propertyId
+            : initialOwnerBuildingName
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "");
 
         const defaultOwnerBuilding: PortfolioProperty = {
-          id: initialSlug || "my-first-pg",
+          id: initialSlug || "my-pg",
           name: initialOwnerBuildingName,
           location: "Bengaluru, Karnataka",
           bedsCount: 80,
@@ -206,7 +222,7 @@ export default function HomeWorkspacePage() {
           ownerEmail: email,
         };
 
-        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, profile?.displayName || savedSessionData?.name || "Property Owner");
+        initializeCleanProperty(defaultOwnerBuilding.id, defaultOwnerBuilding.name, ownerDisplayName);
         portfolioStore.addProperty(defaultOwnerBuilding, email);
         customProps = [defaultOwnerBuilding];
       }
