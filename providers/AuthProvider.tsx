@@ -109,53 +109,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           (isMasterTest ? "sunshine-pg" : "");
 
         const userDocRef = doc(db, "users", currentUser.uid);
-        try {
-          const snap = await getDoc(userDocRef);
-          if (snap.exists()) {
-            const data = snap.data() as UserProfile;
-            data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
-            const isExplicitStaff = Boolean(staffAccountDoc?.role || staffMatch?.role);
-            const finalRole = isExplicitStaff
-              ? (staffAccountDoc?.role || staffMatch?.role || "receptionist")
-              : (data.role === "admin" ? "master_admin" : data.role || "master_admin");
-            data.role = finalRole;
-            data.assignedPropertyId = (isExplicitStaff && (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId)) || data.assignedPropertyId || resolvedProp;
-            setProfile(data);
-            staffStore.setActiveRole(data.role);
-
-            // Persist the verified role back to Firestore
-            if (data.role !== snap.data()?.role) {
-              setDoc(userDocRef, { role: data.role }, { merge: true }).catch(() => {});
+        
+        // Real-Time Profile Snapshot Listener (Synchronizes instantly upon onboarding completion)
+        const unsubscribeProfile = onSnapshot(
+          userDocRef,
+          (snap) => {
+            if (snap.exists()) {
+              const data = snap.data() as UserProfile;
+              data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
+              const isExplicitStaff = Boolean(staffAccountDoc?.role || staffMatch?.role);
+              const finalRole = isExplicitStaff
+                ? (staffAccountDoc?.role || staffMatch?.role || "receptionist")
+                : (data.role === "admin" ? "master_admin" : data.role || "master_admin");
+              data.role = finalRole;
+              data.assignedPropertyId =
+                (isExplicitStaff && (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId)) ||
+                data.assignedPropertyId ||
+                resolvedProp;
+              setProfile(data);
+              staffStore.setActiveRole(data.role);
+            } else {
+              const newProf: UserProfile = {
+                uid: currentUser.uid,
+                email: email,
+                displayName: sanitizeTitleCase(resolvedName),
+                organizationId: orgId,
+                role: resolvedRole,
+                assignedPropertyId: resolvedProp,
+                isNewUser: !isMasterTest,
+                onboardingCompleted: isMasterTest,
+              };
+              setDoc(userDocRef, newProf, { merge: true }).catch(() => {});
+              setProfile(newProf);
+              staffStore.setActiveRole(newProf.role);
             }
-          } else {
-            const newProf: UserProfile = {
-              uid: currentUser.uid,
-              email: email,
-              displayName: sanitizeTitleCase(resolvedName),
-              organizationId: orgId,
-              role: resolvedRole,
-              assignedPropertyId: resolvedProp,
-              isNewUser: !isMasterTest,
-              onboardingCompleted: isMasterTest,
-            };
-            await setDoc(userDocRef, newProf, { merge: true });
-            setProfile(newProf);
-            staffStore.setActiveRole(newProf.role);
+            setLoading(false);
+          },
+          (err) => {
+            console.warn("User profile onSnapshot warning:", err);
+            setLoading(false);
           }
-        } catch (e) {
-          console.warn("Auth profile fetch fallback:", e);
-          const fallbackProf: UserProfile = {
-            uid: currentUser.uid,
-            email: email,
-            displayName: sanitizeTitleCase(resolvedName),
-            organizationId: orgId,
-            role: resolvedRole,
-            assignedPropertyId: resolvedProp,
-            onboardingCompleted: isMasterTest,
-          };
-          setProfile(fallbackProf);
-          staffStore.setActiveRole(resolvedRole);
-        }
+        );
+
+        return () => {
+          unsubscribeProfile();
+        };
       } else {
         // Hydrate from verified local PIN session if present
         if (typeof window !== "undefined") {
@@ -183,9 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setProfile(null);
         }
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -214,6 +211,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isAuthPage = pathname === "/login" || pathname === "/signup";
     const isWelcomePage = pathname === "/welcome";
 
+    let localSavedPropertyId = "";
+    let localSavedPropertyName = "";
+    if (typeof window !== "undefined") {
+      try {
+        const parsed = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+        localSavedPropertyId = parsed.assignedPropertyId || "";
+        localSavedPropertyName = parsed.propertyName || "";
+      } catch {}
+    }
+
     const hasLocalSession =
       typeof window !== "undefined" && Boolean(localStorage.getItem("tenopilot_saved_session"));
     const isSessionUnlocked =
@@ -221,16 +228,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
     const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
+    const hasCompletedSetup =
+      profile?.onboardingCompleted === true ||
+      Boolean(profile?.assignedPropertyId) ||
+      Boolean(localSavedPropertyId) ||
+      Boolean(localSavedPropertyName) ||
+      user?.email?.toLowerCase() === "isharapandey01@gmail.com";
+
     if (isProtectedPage) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
       if ((!user && !hasLocalSession) || !isSessionUnlocked) {
         router.replace("/login");
-      } else if (
-        profile &&
-        !profile.onboardingCompleted &&
-        profile.isNewUser &&
-        profile.email !== "isharapandey01@gmail.com"
-      ) {
+      } else if (!hasCompletedSetup && !loading) {
         router.replace("/welcome");
       }
     }
@@ -238,25 +247,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isWelcomePage && !loading) {
       if (!user && !hasLocalSession) {
         router.replace("/login");
-      } else if (
-        profile &&
-        (profile.onboardingCompleted || profile.email === "isharapandey01@gmail.com")
-      ) {
+      } else if (hasCompletedSetup) {
         router.replace("/home");
       }
     }
 
     if (isAuthPage && !loading && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
-      if (
-        profile &&
-        !profile.onboardingCompleted &&
-        profile.isNewUser &&
-        profile.email !== "isharapandey01@gmail.com"
-      ) {
+      if (!hasCompletedSetup) {
         router.replace("/welcome");
       } else {
         let resolvedRole = profile?.role;
-        let resolvedProp = profile?.assignedPropertyId;
+        let resolvedProp = profile?.assignedPropertyId || localSavedPropertyId;
         if (!resolvedRole && hasLocalSession) {
           try {
             const parsed = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
