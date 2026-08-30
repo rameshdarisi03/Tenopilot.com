@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Phone,
   HelpCircle,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -259,12 +260,37 @@ export default function SubscriptionBillingPage() {
             </div>
           </div>
 
+          {/* ⚡ 14-DAY FREE EXPRESS TRIAL TRANSPARENCY BANNER */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border-2 border-amber-400/40 shadow-xs space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-[#964407] px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                ⚡ 14-DAY FREE EXPRESS TRIAL TRANSPARENCY
+              </span>
+              {sub.status === "TRIAL" && (
+                <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
+                  {sub.daysRemaining} Days Left in Trial
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-[#201a17] leading-relaxed">
+              <strong>100% Unrestricted Core Access:</strong> Your 14-day free trial gives you complete access to all management modules — unlimited rooms & beds, dual-ledger accounting, FastTrack AI OCR migration, digital police verification, and multi-staff accounts.
+            </p>
+
+            <div className="p-3 rounded-2xl bg-white/80 border border-amber-300/60 flex items-center gap-2.5 text-xs text-[#964407] font-bold">
+              <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                Automated WhatsApp & Email reminder dispatches are <strong>🔒 Locked during trial</strong> and instantly unlock upon activating the Pro Plan.
+              </span>
+            </div>
+          </div>
+
           {/* PLAN COMPARISON CARDS */}
           <div className="space-y-4" id="renewal-section">
             <div>
-              <h3 className="text-lg font-black text-[#201a17]">Choose Your Subscription Plan</h3>
+              <h3 className="text-lg font-black text-[#201a17]">Choose Your Pro Subscription Plan</h3>
               <p className="text-xs text-gray-500">
-                Select your preferred billing cycle. All plans include full dual-ledger computing and WhatsApp reminders.
+                Select your preferred billing cycle to unlock automated WhatsApp and email reminders.
               </p>
             </div>
 
@@ -390,7 +416,7 @@ export default function SubscriptionBillingPage() {
                   14-Day Free Express Trial vs. Pro Plan Comparison
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Everything you get in your trial account versus unlocking unlimited power in TenoPilot Pro.
+                  Everything you get in your trial account versus unlocking automated WhatsApp & email power in TenoPilot Pro.
                 </p>
               </div>
             </div>
@@ -400,10 +426,10 @@ export default function SubscriptionBillingPage() {
                 <thead>
                   <tr className="border-b-2 border-gray-200 text-[#201a17]">
                     <th className="py-3 px-4 font-black uppercase text-[11px] text-gray-500">Capabilities</th>
-                    <th className="py-3 px-4 font-black text-xs text-amber-900 bg-amber-50/60 rounded-t-xl w-48 text-center">
+                    <th className="py-3 px-4 font-black text-xs text-amber-900 bg-amber-50/60 rounded-t-xl w-56 text-center">
                       ⚡ 14-Day Free Trial
                     </th>
-                    <th className="py-3 px-4 font-black text-xs text-emerald-900 bg-emerald-50/60 rounded-t-xl w-48 text-center">
+                    <th className="py-3 px-4 font-black text-xs text-emerald-900 bg-emerald-50/60 rounded-t-xl w-56 text-center">
                       💎 Pro Plan (₹999/mo)
                     </th>
                   </tr>
@@ -414,10 +440,10 @@ export default function SubscriptionBillingPage() {
                       Duration & Validity
                     </td>
                     <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20 font-medium">
-                      14 Days Full Access
+                      14 Days Full Trial Access
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Unlimited Recurring
+                      Unlimited Recurring (30d / 365d)
                     </td>
                   </tr>
 
@@ -425,11 +451,11 @@ export default function SubscriptionBillingPage() {
                     <td className="py-3 px-4 font-bold text-gray-800">
                       Tenant & Bed Capacity
                     </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      1 Property (Up to 15 beds)
+                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
+                      ✅ Unlimited Tenants, Rooms & Beds
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Unlimited Tenants & Beds
+                      ✅ Unlimited Tenants, Rooms & Beds
                     </td>
                   </tr>
 
@@ -437,23 +463,11 @@ export default function SubscriptionBillingPage() {
                     <td className="py-3 px-4 font-bold text-gray-800">
                       Dual-Ledger Accounting Engine
                     </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      Basic Ledger
+                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
+                      ✅ Rent vs Security Deposit + Pro-Rata
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Rent vs Security Deposit + Pro-Rata
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Automated WhatsApp Invoices & Reminders
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      5 Test Reminders
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Unlimited Instant WhatsApp Dispatches
+                      ✅ Rent vs Security Deposit + Pro-Rata
                     </td>
                   </tr>
 
@@ -461,11 +475,11 @@ export default function SubscriptionBillingPage() {
                     <td className="py-3 px-4 font-bold text-gray-800">
                       FastTrack AI 1-Click OCR Migration
                     </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      1 Free Ingestion Scan
+                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
+                      ✅ Full AI OCR Ingestion
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Unlimited Handwritten & PDF Ingestion
+                      ✅ Full AI OCR Ingestion
                     </td>
                   </tr>
 
@@ -473,11 +487,36 @@ export default function SubscriptionBillingPage() {
                     <td className="py-3 px-4 font-bold text-gray-800">
                       Digital Police Verification & KYC Vault
                     </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      Basic Aadhaar Upload
+                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
+                      ✅ Full Legal Register & Storage
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Full Legal Register & Cloud Storage
+                      ✅ Full Legal Register & Storage
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3 px-4 font-bold text-gray-800">
+                      Multi-Branch Receptionist Accounts (6-Digit PIN)
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
+                      ✅ Unlimited Staff & PIN Security
+                    </td>
+                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
+                      ✅ Unlimited Staff & PIN Security
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-gray-50/60 transition-colors bg-amber-50/30">
+                    <td className="py-3.5 px-4 font-bold text-amber-950 flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Automated WhatsApp & Email Reminders</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-bold text-amber-800 bg-amber-100/50">
+                      🔒 Locked (Exclusive to Pro Plan)
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-black text-emerald-800 bg-emerald-100/60">
+                      ✅ Unlimited Instant WhatsApp Dispatches
                     </td>
                   </tr>
 
@@ -486,7 +525,7 @@ export default function SubscriptionBillingPage() {
                       7-Day Trusted Pro Grace Period
                     </td>
                     <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
-                      ❌ None
+                      ❌ None (Trial ends on Day 14)
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
                       ✅ 7 Days Uninterrupted Grace Every Month
@@ -495,37 +534,13 @@ export default function SubscriptionBillingPage() {
 
                   <tr className="hover:bg-gray-50/60 transition-colors">
                     <td className="py-3 px-4 font-bold text-gray-800">
-                      Multi-Branch Receptionist Accounts (6-Digit PIN)
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
-                      Owner Only
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Unlimited Staff Accounts & PIN Protection
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Partner Equity & Expense Profit Settlement
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
-                      ❌ None
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ Automatic Partner Splits
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
                       Support Level
                     </td>
                     <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      Standard Email
+                      Standard Support
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      24/7 WhatsApp & Dedicated Founder Call
+                      24/7 Priority WhatsApp & Founder Call
                     </td>
                   </tr>
                 </tbody>

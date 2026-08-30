@@ -15,6 +15,7 @@ import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -223,6 +224,12 @@ export default function TenantsDirectoryPage({
 
   // 1-Tap Central WhatsApp Cloud Dispatch Handler
   const handleSendCloudWhatsAppReminders = async () => {
+    const sub = evaluateSubscription(profile);
+    if (!sub.isPro) {
+      triggerToast("🔒 Automated WhatsApp & Email Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+      return;
+    }
+
     const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
     const activeQr = profiles[activeQrIndex] || profiles[0];
     const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));

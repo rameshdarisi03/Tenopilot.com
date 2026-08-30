@@ -54,7 +54,7 @@ export default function ApexCommandClientsPage() {
   const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "ACTIONS">("OVERVIEW");
 
   // Plan Activation Form State
-  const [planSelection, setPlanSelection] = useState<"PRO_MONTHLY" | "PRO_ANNUAL" | "VIP_PASS" | "TRIAL_EXTENSION">("PRO_MONTHLY");
+  const [planSelection, setPlanSelection] = useState<"PRO_MONTHLY" | "PRO_ANNUAL" | "TRIAL_EXTENSION">("PRO_MONTHLY");
   const [planDurationDays, setPlanDurationDays] = useState<number>(30);
   const [paymentModeSelection, setPaymentModeSelection] = useState<"UPI" | "Cash" | "Bank Transfer" | "VIP Pass">("UPI");
   const [planAmount, setPlanAmount] = useState<number>(999);
@@ -856,11 +856,7 @@ export default function ApexCommandClientsPage() {
                           setPlanAmount(999);
                         } else if (val === "PRO_ANNUAL") {
                           setPlanDurationDays(365);
-                          setPlanAmount(9990);
-                        } else if (val === "VIP_PASS") {
-                          setPlanDurationDays(365);
-                          setPaymentModeSelection("VIP Pass");
-                          setPlanAmount(0);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 9990);
                         } else if (val === "TRIAL_EXTENSION") {
                           setPlanDurationDays(14);
                           setPlanAmount(0);
@@ -870,8 +866,7 @@ export default function ApexCommandClientsPage() {
                     >
                       <option value="PRO_MONTHLY">💎 Pro Monthly Plan (₹999 / 30 Days)</option>
                       <option value="PRO_ANNUAL">🏆 Pro Annual Plan (₹9,990 / 365 Days)</option>
-                      <option value="VIP_PASS">🎟️ VIP Pass (1-Year Pass)</option>
-                      <option value="TRIAL_EXTENSION">⏳ Extend Trial (+14 / +30 Days)</option>
+                      <option value="TRIAL_EXTENSION">⏳ Extend Free Trial (+14 / +30 Days)</option>
                     </select>
                   </div>
 
