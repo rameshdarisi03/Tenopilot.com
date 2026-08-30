@@ -36,6 +36,7 @@ import {
   Loader2,
   AlertTriangle,
   Clock,
+  Building2,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -143,6 +144,10 @@ export default function OnboardGuestPage({
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
     typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
   );
+
+  const hasConfiguredRooms = useMemo(() => {
+    return propertyStructure.some((fl) => fl.rooms && fl.rooms.length > 0);
+  }, [propertyStructure]);
 
   // Dynamic Stay Duration Calculation (Check-in vs Check-out)
   const stayDays = useMemo(() => {
@@ -474,30 +479,61 @@ export default function OnboardGuestPage({
             </div>
           )}
 
-          {/* Stepper Header (Streamlined 3 Steps for Guests!) */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2">
-                  Onboard Short-term Guest <span className="text-xs bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-sans font-bold">🟣 SHORT-STAY</span>
-                </h1>
-                <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                  Streamlined 3-step wizard for daily/weekly guests (No lease agreement required)
+          {!hasConfiguredRooms ? (
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 md:p-12 shadow-sm text-center space-y-5 animate-in fade-in my-6">
+              <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto shadow-inner">
+                <Building2 className="w-8 h-8 text-[#964407]" />
+              </div>
+              <div className="space-y-2 max-w-md mx-auto">
+                <h2 className="font-serif font-bold text-2xl text-[#201a17]">
+                  Configure Property Setup First
+                </h2>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  You haven&apos;t created any rooms or beds for this property yet. Please set up your floor layout and room matrix in <strong>Property Setup</strong> before allocating short-stay guests.
                 </p>
               </div>
-
-              <span className="md:hidden text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
-                Step {currentStep} of 3
-              </span>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <Link
+                  href={`/p/${propertyId}/property-setup`}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Open Property Setup ➔</span>
+                </Link>
+                <Link
+                  href={`/p/${propertyId}/overview`}
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-all"
+                >
+                  Back to Dashboard
+                </Link>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Stepper Header (Streamlined 3 Steps for Guests!) */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2">
+                      Onboard Short-term Guest <span className="text-xs bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full font-sans font-bold">🟣 SHORT-STAY</span>
+                    </h1>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                      Streamlined 3-step wizard for daily/weekly guests (No lease agreement required)
+                    </p>
+                  </div>
 
-            {/* Desktop 3-Step Stepper Bar */}
-            <div className="hidden md:flex items-center justify-between pt-2">
-              {[
-                { step: 1, label: "1. Guest & Stay Details" },
-                { step: 2, label: "2. Bed Allocation" },
-                { step: 3, label: "3. Quick KYC & Photo" },
-              ].map((s) => {
+                  <span className="md:hidden text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
+                    Step {currentStep} of 3
+                  </span>
+                </div>
+
+                {/* Desktop 3-Step Stepper Bar */}
+                <div className="hidden md:flex items-center justify-between pt-2">
+                  {[
+                    { step: 1, label: "1. Guest & Stay Details" },
+                    { step: 2, label: "2. Bed Allocation" },
+                    { step: 3, label: "3. Quick KYC & Photo" },
+                  ].map((s) => {
                 const isActive = currentStep === s.step;
                 const isDone = currentStep > s.step;
 
@@ -1153,7 +1189,9 @@ export default function OnboardGuestPage({
               </div>
             </div>
           )}
-        </div>
+        </>
+      )}
+    </div>
 
         {/* CENTERED SUCCESS CONFETTI DIALOG WITH PURPLE GUEST BADGE 🟣 */}
         {showSuccessModal && createdGuest && (

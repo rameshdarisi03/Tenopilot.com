@@ -148,6 +148,10 @@ export default function OnboardTenantPage({
     typeof window !== "undefined" ? propertyStore.getStructure(propertyId) : []
   );
 
+  const hasConfiguredRooms = useMemo(() => {
+    return propertyStructure.some((fl) => fl.rooms && fl.rooms.length > 0);
+  }, [propertyStructure]);
+
   // Reactive property settings state subscribed to propertySettingsStore
   const [settings, setSettings] = useState<PropertySettingsData>(() =>
     typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : CLEAN_ZERO_PROPERTY_SETTINGS
@@ -499,93 +503,124 @@ export default function OnboardTenantPage({
             </div>
           )}
 
-          {/* Stepper Header */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900">
-                  Onboard Long-term Tenant
-                </h1>
-                <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                  Complete 4-step wizard to register tenant, assign bed, and generate agreement
+          {!hasConfiguredRooms ? (
+            <div className="bg-white rounded-3xl border border-[#d7c2b9] p-8 md:p-12 shadow-sm text-center space-y-5 animate-in fade-in my-6">
+              <div className="w-16 h-16 rounded-2xl bg-[#f8ede3] text-[#964407] flex items-center justify-center mx-auto shadow-inner">
+                <Building2 className="w-8 h-8 text-[#964407]" />
+              </div>
+              <div className="space-y-2 max-w-md mx-auto">
+                <h2 className="font-serif font-bold text-2xl text-[#201a17]">
+                  Configure Property Setup First
+                </h2>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  You haven&apos;t created any rooms or beds for this property yet. Please set up your floor layout and room matrix in <strong>Property Setup</strong> before onboarding occupants.
                 </p>
               </div>
-
-              <span className="md:hidden text-xs font-bold text-[#c2652a] bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
-                Step {currentStep} of 4
-              </span>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <Link
+                  href={`/p/${propertyId}/property-setup`}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Open Property Setup ➔</span>
+                </Link>
+                <Link
+                  href={`/p/${propertyId}/overview`}
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs transition-all"
+                >
+                  Back to Dashboard
+                </Link>
+              </div>
             </div>
-
-            {/* Desktop 4-Step Stepper Bar */}
-            <div className="hidden md:flex items-center justify-between pt-2">
-              {[
-                { step: 1, label: "1. Personal & Rent" },
-                { step: 2, label: "2. Bed Allocation" },
-                { step: 3, label: "3. KYC & Docs" },
-                { step: 4, label: "4. Rental Agreement" },
-              ].map((s) => {
-                const isActive = currentStep === s.step;
-                const isDone = currentStep > s.step;
-
-                return (
-                  <div
-                    key={s.step}
-                    className={`flex items-center gap-2 text-xs font-bold ${
-                      isActive
-                        ? "text-[#c2652a]"
-                        : isDone
-                        ? "text-emerald-700"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
-                        isActive
-                          ? "bg-[#c2652a] text-white shadow-xs"
-                          : isDone
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-gray-100 text-gray-400"
-                      }`}
-                    >
-                      {isDone ? <Check className="w-4 h-4" /> : s.step}
-                    </div>
-                    <span>{s.label}</span>
+          ) : (
+            <>
+              {/* Stepper Header */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900">
+                      Onboard Long-term Tenant
+                    </h1>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                      Complete 4-step wizard to register tenant, assign bed, and generate agreement
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* STEP 1: PERSONAL & FINANCIAL DETAILS */}
-          {currentStep === 1 && (
-            <form
-              onSubmit={handleStep1Next}
-              className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in"
-            >
-              <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
-                <User className="w-5 h-5 text-[#c2652a]" /> Personal & Contact Details
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Aarav Mehta"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
-                  />
+                  <span className="md:hidden text-xs font-bold text-[#c2652a] bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+                    Step {currentStep} of 4
+                  </span>
                 </div>
 
-                {/* Primary Mobile Phone (Strict 10 Digits) */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Mobile Phone Number * (10 Digits)
-                  </label>
+                {/* Desktop 4-Step Stepper Bar */}
+                <div className="hidden md:flex items-center justify-between pt-2">
+                  {[
+                    { step: 1, label: "1. Personal & Rent" },
+                    { step: 2, label: "2. Bed Allocation" },
+                    { step: 3, label: "3. KYC & Docs" },
+                    { step: 4, label: "4. Rental Agreement" },
+                  ].map((s) => {
+                    const isActive = currentStep === s.step;
+                    const isDone = currentStep > s.step;
+
+                    return (
+                      <div
+                        key={s.step}
+                        className={`flex items-center gap-2 text-xs font-bold ${
+                          isActive
+                            ? "text-[#c2652a]"
+                            : isDone
+                            ? "text-emerald-700"
+                            : "text-gray-400"
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
+                            isActive
+                              ? "bg-[#c2652a] text-white shadow-xs"
+                              : isDone
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-gray-100 text-gray-400"
+                          }`}
+                        >
+                          {isDone ? <Check className="w-4 h-4" /> : s.step}
+                        </div>
+                        <span>{s.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* STEP 1: PERSONAL & FINANCIAL DETAILS */}
+              {currentStep === 1 && (
+                <form
+                  onSubmit={handleStep1Next}
+                  className="bg-white rounded-2xl border border-gray-200 p-5 md:p-8 shadow-xs space-y-6 animate-in fade-in"
+                >
+                  <h2 className="font-serif font-bold text-xl text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <User className="w-5 h-5 text-[#c2652a]" /> Personal & Contact Details
+                  </h2>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Aarav Mehta"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+
+                    {/* Primary Mobile Phone (Strict 10 Digits) */}
+                    <div>
+                      <label className="block font-bold text-gray-700 mb-1">
+                        Mobile Phone Number * (10 Digits)
+                      </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -1237,7 +1272,9 @@ export default function OnboardTenantPage({
               </div>
             </div>
           )}
-        </div>
+          </>
+        )}
+      </div>
 
         {/* STEP 5: CENTERED SUCCESS CONFETTI DIALOG */}
         {showSuccessModal && createdTenant && (
