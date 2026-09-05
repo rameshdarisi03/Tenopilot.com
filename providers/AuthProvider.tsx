@@ -134,11 +134,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
               // 🛡️ Self-heal existing accounts: stamp planExpiresAt if missing
               if (!data.planExpiresAt && data.role === "master_admin" && !data.plan) {
-                const effectiveCreated = data.createdAt || new Date().toISOString();
-                data.createdAt = effectiveCreated;
-                data.planExpiresAt = new Date(new Date(effectiveCreated).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();
+                const effectiveCreated = data.createdAt || currentUser.metadata.creationTime || "2026-08-20T00:00:00.000Z";
+                const createdMs = new Date(effectiveCreated).getTime();
+                const expiryMs = createdMs + 10 * 24 * 60 * 60 * 1000;
+                const isStillValid = expiryMs > Date.now();
+                data.createdAt = new Date(createdMs).toISOString();
+                data.planExpiresAt = new Date(expiryMs).toISOString();
                 data.plan = "10_DAY_TRIAL";
-                data.subscriptionStatus = "TRIAL";
+                data.subscriptionStatus = isStillValid ? "TRIAL" : "EXPIRED";
                 setDoc(userDocRef, {
                   createdAt: data.createdAt,
                   planExpiresAt: data.planExpiresAt,

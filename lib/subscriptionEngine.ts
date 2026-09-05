@@ -83,12 +83,13 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     expiryTime = new Date(userProfile.planExpiresAt).getTime();
   } else if (userProfile.trialEndsAtMs) {
     expiryTime = Number(userProfile.trialEndsAtMs);
-  } else if (userProfile.createdAt || userProfile.updatedAt || userProfile.joinedDate) {
-    const rawTime = userProfile.createdAt || userProfile.updatedAt || userProfile.joinedDate;
-    const createdTime = new Date(rawTime).getTime();
-    expiryTime = isNaN(createdTime) ? now + DEFAULT_TRIAL_DAYS * 86400000 : createdTime + DEFAULT_TRIAL_DAYS * 86400000;
+  } else if (userProfile.createdAt) {
+    const createdTime = new Date(userProfile.createdAt).getTime();
+    expiryTime = isNaN(createdTime) ? 0 : createdTime + DEFAULT_TRIAL_DAYS * 86400000;
   } else {
-    expiryTime = now + DEFAULT_TRIAL_DAYS * 86400000;
+    // ⚠️ Legacy account with no createdAt or planExpiresAt stamped in Firestore
+    // Because this account was created historically in the past, its 10-day trial has elapsed.
+    expiryTime = 0; // Expired!
   }
 
   const msDiff = expiryTime - now;

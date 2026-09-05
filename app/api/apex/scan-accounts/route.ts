@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
           status: data.status || founderClient?.status,
           plan: data.plan || founderClient?.plan,
           planExpiresAt: data.planExpiresAt || founderClient?.planExpiresAt,
-          createdAt: data.createdAt || data.updatedAt || founderClient?.createdAt || vipInvite?.createdAt,
+          createdAt: data.createdAt || founderClient?.createdAt || vipInvite?.createdAt,
         });
 
         const primaryPropName =
@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
           city: city,
           plan: subEvaluation.plan,
           totalBeds: totalBeds,
-          createdAt: data.createdAt || data.updatedAt || founderClient?.createdAt || vipInvite?.createdAt || new Date().toISOString(),
+          createdAt: data.createdAt || founderClient?.createdAt || vipInvite?.createdAt || "Legacy Account",
           lastActive: data.lastActive || founderClient?.lastActiveDate || "Recently",
           hasStorageFootprints: propIds.length > 0,
         });
