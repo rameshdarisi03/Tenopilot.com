@@ -70,6 +70,20 @@ export function getCleanAuthErrorMessage(err: any): string {
   const code = typeof err === "string" ? err : err?.code || "";
   const msg = typeof err === "string" ? err : err?.message || "";
 
+  if (msg.includes("pending Founder VIP Pass") || msg.includes("VIP Pass waiting") || msg.includes("/activate")) {
+    return msg;
+  }
+  if (
+    msg.includes("No active TenoPilot account found") ||
+    msg.includes("No registered account found") ||
+    msg.includes("No active staff or owner account") ||
+    code === "auth/user-not-found"
+  ) {
+    return "No active TenoPilot account found for this email. Please click Sign Up below to start your 10-day free trial.";
+  }
+  if (msg.includes("Incorrect password")) {
+    return "Incorrect password. Please verify your password or click 'Forgot Password' to reset your access.";
+  }
   if (
     code === "auth/invalid-credential" ||
     code === "auth/wrong-password" ||
@@ -77,16 +91,6 @@ export function getCleanAuthErrorMessage(err: any): string {
     msg.includes("wrong-password")
   ) {
     return "Invalid email or password. Please check your credentials or click 'Forgot Password' to reset your access.";
-  }
-  if (
-    code === "auth/user-not-found" ||
-    msg.includes("user-not-found") ||
-    msg.includes("No registered account found") ||
-    msg.includes("No active account found") ||
-    msg.includes("No active staff or owner account") ||
-    msg.includes("No active TenoPilot account found")
-  ) {
-    return "No active TenoPilot account found for this email. Please check your email or sign up below to create your account.";
   }
   if (code === "auth/user-disabled") {
     return "This account has been suspended or deactivated. Please contact platform support.";
@@ -128,33 +132,74 @@ export function getCleanAuthErrorMessage(err: any): string {
   return cleanMsg;
 }
 
+export interface AccountStatusResult {
+  exists: boolean;
+  hasPendingVipInvite?: boolean;
+  activationCode?: string;
+  isStaff?: boolean;
+}
+
 /**
- * 🔍 Check if Email already exists in Firestore users or staff accounts
+ * 🔍 Proactive Account Registration Status Checker
+ * Queries Firestore across:
+ * 1. staff_accounts
+ * 2. users (owners)
+ * 3. founder_clients
+ * 4. founder_invites (pending VIP passes)
+ * 5. local in-memory staffStore
  */
-export async function checkIfEmailExists(email: string): Promise<boolean> {
+export async function checkAccountRegistrationStatus(email: string): Promise<AccountStatusResult> {
   const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) return false;
+  if (!cleanEmail) return { exists: false };
 
   try {
     // 1. Check in staff_accounts collection
     const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
-    if (staffDoc.exists()) return true;
+    if (staffDoc.exists()) return { exists: true, isStaff: true };
 
     // 2. Check in users collection by email field
     const q = query(collection(db, "users"), where("email", "==", cleanEmail));
     const snap = await getDocs(q);
-    if (!snap.empty) return true;
+    if (!snap.empty) return { exists: true };
 
-    // 3. Check in local staff store
+    // 3. Check in founder_clients collection
+    const fcDoc = await getDoc(doc(db, "founder_clients", cleanEmail));
+    if (fcDoc.exists()) return { exists: true };
+
+    // 4. Check in local staff store
     const allStaff = staffStore.getAllGlobalStaff();
     if (allStaff.some((s) => s.email.toLowerCase() === cleanEmail)) {
-      return true;
+      return { exists: true, isStaff: true };
+    }
+
+    // 5. Check if they have a pending Founder VIP Invite
+    const invQ = query(
+      collection(db, "founder_invites"),
+      where("ownerEmail", "==", cleanEmail),
+      where("status", "==", "PENDING")
+    );
+    const invSnap = await getDocs(invQ);
+    if (!invSnap.empty) {
+      const invData = invSnap.docs[0].data();
+      return {
+        exists: false,
+        hasPendingVipInvite: true,
+        activationCode: invData.activationCode,
+      };
     }
   } catch (e) {
-    console.warn("checkIfEmailExists check notice:", e);
+    console.warn("checkAccountRegistrationStatus error:", e);
   }
 
-  return false;
+  return { exists: false };
+}
+
+/**
+ * 🔍 Check if Email already exists in Firestore users or staff accounts
+ */
+export async function checkIfEmailExists(email: string): Promise<boolean> {
+  const status = await checkAccountRegistrationStatus(email);
+  return status.exists;
 }
 
 /**
@@ -587,7 +632,17 @@ export async function loginWithEmailPassword(
       } catch (checkErr) {
         console.warn("Staff credentials fallback check notice:", checkErr);
       }
-      throw fbErr;
+
+      // 🔍 Proactively check database to raise instant differentiated guidance
+      const regStatus = await checkAccountRegistrationStatus(cleanEmail);
+      if (!regStatus.exists) {
+        if (regStatus.hasPendingVipInvite) {
+          throw new Error(`You have a pending Founder VIP Pass waiting (Code: ${regStatus.activationCode})! Please enter your activation code at /activate to create your property.`);
+        }
+        throw new Error("No active TenoPilot account found for this email. Please click Sign Up below to start your 10-day free trial.");
+      } else {
+        throw new Error("Incorrect password. Please verify your password or click 'Forgot Password' to reset your access.");
+      }
     }
   } catch (error: any) {
     console.error("Email Login Error:", error);

@@ -820,9 +820,29 @@ export default function LoginPage() {
 
             {/* Error Banner */}
             {error && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-xs text-rose-900 font-semibold animate-in fade-in">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{error}</span>
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-rose-900 font-semibold animate-in fade-in shadow-2xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="leading-snug">{error}</span>
+                </div>
+                {error.includes("Sign Up") && (
+                  <Link
+                    href="/signup"
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#964407] text-white font-black text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Sign Up Free</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
+                {error.includes("/activate") && (
+                  <Link
+                    href="/activate"
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Activate VIP</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
             )}
 
