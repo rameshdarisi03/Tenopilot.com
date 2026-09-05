@@ -18,7 +18,7 @@ import {
   browserLocalPersistence,
   inMemoryPersistence,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { StaffMember, UserRole, staffStore } from "./staffStore";
 
 const googleProvider = new GoogleAuthProvider();
@@ -72,6 +72,9 @@ export function getCleanAuthErrorMessage(err: any): string {
 
   if (msg.includes("pending Founder VIP Pass") || msg.includes("VIP Pass waiting") || msg.includes("/activate")) {
     return msg;
+  }
+  if (msg.includes("removed or purged")) {
+    return "This account has been removed or purged. Please click Sign Up below to create a new property.";
   }
   if (
     msg.includes("No active TenoPilot account found") ||
@@ -137,11 +140,13 @@ export interface AccountStatusResult {
   hasPendingVipInvite?: boolean;
   activationCode?: string;
   isStaff?: boolean;
+  isPurged?: boolean;
 }
 
 /**
  * 🔍 Proactive Account Registration Status Checker
  * Queries Firestore across:
+ * 0. purged_accounts (explicit founder tombstone)
  * 1. staff_accounts
  * 2. users (owners)
  * 3. founder_clients
@@ -153,6 +158,12 @@ export async function checkAccountRegistrationStatus(email: string): Promise<Acc
   if (!cleanEmail) return { exists: false };
 
   try {
+    // 0. Check if account was explicitly purged by founder
+    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
+    if (purgedDoc.exists()) {
+      return { exists: false, isPurged: true };
+    }
+
     // 1. Check in staff_accounts collection
     const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
     if (staffDoc.exists()) return { exists: true, isStaff: true };
@@ -411,6 +422,11 @@ export async function registerWithEmailPassword(
     const userDocRef = doc(db, "users", user.uid);
     await setDoc(userDocRef, profile, { merge: true });
 
+    // Clear any purged account tombstone on fresh registration
+    try {
+      await deleteDoc(doc(db, "purged_accounts", cleanEmail));
+    } catch {}
+
     // Send Firebase Email Verification Link to User Inbox if unverified
     if (!user.emailVerified) {
       try {
@@ -636,6 +652,9 @@ export async function loginWithEmailPassword(
       // 🔍 Proactively check database to raise instant differentiated guidance
       const regStatus = await checkAccountRegistrationStatus(cleanEmail);
       if (!regStatus.exists) {
+        if (regStatus.isPurged) {
+          throw new Error("This account has been removed or purged. Please click Sign Up below to create a new property.");
+        }
         if (regStatus.hasPendingVipInvite) {
           throw new Error(`You have a pending Founder VIP Pass waiting (Code: ${regStatus.activationCode})! Please enter your activation code at /activate to create your property.`);
         }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, deleteDoc, setDoc } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 
@@ -188,6 +188,21 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.warn("Founder invites purge error:", e);
+    }
+
+    // 7. Record explicit cloud tombstone in purged_accounts
+    if (cleanEmail) {
+      try {
+        await setDoc(doc(db, "purged_accounts", cleanEmail), {
+          email: cleanEmail,
+          userId: userId || "",
+          purgedAt: new Date().toISOString(),
+          purgedBy: "Apex Founder Command",
+        });
+        deletedDocsCount++;
+      } catch (e) {
+        console.warn("Purged accounts tombstone write warning:", e);
+      }
     }
 
     return NextResponse.json({

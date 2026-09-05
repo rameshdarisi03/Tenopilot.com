@@ -150,24 +150,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setProfile(data);
               staffStore.setActiveRole(data.role);
             } else {
-              const nowIso = new Date().toISOString();
-              const newProf: UserProfile = {
-                uid: currentUser.uid,
-                email: email,
-                displayName: sanitizeTitleCase(resolvedName),
-                organizationId: orgId,
-                role: resolvedRole,
-                assignedPropertyId: resolvedProp,
-                isNewUser: !isMasterTest,
-                onboardingCompleted: isMasterTest,
-                createdAt: nowIso,
-                planExpiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-                plan: "10_DAY_TRIAL",
-                subscriptionStatus: "TRIAL",
-              };
-              setDoc(userDocRef, newProf, { merge: true }).catch(() => {});
-              setProfile(newProf);
-              staffStore.setActiveRole(newProf.role);
+              // 🛡️ STRICT CLOUD AUTHORITY: Check if staff account or master test demo exists
+              const isExplicitStaff = Boolean(staffAccountDoc?.role || staffMatch?.role);
+              if (isExplicitStaff) {
+                const staffProf: UserProfile = {
+                  uid: currentUser.uid,
+                  email: email,
+                  displayName: sanitizeTitleCase(resolvedName),
+                  organizationId: orgId,
+                  role: resolvedRole,
+                  assignedPropertyId: resolvedProp,
+                  isNewUser: false,
+                  onboardingCompleted: true,
+                };
+                setProfile(staffProf);
+                staffStore.setActiveRole(staffProf.role);
+              } else if (isMasterTest) {
+                const demoProf: UserProfile = {
+                  uid: currentUser.uid,
+                  email: email,
+                  displayName: sanitizeTitleCase(resolvedName),
+                  organizationId: orgId,
+                  role: "master_admin",
+                  assignedPropertyId: "sunshine-pg",
+                  isNewUser: false,
+                  onboardingCompleted: true,
+                  createdAt: new Date().toISOString(),
+                  plan: "10_DAY_TRIAL",
+                  subscriptionStatus: "TRIAL",
+                };
+                setProfile(demoProf);
+                staffStore.setActiveRole(demoProf.role);
+              } else {
+                // 🛑 ACCOUNT PURGED OR DELETED FROM FIRESTORE: Do NOT auto-resurrect!
+                console.warn(`[AuthProvider] User ${email} has no Firestore document. Enforcing account purge sign-out.`);
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("tenopilot_saved_session");
+                  localStorage.removeItem("tenopilot_portfolio_properties");
+                }
+                setProfile(null);
+                signOut(auth).catch(() => {});
+              }
             }
             setLoading(false);
           },
