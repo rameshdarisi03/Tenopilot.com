@@ -33,6 +33,7 @@ import {
   UserX,
   FileSpreadsheet,
   AlertOctagon,
+  Loader2,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 
@@ -48,6 +49,10 @@ export default function ApexCommandClientsPage() {
   const [accountToPurge, setAccountToPurge] = useState<ScannedAccountRecord | null>(null);
   const [purgeConfirmationInput, setPurgeConfirmationInput] = useState("");
   const [isPurging, setIsPurging] = useState(false);
+
+  // Selected account for 1-Click +10 Days Extension confirmation modal
+  const [accountToExtend, setAccountToExtend] = useState<ScannedAccountRecord | null>(null);
+  const [isExtending, setIsExtending] = useState(false);
 
   // Selected account for Customer 360° Profile & Activation modal
   const [selectedCustomer360, setSelectedCustomer360] = useState<ScannedAccountRecord | null>(null);
@@ -198,30 +203,69 @@ export default function ApexCommandClientsPage() {
     }
   };
 
-  // Handle 1-Click Quick Extension
-  const handleQuickExtendTrial = async (account: ScannedAccountRecord, days: number = 10) => {
+  // Handle 1-Click +10 Days Trial Extension with Instant State Update
+  const handleConfirmExtendTrial = async () => {
+    if (!accountToExtend) return;
+    setIsExtending(true);
     try {
       const res = await fetch("/api/apex/activate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: account.userId,
-          email: account.email,
-          plan: "TRIAL_EXTENSION",
-          durationDays: days,
+          userId: accountToExtend.userId || accountToExtend.id,
+          email: accountToExtend.email,
+          plan: "10_DAY_TRIAL",
+          durationDays: 10,
           paymentMode: "VIP Pass",
           amountPaid: 0,
-          notes: `Founder 1-Click +${days} Days Trial Extension`,
-          activatedBy: "Founder Console",
+          notes: "Founder 1-Click +10 Days Trial Extension",
+          activatedBy: "Founder Apex Command",
         }),
       });
       const data = await res.json();
       if (data.success) {
-        triggerToast(`✓ Added +${days} days free trial to ${account.email}`);
+        triggerToast(`🎉 Successfully added +10 days trial to ${accountToExtend.email}!`);
+
+        const newExpiryIso = data.planExpiresAt || new Date(Date.now() + 10 * 86400000).toISOString();
+
+        // ⚡ INSTANT STATE MUTATION: Zero lag UI update
+        setAccounts((prev) =>
+          prev.map((acc) =>
+            acc.email.toLowerCase() === accountToExtend.email.toLowerCase()
+              ? {
+                  ...acc,
+                  subscriptionStatus: "TRIAL",
+                  classification: "TRIAL",
+                  trialDaysLeft: 10,
+                  plan: "10_DAY_TRIAL",
+                  detectionReason: "⚡ 10-Day Free Trial (10d Left)",
+                  planExpiresAt: newExpiryIso,
+                }
+              : acc
+          )
+        );
+
+        if (selectedCustomer360 && selectedCustomer360.email.toLowerCase() === accountToExtend.email.toLowerCase()) {
+          setSelectedCustomer360({
+            ...selectedCustomer360,
+            subscriptionStatus: "TRIAL",
+            classification: "TRIAL",
+            trialDaysLeft: 10,
+            plan: "10_DAY_TRIAL",
+            detectionReason: "⚡ 10-Day Free Trial (10d Left)",
+            planExpiresAt: newExpiryIso,
+          });
+        }
+
+        setAccountToExtend(null);
         await fetchScannedAccounts();
+      } else {
+        triggerToast(`⚠️ Extension error: ${data.message || "Failed to extend trial"}`);
       }
     } catch (err: any) {
       triggerToast(`⚠️ Extension failed: ${err.message}`);
+    } finally {
+      setIsExtending(false);
     }
   };
 
@@ -977,8 +1021,8 @@ export default function ApexCommandClientsPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleQuickExtendTrial(selectedCustomer360, 10)}
-                    className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs shrink-0 cursor-pointer"
+                    onClick={() => setAccountToExtend(selectedCustomer360)}
+                    className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs shrink-0 cursor-pointer transition-all active:scale-95 shadow-sm"
                   >
                     +10 Days
                   </button>
@@ -1022,6 +1066,92 @@ export default function ApexCommandClientsPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 1-Click +10 Days Confirmation Popup */}
+      {accountToExtend && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in-50">
+          <div className="w-full max-w-md bg-[#161b22] border-2 border-amber-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-white">Extend Free Trial</h3>
+                  <p className="text-xs text-amber-300/90 font-mono truncate max-w-[220px] sm:max-w-[260px]">{accountToExtend.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAccountToExtend(null)}
+                disabled={isExtending}
+                className="text-gray-400 hover:text-white p-1 cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-3 text-xs">
+              <div className="flex justify-between items-center text-gray-300">
+                <span>Account Name:</span>
+                <span className="font-bold text-white">{accountToExtend.displayName || "Property Owner"}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-300">
+                <span>Current Status:</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                  accountToExtend.subscriptionStatus === "TRIAL"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                    : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                }`}>
+                  {accountToExtend.subscriptionStatus === "TRIAL"
+                    ? `⚡ Trial (${accountToExtend.trialDaysLeft}d Left)`
+                    : "⚠️ Trial Expired"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-gray-300">
+                <span>Extension Added:</span>
+                <span className="font-bold text-amber-400 font-mono text-sm">+10 Days Full Access</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-300">
+                <span>Cost / Charges:</span>
+                <span className="font-bold text-emerald-400">₹0 (Founder Grant)</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              Confirming will instantly stamp <strong>+10 Days</strong> into Cloud Firestore. The client&apos;s workspace will immediately unlock tenant onboarding and all operational features.
+            </p>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setAccountToExtend(null)}
+                disabled={isExtending}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs cursor-pointer disabled:opacity-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExtendTrial}
+                disabled={isExtending}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+              >
+                {isExtending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Confirm +10 Days</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

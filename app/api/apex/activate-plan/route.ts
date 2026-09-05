@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, updateDoc, setDoc, collection, addDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { calculateStackedExpiry } from "@/lib/subscriptionEngine";
 
@@ -45,16 +45,29 @@ export async function POST(req: NextRequest) {
         console.warn("Notice checking existing expiry:", e);
       }
     }
+    if (!currentExpiryIso && cleanEmail) {
+      try {
+        const q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const uData = snap.docs[0].data();
+          if (uData?.planExpiresAt) currentExpiryIso = uData.planExpiresAt;
+        }
+      } catch (e) {
+        console.warn("User email lookup for expiry notice:", e);
+      }
+    }
 
     // Calculate stacked expiry date (extends from current expiry if still active)
     let expiryIso = calculateStackedExpiry(currentExpiryIso, Number(durationDays));
 
-    const isTrialExtension = plan === "TRIAL_EXTENSION";
+    const isTrialExtension = plan === "TRIAL_EXTENSION" || plan === "10_DAY_TRIAL";
     const resolvedSubscriptionStatus = isTrialExtension ? "TRIAL" : "ACTIVE_PRO";
     const resolvedSubscriptionPlan = isTrialExtension ? "trial" : "pro";
+    const resolvedPlan = isTrialExtension ? "10_DAY_TRIAL" : plan;
 
     const updatePayload: Record<string, any> = {
-      plan: plan,
+      plan: resolvedPlan,
       subscriptionPlan: resolvedSubscriptionPlan,
       subscriptionStatus: resolvedSubscriptionStatus,
       planExpiresAt: expiryIso,
@@ -67,12 +80,23 @@ export async function POST(req: NextRequest) {
       updatedAt: nowIso,
     };
 
-    // 1. Update users collection
+    // 1. Update users collection (both by explicit userId and by email query)
     if (userId) {
       try {
         await setDoc(doc(db, "users", userId), updatePayload, { merge: true });
       } catch (err) {
         console.warn(`User doc update notice for ${userId}:`, err);
+      }
+    }
+    if (cleanEmail) {
+      try {
+        const q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const snap = await getDocs(q);
+        for (const uDoc of snap.docs) {
+          await setDoc(doc(db, "users", uDoc.id), updatePayload, { merge: true });
+        }
+      } catch (err) {
+        console.warn(`User email doc update notice for ${cleanEmail}:`, err);
       }
     }
 
@@ -81,7 +105,7 @@ export async function POST(req: NextRequest) {
       id: `txn_apex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       customerEmail: cleanEmail,
       userId: userId || null,
-      plan: plan,
+      plan: resolvedPlan,
       durationDays: Number(durationDays),
       paymentMode: paymentMode,
       amountPaid: Number(amountPaid),
@@ -106,7 +130,7 @@ export async function POST(req: NextRequest) {
         doc(db, "founder_clients", cleanEmail),
         {
           ownerEmail: cleanEmail,
-          plan: plan,
+          plan: resolvedPlan,
           subscriptionStatus: resolvedSubscriptionStatus,
           planExpiresAt: expiryIso,
           lastPaymentMode: paymentMode,
