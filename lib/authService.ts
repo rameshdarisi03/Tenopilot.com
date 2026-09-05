@@ -39,6 +39,10 @@ export interface AuthUserProfile {
   securityPin?: string;
   sessionVersion?: string;
   pinUpdatedAt?: number;
+  createdAt?: string;
+  planExpiresAt?: string;
+  plan?: string;
+  subscriptionStatus?: string;
 }
 
 /**
@@ -222,6 +226,8 @@ export async function loginWithGoogle(
     const isMasterTest = email === "isharapandey01@gmail.com";
     const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
     const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
+    const nowIso = new Date().toISOString();
+    const trialExpiryIso = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
 
     const profile: AuthUserProfile = {
       uid: user.uid,
@@ -233,6 +239,10 @@ export async function loginWithGoogle(
       isNewUser: true,
       onboardingCompleted: isMasterTest,
       hasSetPin: false,
+      createdAt: nowIso,
+      planExpiresAt: trialExpiryIso,
+      plan: "10_DAY_TRIAL",
+      subscriptionStatus: "TRIAL",
     };
 
     await setDoc(userDocRef, profile, { merge: true });
@@ -332,6 +342,8 @@ export async function registerWithEmailPassword(
     const isMasterTest = cleanEmail === "isharapandey01@gmail.com";
     const orgId = isMasterTest ? "org_demo_meghana" : `org_${user.uid}`;
     const assignedPropertyId = isMasterTest ? "sunshine-pg" : "";
+    const nowIso = new Date().toISOString();
+    const trialExpiryIso = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
 
     const cleanName = displayName ? sanitizeTitleCase(displayName) : "Property Owner";
 
@@ -345,6 +357,10 @@ export async function registerWithEmailPassword(
       isNewUser: true,
       onboardingCompleted: false,
       hasSetPin: false,
+      createdAt: nowIso,
+      planExpiresAt: trialExpiryIso,
+      plan: "10_DAY_TRIAL",
+      subscriptionStatus: "TRIAL",
     };
 
     const userDocRef = doc(db, "users", user.uid);

@@ -199,7 +199,7 @@ export default function ApexCommandClientsPage() {
   };
 
   // Handle 1-Click Quick Extension
-  const handleQuickExtendTrial = async (account: ScannedAccountRecord, days: number = 14) => {
+  const handleQuickExtendTrial = async (account: ScannedAccountRecord, days: number = 10) => {
     try {
       const res = await fetch("/api/apex/activate-plan", {
         method: "POST",
@@ -335,7 +335,7 @@ export default function ApexCommandClientsPage() {
 
             <div className="p-5 rounded-3xl bg-[#161b22] border border-amber-500/30 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ 14D TRIALS</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">⚡ 10D TRIALS</span>
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
                   <Clock className="w-4 h-4" />
                 </div>
@@ -416,7 +416,7 @@ export default function ApexCommandClientsPage() {
                     activeTab === "TRIAL" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  <span>⚡ 14-Day Trials</span>
+                  <span>⚡ 10-Day Trials</span>
                   <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.2 rounded-full">{trialCount}</span>
                 </button>
                 <button
@@ -535,7 +535,7 @@ export default function ApexCommandClientsPage() {
                               {acc.subscriptionStatus === "TRIAL" && (
                                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  <span>⚡ 14-DAY TRIAL ({acc.trialDaysLeft}D LEFT)</span>
+                                  <span>⚡ 10-DAY TRIAL ({acc.trialDaysLeft}D LEFT)</span>
                                 </span>
                               )}
                               {acc.subscriptionStatus === "EXPIRED" && (
@@ -768,7 +768,7 @@ export default function ApexCommandClientsPage() {
                         {selectedCustomer360.subscriptionStatus === "ACTIVE_PRO"
                           ? "💎 Active Pro (₹999/mo)"
                           : selectedCustomer360.subscriptionStatus === "TRIAL"
-                          ? `⚡ 14-Day Free Trial (${selectedCustomer360.trialDaysLeft} Days Left)`
+                          ? `⚡ 10-Day Free Trial (${selectedCustomer360.trialDaysLeft} Days Left)`
                           : selectedCustomer360.subscriptionStatus === "EXPIRED"
                           ? "⚠️ Free Trial Expired"
                           : "🔴 Suspended"}
@@ -858,7 +858,7 @@ export default function ApexCommandClientsPage() {
                           setPlanDurationDays(365);
                           setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 9990);
                         } else if (val === "TRIAL_EXTENSION") {
-                          setPlanDurationDays(14);
+                          setPlanDurationDays(10);
                           setPlanAmount(0);
                         }
                       }}
@@ -866,7 +866,7 @@ export default function ApexCommandClientsPage() {
                     >
                       <option value="PRO_MONTHLY">💎 Pro Monthly Plan (₹999 / 30 Days)</option>
                       <option value="PRO_ANNUAL">🏆 Pro Annual Plan (₹9,990 / 365 Days)</option>
-                      <option value="TRIAL_EXTENSION">⏳ Extend Free Trial (+14 / +30 Days)</option>
+                      <option value="TRIAL_EXTENSION">⏳ Extend Free Trial (+10 / +30 Days)</option>
                     </select>
                   </div>
 
@@ -969,18 +969,18 @@ export default function ApexCommandClientsPage() {
             {/* TAB 3: ADMIN POWER CONTROLS */}
             {modalTab === "ACTIONS" && (
               <div className="space-y-4 animate-in fade-in text-xs">
-                {/* 1-Click +14 Days Extension */}
+                {/* 1-Click +10 Days Extension */}
                 <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="font-bold text-white">1-Click Free Trial Extension (+14 Days)</h4>
-                    <p className="text-[11px] text-gray-400">Instantly grant 14 additional days of full access without taking payment.</p>
+                    <h4 className="font-bold text-white">1-Click Free Trial Extension (+10 Days)</h4>
+                    <p className="text-[11px] text-gray-400">Instantly grant 10 additional days of full access without taking payment.</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleQuickExtendTrial(selectedCustomer360, 14)}
+                    onClick={() => handleQuickExtendTrial(selectedCustomer360, 10)}
                     className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs shrink-0 cursor-pointer"
                   >
-                    +14 Days
+                    +10 Days
                   </button>
                 </div>
 

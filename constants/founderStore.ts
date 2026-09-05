@@ -19,6 +19,7 @@ export interface FounderClientRecord {
   planAmount: number;
   planRenewsOn: string;
   trialDaysLeft?: number;
+  planExpiresAt?: string;
   status: "ACTIVE" | "TRIAL" | "EXPIRED" | "SUSPENDED";
   healthScore: "HEALTHY" | "ATTENTION" | "AT_RISK";
   lastActiveDate: string;
@@ -38,7 +39,7 @@ export interface FounderVipInvite {
   ownerEmail: string;
   city: string;
   approxBeds?: number;
-  assignedPlan: "14_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP";
+  assignedPlan: "10_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP";
   trialDurationDays: number;
   status: "PENDING" | "REDEEMED" | "EXPIRED";
   generatedByStaffName: string;
@@ -280,7 +281,7 @@ export const founderStore = {
     ownerPhone: string;
     ownerEmail: string;
     city: string;
-    assignedPlan: "14_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP";
+    assignedPlan: "10_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP";
     trialDurationDays: number;
     generatedByStaffName: string;
     generatedByStaffEmail: string;
@@ -297,7 +298,7 @@ export const founderStore = {
       ownerEmail: lead.ownerEmail.toLowerCase().trim(),
       city: lead.city,
       assignedPlan: lead.assignedPlan,
-      trialDurationDays: lead.trialDurationDays || 14,
+      trialDurationDays: lead.trialDurationDays || 10,
       status: "PENDING",
       generatedByStaffName: lead.generatedByStaffName || "Founder",
       generatedByStaffEmail: lead.generatedByStaffEmail || "admin@tenopilot.com",
@@ -498,6 +499,8 @@ export const founderStore = {
     client.trialDaysLeft = (client.trialDaysLeft || 0) + daysToAdd;
     client.status = "TRIAL";
     client.healthScore = "HEALTHY";
+    const newExpiresAt = new Date(Date.now() + client.trialDaysLeft * 86400000).toISOString();
+    client.planExpiresAt = newExpiresAt;
     this.notify();
 
     try {
@@ -506,6 +509,7 @@ export const founderStore = {
         trialDaysLeft: client.trialDaysLeft,
         status: client.status,
         healthScore: client.healthScore,
+        planExpiresAt: newExpiresAt,
       });
     } catch (e) {
       console.warn("Firestore extend trial error:", e);

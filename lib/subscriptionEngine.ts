@@ -1,7 +1,7 @@
 /**
  * TenoPilot Central Subscription & Billing Engine (SSOT)
  * Handles:
- * - 14-Day Free Trial
+ * - 10-Day Free Trial
  * - Active Pro Subscription (Monthly & Annual)
  * - 7-Day Pre-Expiry Advance Reminder Window
  * - 7-Day Trusted Pro Grace Period (100% uninterrupted access)
@@ -34,25 +34,28 @@ export interface EvaluatedSubscription {
 
 const GRACE_PERIOD_DAYS = 7;
 const PRE_EXPIRY_ALERT_DAYS = 7;
+export const DEFAULT_TRIAL_DAYS = 10;
 
 export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
+  const now = Date.now();
+
   if (!userProfile) {
     return {
       status: "TRIAL",
-      plan: "14_DAY_TRIAL",
+      plan: "10_DAY_TRIAL",
       isPro: false,
-      daysRemaining: 14,
+      daysRemaining: DEFAULT_TRIAL_DAYS,
       graceDaysRemaining: 0,
       isPreExpiry: false,
       inGracePeriod: false,
       canAccessProFeatures: true,
-      expiryDateFormatted: "14 Days",
-      badgeLabel: "⚡ 14-Day Free Trial",
+      expiryDateFormatted: "10 Days",
+      badgeLabel: `⚡ 10-Day Free Trial (${DEFAULT_TRIAL_DAYS}d Left)`,
       badgeColor: "amber",
     };
   }
 
-  if (userProfile.status === "SUSPENDED") {
+  if (userProfile.status === "SUSPENDED" || userProfile.subscriptionStatus === "SUSPENDED") {
     return {
       status: "SUSPENDED",
       plan: userProfile.plan || "PRO_MONTHLY",
@@ -68,26 +71,38 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     };
   }
 
-  const now = Date.now();
   const isProPlan =
     userProfile.plan === "PRO_MONTHLY" ||
     userProfile.plan === "PRO_ANNUAL" ||
     userProfile.plan === "VIP_PASS" ||
     userProfile.subscriptionPlan === "pro";
 
-  // If Pro Plan with explicit planExpiresAt
-  if (isProPlan && userProfile.planExpiresAt) {
-    const expiryTime = new Date(userProfile.planExpiresAt).getTime();
-    const expiryDateFormatted = new Date(expiryTime).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+  // Authoritative Expiration Timestamp (Google Cloud Stamped SSOT)
+  let expiryTime: number;
+  if (userProfile.planExpiresAt) {
+    expiryTime = new Date(userProfile.planExpiresAt).getTime();
+  } else if (userProfile.trialEndsAtMs) {
+    expiryTime = Number(userProfile.trialEndsAtMs);
+  } else if (userProfile.createdAt) {
+    const createdTime = new Date(userProfile.createdAt).getTime();
+    expiryTime = isNaN(createdTime) ? now + DEFAULT_TRIAL_DAYS * 86400000 : createdTime + DEFAULT_TRIAL_DAYS * 86400000;
+  } else {
+    expiryTime = now + DEFAULT_TRIAL_DAYS * 86400000;
+  }
 
-    const msDiff = expiryTime - now;
-    const daysRemaining = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+  const msDiff = expiryTime - now;
+  const daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+  const expiryDateFormatted = !isNaN(expiryTime)
+    ? new Date(expiryTime).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "Active";
 
-    // 1. Plan is actively valid
+  // 1. PRO SUBSCRIPTIONS (With 7-Day Grace Period)
+  if (isProPlan) {
+    // A. Plan is actively valid
     if (daysRemaining > 0) {
       const isPreExpiry = daysRemaining <= PRE_EXPIRY_ALERT_DAYS;
 
@@ -114,7 +129,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       };
     }
 
-    // 2. Plan has passed expiry — check 7-Day Trusted Grace Period
+    // B. Plan has passed expiry — check 7-Day Trusted Grace Period
     const graceExpiryTime = expiryTime + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
     const graceMsDiff = graceExpiryTime - now;
     const graceDaysRemaining = Math.max(0, Math.ceil(graceMsDiff / (1000 * 60 * 60 * 24)));
@@ -143,7 +158,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       };
     }
 
-    // 3. Grace period fully expired
+    // C. Grace period fully expired
     return {
       status: "EXPIRED",
       plan: userProfile.plan || "PRO_MONTHLY",
@@ -161,40 +176,31 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     };
   }
 
-  // Fallback: 14-Day Free Trial
-  const createdAt = userProfile.createdAt ? new Date(userProfile.createdAt).getTime() : now;
-  const daysElapsed = Math.max(0, Math.floor((now - createdAt) / (1000 * 60 * 60 * 24)));
-  const trialDaysRemaining = Math.max(0, 14 - daysElapsed);
-
-  if (trialDaysRemaining > 0) {
-    const trialExpiry = new Date(createdAt + 14 * 24 * 60 * 60 * 1000).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-
+  // 2. 10-DAY FREE TRIAL (Strict Cloud-Stapped SSOT)
+  if (daysRemaining > 0) {
     return {
       status: "TRIAL",
-      plan: "14_DAY_TRIAL",
+      plan: userProfile.plan || "10_DAY_TRIAL",
       isPro: false,
-      daysRemaining: trialDaysRemaining,
+      daysRemaining: daysRemaining,
       graceDaysRemaining: 0,
-      isPreExpiry: trialDaysRemaining <= 3,
+      isPreExpiry: daysRemaining <= 3,
       inGracePeriod: false,
       canAccessProFeatures: true,
-      expiryDateFormatted: trialExpiry,
-      badgeLabel: `⚡ 14-Day Trial (${trialDaysRemaining}d Left)`,
+      expiryDateFormatted: expiryDateFormatted,
+      badgeLabel: `⚡ 10-Day Free Trial (${daysRemaining}d Left)`,
       badgeColor: "amber",
       notificationMessage:
-        trialDaysRemaining <= 3
-          ? `Trial Ending Soon: Your 14-day free trial ends in ${trialDaysRemaining} day${trialDaysRemaining > 1 ? "s" : ""}. Upgrade to Pro (₹999/mo) for uninterrupted management.`
+        daysRemaining <= 3
+          ? `Trial Ending Soon: Your 10-day free trial ends in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}. Upgrade to Pro (₹999/mo) for uninterrupted management.`
           : undefined,
     };
   }
 
+  // 3. FREE TRIAL EXPIRED (Option A: Graceful Read-Only with Action Gating)
   return {
     status: "EXPIRED",
-    plan: "14_DAY_TRIAL",
+    plan: "10_DAY_TRIAL",
     isPro: false,
     daysRemaining: 0,
     graceDaysRemaining: 0,
@@ -204,7 +210,8 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     expiryDateFormatted: "Expired",
     badgeLabel: `⚠️ Trial Expired`,
     badgeColor: "rose",
-    notificationMessage: `Your 14-day free trial has expired. Upgrade to Pro for ₹999/mo to continue.`,
+    notificationMessage: `Your 10-day free trial has expired. Upgrade to Pro for ₹999/mo to continue.`,
+    bannerMessage: `⚠️ Free Trial Ended: Your 10-day free trial has completed. Upgrade to Pro (₹999/mo) to unlock tenant onboarding, FastTrack AI, and automated reminders.`,
   };
 }
 

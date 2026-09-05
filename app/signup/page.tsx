@@ -260,7 +260,7 @@ function SignUpPageContent() {
                 Tenopilot.com
               </h1>
               <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                14-DAY FREE TRIAL
+                10-DAY FREE TRIAL
               </span>
             </div>
             <p className="text-xs text-gray-500 font-medium">
@@ -272,7 +272,7 @@ function SignUpPageContent() {
           <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 space-y-1">
             <p className="font-bold flex items-center gap-1.5 text-emerald-800">
               <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-              Zero-Risk 14-Day Free Pro Access
+              Zero-Risk 10-Day Free Pro Access
             </p>
             <p className="text-[11px] text-emerald-700/90 leading-relaxed">
               No credit card required. Full access to Automated Rent Reminders, FastTrack AI, and Dual-Ledger Financials.
@@ -523,7 +523,7 @@ function SignUpPageContent() {
                     <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   ) : (
                     <>
-                      <span>Start 14-Day Free Trial</span>
+                      <span>Start 10-Day Free Trial</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

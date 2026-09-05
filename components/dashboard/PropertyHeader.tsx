@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Complaint, subscribeToComplaints, INITIAL_COMPLAINTS } from "@/lib/complaintStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
-import { initializePropertyTrial, calculateTrialDaysRemaining } from "@/lib/trialService";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
@@ -47,7 +46,6 @@ export function PropertyHeader({
   const [complaints, setComplaints] = useState<Complaint[]>(
     propertyId === "sunshine-pg" ? INITIAL_COMPLAINTS : []
   );
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number>(10);
 
   let savedSessionData: any = null;
   if (typeof window !== "undefined") {
@@ -65,11 +63,6 @@ export function PropertyHeader({
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    initializePropertyTrial(propertyId).then((meta) => {
-      const res = calculateTrialDaysRemaining(meta.trialEndsAtMs);
-      setTrialDaysLeft(res.daysRemaining);
-    });
-
     const unsubscribe = subscribeToComplaints(propertyId, (list) => {
       if (list && list.length > 0) {
         setComplaints(list);

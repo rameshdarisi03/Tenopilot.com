@@ -20,6 +20,10 @@ export interface UserProfile {
   isNewUser?: boolean;
   onboardingCompleted?: boolean;
   hasSetPin?: boolean;
+  createdAt?: string;
+  planExpiresAt?: string;
+  plan?: string;
+  subscriptionStatus?: string;
 }
 
 interface AuthContextType {
@@ -127,9 +131,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 (isExplicitStaff && (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId)) ||
                 data.assignedPropertyId ||
                 resolvedProp;
+
+              // 🛡️ Self-heal existing accounts: stamp planExpiresAt if missing
+              if (!data.planExpiresAt && data.role === "master_admin" && !data.plan) {
+                const effectiveCreated = data.createdAt || new Date().toISOString();
+                data.createdAt = effectiveCreated;
+                data.planExpiresAt = new Date(new Date(effectiveCreated).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();
+                data.plan = "10_DAY_TRIAL";
+                data.subscriptionStatus = "TRIAL";
+                setDoc(userDocRef, {
+                  createdAt: data.createdAt,
+                  planExpiresAt: data.planExpiresAt,
+                  plan: data.plan,
+                  subscriptionStatus: data.subscriptionStatus,
+                }, { merge: true }).catch(() => {});
+              }
+
               setProfile(data);
               staffStore.setActiveRole(data.role);
             } else {
+              const nowIso = new Date().toISOString();
               const newProf: UserProfile = {
                 uid: currentUser.uid,
                 email: email,
@@ -139,6 +160,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 assignedPropertyId: resolvedProp,
                 isNewUser: !isMasterTest,
                 onboardingCompleted: isMasterTest,
+                createdAt: nowIso,
+                planExpiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+                plan: "10_DAY_TRIAL",
+                subscriptionStatus: "TRIAL",
               };
               setDoc(userDocRef, newProf, { merge: true }).catch(() => {});
               setProfile(newProf);

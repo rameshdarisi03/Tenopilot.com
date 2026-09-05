@@ -61,7 +61,7 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
         <p className="truncate text-[11px] sm:text-xs">
           <strong>
             {isTrial
-              ? `⚡ 14-Day Free Express Trial: ${sub.daysRemaining} Days Remaining`
+              ? `⚡ 10-Day Free Express Trial: ${sub.daysRemaining} Days Remaining`
               : isGrace
               ? `⏳ 7-Day Pro Grace Period Active (${sub.graceDaysRemaining} Days Left)`
               : isPreExpiry

@@ -71,6 +71,7 @@ export default function TenantsDirectoryPage({
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
   const { profile } = useAuth();
+  const sub = evaluateSubscription(profile);
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -146,6 +147,7 @@ export default function TenantsDirectoryPage({
   const [transactionRef, setTransactionRef] = useState<string>("");
   const [showLedgerBreakdownDetail, setShowLedgerBreakdownDetail] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false);
 
   const [currentSettings, setCurrentSettings] = useState(() =>
     typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
@@ -257,6 +259,8 @@ export default function TenantsDirectoryPage({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
             messages: [
               {
                 toPhone: occ.phone,
@@ -738,26 +742,54 @@ export default function TenantsDirectoryPage({
                   <button
                     onClick={() => {
                       setShowAddMenu(false);
+                      if (sub.status === "EXPIRED") {
+                        setShowUpgradeModal(true);
+                        return;
+                      }
                       setShowFastTrackModal(true);
                     }}
                     className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700 font-bold border-b border-gray-100 cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4 text-purple-600" /> ⚡ FastTrack 1-Click Import
                   </button>
-                  <Link
-                    href={`/p/${propertyId}/tenants/onboard-tenant`}
-                    onClick={() => setShowAddMenu(false)}
-                    className="w-full text-left px-4 py-2.5 hover:bg-orange-50 flex items-center gap-2 text-[#c2652a] block"
-                  >
-                    <UserPlus className="w-4 h-4 text-[#c2652a]" /> + New Tenant (Long-term)
-                  </Link>
-                  <Link
-                    href={`/p/${propertyId}/tenants/onboard-guest`}
-                    onClick={() => setShowAddMenu(false)}
-                    className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700 block"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-purple-700" /> + New Guest (Short-term)
-                  </Link>
+                  {sub.status === "EXPIRED" ? (
+                    <button
+                      onClick={() => {
+                        setShowAddMenu(false);
+                        setShowUpgradeModal(true);
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-orange-50 flex items-center gap-2 text-[#c2652a] font-bold block cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4 text-[#c2652a]" /> + New Tenant (Long-term)
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/p/${propertyId}/tenants/onboard-tenant`}
+                      onClick={() => setShowAddMenu(false)}
+                      className="w-full text-left px-4 py-2.5 hover:bg-orange-50 flex items-center gap-2 text-[#c2652a] block"
+                    >
+                      <UserPlus className="w-4 h-4 text-[#c2652a]" /> + New Tenant (Long-term)
+                    </Link>
+                  )}
+                  {sub.status === "EXPIRED" ? (
+                    <button
+                      onClick={() => {
+                        setShowAddMenu(false);
+                        setShowUpgradeModal(true);
+                      }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700 font-bold block cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-purple-700" /> + New Guest (Short-term)
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/p/${propertyId}/tenants/onboard-guest`}
+                      onClick={() => setShowAddMenu(false)}
+                      className="w-full text-left px-4 py-2.5 hover:bg-purple-50 flex items-center gap-2 text-purple-700 block"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-purple-700" /> + New Guest (Short-term)
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
@@ -2357,6 +2389,44 @@ Scroll vertically to browse all residents without pagination limits
             triggerToast(`🎉 Recharged! Available WhatsApp Credits: ${newCredits}`);
           }}
         />
+
+        {/* 🔒 Option A Upgrade Paywall Modal for Expired Trial */}
+        {showUpgradeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center space-y-5 animate-in zoom-in-95">
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 text-[#c2652a] flex items-center justify-center mx-auto text-2xl shadow-inner">
+                ⚡
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                  10-Day Free Trial Ended
+                </h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Your 10-day free trial has completed. To onboard new tenants, add guests, or import data via FastTrack AI, upgrade to the <strong>TenoPilot Pro Plan (₹999/mo)</strong>.
+                </p>
+                <p className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 py-1.5 px-3 rounded-lg inline-block border border-emerald-200">
+                  ✓ All your existing {occupantsList.length} tenants and ledgers remain safely preserved.
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="w-full sm:w-1/2 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Close & View Only
+                </button>
+                <Link
+                  href={`/p/${propertyId}/subscription`}
+                  className="w-full sm:w-1/2 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#964407] text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Upgrade to Pro</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

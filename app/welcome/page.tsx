@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { provisionNewPropertyWorkspace } from "@/lib/accountInitializer";
 import { syncUserSecurityPinToCloud, sanitizeTitleCase } from "@/lib/authService";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
@@ -136,8 +136,23 @@ function WelcomeOnboardingContent() {
         securityPin: pin,
       });
 
-      // 3. Mark user profile complete in Firestore
+      // 3. Mark user profile complete in Firestore with Hack-Proof 10-Day Clock
       const userDocRef = doc(db, "users", ownerUid);
+      let existingCreatedAt = "";
+      let existingPlanExpiresAt = "";
+      try {
+        const existingSnap = await getDoc(userDocRef);
+        if (existingSnap.exists()) {
+          const uData = existingSnap.data();
+          existingCreatedAt = uData.createdAt;
+          existingPlanExpiresAt = uData.planExpiresAt;
+        }
+      } catch {}
+
+      const nowIso = new Date().toISOString();
+      const finalCreatedAt = existingCreatedAt || nowIso;
+      const finalPlanExpiresAt = existingPlanExpiresAt || new Date(new Date(finalCreatedAt).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();
+
       await setDoc(
         userDocRef,
         {
@@ -154,7 +169,11 @@ function WelcomeOnboardingContent() {
           onboardingCompleted: true,
           hasSetPin: true,
           securityPin: pin,
-          updatedAt: new Date().toISOString(),
+          createdAt: finalCreatedAt,
+          planExpiresAt: finalPlanExpiresAt,
+          plan: "10_DAY_TRIAL",
+          subscriptionStatus: "TRIAL",
+          updatedAt: nowIso,
         },
         { merge: true }
       );

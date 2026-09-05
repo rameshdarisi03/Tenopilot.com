@@ -205,7 +205,7 @@ export default function SubscriptionBillingPage() {
                         ? `⏳ 7-Day Pro Grace (${sub.graceDaysRemaining}d Left)`
                         : sub.isPreExpiry
                         ? `💎 Pro (Renews in ${sub.daysRemaining}d)`
-                        : `⚡ 14-Day Free Express Trial (${sub.daysRemaining}d Left)`}
+                        : `⚡ 10-Day Free Express Trial (${sub.daysRemaining}d Left)`}
                     </span>
                   </span>
 
@@ -379,7 +379,7 @@ export default function SubscriptionBillingPage() {
                   FULL TRANSPARENCY MATRIX 🔍
                 </span>
                 <h3 className="text-lg font-black text-[#201a17] mt-1.5">
-                  14-Day Free Express Trial vs. Pro Plan Comparison
+                  10-Day Free Express Trial vs. Pro Plan Comparison
                 </h3>
                 <p className="text-xs text-gray-500">
                   Everything you get in your trial account versus unlocking automated WhatsApp & email power in TenoPilot Pro.
@@ -393,7 +393,7 @@ export default function SubscriptionBillingPage() {
                   <tr className="border-b-2 border-gray-200 text-[#201a17]">
                     <th className="py-3 px-4 font-black uppercase text-[11px] text-gray-500">Capabilities</th>
                     <th className="py-3 px-4 font-black text-xs text-amber-900 bg-amber-50/60 rounded-t-xl w-56 text-center">
-                      ⚡ 14-Day Free Trial
+                      ⚡ 10-Day Free Trial
                     </th>
                     <th className="py-3 px-4 font-black text-xs text-emerald-900 bg-emerald-50/60 rounded-t-xl w-56 text-center">
                       💎 Pro Plan (₹999/mo)
@@ -406,7 +406,7 @@ export default function SubscriptionBillingPage() {
                       Duration & Validity
                     </td>
                     <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20 font-medium">
-                      14 Days Full Trial Access
+                      10 Days Full Trial Access
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
                       Unlimited Recurring (30d / 365d)
@@ -491,7 +491,7 @@ export default function SubscriptionBillingPage() {
                       7-Day Trusted Pro Grace Period
                     </td>
                     <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
-                      ❌ None (Trial ends on Day 14)
+                      ❌ None (Trial ends on Day 10)
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
                       ✅ 7 Days Uninterrupted Grace Every Month

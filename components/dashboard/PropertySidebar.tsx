@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import {
   LayoutDashboard,
@@ -34,6 +34,7 @@ export function PropertySidebar({
   onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   const { profile, logout } = useAuth();
 
@@ -121,8 +122,12 @@ export function PropertySidebar({
         <button
           type="button"
           onClick={() => {
-            setShowFastTrackModal(true);
             if (onMobileClose) onMobileClose();
+            if (sub.status === "EXPIRED") {
+              router.push(`/p/${propertyId}/subscription`);
+              return;
+            }
+            setShowFastTrackModal(true);
           }}
           className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-orange-100/80 via-amber-50 to-purple-100/80 border border-orange-200 text-orange-950 hover:shadow-xs hover:border-orange-300 transition-all cursor-pointer group"
         >

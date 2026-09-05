@@ -48,8 +48,8 @@ export default function ApexCommandInvitesPage() {
   const [ownerEmail, setOwnerEmail] = useState("");
   const [city, setCity] = useState("Bangalore");
   const [approxBeds, setApproxBeds] = useState("80");
-  const [assignedPlan, setAssignedPlan] = useState<"14_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP">("14_DAY_TRIAL");
-  const [trialDurationDays, setTrialDurationDays] = useState(14);
+  const [assignedPlan, setAssignedPlan] = useState<"10_DAY_TRIAL" | "PRO_MONTHLY" | "ANNUAL_VIP">("10_DAY_TRIAL");
+  const [trialDurationDays, setTrialDurationDays] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -351,8 +351,8 @@ export default function ApexCommandInvitesPage() {
 
                       <td className="py-4 px-4">
                         <span className="text-[11px] font-bold text-slate-300 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
-                          {inv.assignedPlan === "14_DAY_TRIAL"
-                            ? "14-Day Free Trial"
+                          {inv.assignedPlan === "10_DAY_TRIAL"
+                            ? "10-Day Free Trial"
                             : inv.assignedPlan === "PRO_MONTHLY"
                             ? "Pro Monthly (₹1,499)"
                             : "Annual VIP"}
@@ -422,7 +422,7 @@ export default function ApexCommandInvitesPage() {
                     <span className="text-[10px] font-black uppercase tracking-widest bg-black/30 px-2.5 py-1 rounded-full border border-white/20">
                       EXCLUSIVE ACCESS PASS
                     </span>
-                    <span className="text-xs font-bold">14-DAY FREE TRIAL</span>
+                    <span className="text-xs font-bold">10-DAY FREE TRIAL</span>
                   </div>
 
                   <div className="py-2">
@@ -582,7 +582,7 @@ export default function ApexCommandInvitesPage() {
                       onChange={(e) => setAssignedPlan(e.target.value as any)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d0f12] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
                     >
-                      <option value="14_DAY_TRIAL">14-Day Free Trial (Full)</option>
+                      <option value="10_DAY_TRIAL">10-Day Free Trial (Full)</option>
                       <option value="PRO_MONTHLY">Pro Monthly (₹1,499/mo)</option>
                       <option value="ANNUAL_VIP">Annual Growth (₹14,999/yr)</option>
                     </select>
