@@ -186,7 +186,7 @@ export default function Home() {
               <span>Join Now</span> <ArrowRight className="w-5 h-5" />
             </Link>
             <a
-              href="https://wa.me/919550259837?text=Hi%20TenoPilot%2C%20I%20am%20a%20PG%20owner%20and%20I%20would%20like%20to%20request%20an%20Activation%20Pass."
+              href="https://wa.me/919206651295?text=Hi%20TenoPilot%2C%20I%20am%20a%20PG%20owner%20and%20I%20would%20like%20to%20request%20an%20Activation%20Pass."
               target="_blank"
               rel="noopener noreferrer"
               id="hero-secondary-cta"

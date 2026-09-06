@@ -914,16 +914,23 @@ export default function HomeWorkspacePage() {
                 </div>
 
                 {/* Direct WhatsApp Founder Link */}
-                <div className="flex items-center justify-between text-[11px] px-1">
-                  <span className="text-[#8a7f74]">Need instant activation or custom invoicing?</span>
+                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
+                      Direct Founder WhatsApp
+                    </span>
+                    <p className="font-mono font-bold text-sm text-emerald-950 mt-0.5">
+                      +91 92066 51295
+                    </p>
+                  </div>
                   <a
-                    href="https://wa.me/919550259837?text=Hi%20TenoPilot%20Team%2C%20I%20want%20to%20unlock%20a%20Multi-Property%20slot%20for%20my%20PG%20account."
+                    href="https://wa.me/919206651295?text=Hi%20Ramesh%2C%20I%20want%20to%20unlock%20a%20Multi-Property%20slot%20for%20my%20PG%20account."
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-800"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
-                    <span>WhatsApp Founder</span>
+                    <span>WhatsApp</span>
                   </a>
                 </div>
 

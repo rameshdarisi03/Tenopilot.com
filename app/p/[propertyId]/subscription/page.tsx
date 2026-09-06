@@ -391,7 +391,7 @@ export default function SubscriptionBillingPage() {
 
                 <div className="flex flex-wrap sm:flex-col items-end gap-2 shrink-0">
                   <a
-                    href={`https://wa.me/919550259837?text=${encodeURIComponent(
+                    href={`https://wa.me/919206651295?text=${encodeURIComponent(
                       `Hi Ramesh, I have submitted payment proof for TenoPilot Pro (${pendingRequest.plan}) for my PG. Request ID: ${pendingRequest.id}. Please verify.`
                     )}`}
                     target="_blank"
@@ -799,10 +799,10 @@ export default function SubscriptionBillingPage() {
                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">DIRECT FOUNDER WHATSAPP</span>
                     <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                       <p className="font-mono font-bold text-xs text-emerald-700">
-                        +91 95502 59837
+                        +91 92066 51295
                       </p>
                       <a
-                        href="https://wa.me/919550259837?text=Hi%20Ramesh%2C%20I%20have%20a%20question%20regarding%20TenoPilot%20Pro%20subscription."
+                        href="https://wa.me/919206651295?text=Hi%20Ramesh%2C%20I%20have%20a%20question%20regarding%20TenoPilot%20Pro%20subscription."
                         target="_blank"
                         rel="noreferrer"
                         className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold cursor-pointer transition-colors"
