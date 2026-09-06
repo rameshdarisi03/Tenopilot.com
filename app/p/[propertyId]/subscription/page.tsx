@@ -52,6 +52,9 @@ export default function SubscriptionBillingPage() {
   // Offline Verification State
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [screenshotFileName, setScreenshotFileName] = useState<string | null>(null);
+  const [isCompressingScreenshot, setIsCompressingScreenshot] = useState(false);
+  const [compressedSizeKb, setCompressedSizeKb] = useState<number | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [receiptNotes, setReceiptNotes] = useState("");
   const [isSubmittingProof, setIsSubmittingProof] = useState(false);
   const [isCancellingProof, setIsCancellingProof] = useState(false);
@@ -133,27 +136,104 @@ export default function SubscriptionBillingPage() {
     loadTransactions();
   }, [profile?.email]);
 
-  // Handle Screenshot Selection
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Compression utility: scales to max 1280px (crisp UTR & amounts) and 0.85 JPEG quality
+  const compressPaymentScreenshot = async (
+    file: File
+  ): Promise<{ base64: string; sizeKb: number }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1280;
+          let width = img.width;
+          let height = img.height;
 
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            const rawBase64 = event.target?.result as string;
+            resolve({
+              base64: rawBase64,
+              sizeKb: Math.round((rawBase64.length * 3) / 4 / 1024),
+            });
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
+          const sizeKb = Math.round((compressedBase64.length * 3) / 4 / 1024);
+          resolve({ base64: compressedBase64, sizeKb });
+        };
+        img.onerror = () => reject(new Error("Unable to parse image for compression."));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Unable to read image file."));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Process and compress image file
+  const processSelectedFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       triggerToast("⚠️ Please upload a valid image file (PNG, JPG, JPEG, WebP).");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      triggerToast("⚠️ File size exceeds 5MB. Please upload a smaller image.");
+    if (file.size > 20 * 1024 * 1024) {
+      triggerToast("⚠️ File exceeds 20MB. Please choose a smaller image.");
       return;
     }
 
+    setIsCompressingScreenshot(true);
     setScreenshotFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setScreenshotPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      const { base64, sizeKb } = await compressPaymentScreenshot(file);
+      setScreenshotPreview(base64);
+      setCompressedSizeKb(sizeKb);
+      triggerToast(`✓ Image optimized to ${sizeKb} KB (crisp HD quality ready for review)`);
+    } catch (err: any) {
+      console.error("Screenshot compression notice:", err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const raw = reader.result as string;
+        setScreenshotPreview(raw);
+        setCompressedSizeKb(Math.round((raw.length * 3) / 4 / 1024));
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsCompressingScreenshot(false);
+    }
+  };
+
+  // Handle Screenshot Selection from Input
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processSelectedFile(file);
+  };
+
+  // Handle Screenshot Drag & Drop
+  const handleScreenshotDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
   };
 
   // Submit Offline Payment Proof for Manual Founder Approval
@@ -719,10 +799,17 @@ export default function SubscriptionBillingPage() {
                   <div className="space-y-2">
                     <label className="block font-bold text-gray-800 text-xs flex items-center justify-between">
                       <span>Upload Payment Screenshot (Receipt / UTR) *</span>
-                      <span className="text-[10px] text-gray-500 font-normal">PNG, JPG, WebP up to 5MB</span>
+                      <span className="text-[10px] text-gray-500 font-normal">PNG, JPG, WebP (Auto-Compressed)</span>
                     </label>
 
-                    {screenshotPreview ? (
+                    {isCompressingScreenshot ? (
+                      /* Compression Loading Card */
+                      <div className="p-6 rounded-2xl bg-amber-50/70 border-2 border-dashed border-amber-300 flex flex-col items-center justify-center text-center gap-2 animate-pulse">
+                        <RefreshCw className="w-6 h-6 text-[#c2652a] animate-spin" />
+                        <p className="font-bold text-gray-800 text-xs">Optimizing & Compressing Screenshot...</p>
+                        <p className="text-[11px] text-gray-500">Sharpening receipt text clarity and reducing upload payload</p>
+                      </div>
+                    ) : screenshotPreview ? (
                       /* Preview Box */
                       <div className="p-4 rounded-2xl bg-slate-50 border-2 border-emerald-300 flex items-center justify-between gap-3 animate-in zoom-in-95">
                         <div className="flex items-center gap-3">
@@ -730,17 +817,24 @@ export default function SubscriptionBillingPage() {
                           <img
                             src={screenshotPreview}
                             alt="Screenshot Preview"
-                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shadow-2xs cursor-pointer"
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shadow-2xs cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => setZoomedScreenshot(screenshotPreview)}
                           />
                           <div>
                             <p className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                              <span>{screenshotFileName || "payment_screenshot.jpg"}</span>
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span className="truncate max-w-[180px] sm:max-w-xs">{screenshotFileName || "payment_screenshot.jpg"}</span>
                             </p>
-                            <p className="text-[10px] text-emerald-700 font-medium">
-                              Ready for verification. Click thumbnail to zoom.
-                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {compressedSizeKb && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                                  {compressedSizeKb} KB (Compressed)
+                                </span>
+                              )}
+                              <span className="text-[10px] text-emerald-700 font-medium">
+                                Ready for verification. Click thumbnail to zoom.
+                              </span>
+                            </div>
                           </div>
                         </div>
 
@@ -749,6 +843,7 @@ export default function SubscriptionBillingPage() {
                           onClick={() => {
                             setScreenshotPreview(null);
                             setScreenshotFileName(null);
+                            setCompressedSizeKb(null);
                           }}
                           className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
                           title="Remove screenshot"
@@ -758,15 +853,27 @@ export default function SubscriptionBillingPage() {
                       </div>
                     ) : (
                       /* Dropzone */
-                      <label className="border-2 border-dashed border-gray-300 hover:border-[#c2652a] rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-white group">
+                      <label
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDragOver(true);
+                        }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={handleScreenshotDrop}
+                        className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all group ${
+                          isDragOver
+                            ? "border-[#c2652a] bg-amber-50/70 scale-[1.01]"
+                            : "border-gray-300 hover:border-[#c2652a] bg-white"
+                        }`}
+                      >
                         <div className="w-12 h-12 rounded-2xl bg-amber-50 group-hover:bg-amber-100 text-[#c2652a] flex items-center justify-center mb-2 transition-colors">
                           <Upload className="w-6 h-6" />
                         </div>
                         <span className="font-bold text-gray-800 text-xs">
-                          Click to upload payment screenshot
+                          Click to upload or drag payment screenshot here
                         </span>
                         <span className="text-[11px] text-gray-500 mt-0.5">
-                          Drag and drop screenshot from GPay, PhonePe, Paytm, or net banking
+                          Screenshots from GPay, PhonePe, Paytm, or NetBanking (auto-compressed for instant review)
                         </span>
                         <input
                           type="file"
