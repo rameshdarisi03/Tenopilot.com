@@ -391,7 +391,7 @@ export default function SubscriptionBillingPage() {
 
                 <div className="flex flex-wrap sm:flex-col items-end gap-2 shrink-0">
                   <a
-                    href={`https://wa.me/919876543210?text=${encodeURIComponent(
+                    href={`https://wa.me/919550259837?text=${encodeURIComponent(
                       `Hi Ramesh, I have submitted payment proof for TenoPilot Pro (${pendingRequest.plan}) for my PG. Request ID: ${pendingRequest.id}. Please verify.`
                     )}`}
                     target="_blank"
@@ -775,19 +775,41 @@ export default function SubscriptionBillingPage() {
                 <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9]/60 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="space-y-2">
                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">OFFICIAL UPI ID / VPA</span>
-                    <p className="font-mono font-black text-sm text-[#201a17]">
-                      tenopilot@icici <span className="text-gray-400 font-normal font-sans">(or 9876543210@paytm)</span>
-                    </p>
+                    <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
+                      <div>
+                        <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText("rameshdarisi01@ybl");
+                          triggerToast("UPI ID copied to clipboard!");
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        Copy VPA
+                      </button>
+                    </div>
                     <p className="text-[11px] text-gray-500">
-                      Scan or pay <strong>{selectedPlan === "PRO_MONTHLY" ? "₹999" : "₹9,990"}</strong> from any UPI app.
+                      Scan or pay <strong>{selectedPlan === "PRO_MONTHLY" ? "₹999" : "₹9,990"}</strong> from PhonePe, Google Pay, Paytm, or BHIM.
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">DIRECT FOUNDER WHATSAPP</span>
-                    <p className="font-mono font-bold text-sm text-emerald-700">
-                      +91 98765 43210
-                    </p>
+                    <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
+                      <p className="font-mono font-bold text-xs text-emerald-700">
+                        +91 95502 59837
+                      </p>
+                      <a
+                        href="https://wa.me/919550259837?text=Hi%20Ramesh%2C%20I%20have%20a%20question%20regarding%20TenoPilot%20Pro%20subscription."
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        Chat
+                      </a>
+                    </div>
                     <p className="text-[11px] text-gray-500">
                       Have questions or need offline invoice? WhatsApp founder directly.
                     </p>

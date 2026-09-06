@@ -855,12 +855,12 @@ export default function HomeWorkspacePage() {
                   <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
-                      <p className="font-mono font-bold text-xs text-[#201a17]">9550259837@ybl</p>
+                      <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText("9550259837@ybl");
+                        navigator.clipboard.writeText("rameshdarisi01@ybl");
                         triggerToast("UPI ID copied to clipboard!");
                       }}
                       className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"

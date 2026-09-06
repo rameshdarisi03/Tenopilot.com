@@ -232,7 +232,7 @@ function ClientActivationContent() {
           </p>
           <div className="flex items-center justify-center gap-4 text-xs font-bold text-slate-300">
             <a
-              href="tel:+919876543210"
+              href="tel:+919550259837"
               className="hover:text-[#ff5436] flex items-center gap-1.5 transition-colors"
             >
               <PhoneCall className="w-3.5 h-3.5 text-[#ff5436]" />
