@@ -530,7 +530,7 @@ export default function IndividualTenantProfilePage({
     } else if (channel === "WHATSAPP") {
       triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via WhatsApp!`);
     } else {
-      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via Brevo Email!`);
+      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via Email!`);
     }
   };
 
@@ -2150,7 +2150,7 @@ export default function IndividualTenantProfilePage({
                                   onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
                                   disabled={isDispatchingReceipt}
                                   className="px-1.5 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
-                                  title="Send Receipt via Brevo Email"
+                                  title="Send Receipt via Email"
                                 >
                                   <Mail className="w-3 h-3 text-blue-600" />
                                   <span className="hidden sm:inline">Email</span>
@@ -2621,10 +2621,10 @@ export default function IndividualTenantProfilePage({
                           {receiptDispatchChannel !== "NONE" && (
                             <p className="text-[10px] text-blue-800 font-medium">
                               {receiptDispatchChannel === "BOTH"
-                                ? `Receipt will be sent to ${occupantState.phone} (WhatsApp) & ${occupantState.email || "registered email"} (Brevo).`
+                                ? `Receipt will be sent to ${occupantState.phone} (WhatsApp) & ${occupantState.email || "registered email"} (Email).`
                                 : receiptDispatchChannel === "WHATSAPP"
                                 ? `Receipt will be sent to ${occupantState.phone} via WhatsApp Cloud.`
-                                : `Receipt will be sent to ${occupantState.email || "registered email"} via Brevo Email.`}
+                                : `Receipt will be sent to ${occupantState.email || "registered email"} via Email.`}
                             </p>
                           )}
                         </div>

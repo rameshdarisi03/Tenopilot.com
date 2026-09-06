@@ -232,11 +232,12 @@ export default function TenantsDirectoryPage({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Brevo Email)
+  // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Official Email)
   const handleSendCloudWhatsAppReminders = async () => {
     const sub = evaluateSubscription(profile);
-    if (!sub.isPro) {
-      triggerToast("🔒 Automated WhatsApp & Email Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+    const isMasterAdmin = profile?.role === "master_admin";
+    if (!sub.canAccessProFeatures && !isMasterAdmin) {
+      triggerToast("🔒 Automated WhatsApp & Email Reminders require an active trial or Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
       return;
     }
 
@@ -347,9 +348,15 @@ export default function TenantsDirectoryPage({
 
           if (emailRes.ok) {
             emailSentCount++;
+          } else {
+            const errData = await emailRes.json().catch(() => ({}));
+            console.warn("Failed sending Email for", occ.name, errData);
+            if (errData?.error) {
+              triggerToast(`⚠️ Email dispatch: ${errData.error}`);
+            }
           }
         } catch (err) {
-          console.warn("Failed sending Brevo Email for", occ.name, err);
+          console.warn("Failed sending Email for", occ.name, err);
         }
       }
 
@@ -365,18 +372,18 @@ export default function TenantsDirectoryPage({
 
     let toastText = "";
     if (reminderChannel === "BOTH") {
-      toastText = `🎉 Dispatched ${waSentCount} WhatsApp and ${emailSentCount} Brevo Email reminders!`;
+      toastText = `🎉 Dispatched ${waSentCount} WhatsApp and ${emailSentCount} Email reminders!`;
     } else if (reminderChannel === "WHATSAPP") {
       toastText = `🎉 Successfully dispatched ${waSentCount} automated WhatsApp reminders!`;
     } else {
-      toastText = `🎉 Successfully dispatched ${emailSentCount} automated Brevo Email reminders!`;
+      toastText = `🎉 Successfully dispatched ${emailSentCount} automated Email reminders!`;
     }
     triggerToast(toastText);
 
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
       title: `Rent Reminders Sent: ${selectedOccupants.length} tenants`,
-      subtitle: `Dispatched via ${reminderChannel === "BOTH" ? "WhatsApp + Brevo Email" : reminderChannel === "WHATSAPP" ? "WhatsApp Cloud" : "Brevo Email Gateway"}`,
+      subtitle: `Dispatched via ${reminderChannel === "BOTH" ? "WhatsApp + Official Email" : reminderChannel === "WHATSAPP" ? "WhatsApp Cloud" : "Official Email Gateway"}`,
       staffName: profile?.displayName || "Manager",
       staffRole: "Property Admin",
     });
@@ -868,13 +875,11 @@ export default function TenantsDirectoryPage({
           </div>
         </div>
 
-          {/* Toast Notification */}
+          {/* Global Floating Toast Notification */}
           {toastMessage && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>{toastMessage}</span>
-              </div>
+            <div className="fixed bottom-6 right-6 z-[99999] px-5 py-3.5 rounded-2xl bg-gray-950/95 text-white text-xs font-bold flex items-center gap-3 shadow-2xl border border-white/20 backdrop-blur-md animate-in slide-in-from-bottom-4">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{toastMessage}</span>
             </div>
           )}
 
@@ -2297,7 +2302,7 @@ Scroll vertically to browse all residents without pagination limits
                     }`}
                   >
                     <Mail className="w-4 h-4" />
-                    <span>Email (Brevo)</span>
+                    <span>Email</span>
                     <span className={`text-[9px] ${reminderChannel === "EMAIL" ? "text-blue-100" : "text-gray-400"}`}>
                       Zero Credits
                     </span>
@@ -2329,10 +2334,10 @@ Scroll vertically to browse all residents without pagination limits
                   </h4>
                   <span className="text-[10px] text-gray-500 font-medium">
                     {reminderChannel === "BOTH"
-                      ? "Dispatches WhatsApp text & Brevo HTML invoice"
+                      ? "Dispatches WhatsApp text & Official Email invoice"
                       : reminderChannel === "WHATSAPP"
                       ? "Dispatches verified WhatsApp cloud message"
-                      : "Dispatches transactional Brevo email invoice"}
+                      : "Dispatches official transactional email invoice"}
                   </span>
                 </div>
 
@@ -2421,7 +2426,7 @@ Scroll vertically to browse all residents without pagination limits
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>
                         Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length}{" "}
-                        {reminderChannel === "BOTH" ? "Multi-Channel" : reminderChannel === "WHATSAPP" ? "WhatsApp" : "Brevo Email"}{" "}
+                        {reminderChannel === "BOTH" ? "Multi-Channel" : reminderChannel === "WHATSAPP" ? "WhatsApp" : "Email"}{" "}
                         Reminders...
                       </span>
                     </>
@@ -2433,7 +2438,7 @@ Scroll vertically to browse all residents without pagination limits
                           ? `1-Tap Multi-Channel Dispatch (WhatsApp + Email to ${selectedIds.length})`
                           : reminderChannel === "WHATSAPP"
                           ? `1-Tap WhatsApp Cloud Dispatch (Send to ${selectedIds.length})`
-                          : `1-Tap Brevo Email Dispatch (Send to ${selectedIds.length})`}
+                          : `1-Tap Email Dispatch (Send to ${selectedIds.length})`}
                       </span>
                     </>
                   )}

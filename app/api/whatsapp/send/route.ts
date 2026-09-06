@@ -60,10 +60,11 @@ export async function POST(req: NextRequest) {
 
     if (userProfileData) {
       const sub = evaluateSubscription(userProfileData);
-      if (!sub.isPro) {
+      const isMasterAdmin = userProfileData.role === "master_admin";
+      if (!sub.canAccessProFeatures && !isMasterAdmin) {
         return NextResponse.json(
           {
-            error: "🔒 Automated WhatsApp & Email Reminders are exclusive to the Pro Plan. Upgrade to Pro to send reminders.",
+            error: "🔒 Automated WhatsApp Reminders require an active trial or Pro Plan. Upgrade to Pro to send reminders.",
             requiresPro: true,
           },
           { status: 403 }
