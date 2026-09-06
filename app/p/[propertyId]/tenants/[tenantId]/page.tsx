@@ -25,6 +25,7 @@ import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import {
   ChevronLeft,
   ChevronDown,
@@ -446,6 +447,13 @@ export default function IndividualTenantProfilePage({
     channel: "WHATSAPP" | "EMAIL" | "BOTH"
   ) => {
     if (!occupantState) return;
+
+    const sub = evaluateSubscription(profile);
+    if (!sub.isPro) {
+      triggerToast("🔒 Automated WhatsApp & Email Receipts require a Pro Plan (₹999/mo). Upgrade to Pro to send receipts.");
+      return;
+    }
+
     setIsDispatchingReceipt(true);
 
     let waSuccess = false;
@@ -480,7 +488,15 @@ export default function IndividualTenantProfilePage({
             ],
           }),
         });
-        if (res.ok) waSuccess = true;
+        if (res.ok) {
+          waSuccess = true;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn("WhatsApp receipt failed:", errData);
+          if (errData?.error) {
+            triggerToast(`⚠️ WhatsApp receipt: ${errData.error}`);
+          }
+        }
       } catch (e) {
         console.warn("WhatsApp receipt error:", e);
       }
@@ -517,13 +533,25 @@ export default function IndividualTenantProfilePage({
             ],
           }),
         });
-        if (res.ok) emailSuccess = true;
+        if (res.ok) {
+          emailSuccess = true;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn("Email receipt failed:", errData);
+          if (errData?.error) {
+            triggerToast(`⚠️ Email receipt: ${errData.error}`);
+          }
+        }
       } catch (e) {
         console.warn("Email receipt error:", e);
       }
     }
 
     setIsDispatchingReceipt(false);
+
+    if (!waSuccess && !emailSuccess) {
+      return;
+    }
 
     if (channel === "BOTH") {
       triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via WhatsApp & Email!`);

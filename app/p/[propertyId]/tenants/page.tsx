@@ -61,6 +61,7 @@ import {
   Zap,
   RefreshCw,
   Mail,
+  Lock,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -191,6 +192,7 @@ export default function TenantsDirectoryPage({
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
   const [reminderChannel, setReminderChannel] = useState<"WHATSAPP" | "EMAIL" | "BOTH">("BOTH");
+  const [showProReminderPaywall, setShowProReminderPaywall] = useState(false);
 
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
@@ -235,9 +237,9 @@ export default function TenantsDirectoryPage({
   // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Official Email)
   const handleSendCloudWhatsAppReminders = async () => {
     const sub = evaluateSubscription(profile);
-    const isMasterAdmin = profile?.role === "master_admin";
-    if (!sub.canAccessProFeatures && !isMasterAdmin) {
-      triggerToast("🔒 Automated WhatsApp & Email Reminders require an active trial or Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+    if (!sub.isPro) {
+      setShowProReminderPaywall(true);
+      triggerToast("🔒 Automated WhatsApp & Email Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
       return;
     }
 
@@ -308,6 +310,14 @@ export default function TenantsDirectoryPage({
               description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
             });
             waSentCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            console.warn("Failed sending WhatsApp for", occ.name, errData);
+            if (errData?.requiresPro) {
+              setShowProReminderPaywall(true);
+              triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
+              break;
+            }
           }
         } catch (err) {
           console.warn("Failed sending WhatsApp for", occ.name, err);
@@ -351,7 +361,11 @@ export default function TenantsDirectoryPage({
           } else {
             const errData = await emailRes.json().catch(() => ({}));
             console.warn("Failed sending Email for", occ.name, errData);
-            if (errData?.error) {
+            if (errData?.requiresPro) {
+              setShowProReminderPaywall(true);
+              triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
+              break;
+            } else if (errData?.error) {
               triggerToast(`⚠️ Email dispatch: ${errData.error}`);
             }
           }
@@ -368,6 +382,11 @@ export default function TenantsDirectoryPage({
 
     setIsSendingCloudWhatsApp(false);
     setCloudSendProgress(null);
+
+    if (waSentCount === 0 && emailSentCount === 0) {
+      return;
+    }
+
     setShowRentReminderQRModal(false);
 
     let toastText = "";
@@ -2275,6 +2294,32 @@ Scroll vertically to browse all residents without pagination limits
                   <span className="text-[10px] text-gray-500 font-medium">Powered by TenoPilot Cloud</span>
                 </div>
 
+                {!sub.isPro && (
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 border border-amber-200/80 flex items-center justify-between gap-3 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                        <Lock className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-amber-950 flex items-center gap-1.5 text-[11px]">
+                          <span>Automated Reminders are Pro-Exclusive</span>
+                          <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[9px] font-black uppercase">Pro Only</span>
+                        </p>
+                        <p className="text-[10px] text-amber-800">
+                          Upgrade to Pro to send automated batch reminders. You can also use the free <strong>Manual wa.me</strong> links below!
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowProReminderPaywall(true)}
+                      className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-[10px] rounded-lg shadow-xs hover:opacity-95 transition-all shrink-0 cursor-pointer"
+                    >
+                      Upgrade ₹999
+                    </button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
@@ -2409,40 +2454,51 @@ Scroll vertically to browse all residents without pagination limits
                   Close
                 </button>
 
-                <button
-                  type="button"
-                  disabled={isSendingCloudWhatsApp || selectedIds.length === 0}
-                  onClick={handleSendCloudWhatsAppReminders}
-                  className={`flex-1 py-3 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
-                    reminderChannel === "BOTH"
-                      ? "bg-gradient-to-r from-emerald-600 via-teal-700 to-blue-700 hover:from-emerald-700 hover:to-blue-800"
-                      : reminderChannel === "WHATSAPP"
-                      ? "bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900"
-                      : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
-                  }`}
-                >
-                  {isSendingCloudWhatsApp ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>
-                        Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length}{" "}
-                        {reminderChannel === "BOTH" ? "Multi-Channel" : reminderChannel === "WHATSAPP" ? "WhatsApp" : "Email"}{" "}
-                        Reminders...
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 fill-current text-yellow-300" />
-                      <span>
-                        {reminderChannel === "BOTH"
-                          ? `1-Tap Multi-Channel Dispatch (WhatsApp + Email to ${selectedIds.length})`
-                          : reminderChannel === "WHATSAPP"
-                          ? `1-Tap WhatsApp Cloud Dispatch (Send to ${selectedIds.length})`
-                          : `1-Tap Email Dispatch (Send to ${selectedIds.length})`}
-                      </span>
-                    </>
-                  )}
-                </button>
+                {!sub.isPro ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowProReminderPaywall(true)}
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span>🔒 Unlock Automated Reminders — Upgrade to Pro (₹999/mo)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isSendingCloudWhatsApp || selectedIds.length === 0}
+                    onClick={handleSendCloudWhatsAppReminders}
+                    className={`flex-1 py-3 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                      reminderChannel === "BOTH"
+                        ? "bg-gradient-to-r from-emerald-600 via-teal-700 to-blue-700 hover:from-emerald-700 hover:to-blue-800"
+                        : reminderChannel === "WHATSAPP"
+                        ? "bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900"
+                        : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
+                    }`}
+                  >
+                    {isSendingCloudWhatsApp ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>
+                          Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length}{" "}
+                          {reminderChannel === "BOTH" ? "Multi-Channel" : reminderChannel === "WHATSAPP" ? "WhatsApp" : "Email"}{" "}
+                          Reminders...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4 fill-current text-yellow-300" />
+                        <span>
+                          {reminderChannel === "BOTH"
+                            ? `1-Tap Multi-Channel Dispatch (WhatsApp + Email to ${selectedIds.length})`
+                            : reminderChannel === "WHATSAPP"
+                            ? `1-Tap WhatsApp Cloud Dispatch (Send to ${selectedIds.length})`
+                            : `1-Tap Email Dispatch (Send to ${selectedIds.length})`}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2585,6 +2641,73 @@ Scroll vertically to browse all residents without pagination limits
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Upgrade to Pro</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🔒 Pro Plan Exclusive Paywall Modal for Automated Reminders */}
+        {showProReminderPaywall && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 text-center space-y-5 animate-in zoom-in-95">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-amber-500/20">
+                <Lock className="w-8 h-8" />
+              </div>
+
+              <div className="space-y-2">
+                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold tracking-wider uppercase inline-block">
+                  Pro Plan Exclusive
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-serif">
+                  Unlock 1-Tap Automated Reminders
+                </h3>
+                <p className="text-xs text-gray-600 leading-relaxed max-w-md mx-auto">
+                  Automated multi-channel rent reminders (WhatsApp Cloud API + Official Email Invoices) are exclusively available on the <strong>TenoPilot Pro Plan (₹999/mo)</strong>.
+                </p>
+              </div>
+
+              {/* Feature Comparison / Highlights */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left space-y-2.5 text-xs">
+                <div className="flex items-center gap-2.5 text-gray-800 font-medium">
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-[11px] font-bold">✓</div>
+                  <span>1-Tap Multi-Channel Batch Dispatches (WhatsApp & Email)</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-gray-800 font-medium">
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-[11px] font-bold">✓</div>
+                  <span>Dynamic UPI Payment QR Codes auto-embedded per tenant</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-gray-800 font-medium">
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-[11px] font-bold">✓</div>
+                  <span>Personalized rent breakdowns, room/bed numbers & due dates</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-gray-800 font-medium">
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-[11px] font-bold">✓</div>
+                  <span>Dual-ledger audit logging & automatic payment receipt dispatch</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-left flex items-start gap-2.5">
+                <div className="text-base leading-none mt-0.5">💡</div>
+                <p className="text-[11px] text-amber-800 leading-snug">
+                  <strong>Free Trial Tip:</strong> While on trial, you can still use the <strong>Manual wa.me</strong> link for each tenant in the list without upgrading!
+                </p>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowProReminderPaywall(false)}
+                  className="w-full sm:w-1/2 py-3 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Use Manual wa.me
+                </button>
+                <Link
+                  href={`/p/${propertyId}/subscription`}
+                  className="w-full sm:w-1/2 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-yellow-200" />
+                  <span>Upgrade to Pro (₹999/mo)</span>
                 </Link>
               </div>
             </div>
