@@ -92,14 +92,28 @@ function SignUpPageContent() {
     setError(null);
     setIsLoading(true);
     try {
-      const authResult = await loginWithGoogle();
+      const authResult = await loginWithGoogle(true);
+      if (!authResult) return;
+
+      // If this Google account already exists and completed setup, redirect to login to enter PIN
+      if (authResult.alreadyExists) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            "tenopilot_revoked_notice",
+            "✓ Welcome back! An account already exists for this Google email. Please enter your 4-digit PIN to sign in."
+          );
+        }
+        router.push(`/login?email=${encodeURIComponent(authResult.user.email || "")}`);
+        return;
+      }
+
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
       }
       router.push("/welcome");
     } catch (err: any) {
       console.error("Google sign up failed:", err);
-      setError(err?.message || "Google sign-up failed. Please try again.");
+      setError(getCleanAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

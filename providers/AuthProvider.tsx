@@ -202,6 +202,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setProfile(demoProf);
                 staffStore.setActiveRole(demoProf.role);
               } else {
+                // 🛑 If user is currently on onboarding / signup pages, allow setup to proceed
+                if (pathname === "/signup" || pathname === "/welcome") {
+                  console.log(`[AuthProvider] User ${email} has no Firestore doc yet, but is actively on ${pathname}. Keeping session active.`);
+                  setLoading(false);
+                  return;
+                }
+
                 // 🛑 ACCOUNT PURGED OR DELETED FROM FIRESTORE: Do NOT auto-resurrect!
                 console.warn(`[AuthProvider] User ${email} has no Firestore document. Enforcing account purge sign-out.`);
                 if (typeof window !== "undefined") {

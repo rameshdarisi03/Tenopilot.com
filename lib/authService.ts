@@ -221,7 +221,7 @@ export async function checkIfEmailExists(email: string): Promise<boolean> {
  */
 export async function loginWithGoogle(
   isSignUpMode: boolean = false
-): Promise<{ user: User; profile: AuthUserProfile } | null> {
+): Promise<{ user: User; profile: AuthUserProfile; alreadyExists?: boolean } | null> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
@@ -270,13 +270,27 @@ export async function loginWithGoogle(
         await setDoc(userDocRef, profile, { merge: true });
       }
 
-      return { user, profile };
+      return { user, profile, alreadyExists: false };
     }
 
-    // 🚀 SIGN UP MODE: Check if already registered
-    if (existsInDb && userSnap.exists() && userSnap.data()?.onboardingCompleted === true) {
-      await signOut(auth);
-      throw new Error("An account with this Google email already exists. Please Sign In instead.");
+    // 🚀 SIGN UP MODE: Check if already registered & fully onboarded
+    if (existsInDb) {
+      if (userSnap.exists() && userSnap.data()?.onboardingCompleted === true) {
+        return { user, profile: userSnap.data() as AuthUserProfile, alreadyExists: true };
+      }
+      try {
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const snap = await getDocs(q);
+        if (!snap.empty && snap.docs[0].data()?.onboardingCompleted === true) {
+          return {
+            user,
+            profile: { id: snap.docs[0].id, ...snap.docs[0].data() } as unknown as AuthUserProfile,
+            alreadyExists: true,
+          };
+        }
+      } catch (e) {
+        console.warn("Notice checking existing user doc in Google sign-up:", e);
+      }
     }
 
     const isMasterTest = email === "isharapandey01@gmail.com";
@@ -303,7 +317,7 @@ export async function loginWithGoogle(
 
     await setDoc(userDocRef, profile, { merge: true });
 
-    return { user, profile };
+    return { user, profile, alreadyExists: false };
   } catch (error: any) {
     console.error("Google Auth Error:", error);
     throw error;
