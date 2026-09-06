@@ -424,9 +424,9 @@ export default function OnboardGuestPage({
                 if (bd.bedCode !== selectedBed.bedCode) return bd;
                 return {
                   ...bd,
-                  status: "Guest" as const,
+                  status: (isFutureCheckIn ? "Booked" : "Guest") as "Booked" | "Guest",
                   guestCheckoutDate: formattedCheckOut,
-                  occupant: newGuest,
+                  occupant: isFutureCheckIn ? undefined : newGuest,
                 };
               }),
             };

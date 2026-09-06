@@ -449,8 +449,8 @@ export default function OnboardTenantPage({
                 if (bd.bedCode !== selectedBed.bedCode) return bd;
                 return {
                   ...bd,
-                  status: "Occupied" as const,
-                  occupant: newTenant,
+                  status: (isFutureMoveIn ? "Booked" : "Occupied") as "Booked" | "Occupied",
+                  occupant: isFutureMoveIn ? undefined : newTenant,
                 };
               }),
             };

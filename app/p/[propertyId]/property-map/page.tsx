@@ -107,6 +107,7 @@ export default function PropertyMapPage({
     bed: BedSlotConfig;
     roomNumber: string;
     floorName: string;
+    timeline?: BedOccupantsTimeline;
   } | null>(null);
 
   // Global Price Privacy Mode Toggle state (Masks prices as ₹ ••••• when showing screen to tenants)
@@ -154,8 +155,18 @@ export default function PropertyMapPage({
       floor.rooms.forEach((room) => {
         room.beds.forEach((bed) => {
           const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
-          const primaryOcc = timeline.activeOccupant || (bed.occupant && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
-          const nextOcc = timeline.nextBooking;
+          const primaryOcc =
+            timeline.activeOccupant ||
+            (bed.occupant &&
+             bed.occupant.lifecycleStatus !== "Past" &&
+             bed.occupant.lifecycleStatus !== "Booked"
+              ? bed.occupant
+              : undefined);
+          const nextOcc =
+            timeline.nextBooking ||
+            (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
+              ? bed.occupant
+              : undefined);
 
           const effectiveStatus = primaryOcc
             ? primaryOcc.lifecycleStatus === "Notice"
@@ -164,8 +175,10 @@ export default function PropertyMapPage({
               ? "Guest"
               : "Occupied"
             : nextOcc
-            ? "Booked"
-            : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
+            ? nextOcc.stayType === "Guest"
+              ? "Guest"
+              : "Booked"
+            : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
 
           if (effectiveStatus === "Available") available++;
           else if (effectiveStatus === "Occupied") occupied++;
@@ -238,7 +251,33 @@ export default function PropertyMapPage({
             ...rm,
             beds: rm.beds.filter((bd) => {
               if (activeFilterStatus === "ALL") return true;
-              return bd.status === activeFilterStatus;
+              const timeline = getBedOccupantsTimeline(rm.roomNumber, bd.bedCode, bd, propertyId);
+              const primaryOcc =
+                timeline.activeOccupant ||
+                (bd.occupant &&
+                 bd.occupant.lifecycleStatus !== "Past" &&
+                 bd.occupant.lifecycleStatus !== "Booked"
+                  ? bd.occupant
+                  : undefined);
+              const nextOcc =
+                timeline.nextBooking ||
+                (bd.occupant && bd.occupant.lifecycleStatus === "Booked"
+                  ? bd.occupant
+                  : undefined);
+
+              const effStatus = primaryOcc
+                ? primaryOcc.lifecycleStatus === "Notice"
+                  ? "Vacating"
+                  : primaryOcc.stayType === "Guest"
+                  ? "Guest"
+                  : "Occupied"
+                : nextOcc
+                ? nextOcc.stayType === "Guest"
+                  ? "Guest"
+                  : "Booked"
+                : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status === "Booked" ? "Available" : bd.status);
+
+              return effStatus === activeFilterStatus;
             }),
           }))
           .filter((rm) => rm.beds.length > 0),
@@ -586,8 +625,18 @@ export default function PropertyMapPage({
                             <div className={`grid ${gridCols} gap-2.5`}>
                               {room.beds.map((bed) => {
                                   const timeline = getBedOccupantsTimeline(room.roomNumber, bed.bedCode, bed, propertyId);
-                                  const primaryOcc = timeline.activeOccupant || (bed.occupant && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
-                                  const nextOcc = timeline.nextBooking;
+                                  const primaryOcc =
+                                    timeline.activeOccupant ||
+                                    (bed.occupant &&
+                                     bed.occupant.lifecycleStatus !== "Past" &&
+                                     bed.occupant.lifecycleStatus !== "Booked"
+                                      ? bed.occupant
+                                      : undefined);
+                                  const nextOcc =
+                                    timeline.nextBooking ||
+                                    (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
+                                      ? bed.occupant
+                                      : undefined);
 
                                   let badgeStyle = "";
                                   let icon = <User className="w-3.5 h-3.5" />;
@@ -600,10 +649,13 @@ export default function PropertyMapPage({
                                       ? "Guest"
                                       : "Occupied"
                                     : nextOcc
-                                    ? "Booked"
-                                    : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status);
+                                    ? nextOcc.stayType === "Guest"
+                                      ? "Guest"
+                                      : "Booked"
+                                    : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
 
-                                  const isGuestBed = effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest";
+                                  const isGuestBed = effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest" || (!primaryOcc && nextOcc?.stayType === "Guest");
+                                  const isBookedBed = effectiveStatus === "Booked" && !primaryOcc && !!nextOcc;
                                   const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "08 Aug 2026";
                                   
                                   // Evaluate if promised vacating date is past/overdue (e.g. 08 Aug vs today 09 Aug)
@@ -629,7 +681,7 @@ export default function PropertyMapPage({
                                   } else if (isGuestBed) {
                                     badgeStyle =
                                       "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
-                                    statusLabel = `Guest (${primaryOcc?.name || "Stay"})`;
+                                    statusLabel = primaryOcc ? primaryOcc.name : nextOcc ? nextOcc.name : "Guest";
                                   } else if (effectiveStatus === "Vacating") {
                                     badgeStyle = isOverdueVacating
                                       ? "bg-red-50 text-red-900 border-red-300 hover:bg-red-100 animate-pulse shadow-sm"
@@ -637,10 +689,10 @@ export default function PropertyMapPage({
                                     statusLabel = isOverdueVacating
                                       ? `Overdue (${primaryOcc?.name || "Move-Out"})`
                                       : `Vacating (${primaryOcc?.name || "Notice"})`;
-                                  } else if (effectiveStatus === "Booked" && !primaryOcc) {
+                                  } else if (isBookedBed) {
                                     badgeStyle =
-                                      "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
-                                    statusLabel = "Booked";
+                                      "bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100";
+                                    statusLabel = nextOcc ? nextOcc.name : "Booked";
                                   } else if (primaryOcc) {
                                     badgeStyle =
                                       "bg-[#f7f2ee] text-amber-900 border-amber-200 hover:bg-amber-100";
@@ -659,14 +711,22 @@ export default function PropertyMapPage({
                                           bed,
                                           roomNumber: room.roomNumber,
                                           floorName: floor.floorName,
+                                          timeline,
                                         })
                                       }
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
                                     >
-                                      {/* 🟣 TOP-RIGHT GUEST BADGE PILL (Instant 1-second identification for PG owners!) */}
+                                      {/* 🟣 TOP-RIGHT GUEST BADGE PILL */}
                                       {isGuestBed && (
                                         <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-purple-200 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs">
                                           GUEST
+                                        </span>
+                                      )}
+
+                                      {/* 🔵 TOP-RIGHT BOOKED BADGE PILL */}
+                                      {isBookedBed && (
+                                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-blue-100 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded shadow-2xs">
+                                          BOOKED
                                         </span>
                                       )}
 
@@ -696,8 +756,19 @@ export default function PropertyMapPage({
                                         </span>
                                       )}
 
-                                      {/* 🔮 DYNAMIC PRE-BOOKED REPLACEMENT SUB-BADGE (Color Coded: Guest 🟣 vs Tenant 🟠) */}
-                                      {nextOcc && (
+                                      {/* Check-In Date Badge for upcoming reservations when bed is currently vacant */}
+                                      {!primaryOcc && nextOcc && (
+                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full font-mono ${
+                                          nextOcc.stayType === "Guest"
+                                            ? "bg-purple-100 text-purple-950 border border-purple-200"
+                                            : "bg-blue-100 text-blue-950 border border-blue-200"
+                                        }`}>
+                                          Check-In: {nextOcc.joiningDate}
+                                        </span>
+                                      )}
+
+                                      {/* 🔮 DYNAMIC PRE-BOOKED REPLACEMENT SUB-BADGE (Only when bed already has an ACTIVE resident!) */}
+                                      {primaryOcc && nextOcc && (
                                         <div
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -841,195 +912,298 @@ export default function PropertyMapPage({
                 </button>
               </div>
 
-              {activeBedSlot.bed.occupant ? (
-                <div className="space-y-6 text-xs">
-                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-200">
-                    <img
-                      src={activeBedSlot.bed.occupant.avatar}
-                      alt={activeBedSlot.bed.occupant.name}
-                      className="w-14 h-14 rounded-full border border-gray-300 object-cover"
-                    />
+              {(() => {
+                const activeOcc =
+                  activeBedSlot.timeline?.activeOccupant ||
+                  (activeBedSlot.bed.occupant &&
+                   activeBedSlot.bed.occupant.lifecycleStatus !== "Booked" &&
+                   activeBedSlot.bed.occupant.lifecycleStatus !== "Past"
+                    ? activeBedSlot.bed.occupant
+                    : undefined);
+
+                const nextOcc =
+                  activeBedSlot.timeline?.nextBooking ||
+                  (activeBedSlot.bed.occupant?.lifecycleStatus === "Booked"
+                    ? activeBedSlot.bed.occupant
+                    : undefined);
+
+                const displayOcc = activeOcc || nextOcc;
+
+                if (displayOcc) {
+                  const isBooked = !activeOcc && !!nextOcc;
+                  const isGuest = displayOcc.stayType === "Guest";
+
+                  return (
+                    <div className="space-y-6 text-xs">
+                      <div
+                        className={`flex items-center gap-4 p-4 rounded-2xl border ${
+                          isBooked
+                            ? isGuest
+                              ? "bg-purple-50/80 border-purple-200"
+                              : "bg-blue-50/80 border-blue-200"
+                            : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <img
+                          src={
+                            displayOcc.avatar ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                              displayOcc.name
+                            )}`
+                          }
+                          alt={displayOcc.name}
+                          className="w-14 h-14 rounded-full border border-gray-300 object-cover bg-white shadow-2xs"
+                        />
+                        <div>
+                          <h4 className="font-serif font-bold text-lg text-gray-900">
+                            {displayOcc.name}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isBooked
+                                  ? isGuest
+                                    ? "bg-purple-200 text-purple-900 border border-purple-300"
+                                    : "bg-blue-100 text-blue-900 border border-blue-300"
+                                  : isGuest
+                                  ? "bg-purple-100 text-purple-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              {isBooked
+                                ? isGuest
+                                  ? "🟣 BOOKED GUEST"
+                                  : "🔵 BOOKED TENANT"
+                                : isGuest
+                                ? "🟣 GUEST"
+                                : "🟢 TENANT"}
+                            </span>
+                            <span className="text-gray-500 font-medium font-mono">
+                              {displayOcc.phone}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">Status</span>
+                          <span
+                            className={`font-bold ${
+                              isBooked
+                                ? isGuest
+                                  ? "text-purple-700"
+                                  : "text-blue-700"
+                                : displayOcc.paymentStatus === "Paid"
+                                ? "text-green-600"
+                                : "text-amber-600"
+                            }`}
+                          >
+                            {isBooked
+                              ? "CONFIRMED RESERVATION 🔵"
+                              : displayOcc.paymentStatus === "Paid"
+                              ? "PAID 🟢"
+                              : "PENDING 🟡"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">Monthly Rent</span>
+                          <span className="font-mono font-bold text-[#c2652a]">
+                            ₹{(displayOcc.rentAmount || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">
+                            {isBooked ? "Scheduled Move-In Date" : "Move-In / Joining Date"}
+                          </span>
+                          <span className="font-bold text-blue-700 font-mono">
+                            {displayOcc.joiningDate || "—"}
+                          </span>
+                        </div>
+                        {displayOcc.vacatingDate && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Vacating Date</span>
+                            <span className="font-bold text-orange-600 font-mono">
+                              {displayOcc.vacatingDate}
+                            </span>
+                          </div>
+                        )}
+                        {!isBooked && displayOcc.lastPaidDate && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Last Paid Date</span>
+                            <span className="font-semibold text-gray-900 font-mono">
+                              {displayOcc.lastPaidDate}
+                            </span>
+                          </div>
+                        )}
+                        {displayOcc.securityDeposit !== undefined && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Security Deposit</span>
+                            <span className="font-mono font-bold text-gray-800">
+                              ₹{(displayOcc.securityDeposit || 0).toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* If there is an active resident AND an upcoming next booking */}
+                      {activeOcc && nextOcc && (
+                        <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/60 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold uppercase text-blue-900">
+                              Upcoming Reservation
+                            </span>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
+                              {nextOcc.stayType === "Guest" ? "🟣 GUEST" : "🔵 TENANT"}
+                            </span>
+                          </div>
+                          <p className="font-bold text-gray-900 text-sm">
+                            {nextOcc.name}
+                          </p>
+                          <p className="text-[11px] text-blue-950 font-medium">
+                            Check-In: <strong className="font-mono">{nextOcc.joiningDate}</strong>
+                          </p>
+                          <Link
+                            href={`/p/${propertyId}/tenants/${nextOcc.id}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline pt-1"
+                          >
+                            View Booking Details <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            triggerToast(`Calling ${displayOcc.phone}`)
+                          }
+                          className="flex-1 py-2.5 rounded-xl bg-orange-50 text-[#c2652a] font-bold flex items-center justify-center gap-2 hover:bg-orange-100 cursor-pointer"
+                        >
+                          <Phone className="w-4 h-4" /> Call
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            triggerToast(`WhatsApp sent to ${displayOcc.phone}`)
+                          }
+                          className="flex-1 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center gap-2 hover:bg-emerald-100 cursor-pointer"
+                        >
+                          <MessageSquare className="w-4 h-4" /> WhatsApp
+                        </button>
+                      </div>
+
+                      {/* Formal checkout only for currently residing active/notice tenants */}
+                      {activeOcc && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCheckOutOccupantData({
+                              occupant: activeOcc,
+                              roomNumber: activeBedSlot.roomNumber,
+                              bedCode: activeBedSlot.bed.bedCode,
+                            });
+                          }}
+                          className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                        >
+                          🔑 Formal Check-Out & Deposit Settlement
+                        </button>
+                      )}
+
+                      <Link
+                        href={`/p/${propertyId}/tenants/${displayOcc.id}`}
+                        className="w-full py-3 rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-2 transition-all block text-center"
+                      >
+                        View Full Profile <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-6 text-xs text-center py-6">
+                    <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-xl font-bold">
+                      ✓
+                    </div>
                     <div>
                       <h4 className="font-serif font-bold text-lg text-gray-900">
-                        {activeBedSlot.bed.occupant.name}
+                        Bed is Vacant & Ready
                       </h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            activeBedSlot.bed.occupant.stayType === "Guest"
-                              ? "bg-purple-100 text-purple-700"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          {activeBedSlot.bed.occupant.stayType === "Guest" ? "🟣 GUEST" : "🟢 TENANT"}
-                        </span>
-                        <span className="text-gray-500 font-medium">
-                          {activeBedSlot.bed.occupant.phone}
-                        </span>
-                      </div>
+                      <p className="text-gray-500 mt-1">
+                        No occupant is assigned to {activeBedSlot.floorName} Room {activeBedSlot.roomNumber} ({activeBedSlot.bed.bedCode})
+                      </p>
                     </div>
-                  </div>
 
-                  <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-medium">Rent Status</span>
-                      <span className="font-bold text-green-600">
-                        {activeBedSlot.bed.occupant.paymentStatus === "Paid" ? "PAID 🟢" : "PENDING 🟡"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-medium">Monthly Rent</span>
-                      <span className="font-mono font-bold text-[#c2652a]">
-                        ₹{activeBedSlot.bed.occupant.rentAmount.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-medium">Move-In / Joining Date</span>
-                      <span className="font-bold text-blue-700">
-                        {activeBedSlot.bed.occupant.joiningDate || "15 Aug 2026"}
-                      </span>
-                    </div>
-                    {activeBedSlot.bed.occupant.vacatingDate && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-medium">Vacating Date</span>
-                        <span className="font-bold text-orange-600">
-                          {activeBedSlot.bed.occupant.vacatingDate}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-medium">Last Paid Date</span>
-                      <span className="font-semibold text-gray-900">
-                        {activeBedSlot.bed.occupant.lastPaidDate}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() =>
-                        triggerToast(`Calling ${activeBedSlot.bed.occupant?.phone}`)
-                      }
-                      className="flex-1 py-2.5 rounded-xl bg-orange-50 text-[#c2652a] font-bold flex items-center justify-center gap-2 hover:bg-orange-100"
-                    >
-                      <Phone className="w-4 h-4" /> Call
-                    </button>
-                    <button
-                      onClick={() =>
-                        triggerToast(`WhatsApp sent to ${activeBedSlot.bed.occupant?.phone}`)
-                      }
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center gap-2 hover:bg-emerald-100"
-                    >
-                      <MessageSquare className="w-4 h-4" /> WhatsApp
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (activeBedSlot.bed.occupant) {
-                        setCheckOutOccupantData({
-                          occupant: activeBedSlot.bed.occupant,
-                          roomNumber: activeBedSlot.roomNumber,
-                          bedCode: activeBedSlot.bed.bedCode,
-                        });
-                      }
-                    }}
-                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-                  >
-                    🔑 Formal Check-Out & Deposit Settlement
-                  </button>
-
-                  <Link
-                    href={`/p/${propertyId}/tenants/${activeBedSlot.bed.occupant.id}`}
-                    className="w-full py-3 rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center justify-center gap-2 transition-all block text-center"
-                  >
-                    View Full Profile <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-6 text-xs text-center py-6">
-                  <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-xl font-bold">
-                    ✓
-                  </div>
-                  <div>
-                    <h4 className="font-serif font-bold text-lg text-gray-900">
-                      Bed is Vacant & Ready
-                    </h4>
-                    <p className="text-gray-500 mt-1">
-                      No occupant is assigned to {activeBedSlot.floorName} Room {activeBedSlot.roomNumber} ({activeBedSlot.bed.bedCode})
-                    </p>
-                  </div>
-
-                  {/* + Add Resident Dropdown Menu */}
-                  <div className="relative pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowOnboardMenu(!showOnboardMenu)}
-                      className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-orange-500 via-amber-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs flex items-center justify-between shadow-md transition-all cursor-pointer active:scale-98"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        <span>+ Add Resident to Bed</span>
-                      </div>
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform duration-200 ${
-                          showOnboardMenu ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-
-                    {showOnboardMenu && (
-                      <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 shadow-2xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-left">
-                          Select Resident Type:
+                    {/* + Add Resident Dropdown Menu */}
+                    <div className="relative pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowOnboardMenu(!showOnboardMenu)}
+                        className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-orange-500 via-amber-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs flex items-center justify-between shadow-md transition-all cursor-pointer active:scale-98"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          <span>+ Add Resident to Bed</span>
                         </div>
-                        <Link
-                          href={`/p/${propertyId}/tenants/onboard-tenant?room=${encodeURIComponent(
-                            activeBedSlot.roomNumber
-                          )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
-                          onClick={() => setShowOnboardMenu(false)}
-                          className="w-full text-left px-4 py-3 hover:bg-orange-50/80 flex items-center justify-between text-[#c2652a] transition-colors group block"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a] group-hover:bg-orange-200 shrink-0">
-                              <UserPlus className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-gray-900">Monthly Tenant (Long-term)</div>
-                              <div className="text-[10px] text-gray-500 font-normal">
-                                Monthly rent cycle, deposit & KYC agreement
-                              </div>
-                            </div>
-                          </div>
-                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#c2652a] transition-transform group-hover:translate-x-0.5 shrink-0" />
-                        </Link>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            showOnboardMenu ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
 
-                        <Link
-                          href={`/p/${propertyId}/tenants/onboard-guest?room=${encodeURIComponent(
-                            activeBedSlot.roomNumber
-                          )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
-                          onClick={() => setShowOnboardMenu(false)}
-                          className="w-full text-left px-4 py-3 hover:bg-purple-50/80 flex items-center justify-between text-purple-700 transition-colors group border-t border-gray-100 block"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-xl bg-purple-100 text-purple-700 group-hover:bg-purple-200 shrink-0">
-                              <ShieldCheck className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <div className="font-bold text-gray-900">Daily Guest (Short-term)</div>
-                              <div className="text-[10px] text-gray-500 font-normal">
-                                Per-day tariff, instant check-in for hostels & travelers
+                      {showOnboardMenu && (
+                        <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 shadow-2xl py-2 z-50 text-xs font-semibold text-gray-800 animate-in fade-in slide-in-from-bottom-2">
+                          <div className="px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-left">
+                            Select Resident Type:
+                          </div>
+                          <Link
+                            href={`/p/${propertyId}/tenants/onboard-tenant?room=${encodeURIComponent(
+                              activeBedSlot.roomNumber
+                            )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
+                            onClick={() => setShowOnboardMenu(false)}
+                            className="w-full text-left px-4 py-3 hover:bg-orange-50/80 flex items-center justify-between text-[#c2652a] transition-colors group block"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 rounded-xl bg-orange-100 text-[#c2652a] group-hover:bg-orange-200 shrink-0">
+                                <UserPlus className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="font-bold text-gray-900">Monthly Tenant (Long-term)</div>
+                                <div className="text-[10px] text-gray-500 font-normal">
+                                  Monthly rent cycle, deposit & KYC agreement
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-purple-700 transition-transform group-hover:translate-x-0.5 shrink-0" />
-                        </Link>
-                      </div>
-                    )}
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#c2652a] transition-transform group-hover:translate-x-0.5 shrink-0" />
+                          </Link>
+
+                          <Link
+                            href={`/p/${propertyId}/tenants/onboard-guest?room=${encodeURIComponent(
+                              activeBedSlot.roomNumber
+                            )}&bed=${encodeURIComponent(activeBedSlot.bed.bedCode)}`}
+                            onClick={() => setShowOnboardMenu(false)}
+                            className="w-full text-left px-4 py-3 hover:bg-purple-50/80 flex items-center justify-between text-purple-700 transition-colors group border-t border-gray-100 block"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="p-2 rounded-xl bg-purple-100 text-purple-700 group-hover:bg-purple-200 shrink-0">
+                                <ShieldCheck className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="font-bold text-gray-900">Daily Guest (Short-term)</div>
+                                <div className="text-[10px] text-gray-500 font-normal">
+                                  Per-day tariff, instant check-in for hostels & travelers
+                                </div>
+                              </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-purple-700 transition-transform group-hover:translate-x-0.5 shrink-0" />
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         )}

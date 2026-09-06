@@ -624,7 +624,7 @@ export function getBedOccupantsTimeline(
       return dateA - dateB;
     });
 
-  if (bookedList.length === 0 && bed.status === "Booked" && bed.occupant && bed.occupant.id !== activeOccupant?.id) {
+  if (bookedList.length === 0 && (bed.status === "Booked" || bed.occupant?.lifecycleStatus === "Booked") && bed.occupant && bed.occupant.id !== activeOccupant?.id) {
     bookedList.push(bed.occupant);
   }
 
