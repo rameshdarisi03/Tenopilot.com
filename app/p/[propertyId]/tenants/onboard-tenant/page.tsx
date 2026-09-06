@@ -12,7 +12,12 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
-import { getBedVacatingDate, formatIsoToDisplayDate } from "@/utils/domainSSOT";
+import {
+  getBedVacatingDate,
+  formatIsoToDisplayDate,
+  evaluateBedAvailabilityForDate,
+  BedAvailabilityEvaluation,
+} from "@/utils/domainSSOT";
 import {
   propertySettingsStore,
   PropertySettingsData,
@@ -51,7 +56,7 @@ import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
 import { lookupExistingOccupant } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
-import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 
 export default function OnboardTenantPage({
@@ -107,6 +112,8 @@ export default function OnboardTenantPage({
     vacatingDate?: string;
     isVacating?: boolean;
   } | null>(null);
+  const [showOccupiedBeds, setShowOccupiedBeds] = useState<boolean>(false);
+  const [occupantsSyncTick, setOccupantsSyncTick] = useState<number>(0);
 
   // Form State — Step 3: KYC Upload & Auto-Compression Documents (Capped PDF 1MB, Front/Back ID Images)
   const [photoUploaded, setPhotoUploaded] = useState(false);
@@ -181,9 +188,24 @@ export default function OnboardTenantPage({
       setSettings(propertySettingsStore.getSettings(propertyId));
     });
 
+    const unsubscribeOccupantsLocal = occupantStore.subscribe(() => {
+      setOccupantsSyncTick((t) => t + 1);
+    });
+
+    const unsubscribeOccupantsFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+      } else {
+        occupantStore.setOccupantsFromFirestore([], propertyId);
+      }
+      setOccupantsSyncTick((t) => t + 1);
+    });
+
     return () => {
       unsubscribeProperty();
       unsubscribeSettings();
+      unsubscribeOccupantsLocal();
+      unsubscribeOccupantsFirestore();
     };
   }, [propertyId]);
 
@@ -220,8 +242,10 @@ export default function OnboardTenantPage({
   }, [urlRoom, urlBed, propertyStructure, settings, depositCustomized, selectedBed]);
 
   // Intelligent Floor Navigation Filter for Onboarding:
-  // 1. Shows Available 🟢, Notice-Period Vacating 🟧 beds, and Short-Term Guest 🟧 beds (Hides permanently occupied & booked beds)
-  // 2. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
+  // 1. Evaluates real-time availability based on selected Move-In Date (joiningDate)
+  // 2. Checks active residents, notice periods, and upcoming bookings using SSOT
+  // 3. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
+  // 4. Hides occupied & booked beds by default, or shows as disabled if showOccupiedBeds is true
   const onboardingFloorNavigation = useMemo(() => {
     return propertyStructure
       .map((fl) => ({
@@ -231,29 +255,49 @@ export default function OnboardTenantPage({
             if (desiredSharingFilter === "ALL") return true;
             return Number(rm.sharingType) === Number(desiredSharingFilter);
           })
-          .map((rm) => ({
-            ...rm,
-            beds: rm.beds
-              .filter(
-                (bd) => bd.status === "Available" || bd.status === "Vacating" || bd.status === "Guest"
-              )
-              .map((bd) => {
-                const isVacating = bd.status === "Vacating" || bd.status === "Guest";
-                if (!isVacating) return bd;
-                const vacatingDateRaw = getBedVacatingDate(bd) || "18 Aug 2026";
-                const displayVacatingDate = vacatingDateRaw.includes("-") ? formatIsoToDisplayDate(vacatingDateRaw) : vacatingDateRaw;
-                const cleanDate = displayVacatingDate.replace(" 2026", "");
-                return {
-                  ...bd,
-                  vacatingDate: displayVacatingDate,
-                  vacatingNote: `Vacating ${cleanDate}`,
-                };
-              }),
-          }))
+          .map((rm) => {
+            const mappedBeds = rm.beds.map((bd) => {
+              const evalResult = evaluateBedAvailabilityForDate(
+                rm.roomNumber,
+                bd.bedCode,
+                bd,
+                joiningDate,
+                propertyId,
+                undefined,
+                "Tenant"
+              );
+
+              return {
+                ...bd,
+                availabilityEval: evalResult,
+                isAvailable: evalResult.isAvailable,
+                vacatingDate: evalResult.vacatingDate,
+                vacatingNote:
+                  evalResult.vacatingNote ||
+                  (evalResult.vacatingDate ? `Vacating ${evalResult.vacatingDate}` : undefined),
+              };
+            });
+
+            const filteredBeds = showOccupiedBeds
+              ? mappedBeds
+              : mappedBeds.filter((bd) => bd.isAvailable);
+
+            return {
+              ...rm,
+              beds: filteredBeds,
+            };
+          })
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyStructure, desiredSharingFilter]);
+  }, [
+    propertyStructure,
+    desiredSharingFilter,
+    joiningDate,
+    propertyId,
+    showOccupiedBeds,
+    occupantsSyncTick,
+  ]);
 
   // Validation per step
   const handleStep1Next = (e: React.FormEvent) => {
@@ -851,19 +895,24 @@ export default function OnboardTenantPage({
                       <Bed className="w-5 h-5 text-[#c2652a]" /> Select Bed for {fullName || "Tenant"}
                     </h2>
                     <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                      Showing available 🟢 & vacating 🟧 beds across floor navigation (Occupied beds hidden)
+                      Showing beds available for Move-In on <strong className="font-mono text-gray-800">{joiningDate}</strong> ({showOccupiedBeds ? "Occupied/Booked beds shown as disabled" : "Occupied & booked beds hidden"})
                     </p>
                   </div>
 
-                  {selectedBed && (
-                    <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs shrink-0">
-                      ✓ Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-bold text-xs flex items-center gap-1.5 font-mono shadow-2xs">
+                      📅 Move-In: {joiningDate}
                     </span>
-                  )}
+                    {selectedBed && (
+                      <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs">
+                        ✓ Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* INTELLIGENT DESIRED ROOM SHARING FILTER (Defaults to 2 Sharing) */}
-                <div className="p-4 rounded-xl bg-orange-50/70 border border-orange-200 space-y-2">
+                <div className="p-4 rounded-xl bg-orange-50/70 border border-orange-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                       <Filter className="w-3.5 h-3.5 text-[#c2652a]" /> Filter by Desired Room Sharing:
@@ -897,6 +946,26 @@ export default function OnboardTenantPage({
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Visibility Toggle for Occupied & Booked Beds */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-orange-200/60 text-xs">
+                    <label className="flex items-center gap-2 font-medium text-gray-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showOccupiedBeds}
+                        onChange={(e) => setShowOccupiedBeds(e.target.checked)}
+                        className="rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
+                      />
+                      <span>Show Occupied & Booked Beds (Disabled for visibility)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(1)}
+                      className="text-[#c2652a] hover:underline font-bold text-[11px]"
+                    >
+                      Change Date ({joiningDate})
+                    </button>
                   </div>
                 </div>
               </div>
@@ -949,51 +1018,69 @@ export default function OnboardTenantPage({
 
                             {/* Bed Slot Buttons (NO Tenant Names displayed for privacy!) */}
                             <div className="grid grid-cols-2 gap-2">
-                              {room.beds.map((bed) => {
-                                  const isSelected =
-                                    selectedBed?.bedId === bed.id;
-                                  const isVacating = bed.status === "Vacating" || bed.status === "Guest";
+                              {room.beds.map((bed: any) => {
+                                const evalResult: BedAvailabilityEvaluation = bed.availabilityEval;
+                                const isAvailable = evalResult ? evalResult.isAvailable : true;
+                                const isSelected = selectedBed?.bedId === bed.id;
+                                const isVacating = evalResult?.status === "VacatingSoon";
 
+                                if (!isAvailable) {
                                   return (
-                                    <button
-                                      type="button"
+                                    <div
                                       key={bed.id}
-                                      onClick={() => {
-                                        setSelectedBed({
-                                          bedId: bed.id,
-                                          bedCode: bed.bedCode,
-                                          roomNumber: room.roomNumber,
-                                          floorName: floor.floorName,
-                                          vacatingDate: (bed as any).vacatingDate,
-                                          isVacating,
-                                        });
-                                        const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
-                                        setMonthlyRent(autoRent);
-                                        if (!depositCustomized) {
-                                          setDepositAmount(autoRent * 2);
-                                        }
-                                      }}
-                                      className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
-                                        isSelected
-                                          ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-md scale-[1.02]"
-                                          : isVacating
-                                          ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
-                                          : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
-                                      }`}
+                                      className="p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-0.5 bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed min-h-[60px] opacity-75 select-none"
+                                      title={evalResult?.reason}
                                     >
-                                      <span className="font-extrabold text-xs">
+                                      <span className="font-extrabold text-xs text-gray-500">
                                         {bed.bedCode}
                                       </span>
-
-                                      {/* Status & Date Badge ONLY — NO Tenant Names! */}
-                                      <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
-                                        {isVacating
-                                          ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "18 Aug"}`
-                                          : "Available 🟢"}
+                                      <span className="text-[9px] font-bold text-gray-400 truncate max-w-full">
+                                        {evalResult?.status === "Booked" ? "🔵 Booked" : "🔒 Occupied"}
                                       </span>
-                                    </button>
+                                    </div>
                                   );
-                                })}
+                                }
+
+                                return (
+                                  <button
+                                    type="button"
+                                    key={bed.id}
+                                    onClick={() => {
+                                      setSelectedBed({
+                                        bedId: bed.id,
+                                        bedCode: bed.bedCode,
+                                        roomNumber: room.roomNumber,
+                                        floorName: floor.floorName,
+                                        vacatingDate: bed.vacatingDate,
+                                        isVacating,
+                                      });
+                                      const autoRent = room.customRentAmount || getSharingRent(room.sharingType);
+                                      setMonthlyRent(autoRent);
+                                      if (!depositCustomized) {
+                                        setDepositAmount(autoRent * 2);
+                                      }
+                                    }}
+                                    className={`p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer min-h-[60px] ${
+                                      isSelected
+                                        ? "bg-[#c2652a] text-white border-[#c2652a] ring-2 ring-[#c2652a]/30 shadow-md scale-[1.02]"
+                                        : isVacating
+                                        ? "bg-orange-50/60 text-orange-900 border-orange-200 hover:bg-orange-100/70"
+                                        : "bg-emerald-50/70 text-emerald-900 border-emerald-200 hover:bg-emerald-100/80"
+                                    }`}
+                                  >
+                                    <span className="font-extrabold text-xs">
+                                      {bed.bedCode}
+                                    </span>
+
+                                    {/* Status & Date Badge ONLY — NO Tenant Names! */}
+                                    <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
+                                      {isVacating
+                                        ? bed.vacatingNote || `Vacating ${bed.vacatingDate}`
+                                        : "Available 🟢"}
+                                    </span>
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         ))}

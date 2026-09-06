@@ -4,7 +4,8 @@ import { use, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
-import { Occupant } from "@/constants/mockOccupants";
+import { Occupant, occupantStore } from "@/constants/mockOccupants";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import {
   propertyStore,
   FloorConfig,
@@ -86,9 +87,27 @@ export default function PropertyMapPage({
     setIsMounted(true);
     setPropertyGrid(propertyStore.getStructure(propertyId));
     const unsubscribe = propertyStore.subscribe(() => {
-      setPropertyGrid(propertyStore.getStructure(propertyId));
+      setPropertyGrid([...propertyStore.getStructure(propertyId)]);
     });
-    return unsubscribe;
+
+    const unsubscribeOccupantsFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+      } else {
+        occupantStore.setOccupantsFromFirestore([], propertyId);
+      }
+      setPropertyGrid([...propertyStore.getStructure(propertyId)]);
+    });
+
+    const unsubscribeOccupantsLocal = occupantStore.subscribe(() => {
+      setPropertyGrid([...propertyStore.getStructure(propertyId)]);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeOccupantsFirestore();
+      unsubscribeOccupantsLocal();
+    };
   }, [propertyId]);
 
   // Dynamic Room Filter options derived from propertyStore

@@ -289,6 +289,7 @@ export const MOCK_SEQUENTIAL_GUESTS_BED_101_A: Occupant[] = [
 
 const OCCUPANTS_STORAGE_KEY = "tenopilot_real_occupants_v1";
 let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
+const PROPERTY_OCCUPANTS_MAP = new Map<string, Occupant[]>();
 const occupantListeners: Array<() => void> = [];
 
 function loadOccupants(): Occupant[] {
@@ -332,6 +333,9 @@ function loadOccupants(): Occupant[] {
 export const occupantStore = {
   getOccupants(propertyId?: string): Occupant[] {
     if (!propertyId) return [];
+    if (PROPERTY_OCCUPANTS_MAP.has(propertyId)) {
+      return PROPERTY_OCCUPANTS_MAP.get(propertyId)!;
+    }
     if (typeof window !== "undefined") {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;
@@ -365,6 +369,7 @@ export const occupantStore = {
           if (mutated) {
             localStorage.setItem(savedKey, JSON.stringify(cleaned));
           }
+          PROPERTY_OCCUPANTS_MAP.set(propertyId, cleaned);
           return cleaned;
         }
       } catch (e) {
@@ -380,6 +385,10 @@ export const occupantStore = {
     const filteredFirestoreList = newList.filter(
       (o) => !LEGACY_PURGE_KEYS.some((key) => o.id.startsWith(key) || o.id === key)
     );
+
+    if (propertyId) {
+      PROPERTY_OCCUPANTS_MAP.set(propertyId, filteredFirestoreList);
+    }
 
     if (typeof window !== "undefined" && propertyId) {
       try {
@@ -401,6 +410,9 @@ export const occupantStore = {
     // 2. Update local state & cache without deleted tenant
     const list = this.getOccupants(propertyId);
     const updatedList = list.filter((o) => o.id !== occupantId);
+    if (propertyId) {
+      PROPERTY_OCCUPANTS_MAP.set(propertyId, updatedList);
+    }
     if (typeof window !== "undefined" && propertyId) {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;
@@ -413,6 +425,9 @@ export const occupantStore = {
   },
 
   updateOccupants(newList: Occupant[], propertyId: string = "sunshine-pg") {
+    if (propertyId) {
+      PROPERTY_OCCUPANTS_MAP.set(propertyId, newList);
+    }
     if (typeof window !== "undefined" && propertyId) {
       try {
         const savedKey = `tenopilot_occupants_${propertyId}`;

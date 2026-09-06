@@ -12,7 +12,12 @@ import {
   RoomConfig,
   BedSlotConfig,
 } from "@/constants/propertyLayoutStore";
-import { getBedVacatingDate, formatIsoToDisplayDate } from "@/utils/domainSSOT";
+import {
+  getBedVacatingDate,
+  formatIsoToDisplayDate,
+  evaluateBedAvailabilityForDate,
+  BedAvailabilityEvaluation,
+} from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,7 +51,7 @@ import {
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { lookupExistingOccupant } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
-import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 
 export default function OnboardGuestPage({
@@ -106,6 +111,8 @@ export default function OnboardGuestPage({
     vacatingDate?: string;
     isVacating?: boolean;
   } | null>(null);
+  const [showOccupiedBeds, setShowOccupiedBeds] = useState<boolean>(false);
+  const [occupantsSyncTick, setOccupantsSyncTick] = useState<number>(0);
 
   // Form State — Step 3: Quick KYC Upload & Auto-Compression Documents (Capped PDF 1MB, Front/Back ID Images)
   const [photoUploaded, setPhotoUploaded] = useState(false);
@@ -163,10 +170,28 @@ export default function OnboardGuestPage({
   useEffect(() => {
     propertyStore.initFirebaseListener(propertyId);
     setPropertyStructure(propertyStore.getStructure(propertyId));
-    const unsubscribe = propertyStore.subscribe(() => {
+    const unsubscribeProperty = propertyStore.subscribe(() => {
       setPropertyStructure(propertyStore.getStructure(propertyId));
     });
-    return unsubscribe;
+
+    const unsubscribeOccupantsLocal = occupantStore.subscribe(() => {
+      setOccupantsSyncTick((t) => t + 1);
+    });
+
+    const unsubscribeOccupantsFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+      } else {
+        occupantStore.setOccupantsFromFirestore([], propertyId);
+      }
+      setOccupantsSyncTick((t) => t + 1);
+    });
+
+    return () => {
+      unsubscribeProperty();
+      unsubscribeOccupantsLocal();
+      unsubscribeOccupantsFirestore();
+    };
   }, [propertyId]);
 
   // Pre-select bed if redirected from Property Map with ?room=...&bed=...
@@ -195,6 +220,10 @@ export default function OnboardGuestPage({
   }, [urlRoom, urlBed, propertyStructure, selectedBed]);
 
   // Intelligent Floor Navigation Filter for Guest Onboarding:
+  // 1. Evaluates real-time availability based on selected Stay Window (checkInDate to checkOutDate)
+  // 2. Checks active residents, notice periods, and upcoming bookings using SSOT
+  // 3. Filters dynamically based on desiredSharingFilter (e.g. 2 Sharing by default)
+  // 4. Hides occupied & booked beds by default, or shows as disabled if showOccupiedBeds is true
   const onboardingFloorNavigation = useMemo(() => {
     return propertyStructure
       .map((fl) => ({
@@ -204,29 +233,50 @@ export default function OnboardGuestPage({
             if (desiredSharingFilter === "ALL") return true;
             return Number(rm.sharingType) === Number(desiredSharingFilter);
           })
-          .map((rm) => ({
-            ...rm,
-            beds: rm.beds
-              .filter(
-                (bd) => bd.status === "Available" || bd.status === "Vacating" || bd.status === "Guest"
-              )
-              .map((bd) => {
-                const isVacating = bd.status === "Vacating" || bd.status === "Guest";
-                if (!isVacating) return bd;
-                const vacatingDateRaw = getBedVacatingDate(bd) || "18 Aug 2026";
-                const displayVacatingDate = vacatingDateRaw.includes("-") ? formatIsoToDisplayDate(vacatingDateRaw) : vacatingDateRaw;
-                const cleanDate = displayVacatingDate.replace(" 2026", "");
-                return {
-                  ...bd,
-                  vacatingDate: displayVacatingDate,
-                  vacatingNote: `Vacating ${cleanDate}`,
-                };
-              }),
-          }))
+          .map((rm) => {
+            const mappedBeds = rm.beds.map((bd) => {
+              const evalResult = evaluateBedAvailabilityForDate(
+                rm.roomNumber,
+                bd.bedCode,
+                bd,
+                checkInDate,
+                propertyId,
+                checkOutDate,
+                "Guest"
+              );
+
+              return {
+                ...bd,
+                availabilityEval: evalResult,
+                isAvailable: evalResult.isAvailable,
+                vacatingDate: evalResult.vacatingDate,
+                vacatingNote:
+                  evalResult.vacatingNote ||
+                  (evalResult.vacatingDate ? `Vacating ${evalResult.vacatingDate}` : undefined),
+              };
+            });
+
+            const filteredBeds = showOccupiedBeds
+              ? mappedBeds
+              : mappedBeds.filter((bd) => bd.isAvailable);
+
+            return {
+              ...rm,
+              beds: filteredBeds,
+            };
+          })
           .filter((rm) => rm.beds.length > 0),
       }))
       .filter((fl) => fl.rooms.length > 0);
-  }, [propertyStructure, desiredSharingFilter]);
+  }, [
+    propertyStructure,
+    desiredSharingFilter,
+    checkInDate,
+    checkOutDate,
+    propertyId,
+    showOccupiedBeds,
+    occupantsSyncTick,
+  ]);
 
   // Validation per step
   const handleStep1Next = (e: React.FormEvent) => {
@@ -875,19 +925,24 @@ export default function OnboardGuestPage({
                       <Bed className="w-5 h-5 text-purple-700" /> Select Bed for {fullName || "Guest"}
                     </h2>
                     <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                      Showing available 🟢 & vacating 🟧 beds across floor navigation (Occupied beds hidden)
+                      Showing beds available for Stay from <strong className="font-mono text-gray-800">{checkInDate}</strong> to <strong className="font-mono text-gray-800">{checkOutDate}</strong> ({showOccupiedBeds ? "Occupied/Booked beds shown as disabled" : "Occupied & booked beds hidden"})
                     </p>
                   </div>
 
-                  {selectedBed && (
-                    <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs shrink-0">
-                      ✓ Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-200 font-bold text-xs flex items-center gap-1.5 font-mono shadow-2xs">
+                      📅 Stay: {checkInDate} → {checkOutDate} ({stayDays}N)
                     </span>
-                  )}
+                    {selectedBed && (
+                      <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1.5 shadow-2xs">
+                        ✓ Selected: {selectedBed.floorName} Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* INTELLIGENT DESIRED ROOM SHARING FILTER (Defaults to 2 Sharing) */}
-                <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-200 space-y-2">
+                <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                       <Filter className="w-3.5 h-3.5 text-purple-700" /> Filter by Desired Room Sharing:
@@ -921,6 +976,26 @@ export default function OnboardGuestPage({
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Visibility Toggle for Occupied & Booked Beds */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-purple-200/60 text-xs">
+                    <label className="flex items-center gap-2 font-medium text-gray-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showOccupiedBeds}
+                        onChange={(e) => setShowOccupiedBeds(e.target.checked)}
+                        className="rounded border-gray-300 text-purple-700 focus:ring-purple-700"
+                      />
+                      <span>Show Occupied & Booked Beds (Disabled for visibility)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(1)}
+                      className="text-purple-700 hover:underline font-bold text-[11px]"
+                    >
+                      Change Dates ({checkInDate} → {checkOutDate})
+                    </button>
                   </div>
                 </div>
               </div>
@@ -973,10 +1048,28 @@ export default function OnboardGuestPage({
 
                             {/* Bed Slot Buttons (NO Tenant Names displayed for privacy!) */}
                             <div className="grid grid-cols-2 gap-2">
-                              {room.beds.map((bed) => {
-                                const isSelected =
-                                  selectedBed?.bedId === bed.id;
-                                const isVacating = bed.status === "Vacating" || bed.status === "Guest";
+                              {room.beds.map((bed: any) => {
+                                const evalResult: BedAvailabilityEvaluation = bed.availabilityEval;
+                                const isAvailable = evalResult ? evalResult.isAvailable : true;
+                                const isSelected = selectedBed?.bedId === bed.id;
+                                const isVacating = evalResult?.status === "VacatingSoon";
+
+                                if (!isAvailable) {
+                                  return (
+                                    <div
+                                      key={bed.id}
+                                      className="p-3 rounded-xl border text-center flex flex-col items-center justify-center gap-0.5 bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed min-h-[60px] opacity-75 select-none"
+                                      title={evalResult?.reason}
+                                    >
+                                      <span className="font-extrabold text-xs text-gray-500">
+                                        {bed.bedCode}
+                                      </span>
+                                      <span className="text-[9px] font-bold text-gray-400 truncate max-w-full">
+                                        {evalResult?.status === "Booked" ? "🔵 Booked" : "🔒 Occupied"}
+                                      </span>
+                                    </div>
+                                  );
+                                }
 
                                 return (
                                   <button
@@ -988,7 +1081,7 @@ export default function OnboardGuestPage({
                                         bedCode: bed.bedCode,
                                         roomNumber: room.roomNumber,
                                         floorName: floor.floorName,
-                                        vacatingDate: (bed as any).vacatingDate,
+                                        vacatingDate: bed.vacatingDate,
                                         isVacating,
                                       })
                                     }
@@ -1007,7 +1100,7 @@ export default function OnboardGuestPage({
                                     {/* Status & Date Badge ONLY — NO Tenant Names! */}
                                     <span className={`text-[10px] font-bold ${isSelected ? "text-white" : ""}`}>
                                       {isVacating
-                                        ? (bed as any).vacatingNote || `Vacating ${bed.vacatingDate || "18 Aug"}`
+                                        ? bed.vacatingNote || `Vacating ${bed.vacatingDate}`
                                         : "Available 🟢"}
                                     </span>
                                   </button>

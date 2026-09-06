@@ -638,6 +638,137 @@ export function getBedOccupantsTimeline(
   };
 }
 
+export interface BedAvailabilityEvaluation {
+  isAvailable: boolean;
+  status: "Available" | "Occupied" | "Booked" | "VacatingSoon" | "Conflict";
+  reason: string;
+  vacatingDate?: string;
+  vacatingNote?: string;
+  occupantName?: string;
+  activeOccupant?: Occupant;
+  conflictingBooking?: Occupant;
+}
+
+function parseToMidnightTimestamp(dStr?: string): number | null {
+  if (!dStr) return null;
+  const d = new Date(dStr);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * 9. Date-Aware Bed Availability Evaluator
+ * Evaluates whether a bed is available for move-in on a specific date (or date range for guests).
+ * Checks active residents (with/without vacating date) and upcoming future bookings.
+ */
+export function evaluateBedAvailabilityForDate(
+  roomNumber: string,
+  bedCode: string,
+  bed: BedSlotConfig,
+  targetJoiningDate: string,
+  propertyId?: string,
+  targetVacatingDate?: string,
+  stayType: "Tenant" | "Guest" = "Tenant"
+): BedAvailabilityEvaluation {
+  const timeline = getBedOccupantsTimeline(roomNumber, bedCode, bed, propertyId);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const targetStartTs = parseToMidnightTimestamp(targetJoiningDate) || now.getTime();
+  const targetEndTs = parseToMidnightTimestamp(targetVacatingDate);
+
+  // 1. Check Active / Current resident in the bed
+  if (timeline.activeOccupant) {
+    const occ = timeline.activeOccupant;
+    const vacDateTs = parseToMidnightTimestamp(occ.vacatingDate);
+
+    // If active resident has no vacating date -> Indefinite permanent stay -> NOT AVAILABLE
+    if (!vacDateTs) {
+      return {
+        isAvailable: false,
+        status: "Occupied",
+        reason: `Occupied by ${occ.name} (Active resident)`,
+        occupantName: occ.name,
+        activeOccupant: occ,
+      };
+    }
+
+    // If active resident has a vacating date, but target move-in is before they vacate
+    if (targetStartTs < vacDateTs) {
+      return {
+        isAvailable: false,
+        status: "Occupied",
+        reason: `Occupied by ${occ.name} until ${occ.vacatingDate}`,
+        occupantName: occ.name,
+        vacatingDate: occ.vacatingDate,
+        vacatingNote: `Vacating ${occ.vacatingDate}`,
+        activeOccupant: occ,
+      };
+    }
+  }
+
+  // 2. Check Upcoming Bookings (e.g. Tenant V)
+  if (timeline.futureBookings && timeline.futureBookings.length > 0) {
+    for (const booking of timeline.futureBookings) {
+      const bookStartTs = parseToMidnightTimestamp(booking.joiningDate);
+      const bookEndTs = parseToMidnightTimestamp(booking.vacatingDate);
+
+      if (stayType === "Tenant") {
+        // A regular monthly tenant is an indefinite stay.
+        // A bed that already has a future booking cannot accept another regular tenant!
+        return {
+          isAvailable: false,
+          status: "Booked",
+          reason: `Reserved for ${booking.name} (${booking.stayType === "Guest" ? "Guest" : "Tenant"}) starting ${booking.joiningDate}`,
+          occupantName: booking.name,
+          conflictingBooking: booking,
+        };
+      } else {
+        // Short-stay guest
+        if (bookStartTs) {
+          // If guest check-out is on or before booking check-in -> guest fits in the window!
+          if (targetEndTs && targetEndTs <= bookStartTs) {
+            continue;
+          }
+          // Or if booking has an end date and guest arrives after booking leaves -> OK!
+          if (bookEndTs && targetStartTs >= bookEndTs) {
+            continue;
+          }
+          // Otherwise there is a collision
+          return {
+            isAvailable: false,
+            status: "Conflict",
+            reason: `Reserved for ${booking.name} starting ${booking.joiningDate}`,
+            occupantName: booking.name,
+            conflictingBooking: booking,
+          };
+        }
+      }
+    }
+  }
+
+  // 3. If active resident is vacating on or before target date -> Available as "Vacating Soon"
+  if (timeline.activeOccupant && timeline.activeOccupant.vacatingDate) {
+    const occ = timeline.activeOccupant;
+    return {
+      isAvailable: true,
+      status: "VacatingSoon",
+      reason: `Available from ${occ.vacatingDate} (${occ.name} vacating)`,
+      vacatingDate: occ.vacatingDate,
+      vacatingNote: `Vacating ${occ.vacatingDate}`,
+      occupantName: occ.name,
+      activeOccupant: occ,
+    };
+  }
+
+  // 4. Clean available bed
+  return {
+    isAvailable: true,
+    status: "Available",
+    reason: "Available & ready for move-in",
+  };
+}
+
 export interface ResidentVerificationResponse {
   isValid: boolean;
   status: "VALID" | "BOOKED" | "PAST" | "NOT_FOUND";
