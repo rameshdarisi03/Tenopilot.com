@@ -187,7 +187,9 @@ export async function GET(req: NextRequest) {
           lastActive: data.lastActive || founderClient?.lastActiveDate || "Recently",
           hasStorageFootprints: propIds.length > 0,
           maxPropertiesAllowed: data.maxPropertiesAllowed ?? 1,
-          maxTenantsLimit: data.maxTenantsLimit ?? 50,
+          maxTenantsLimit:
+            data.maxTenantsLimit ??
+            (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 200 : 50),
           tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
         });
       }

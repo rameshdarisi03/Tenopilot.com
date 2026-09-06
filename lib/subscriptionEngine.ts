@@ -261,11 +261,48 @@ export function calculateStackedExpiry(currentExpiryIso?: string | null, duratio
 // ==========================================
 // 🏢 CAPACITY LIMITS & ADD-ON CONSTANTS (SSOT)
 // ==========================================
-export const DEFAULT_BASE_TENANT_LIMIT = 50;
+export const DEFAULT_TRIAL_TENANT_LIMIT = 50;
+export const DEFAULT_PRO_TENANT_LIMIT = 200;
+export const DEFAULT_BASE_TENANT_LIMIT = 200; // SSOT Pro default
 export const DEFAULT_ALLOWED_PROPERTIES = 1;
 export const TENANT_EXTENSION_PACK_SIZE = 25;
 export const MULTI_PROPERTY_MONTHLY_PRICE = 899;
 export const TENANT_EXTENSION_MONTHLY_PRICE = 399;
+
+export interface GlobalCapacityConfig {
+  proTenantLimit: number;
+  trialTenantLimit: number;
+  defaultAllowedProperties: number;
+  multiPropertyPrice: number;
+  tenantExtensionPrice: number;
+}
+
+export function getGlobalCapacityConfig(): GlobalCapacityConfig {
+  if (typeof window !== "undefined") {
+    try {
+      const cached = localStorage.getItem("tenopilot_global_capacity");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          proTenantLimit: Number(parsed.proTenantLimit) || DEFAULT_PRO_TENANT_LIMIT,
+          trialTenantLimit: Number(parsed.trialTenantLimit) || DEFAULT_TRIAL_TENANT_LIMIT,
+          defaultAllowedProperties: Number(parsed.defaultAllowedProperties) || DEFAULT_ALLOWED_PROPERTIES,
+          multiPropertyPrice: Number(parsed.multiPropertyPrice) || MULTI_PROPERTY_MONTHLY_PRICE,
+          tenantExtensionPrice: Number(parsed.tenantExtensionPrice) || TENANT_EXTENSION_MONTHLY_PRICE,
+        };
+      }
+    } catch (e) {
+      // fallback
+    }
+  }
+  return {
+    proTenantLimit: DEFAULT_PRO_TENANT_LIMIT,
+    trialTenantLimit: DEFAULT_TRIAL_TENANT_LIMIT,
+    defaultAllowedProperties: DEFAULT_ALLOWED_PROPERTIES,
+    multiPropertyPrice: MULTI_PROPERTY_MONTHLY_PRICE,
+    tenantExtensionPrice: TENANT_EXTENSION_MONTHLY_PRICE,
+  };
+}
 
 export interface TenantCapacityStatus {
   activeCount: number;
@@ -279,15 +316,33 @@ export interface TenantCapacityStatus {
 export function getMaxAllowedProperties(userProfile?: any): number {
   if (!userProfile) return DEFAULT_ALLOWED_PROPERTIES;
   if (userProfile.email?.toLowerCase() === "isharapandey01@gmail.com") return 999;
-  return Number(userProfile.maxPropertiesAllowed) || DEFAULT_ALLOWED_PROPERTIES;
+  const globalConfig = getGlobalCapacityConfig();
+  return Number(userProfile.maxPropertiesAllowed) || globalConfig.defaultAllowedProperties;
 }
 
 export function getEffectiveTenantLimit(userProfile?: any): number {
-  if (!userProfile) return DEFAULT_BASE_TENANT_LIMIT;
+  if (!userProfile) return DEFAULT_TRIAL_TENANT_LIMIT;
   if (userProfile.email?.toLowerCase() === "isharapandey01@gmail.com") return 9999;
-  const baseLimit = Number(userProfile.maxTenantsLimit) || DEFAULT_BASE_TENANT_LIMIT;
+
+  const globalConfig = getGlobalCapacityConfig();
   const packs = Number(userProfile.tenantExtensionPacks) || 0;
-  return baseLimit + (packs * TENANT_EXTENSION_PACK_SIZE);
+
+  // 1. If customer has an explicit individual limit customized by founder in Founder Portal
+  if (userProfile.maxTenantsLimit !== undefined && userProfile.maxTenantsLimit !== null && Number(userProfile.maxTenantsLimit) > 0) {
+    const baseLimit = Number(userProfile.maxTenantsLimit);
+    return baseLimit + (packs * TENANT_EXTENSION_PACK_SIZE);
+  }
+
+  // 2. Otherwise differentiate between Pro (200) and Free Trial (50)
+  const isPro =
+    userProfile.subscriptionStatus === "ACTIVE_PRO" ||
+    userProfile.subscriptionStatus === "PRO_PRE_EXPIRY" ||
+    userProfile.plan === "PRO_MONTHLY" ||
+    userProfile.plan === "PRO_ANNUAL" ||
+    userProfile.subscriptionPlan === "pro";
+
+  const baseDefault = isPro ? globalConfig.proTenantLimit : globalConfig.trialTenantLimit;
+  return baseDefault + (packs * TENANT_EXTENSION_PACK_SIZE);
 }
 
 export function evaluateTenantCapacity(activeCount: number, limit: number): TenantCapacityStatus {

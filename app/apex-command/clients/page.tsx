@@ -67,9 +67,17 @@ export default function ApexCommandClientsPage() {
   const [selectedCustomer360, setSelectedCustomer360] = useState<ScannedAccountRecord | null>(null);
   const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "ACTIONS">("OVERVIEW");
 
+  // Global Platform Master Capacity State (SSOT)
+  const [globalProLimit, setGlobalProLimit] = useState<number>(200);
+  const [globalTrialLimit, setGlobalTrialLimit] = useState<number>(50);
+  const [globalAllowedProps, setGlobalAllowedProps] = useState<number>(1);
+  const [globalMultiPropPrice, setGlobalMultiPropPrice] = useState<number>(899);
+  const [globalTenantPackPrice, setGlobalTenantPackPrice] = useState<number>(399);
+  const [isSavingGlobalCapacity, setIsSavingGlobalCapacity] = useState<boolean>(false);
+
   // Capacity Form State in 360 Modal
   const [capacityMaxProps, setCapacityMaxProps] = useState<number>(1);
-  const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(50);
+  const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(200);
   const [capacityExtensionPacks, setCapacityExtensionPacks] = useState<number>(0);
   const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
@@ -88,6 +96,59 @@ export default function ApexCommandClientsPage() {
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const fetchGlobalCapacity = async () => {
+    try {
+      const res = await fetch("/api/apex/global-capacity");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.config) {
+          setGlobalProLimit(Number(data.config.proTenantLimit) || 200);
+          setGlobalTrialLimit(Number(data.config.trialTenantLimit) || 50);
+          setGlobalAllowedProps(Number(data.config.defaultAllowedProperties) || 1);
+          setGlobalMultiPropPrice(Number(data.config.multiPropertyPrice) || 899);
+          setGlobalTenantPackPrice(Number(data.config.tenantExtensionPrice) || 399);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("tenopilot_global_capacity", JSON.stringify(data.config));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Notice loading global capacity:", e);
+    }
+  };
+
+  const handleSaveGlobalCapacity = async () => {
+    setIsSavingGlobalCapacity(true);
+    try {
+      const res = await fetch("/api/apex/global-capacity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proTenantLimit: Number(globalProLimit),
+          trialTenantLimit: Number(globalTrialLimit),
+          defaultAllowedProperties: Number(globalAllowedProps),
+          multiPropertyPrice: Number(globalMultiPropPrice),
+          tenantExtensionPrice: Number(globalTenantPackPrice),
+          updatedBy: "Founder Apex Command",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`✓ Global limits saved: Pro = ${globalProLimit} tenants, Trial = ${globalTrialLimit} tenants!`);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("tenopilot_global_capacity", JSON.stringify(data.config));
+        }
+        await fetchScannedAccounts();
+      } else {
+        triggerToast(`⚠️ Failed to save global limits: ${data.message}`);
+      }
+    } catch (e: any) {
+      triggerToast(`⚠️ Error saving global limits: ${e.message}`);
+    } finally {
+      setIsSavingGlobalCapacity(false);
+    }
   };
 
   const fetchScannedAccounts = async () => {
@@ -125,6 +186,7 @@ export default function ApexCommandClientsPage() {
   };
 
   useEffect(() => {
+    fetchGlobalCapacity();
     fetchScannedAccounts();
     fetchPendingRequests();
   }, []);
@@ -132,11 +194,12 @@ export default function ApexCommandClientsPage() {
   // Sync capacity limits whenever a customer is selected in Customer 360 modal
   useEffect(() => {
     if (selectedCustomer360) {
-      setCapacityMaxProps(selectedCustomer360.maxPropertiesAllowed ?? 1);
-      setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? 50);
+      const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
+      setCapacityMaxProps(selectedCustomer360.maxPropertiesAllowed ?? globalAllowedProps);
+      setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
     }
-  }, [selectedCustomer360]);
+  }, [selectedCustomer360, globalProLimit, globalTrialLimit, globalAllowedProps]);
 
   // Handle Save Capacity Limits in Founder 360 Modal
   const handleSaveCapacityLimits = async () => {
@@ -715,6 +778,182 @@ export default function ApexCommandClientsPage() {
               </div>
             </div>
           )}
+
+          {/* ⚡ GLOBAL PLATFORM CAPACITY & PLAN DEFAULTS (MASTER CONTROL) */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-[#161b22] border-2 border-blue-500/30 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-white">Global Platform Capacity Limits</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-mono font-black">
+                      MASTER CONTROL
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Controls default active tenant thresholds and building limits across all PG accounts. Individual client overrides take precedence.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isSavingGlobalCapacity}
+                onClick={handleSaveGlobalCapacity}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {isSavingGlobalCapacity ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving Defaults...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Save Global Defaults</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Matrix Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+              {/* Pro Plan Default Limit (200) */}
+              <div className="p-4 rounded-2xl bg-[#0d1117] border border-blue-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">💎 PRO PLAN DEFAULT</span>
+                  <span className="text-[9px] px-1.5 py-0.2 bg-blue-500/10 text-blue-300 rounded font-mono">Active Pro</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGlobalProLimit((v) => Math.max(10, v - 25))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="10"
+                    step="10"
+                    value={globalProLimit}
+                    onChange={(e) => setGlobalProLimit(Math.max(1, Number(e.target.value)))}
+                    className="flex-1 py-1 px-2 text-center rounded-lg bg-black/40 border border-white/15 text-white font-mono font-bold text-sm focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setGlobalProLimit((v) => v + 25)}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500">Base active tenants for all paid Pro subscribers.</p>
+              </div>
+
+              {/* Free Trial Default Limit (50) */}
+              <div className="p-4 rounded-2xl bg-[#0d1117] border border-amber-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">⏳ FREE TRIAL DEFAULT</span>
+                  <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 rounded font-mono">10-Day Trial</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGlobalTrialLimit((v) => Math.max(5, v - 10))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="5"
+                    step="5"
+                    value={globalTrialLimit}
+                    onChange={(e) => setGlobalTrialLimit(Math.max(1, Number(e.target.value)))}
+                    className="flex-1 py-1 px-2 text-center rounded-lg bg-black/40 border border-white/15 text-white font-mono font-bold text-sm focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setGlobalTrialLimit((v) => v + 10)}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500">Base active tenants for free trial accounts.</p>
+              </div>
+
+              {/* Base Allowed Buildings (1) */}
+              <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">🏢 ALLOWED BUILDINGS</span>
+                  <span className="text-[9px] px-1.5 py-0.2 bg-white/10 text-gray-300 rounded font-mono">Per Account</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGlobalAllowedProps((v) => Math.max(1, v - 1))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={globalAllowedProps}
+                    onChange={(e) => setGlobalAllowedProps(Math.max(1, Number(e.target.value)))}
+                    className="flex-1 py-1 px-2 text-center rounded-lg bg-black/40 border border-white/15 text-white font-mono font-bold text-sm focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setGlobalAllowedProps((v) => v + 1)}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500">Properties allowed before Multi-Property add-on.</p>
+              </div>
+
+              {/* Add-on Pricing (₹899 & ₹399) */}
+              <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">⚡ ADD-ON PRICING</span>
+                  <span className="text-[9px] px-1.5 py-0.2 bg-purple-500/10 text-purple-300 rounded font-mono">Monthly</span>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 text-[11px]">+1 Building:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-500 font-mono">₹</span>
+                      <input
+                        type="number"
+                        value={globalMultiPropPrice}
+                        onChange={(e) => setGlobalMultiPropPrice(Number(e.target.value))}
+                        className="w-16 py-0.5 px-1.5 rounded bg-black/40 border border-white/15 text-white font-mono font-bold text-xs text-right"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 text-[11px]">+25 Tenants:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-500 font-mono">₹</span>
+                      <input
+                        type="number"
+                        value={globalTenantPackPrice}
+                        onChange={(e) => setGlobalTenantPackPrice(Number(e.target.value))}
+                        className="w-16 py-0.5 px-1.5 rounded bg-black/40 border border-white/15 text-white font-mono font-bold text-xs text-right"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Search & Filter Nav */}
           <div className="space-y-4">
@@ -1429,18 +1668,41 @@ export default function ApexCommandClientsPage() {
                   {/* 2. Base Tenant Limit */}
                   <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
                     <div>
-                      <p className="font-bold text-white">Base Tenant Limit</p>
-                      <p className="text-[11px] text-gray-400">Default base threshold is 50 active tenants before extension packs.</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-white">Base Tenant Limit</p>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-gray-300 font-mono">
+                          {selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY"
+                            ? `Pro Default: ${globalProLimit}`
+                            : `Trial Default: ${globalTrialLimit}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        Default baseline: {globalProLimit} for Pro accounts, {globalTrialLimit} for Free Trials. You can customize any number here.
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCapacityBaseTenants((p) => Math.max(1, p - 25))}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        -
+                      </button>
                       <input
                         type="number"
                         min="1"
-                        step="5"
+                        step="10"
                         value={capacityBaseTenants}
                         onChange={(e) => setCapacityBaseTenants(Math.max(1, Number(e.target.value)))}
                         className="w-20 px-2 py-1.5 rounded-lg bg-black/40 border border-white/15 text-center font-mono font-bold text-white text-xs focus:ring-1 focus:ring-blue-500"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setCapacityBaseTenants((p) => p + 25)}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
 
@@ -1484,7 +1746,7 @@ export default function ApexCommandClientsPage() {
                     className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+1 Building Slot (Multi-Property)</span>
+                    <span>+1 Building Slot</span>
                   </button>
                   <button
                     type="button"
@@ -1492,7 +1754,21 @@ export default function ApexCommandClientsPage() {
                     className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+25 Tenants (+1 Extension Pack)</span>
+                    <span>+25 Tenants (Pack)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCapacityBaseTenants(200)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Set 200 (Pro)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCapacityBaseTenants(50)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Set 50 (Trial)</span>
                   </button>
                   <button
                     type="button"

@@ -58,6 +58,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    // Background sync of platform global capacity settings
+    if (typeof window !== "undefined") {
+      fetch("/api/apex/global-capacity")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && d.config) {
+            localStorage.setItem("tenopilot_global_capacity", JSON.stringify(d.config));
+          }
+        })
+        .catch(() => {});
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
