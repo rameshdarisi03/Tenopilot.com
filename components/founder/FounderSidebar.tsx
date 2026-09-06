@@ -32,6 +32,12 @@ export function FounderSidebar({ mobileOpen, onMobileClose }: FounderSidebarProp
       badgeColor: "bg-purple-500/20 text-purple-300 border border-purple-500/30",
     },
     {
+      label: "Master Controls",
+      href: "/apex-command/controls",
+      badge: "SSOT",
+      badgeColor: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30",
+    },
+    {
       label: "Broadcast",
       href: "/apex-command/broadcast",
       badge: "ACTIVE",

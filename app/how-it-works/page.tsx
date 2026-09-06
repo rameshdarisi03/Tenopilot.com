@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Building, Settings, LayoutGrid, UserPlus, TrendingUp } from "lucide-react";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { DynamicTrialDaysSpan } from "@/components/pricing/DynamicPricingHero";
 
 export const metadata: Metadata = {
   title: "How It Works — 5-Step Operational Guide | TenoPilot.com",
@@ -127,7 +128,7 @@ export default function HowItWorksPage() {
         <div className="rounded-3xl bg-[#964407] text-white p-10 md:p-14 text-center relative overflow-hidden">
           <h2 className="font-serif text-3xl sm:text-4xl font-bold mb-4">Ready to Pilot Your PG?</h2>
           <p className="text-white/90 max-w-xl mx-auto mb-8 text-sm sm:text-base">
-            Get full access with our 10-day free trial. Setup your first property today.
+            Get full access with our <DynamicTrialDaysSpan />-day free trial. Setup your first property today.
           </p>
           <Link
             href="/signup"

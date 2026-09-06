@@ -34,6 +34,7 @@ import {
   syncUserSecurityPinToCloud,
   checkAccountRegistrationStatus,
 } from "@/lib/authService";
+import { getStoredPlatformConfig } from "@/lib/platformConfig";
 import { staffStore, StaffMember } from "@/lib/staffStore";
 import { founderStore } from "@/constants/founderStore";
 import { portfolioStore } from "@/constants/portfolioStore";
@@ -164,7 +165,7 @@ export default function LoginPage() {
                     setError(
                       regStatus.isPurged
                         ? "This account has been removed or purged. Please click Sign Up below to create a new property."
-                        : "No active TenoPilot account found for this email. Please click Sign Up below to start your 10-day free trial."
+                        : `No active TenoPilot account found for this email. Please click Sign Up below to start your ${getStoredPlatformConfig().trialDays}-day free trial.`
                     );
                     return;
                   }

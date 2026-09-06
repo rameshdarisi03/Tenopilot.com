@@ -27,6 +27,7 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { provisionNewPropertyWorkspace } from "@/lib/accountInitializer";
 import { syncUserSecurityPinToCloud, sanitizeTitleCase } from "@/lib/authService";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { getStoredPlatformConfig } from "@/lib/platformConfig";
 
 function WelcomeOnboardingContent() {
   const router = useRouter();
@@ -151,7 +152,9 @@ function WelcomeOnboardingContent() {
 
       const nowIso = new Date().toISOString();
       const finalCreatedAt = existingCreatedAt || nowIso;
-      const finalPlanExpiresAt = existingPlanExpiresAt || new Date(new Date(finalCreatedAt).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString();
+      const platformCfg = getStoredPlatformConfig();
+      const activeTrialDays = Number(platformCfg.trialDays) || 10;
+      const finalPlanExpiresAt = existingPlanExpiresAt || new Date(new Date(finalCreatedAt).getTime() + activeTrialDays * 24 * 60 * 60 * 1000).toISOString();
 
       await setDoc(
         userDocRef,

@@ -40,6 +40,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { getMaxAllowedProperties, MULTI_PROPERTY_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
+import { usePlatformConfig } from "@/lib/platformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
@@ -47,6 +48,7 @@ import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
 export default function HomeWorkspacePage() {
   const router = useRouter();
   const { profile, logout } = useAuth();
+  const { config: platformConfig } = usePlatformConfig();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [properties, setProperties] = useState<PortfolioProperty[]>(() => {
     if (typeof window !== "undefined") {
@@ -848,19 +850,19 @@ export default function HomeWorkspacePage() {
                       Direct Founder UPI Transfer
                     </span>
                     <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded-md border border-[#d7c2b9]">
-                      ₹{MULTI_PROPERTY_MONTHLY_PRICE}
+                      ₹{platformConfig.multiPropertyPrice || MULTI_PROPERTY_MONTHLY_PRICE}
                     </span>
                   </div>
 
                   <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
-                      <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
+                      <p className="font-mono font-bold text-xs text-[#201a17]">{platformConfig.founderUpiVpa}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText("rameshdarisi01@ybl");
+                        navigator.clipboard.writeText(platformConfig.founderUpiVpa);
                         triggerToast("UPI ID copied to clipboard!");
                       }}
                       className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
@@ -920,11 +922,11 @@ export default function HomeWorkspacePage() {
                       Direct Founder WhatsApp
                     </span>
                     <p className="font-mono font-bold text-sm text-emerald-950 mt-0.5">
-                      +91 92066 51295
+                      +91 {platformConfig.founderWhatsapp.slice(0, 5)} {platformConfig.founderWhatsapp.slice(5)}
                     </p>
                   </div>
                   <a
-                    href="https://wa.me/919206651295?text=Hi%20Ramesh%2C%20I%20want%20to%20unlock%20a%20Multi-Property%20slot%20for%20my%20PG%20account."
+                    href={`https://wa.me/91${platformConfig.founderWhatsapp}?text=Hi%20Ramesh%2C%20I%20want%20to%20unlock%20a%20Multi-Property%20slot%20for%20my%20PG%20account.`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"

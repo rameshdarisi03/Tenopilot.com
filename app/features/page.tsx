@@ -15,6 +15,7 @@ import {
   Building2,
 } from "lucide-react";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { DynamicTrialDaysSpan } from "@/components/pricing/DynamicPricingHero";
 
 export const metadata: Metadata = {
   title: "PG & Hostel Management Features | TenoPilot.com",
@@ -258,7 +259,7 @@ export default function FeaturesPage() {
         <div className="rounded-3xl bg-[#964407] text-white p-10 md:p-14 text-center relative overflow-hidden">
           <h2 className="font-serif text-3xl sm:text-4xl font-bold mb-4">Experience TenoPilot on Your Properties</h2>
           <p className="text-white/90 max-w-xl mx-auto mb-8 text-sm sm:text-base">
-            Start with our 10-day free trial. Setup your property in under 30 minutes.
+            Start with our <DynamicTrialDaysSpan />-day free trial. Setup your property in under 30 minutes.
           </p>
           <Link
             href="/signup"

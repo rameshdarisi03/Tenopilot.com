@@ -20,6 +20,7 @@ import {
   getEffectiveTenantLimit,
   evaluateTenantCapacity,
 } from "@/lib/subscriptionEngine";
+import { usePlatformConfig } from "@/lib/platformConfig";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -78,6 +79,7 @@ export default function TenantsDirectoryPage({
 
   const { profile } = useAuth();
   const sub = evaluateSubscription(profile);
+  const { config: platformConfig } = usePlatformConfig();
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -2655,10 +2657,10 @@ Scroll vertically to browse all residents without pagination limits
               </div>
               <div className="space-y-2">
                 <h3 className="text-xl font-black text-gray-900 tracking-tight">
-                  10-Day Free Trial Ended
+                  {platformConfig.trialDays}-Day Free Trial Ended
                 </h3>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Your 10-day free trial has completed. To onboard new tenants, add guests, or import data via FastTrack AI, upgrade to the <strong>TenoPilot Pro Plan (₹999/mo)</strong>.
+                  Your {platformConfig.trialDays}-day free trial has completed. To onboard new tenants, add guests, or import data via FastTrack AI, upgrade to the <strong>TenoPilot Pro Plan (₹{platformConfig.proMonthlyPrice.toLocaleString("en-IN")}/mo)</strong>.
                 </p>
                 <p className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 py-1.5 px-3 rounded-lg inline-block border border-emerald-200">
                   ✓ All your existing {occupantsList.length} tenants and ledgers remain safely preserved.

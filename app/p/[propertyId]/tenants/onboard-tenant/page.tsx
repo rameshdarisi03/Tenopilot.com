@@ -71,6 +71,7 @@ import {
   TENANT_EXTENSION_MONTHLY_PRICE,
   TENANT_EXTENSION_PACK_SIZE,
 } from "@/lib/subscriptionEngine";
+import { usePlatformConfig } from "@/lib/platformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 export default function OnboardTenantPage({
@@ -84,6 +85,8 @@ export default function OnboardTenantPage({
   const searchParams = useSearchParams();
   const urlRoom = searchParams.get("room");
   const urlBed = searchParams.get("bed");
+  const { config: platformConfig } = usePlatformConfig();
+  const packPrice = platformConfig.tenantPackPrice || TENANT_EXTENSION_MONTHLY_PRICE || 75;
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -223,7 +226,7 @@ export default function OnboardTenantPage({
           customerPhone: profile?.phone || "",
           propertyName: propertyId,
           plan: "TENANT_EXTENSION_PACK_25",
-          amount: TENANT_EXTENSION_MONTHLY_PRICE,
+          amount: packPrice,
           paymentMode: "UPI",
           screenshotData: extensionScreenshot,
           notes: `Tenant Extension Pack Request (+25 Tenants for ${propertyId})`,
@@ -663,7 +666,7 @@ export default function OnboardTenantPage({
                     Tenant Capacity Limit Reached ({activeOccupantsCount} / {effectiveTenantLimit})
                   </h4>
                   <p className="text-xs text-red-800/90 leading-relaxed mt-0.5">
-                    Your plan allows up to {effectiveTenantLimit} active tenants. To onboard this new resident, unlock a Tenant Extension Pack (+25 Tenants @ ₹{TENANT_EXTENSION_MONTHLY_PRICE}/month).
+                    Your plan allows up to {effectiveTenantLimit} active tenants. To onboard this new resident, unlock a Tenant Extension Pack (+25 Tenants @ ₹{packPrice}/month).
                   </p>
                 </div>
               </div>
@@ -679,7 +682,7 @@ export default function OnboardTenantPage({
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold text-xs shadow-md shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Unlock +25 Tenants (₹{TENANT_EXTENSION_MONTHLY_PRICE}/mo)</span>
+                <span>Unlock +25 Tenants (₹{packPrice}/mo)</span>
               </button>
             </div>
           ) : capacityStatus.isNearCapacity ? (
@@ -1704,7 +1707,7 @@ export default function OnboardTenantPage({
                 </div>
                 <div className="text-right">
                   <span className="text-base font-extrabold text-purple-700">
-                    ₹{TENANT_EXTENSION_MONTHLY_PRICE}
+                    ₹{packPrice}
                   </span>
                   <span className="text-[10px] text-[#8a7f74] block">/mo (+25 tenants)</span>
                 </div>
@@ -1757,19 +1760,19 @@ export default function OnboardTenantPage({
                         Direct Founder UPI Transfer
                       </span>
                       <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded-md border border-[#d7c2b9]">
-                        ₹{TENANT_EXTENSION_MONTHLY_PRICE}
+                        ₹{packPrice}
                       </span>
                     </div>
 
                     <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
-                        <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
+                        <p className="font-mono font-bold text-xs text-[#201a17]">{platformConfig.founderUpiVpa}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard.writeText("rameshdarisi01@ybl");
+                          navigator.clipboard.writeText(platformConfig.founderUpiVpa);
                           triggerToast("UPI ID copied to clipboard!");
                         }}
                         className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
@@ -1829,11 +1832,11 @@ export default function OnboardTenantPage({
                         Direct Founder WhatsApp
                       </span>
                       <p className="font-mono font-bold text-sm text-emerald-950 mt-0.5">
-                        +91 92066 51295
+                        +91 {platformConfig.founderWhatsapp.slice(0, 5)} {platformConfig.founderWhatsapp.slice(5)}
                       </p>
                     </div>
                     <a
-                      href={`https://wa.me/919206651295?text=${encodeURIComponent(
+                      href={`https://wa.me/91${platformConfig.founderWhatsapp}?text=${encodeURIComponent(
                         `Hi Ramesh, I need to unlock a Tenant Extension Pack (+25 Tenants) for ${propertyId}.`
                       )}`}
                       target="_blank"

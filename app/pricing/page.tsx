@@ -3,15 +3,18 @@ import Link from "next/link";
 import { Check, ArrowRight, HelpCircle, ShieldCheck, Sparkles, Building2 } from "lucide-react";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 
+import { DynamicPricingSection } from "@/components/pricing/DynamicPricingSection";
+import { DynamicPricingSubtitle, DynamicPricingBottomCta } from "@/components/pricing/DynamicPricingHero";
+
 export const metadata: Metadata = {
-  title: "Pricing Plans & 10-Day Free Trial | TenoPilot.com",
+  title: "Pricing Plans & Free Trial | TenoPilot.com",
   description:
-    "Explore transparent pricing plans for PG, Hostel & Co-Living management. Starter at ₹999/mo, Professional at ₹2,499/mo. 100% free 10-day trial with full access.",
+    "Explore transparent pricing plans for PG, Hostel & Co-Living management. 100% free trial with full access. Date-aware allocation, FastTrack AI, and automated partner settlement.",
   alternates: {
     canonical: "https://www.tenopilot.com/pricing",
   },
   openGraph: {
-    title: "TenoPilot.com Pricing — Plans from ₹999/mo for PGs & Hostels",
+    title: "TenoPilot.com Pricing — Plans for PGs & Hostels",
     description:
       "Simple, transparent pricing. Date-aware bed allocation, automated rent collection, and partner settlement engine.",
     url: "https://www.tenopilot.com/pricing",
@@ -20,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function PricingPage() {
   const comparisonRows = [
-    { feature: "Bed Capacity", starter: "Up to 25 Beds", pro: "Up to 100 Beds", enterprise: "Unlimited" },
+    { feature: "Bed Capacity", starter: "Up to 50 Beds", pro: "Up to 300 Beds", enterprise: "Unlimited" },
     { feature: "Date-Aware Room Allocation", starter: true, pro: true, enterprise: true },
     { feature: "WhatsApp Digital Invoicing & Receipts", starter: true, pro: true, enterprise: true },
     { feature: "Unified Tenant & Guest KYC Directory", starter: true, pro: true, enterprise: true },
@@ -68,114 +71,13 @@ export default function PricingPage() {
         <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold text-[#201a17] tracking-tight">
           Invest in Clarity. Scale with Confidence.
         </h1>
-        <p className="text-base sm:text-lg text-[#554339] max-w-2xl mx-auto mt-4 leading-relaxed">
-          Every plan includes a 10-Day Full Access Free Trial. No hidden fees. Read-only mode preserves your financial data if your subscription ever pauses.
-        </p>
+        <DynamicPricingSubtitle />
       </header>
 
       {/* Pricing Cards Grid */}
       <main className="max-w-[1240px] mx-auto px-6 pb-24 w-full">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-24">
-          {/* Starter */}
-          <div className="p-8 rounded-3xl bg-white border border-[#d7c2b9] flex flex-col shadow-xs hover:shadow-md transition-all">
-            <div className="mb-8">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#554339]">Starter Plan</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-4xl font-serif font-bold text-[#201a17]">₹999</span>
-                <span className="text-sm text-[#554339] font-medium">/month</span>
-              </div>
-              <p className="text-xs text-[#554339] mt-3">Ideal for boutique PGs & small guest homes up to 25 beds.</p>
-            </div>
-            <ul className="space-y-4 mb-8 flex-1 text-sm font-medium text-[#201a17]">
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Date-Aware Room Allocation
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Digital WhatsApp Rent Receipts
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Unified Tenant & Guest Directory
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Offline Data Synchronization
-              </li>
-            </ul>
-            <Link
-              href="/signup"
-              className="w-full text-center py-3.5 rounded-xl border-2 border-[#964407] text-[#964407] font-bold text-sm hover:bg-[#964407] hover:text-white transition-all"
-            >
-              Start 10-Day Free Trial
-            </Link>
-          </div>
-
-          {/* Professional (Featured) */}
-          <div className="p-8 rounded-3xl bg-white border-2 border-[#964407] shadow-xl relative flex flex-col scale-105 z-10">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#964407] text-white text-[10px] font-bold px-4 py-1 rounded-full tracking-widest uppercase shadow-sm">
-              MOST POPULAR
-            </div>
-            <div className="mb-8">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#554339]">Professional Plan</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-4xl font-serif font-bold text-[#201a17]">₹2,499</span>
-                <span className="text-sm text-[#554339] font-medium">/month</span>
-              </div>
-              <p className="text-xs text-[#554339] mt-3">Engineered for scaling PGs, hostels, and multi-partner operations up to 100 beds.</p>
-            </div>
-            <ul className="space-y-4 mb-8 flex-1 text-sm font-medium text-[#201a17]">
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Partner Profit Settlement Engine
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> 24/7 QR Complaints & Work Orders
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Automated Daily Guest Checkouts
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Multi-Property Portfolio Dashboard
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Staff RBAC Permission Controls
-              </li>
-            </ul>
-            <Link
-              href="/signup"
-              className="w-full text-center py-3.5 rounded-xl bg-[#964407] text-white font-bold text-sm shadow-md hover:bg-[#c2652a] transition-all"
-            >
-              Start 10-Day Free Trial
-            </Link>
-          </div>
-
-          {/* Enterprise */}
-          <div className="p-8 rounded-3xl bg-white border border-[#d7c2b9] flex flex-col shadow-xs hover:shadow-md transition-all">
-            <div className="mb-8">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#554339]">Enterprise Plan</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-4xl font-serif font-bold text-[#201a17]">Custom</span>
-              </div>
-              <p className="text-xs text-[#554339] mt-3">For large co-living brands, hostel chains, and campus portfolios with 100+ beds.</p>
-            </div>
-            <ul className="space-y-4 mb-8 flex-1 text-sm font-medium text-[#201a17]">
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Unlimited Properties & Beds
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Custom Subdomain & Branding
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Dedicated Account Specialist
-              </li>
-              <li className="flex items-center gap-3">
-                <Check className="w-4 h-4 text-[#964407]" /> Custom ERP & Accounting Integrations
-              </li>
-            </ul>
-            <Link
-              href="/signup"
-              className="w-full text-center py-3.5 rounded-xl border-2 border-[#964407] text-[#964407] font-bold text-sm hover:bg-[#964407] hover:text-white transition-all"
-            >
-              Contact Enterprise Sales
-            </Link>
-          </div>
+        <div className="mb-24">
+          <DynamicPricingSection variant="pricing" />
         </div>
 
         {/* Feature Comparison Matrix */}
@@ -240,18 +142,7 @@ export default function PricingPage() {
         </section>
 
         {/* Final CTA */}
-        <div className="rounded-3xl bg-[#964407] text-white p-10 md:p-14 text-center relative overflow-hidden">
-          <h2 className="font-serif text-3xl sm:text-4xl font-bold mb-4">Start Your 10-Day Free Trial Today</h2>
-          <p className="text-white/90 max-w-xl mx-auto mb-8 text-sm sm:text-base">
-            Join hundreds of PG & Hostel owners managing properties with surgical accuracy.
-          </p>
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-white text-[#964407] font-bold text-sm shadow-xl hover:bg-[#fff8f6] hover:scale-105 transition-all"
-          >
-            Create Your Free Account <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+        <DynamicPricingBottomCta />
       </main>
 
       {/* Footer */}

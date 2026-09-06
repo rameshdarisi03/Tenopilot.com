@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { usePlatformConfig } from "@/lib/platformConfig";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
@@ -78,6 +80,8 @@ export default function PropertyOverviewPage({
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { profile } = useAuth();
+  const sub = evaluateSubscription(profile);
+  const { config: platformConfig } = usePlatformConfig();
   const userName =
     profile?.displayName ||
     (typeof window !== "undefined"
@@ -261,7 +265,7 @@ export default function PropertyOverviewPage({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full border border-orange-200">
-                  10-DAY FREE TRIAL ACTIVE
+                  {sub.isPro ? "PRO OPERATING SYSTEM" : sub.inGracePeriod ? "GRACE PERIOD ACTIVE" : `${platformConfig.trialDays}-DAY FREE TRIAL ACTIVE`}
                 </span>
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

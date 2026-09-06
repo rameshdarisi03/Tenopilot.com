@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Hotel, School, Building, Landmark, ArrowRight, CheckCircle2 } from "lucide-react";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
+import { DynamicTrialDaysSpan } from "@/components/pricing/DynamicPricingHero";
 
 export const metadata: Metadata = {
   title: "Industry Verticals — PG, Hostel & Co-Living Solutions | TenoPilot.com",
@@ -143,9 +144,11 @@ export default function VerticalsPage() {
                 </div>
                 <Link
                   href="/signup"
-                  className="w-full text-center py-3 rounded-xl border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#fff8f6] text-[#201a17] font-bold text-xs transition-all"
+                  className="w-full text-center py-3 rounded-xl border border-[#d7c2b9] hover:border-[#964407] hover:bg-[#fff8f6] text-[#201a17] font-bold text-xs transition-all flex items-center justify-center gap-1.5"
                 >
-                  Start 10-Day Free Trial
+                  <span>Start</span>
+                  <DynamicTrialDaysSpan />
+                  <span>-Day Free Trial</span>
                 </Link>
               </div>
             );

@@ -23,6 +23,8 @@ import {
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { LandingPageClient } from "@/components/LandingPageClient";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
+import { DynamicPricingSection } from "@/components/pricing/DynamicPricingSection";
+import { DynamicLandingPricingSubtitle } from "@/components/pricing/DynamicPricingHero";
 
 export default function Home() {
   const faqData = [
@@ -650,110 +652,10 @@ export default function Home() {
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-[#201a17]">
               Simple Plans for Every Portfolio
             </h2>
-            <p className="text-[#554339] text-base max-w-xl mx-auto mt-3">
-              10-Day Full Access Trial included. Read-only mode preserves your reports if subscription pauses.
-            </p>
+            <DynamicLandingPricingSubtitle />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Starter */}
-            <div className="p-8 rounded-3xl bg-[#fff8f6] border border-[#d7c2b9] flex flex-col hover:shadow-lg transition-all">
-              <div className="mb-8">
-                <span className="text-xs font-bold uppercase tracking-widest text-[#554339]">
-                  Starter
-                </span>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl font-serif font-bold text-[#201a17]">₹999</span>
-                  <span className="text-sm text-[#554339] font-medium">/month</span>
-                </div>
-                <p className="text-xs text-[#554339] mt-3">Up to 25 beds per property.</p>
-              </div>
-              <ul className="space-y-4 mb-8 flex-1 text-sm font-medium text-[#201a17]">
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Date-Aware Room Allocation
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Digital Rent Receipts (WhatsApp)
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Unified Tenant & Guest Directory
-                </li>
-              </ul>
-              <Link
-                href="/home"
-                className="w-full text-center py-3.5 rounded-xl border-2 border-[#964407] text-[#964407] font-bold text-sm hover:bg-[#964407] hover:text-white transition-all"
-              >
-                Start 10-Day Free Trial
-              </Link>
-            </div>
-
-            {/* Professional (Featured) */}
-            <div className="p-8 rounded-3xl bg-white border-2 border-[#964407] shadow-xl relative flex flex-col scale-105 z-10">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#964407] text-white text-[10px] font-bold px-4 py-1 rounded-full tracking-widest uppercase">
-                MOST POPULAR
-              </div>
-              <div className="mb-8">
-                <span className="text-xs font-bold uppercase tracking-widest text-[#554339]">
-                  Professional
-                </span>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl font-serif font-bold text-[#201a17]">₹2,499</span>
-                  <span className="text-sm text-[#554339] font-medium">/month</span>
-                </div>
-                <p className="text-xs text-[#554339] mt-3">Up to 100 beds per property.</p>
-              </div>
-              <ul className="space-y-4 mb-8 flex-1 text-sm font-medium text-[#201a17]">
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Partner Settlement Engine
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Maintenance Work Order Tracking
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Automated Guest Checkouts
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Multi-Property Portfolio Dashboard
-                </li>
-              </ul>
-              <Link
-                href="/home"
-                className="w-full text-center py-3.5 rounded-xl bg-[#964407] text-white font-bold text-sm shadow-md hover:bg-[#c2652a] transition-all"
-              >
-                Start 10-Day Free Trial
-              </Link>
-            </div>
-
-            {/* Enterprise */}
-            <div className="p-8 rounded-3xl bg-[#fff8f6] border border-[#d7c2b9] flex flex-col hover:shadow-lg transition-all">
-              <div className="mb-8">
-                <span className="text-xs font-bold uppercase tracking-widest text-[#554339]">
-                  Enterprise
-                </span>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl font-serif font-bold text-[#201a17]">Custom</span>
-                </div>
-                <p className="text-xs text-[#554339] mt-3">Unlimited properties and beds.</p>
-              </div>
-              <ul className="space-y-4 mb-8 flex-1 text-sm font-medium text-[#201a17]">
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Custom Subdomain & Branding
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Granular Staff Role Permissions
-                </li>
-                <li className="flex items-center gap-3">
-                  <Check className="w-4 h-4 text-[#964407]" /> Dedicated Account Specialist
-                </li>
-              </ul>
-              <Link
-                href="/home"
-                className="w-full text-center py-3.5 rounded-xl border-2 border-[#964407] text-[#964407] font-bold text-sm hover:bg-[#964407] hover:text-white transition-all"
-              >
-                Contact Sales
-              </Link>
-            </div>
-          </div>
+          <DynamicPricingSection variant="landing" />
         </div>
       </section>
 

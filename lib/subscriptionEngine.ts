@@ -8,6 +8,8 @@
  * - Seamless Stacked Renewals (no lost days on early renewal)
  */
 
+import { getStoredPlatformConfig } from "@/lib/platformConfig";
+
 export type SubscriptionStatus =
   | "TRIAL"
   | "ACTIVE_PRO"
@@ -52,19 +54,23 @@ export function getCalendarDaysDiff(targetMs: number, currentMs: number = Date.n
 
 export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
   const now = Date.now();
+  const pConfig = getStoredPlatformConfig();
+  const trialDurationDays = pConfig.trialDays || DEFAULT_TRIAL_DAYS;
+  const gracePeriodDays = pConfig.graceDays ?? GRACE_PERIOD_DAYS;
+  const proPrice = pConfig.proMonthlyPrice || 999;
 
   if (!userProfile) {
     return {
       status: "TRIAL",
-      plan: "10_DAY_TRIAL",
+      plan: `${trialDurationDays}_DAY_TRIAL`,
       isPro: false,
-      daysRemaining: DEFAULT_TRIAL_DAYS,
+      daysRemaining: trialDurationDays,
       graceDaysRemaining: 0,
       isPreExpiry: false,
       inGracePeriod: false,
       canAccessProFeatures: true,
-      expiryDateFormatted: "10 Days",
-      badgeLabel: `⚡ 10-Day Free Trial (${DEFAULT_TRIAL_DAYS}d Left)`,
+      expiryDateFormatted: `${trialDurationDays} Days`,
+      badgeLabel: `⚡ ${trialDurationDays}-Day Free Trial (${trialDurationDays}d Left)`,
       badgeColor: "amber",
     };
   }
@@ -99,10 +105,10 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     expiryTime = Number(userProfile.trialEndsAtMs);
   } else if (userProfile.createdAt) {
     const createdTime = new Date(userProfile.createdAt).getTime();
-    expiryTime = isNaN(createdTime) ? 0 : createdTime + DEFAULT_TRIAL_DAYS * 86400000;
+    expiryTime = isNaN(createdTime) ? 0 : createdTime + trialDurationDays * 86400000;
   } else {
     // ⚠️ Legacy account with no createdAt or planExpiresAt stamped in Firestore
-    // Because this account was created historically in the past, its 10-day trial has elapsed.
+    // Because this account was created historically in the past, its trial has elapsed.
     expiryTime = 0; // Expired!
   }
 
@@ -117,7 +123,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       })
     : "Active";
 
-  // 1. PRO SUBSCRIPTIONS (With 7-Day Grace Period)
+  // 1. PRO SUBSCRIPTIONS (With Configurable Grace Period)
   if (isProPlan) {
     // A. Plan is actively valid
     if (isTimeActive) {
@@ -147,8 +153,8 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       };
     }
 
-    // B. Plan has passed expiry — check 7-Day Trusted Grace Period
-    const graceExpiryTime = expiryTime + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+    // B. Plan has passed expiry — check Configurable Grace Period
+    const graceExpiryTime = expiryTime + gracePeriodDays * 24 * 60 * 60 * 1000;
     const isGraceActive = now < graceExpiryTime;
     const graceCalendarDays = getCalendarDaysDiff(graceExpiryTime, now);
     const graceDaysRemaining = isGraceActive ? Math.max(0, graceCalendarDays) : 0;
@@ -174,7 +180,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
         badgeLabel: `⏳ Pro Grace (${graceLabel})`,
         badgeColor: "amber",
         notificationMessage: `Grace Period Active: Your Pro plan ended on ${expiryDateFormatted}. Enjoy uninterrupted Pro services until ${graceEndFormatted} (${graceDaysRemaining === 0 ? "ends today" : `${graceDaysRemaining} days remaining`}). Please renew to continue without interruption.`,
-        bannerMessage: `⏳ Pro Plan Grace Period Active: Your monthly cycle expired on ${expiryDateFormatted}. All Pro operations remain active for ${graceDaysRemaining === 0 ? "today" : `${graceDaysRemaining} more days`}. Renew now (₹999/mo) to keep uninterrupted access.`,
+        bannerMessage: `⏳ Pro Plan Grace Period Active: Your monthly cycle expired on ${expiryDateFormatted}. All Pro operations remain active for ${graceDaysRemaining === 0 ? "today" : `${graceDaysRemaining} more days`}. Renew now (₹${proPrice}/mo) to keep uninterrupted access.`,
       };
     }
 
@@ -191,18 +197,18 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       expiryDateFormatted: expiryDateFormatted,
       badgeLabel: `⚠️ Plan Expired`,
       badgeColor: "rose",
-      notificationMessage: `Your Pro plan and 7-day grace period have ended. Renew your plan to unlock full workspace access.`,
+      notificationMessage: `Your Pro plan and ${gracePeriodDays}-day grace period have ended. Renew your plan to unlock full workspace access.`,
       bannerMessage: `⚠️ Subscription Expired: Your Pro subscription has ended. Renew today to continue managing tenants, dual ledgers, and automated WhatsApp receipts.`,
     };
   }
 
-  // 2. 10-DAY FREE TRIAL (Strict Cloud-Stamped SSOT)
+  // 2. FREE TRIAL (Strict Cloud-Stamped SSOT)
   if (isTimeActive) {
     const trialLabel = daysRemaining === 0 ? "Ends Today" : `${daysRemaining}d Left`;
 
     return {
       status: "TRIAL",
-      plan: userProfile.plan || "10_DAY_TRIAL",
+      plan: userProfile.plan || `${trialDurationDays}_DAY_TRIAL`,
       isPro: false,
       daysRemaining: daysRemaining,
       graceDaysRemaining: 0,
@@ -210,11 +216,11 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       inGracePeriod: false,
       canAccessProFeatures: true,
       expiryDateFormatted: expiryDateFormatted,
-      badgeLabel: `⚡ 10-Day Free Trial (${trialLabel})`,
+      badgeLabel: `⚡ ${trialDurationDays}-Day Free Trial (${trialLabel})`,
       badgeColor: "amber",
       notificationMessage:
         daysRemaining <= 3
-          ? `Trial Ending Soon: Your 10-day free trial ends ${daysRemaining === 0 ? "today" : `in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}`}. Upgrade to Pro (₹999/mo) for uninterrupted management.`
+          ? `Trial Ending Soon: Your ${trialDurationDays}-day free trial ends ${daysRemaining === 0 ? "today" : `in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}`}. Upgrade to Pro (₹${proPrice}/mo) for uninterrupted management.`
           : undefined,
     };
   }
@@ -222,7 +228,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
   // 3. FREE TRIAL EXPIRED (Option A: Graceful Read-Only with Action Gating)
   return {
     status: "EXPIRED",
-    plan: "10_DAY_TRIAL",
+    plan: `${trialDurationDays}_DAY_TRIAL`,
     isPro: false,
     daysRemaining: 0,
     graceDaysRemaining: 0,
@@ -232,8 +238,8 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     expiryDateFormatted: "Expired",
     badgeLabel: `⚠️ Trial Expired`,
     badgeColor: "rose",
-    notificationMessage: `Your 10-day free trial has expired. Upgrade to Pro for ₹999/mo to continue.`,
-    bannerMessage: `⚠️ Free Trial Ended: Your 10-day free trial has completed. Upgrade to Pro (₹999/mo) to unlock tenant onboarding, FastTrack AI, and automated reminders.`,
+    notificationMessage: `Your ${trialDurationDays}-day free trial has expired. Upgrade to Pro for ₹${proPrice}/mo to continue.`,
+    bannerMessage: `⚠️ Free Trial Ended: Your ${trialDurationDays}-day free trial has completed. Upgrade to Pro (₹${proPrice}/mo) to unlock tenant onboarding, FastTrack AI, and automated reminders.`,
   };
 }
 
@@ -278,29 +284,13 @@ export interface GlobalCapacityConfig {
 }
 
 export function getGlobalCapacityConfig(): GlobalCapacityConfig {
-  if (typeof window !== "undefined") {
-    try {
-      const cached = localStorage.getItem("tenopilot_global_capacity");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return {
-          proTenantLimit: Number(parsed.proTenantLimit) || DEFAULT_PRO_TENANT_LIMIT,
-          trialTenantLimit: Number(parsed.trialTenantLimit) || DEFAULT_TRIAL_TENANT_LIMIT,
-          defaultAllowedProperties: Number(parsed.defaultAllowedProperties) || DEFAULT_ALLOWED_PROPERTIES,
-          multiPropertyPrice: Number(parsed.multiPropertyPrice) || MULTI_PROPERTY_MONTHLY_PRICE,
-          tenantExtensionPrice: Number(parsed.tenantExtensionPrice) || TENANT_EXTENSION_MONTHLY_PRICE,
-        };
-      }
-    } catch (e) {
-      // fallback
-    }
-  }
+  const pConfig = getStoredPlatformConfig();
   return {
-    proTenantLimit: DEFAULT_PRO_TENANT_LIMIT,
-    trialTenantLimit: DEFAULT_TRIAL_TENANT_LIMIT,
-    defaultAllowedProperties: DEFAULT_ALLOWED_PROPERTIES,
-    multiPropertyPrice: MULTI_PROPERTY_MONTHLY_PRICE,
-    tenantExtensionPrice: TENANT_EXTENSION_MONTHLY_PRICE,
+    proTenantLimit: pConfig.proTenantLimit || DEFAULT_PRO_TENANT_LIMIT,
+    trialTenantLimit: pConfig.trialTenantLimit || DEFAULT_TRIAL_TENANT_LIMIT,
+    defaultAllowedProperties: pConfig.baseAllowedBuildings || DEFAULT_ALLOWED_PROPERTIES,
+    multiPropertyPrice: pConfig.multiPropertyPrice || MULTI_PROPERTY_MONTHLY_PRICE,
+    tenantExtensionPrice: pConfig.tenantPackPrice || TENANT_EXTENSION_MONTHLY_PRICE,
   };
 }
 

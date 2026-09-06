@@ -36,11 +36,14 @@ import {
   Loader2,
   Users,
   Lock,
+  Sliders,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
+import { usePlatformConfig } from "@/lib/platformConfig";
 
 export default function ApexCommandClientsPage() {
   const router = useRouter();
+  const { config: platformConfig } = usePlatformConfig();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accounts, setAccounts] = useState<ScannedAccountRecord[]>([]);
   // Pending Offline Payment Approvals Queue State
@@ -449,9 +452,10 @@ export default function ApexCommandClientsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        triggerToast(`🎉 Successfully added +10 days trial to ${accountToExtend.email}!`);
+        const extensionDays = Number(platformConfig.trialDays) || 10;
+        triggerToast(`🎉 Successfully added +${extensionDays} days trial to ${accountToExtend.email}!`);
 
-        const newExpiryIso = data.planExpiresAt || new Date(Date.now() + 10 * 86400000).toISOString();
+        const newExpiryIso = data.planExpiresAt || new Date(Date.now() + extensionDays * 86400000).toISOString();
 
         // ⚡ INSTANT STATE MUTATION: Zero lag UI update
         setAccounts((prev) =>
@@ -461,9 +465,9 @@ export default function ApexCommandClientsPage() {
                   ...acc,
                   subscriptionStatus: "TRIAL",
                   classification: "TRIAL",
-                  trialDaysLeft: 10,
+                  trialDaysLeft: extensionDays,
                   plan: "10_DAY_TRIAL",
-                  detectionReason: "⚡ 10-Day Free Trial (10d Left)",
+                  detectionReason: `⚡ ${extensionDays}-Day Free Trial (${extensionDays}d Left)`,
                   planExpiresAt: newExpiryIso,
                 }
               : acc
@@ -475,9 +479,9 @@ export default function ApexCommandClientsPage() {
             ...selectedCustomer360,
             subscriptionStatus: "TRIAL",
             classification: "TRIAL",
-            trialDaysLeft: 10,
+            trialDaysLeft: extensionDays,
             plan: "10_DAY_TRIAL",
-            detectionReason: "⚡ 10-Day Free Trial (10d Left)",
+            detectionReason: `⚡ ${extensionDays}-Day Free Trial (${extensionDays}d Left)`,
             planExpiresAt: newExpiryIso,
           });
         }
@@ -779,180 +783,33 @@ export default function ApexCommandClientsPage() {
             </div>
           )}
 
-          {/* ⚡ GLOBAL PLATFORM CAPACITY & PLAN DEFAULTS (MASTER CONTROL) */}
-          <div className="p-5 sm:p-6 rounded-3xl bg-[#161b22] border-2 border-blue-500/30 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm text-white">Global Platform Capacity Limits</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-mono font-black">
-                      MASTER CONTROL
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    Controls default active tenant thresholds and building limits across all PG accounts. Individual client overrides take precedence.
-                  </p>
-                </div>
+          {/* Centralized Master Platform Controls Link Banner */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#16191f] to-[#111317] border border-white/8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                <Sliders className="w-4 h-4" />
               </div>
-
-              <button
-                type="button"
-                disabled={isSavingGlobalCapacity}
-                onClick={handleSaveGlobalCapacity}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
-              >
-                {isSavingGlobalCapacity ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving Defaults...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Save Global Defaults</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Matrix Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-              {/* Pro Plan Default Limit (300) */}
-              <div className="p-4 rounded-2xl bg-[#0d1117] border border-blue-500/20 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">💎 PRO PLAN DEFAULT</span>
-                  <span className="text-[9px] px-1.5 py-0.2 bg-blue-500/10 text-blue-300 rounded font-mono">Active Pro</span>
-                </div>
+              <div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setGlobalProLimit((v) => Math.max(10, v - 25))}
-                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min="10"
-                    step="10"
-                    value={globalProLimit}
-                    onChange={(e) => setGlobalProLimit(Math.max(1, Number(e.target.value)))}
-                    className="flex-1 py-1 px-2 text-center rounded-lg bg-black/40 border border-white/15 text-white font-mono font-bold text-sm focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setGlobalProLimit((v) => v + 25)}
-                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                  >
-                    +
-                  </button>
+                  <h3 className="font-bold text-xs text-white uppercase tracking-wider">
+                    Master Platform Controls & Capacity Engine
+                  </h3>
+                  <span className="text-[9px] font-mono px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded font-bold">
+                    CENTRALIZED
+                  </span>
                 </div>
-                <p className="text-[10px] text-gray-500">Base active tenants for all paid Pro subscribers.</p>
-              </div>
-
-              {/* Free Trial Default Limit (50) */}
-              <div className="p-4 rounded-2xl bg-[#0d1117] border border-amber-500/20 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">⏳ FREE TRIAL DEFAULT</span>
-                  <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/10 text-amber-300 rounded font-mono">10-Day Trial</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setGlobalTrialLimit((v) => Math.max(5, v - 10))}
-                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min="5"
-                    step="5"
-                    value={globalTrialLimit}
-                    onChange={(e) => setGlobalTrialLimit(Math.max(1, Number(e.target.value)))}
-                    className="flex-1 py-1 px-2 text-center rounded-lg bg-black/40 border border-white/15 text-white font-mono font-bold text-sm focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setGlobalTrialLimit((v) => v + 10)}
-                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-500">Base active tenants for free trial accounts.</p>
-              </div>
-
-              {/* Base Allowed Buildings (1) */}
-              <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">🏢 ALLOWED BUILDINGS</span>
-                  <span className="text-[9px] px-1.5 py-0.2 bg-white/10 text-gray-300 rounded font-mono">Per Account</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setGlobalAllowedProps((v) => Math.max(1, v - 1))}
-                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={globalAllowedProps}
-                    onChange={(e) => setGlobalAllowedProps(Math.max(1, Number(e.target.value)))}
-                    className="flex-1 py-1 px-2 text-center rounded-lg bg-black/40 border border-white/15 text-white font-mono font-bold text-sm focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setGlobalAllowedProps((v) => v + 1)}
-                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-500">Properties allowed before Multi-Property add-on.</p>
-              </div>
-
-              {/* Add-on Pricing (₹899 & ₹399) */}
-              <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">⚡ ADD-ON PRICING</span>
-                  <span className="text-[9px] px-1.5 py-0.2 bg-purple-500/10 text-purple-300 rounded font-mono">Monthly</span>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 text-[11px]">+1 Building:</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-gray-500 font-mono">₹</span>
-                      <input
-                        type="number"
-                        value={globalMultiPropPrice}
-                        onChange={(e) => setGlobalMultiPropPrice(Number(e.target.value))}
-                        className="w-16 py-0.5 px-1.5 rounded bg-black/40 border border-white/15 text-white font-mono font-bold text-xs text-right"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 text-[11px]">+25 Tenants:</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-gray-500 font-mono">₹</span>
-                      <input
-                        type="number"
-                        value={globalTenantPackPrice}
-                        onChange={(e) => setGlobalTenantPackPrice(Number(e.target.value))}
-                        className="w-16 py-0.5 px-1.5 rounded bg-black/40 border border-white/15 text-white font-mono font-bold text-xs text-right"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Pro & Trial limits, monthly/annual pricing, trial duration, and UPI credentials are now centrally managed in Master Controls.
+                </p>
               </div>
             </div>
+            <Link
+              href="/apex-command/controls"
+              className="px-4 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-xs active:scale-95"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Open Master Controls ➔</span>
+            </Link>
           </div>
 
           {/* Search & Filter Nav */}
@@ -993,7 +850,7 @@ export default function ApexCommandClientsPage() {
                     activeTab === "TRIAL" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  <span>⚡ 10-Day Trials</span>
+                  <span>⚡ {platformConfig.trialDays}-Day Trials</span>
                   <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.2 rounded-full">{trialCount}</span>
                 </button>
                 <button
@@ -1112,7 +969,7 @@ export default function ApexCommandClientsPage() {
                               {acc.subscriptionStatus === "TRIAL" && (
                                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  <span>⚡ 10-DAY TRIAL ({acc.trialDaysLeft === 0 ? "ENDS TODAY" : `${acc.trialDaysLeft}D LEFT`})</span>
+                                  <span>⚡ {platformConfig.trialDays}-DAY TRIAL ({acc.trialDaysLeft === 0 ? "ENDS TODAY" : `${acc.trialDaysLeft}D LEFT`})</span>
                                 </span>
                               )}
                               {acc.subscriptionStatus === "EXPIRED" && (
@@ -1378,9 +1235,9 @@ export default function ApexCommandClientsPage() {
                     <div className="pt-1 flex items-center gap-2">
                       <span className="font-bold text-white">
                         {selectedCustomer360.subscriptionStatus === "ACTIVE_PRO"
-                          ? "💎 Active Pro (₹999/mo)"
+                          ? `💎 Active Pro (₹${platformConfig.proMonthlyPrice.toLocaleString("en-IN")}/mo)`
                           : selectedCustomer360.subscriptionStatus === "TRIAL"
-                          ? `⚡ 10-Day Free Trial (${selectedCustomer360.trialDaysLeft === 0 ? "Ends Today" : `${selectedCustomer360.trialDaysLeft} Days Left`})`
+                          ? `⚡ ${platformConfig.trialDays}-Day Free Trial (${selectedCustomer360.trialDaysLeft === 0 ? "Ends Today" : `${selectedCustomer360.trialDaysLeft} Days Left`})`
                           : selectedCustomer360.subscriptionStatus === "EXPIRED"
                           ? "⚠️ Free Trial Expired"
                           : "🔴 Suspended"}

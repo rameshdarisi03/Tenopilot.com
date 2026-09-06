@@ -6,6 +6,7 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { useAuth } from "@/providers/AuthProvider";
 import { evaluateSubscription, calculateStackedExpiry } from "@/lib/subscriptionEngine";
+import { usePlatformConfig } from "@/lib/platformConfig";
 import { RazorpayModalMockup } from "@/components/dashboard/RazorpayModalMockup";
 import {
   Sparkles,
@@ -43,6 +44,7 @@ export default function SubscriptionBillingPage() {
   const propertyId = (params?.propertyId as string) || "sunshine-pg";
   const { profile } = useAuth();
   const router = useRouter();
+  const { config: platformConfig } = usePlatformConfig();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"PRO_MONTHLY" | "PRO_ANNUAL">("PRO_MONTHLY");
@@ -259,7 +261,7 @@ export default function SubscriptionBillingPage() {
           propertyId,
           propertyName: "TenoPilot PG",
           plan: selectedPlan,
-          amount: selectedPlan === "PRO_MONTHLY" ? 999 : 9990,
+          amount: selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice : platformConfig.proAnnualPrice,
           paymentMode: "UPI / Bank Transfer (Offline)",
           screenshotData: screenshotPreview,
           notes: receiptNotes || "Payment screenshot submitted via client subscription portal",
@@ -384,14 +386,14 @@ export default function SubscriptionBillingPage() {
                       Your Payment Screenshot is Under Review
                     </h3>
                     <p className="text-xs text-gray-700 leading-relaxed max-w-2xl">
-                      We have safely received your proof for <strong>{pendingRequest.plan === "PRO_MONTHLY" ? "Pro Monthly (₹999)" : "Pro Annual (₹9,990)"}</strong>. Our founder team verifies transactions directly with bank records. Your workspace will automatically unlock immediately upon approval.
+                      We have safely received your proof for <strong>{pendingRequest.plan === "PRO_MONTHLY" ? `Pro Monthly (₹${platformConfig.proMonthlyPrice})` : `Pro Annual (₹${platformConfig.proAnnualPrice.toLocaleString("en-IN")})`}</strong>. Our founder team verifies transactions directly with bank records. Your workspace will automatically unlock immediately upon approval.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap sm:flex-col items-end gap-2 shrink-0">
                   <a
-                    href={`https://wa.me/919206651295?text=${encodeURIComponent(
+                    href={`https://wa.me/91${platformConfig.founderWhatsapp}?text=${encodeURIComponent(
                       `Hi Ramesh, I have submitted payment proof for TenoPilot Pro (${pendingRequest.plan}) for my PG. Request ID: ${pendingRequest.id}. Please verify.`
                     )}`}
                     target="_blank"
@@ -513,7 +515,7 @@ export default function SubscriptionBillingPage() {
                   className="px-5 py-2.5 rounded-xl bg-[#201a17] hover:bg-[#342924] text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>{sub.isPro ? "Extend / Stack Renewal" : "Upgrade to Pro (₹999)"}</span>
+                  <span>{sub.isPro ? "Extend / Stack Renewal" : `Upgrade to Pro (₹${platformConfig.proMonthlyPrice})`}</span>
                 </a>
               </div>
             </div>
@@ -556,7 +558,7 @@ export default function SubscriptionBillingPage() {
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-[#201a17]">₹999</span>
+                    <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proMonthlyPrice.toLocaleString("en-IN")}</span>
                     <span className="text-xs text-gray-500 font-bold">/ Month</span>
                   </div>
 
@@ -579,7 +581,7 @@ export default function SubscriptionBillingPage() {
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : "Select Monthly (₹999)"}
+                    {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : `Select Monthly (₹${platformConfig.proMonthlyPrice})`}
                   </button>
                 </div>
               </div>
@@ -594,7 +596,7 @@ export default function SubscriptionBillingPage() {
                 }`}
               >
                 <span className="absolute -top-3 right-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
-                  SAVE ₹1,998 (2 MONTHS FREE) 🏆
+                  SAVE ₹{(platformConfig.proMonthlyPrice * 12 - platformConfig.proAnnualPrice).toLocaleString("en-IN")} (2 MONTHS FREE) 🏆
                 </span>
 
                 <div className="space-y-4">
@@ -609,8 +611,8 @@ export default function SubscriptionBillingPage() {
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-[#201a17]">₹9,990</span>
-                    <span className="text-xs text-gray-500 font-bold">/ Year (₹832/mo)</span>
+                    <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proAnnualPrice.toLocaleString("en-IN")}</span>
+                    <span className="text-xs text-gray-500 font-bold">/ Year (₹{Math.round(platformConfig.proAnnualPrice / 12).toLocaleString("en-IN")}/mo)</span>
                   </div>
 
                   <ul className="space-y-2 text-xs text-gray-600 pt-2">
@@ -632,7 +634,7 @@ export default function SubscriptionBillingPage() {
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    {selectedPlan === "PRO_ANNUAL" ? "✓ Plan Selected" : "Select Annual (₹9,990)"}
+                    {selectedPlan === "PRO_ANNUAL" ? "✓ Plan Selected" : `Select Annual (₹${platformConfig.proAnnualPrice.toLocaleString("en-IN")})`}
                   </button>
                 </div>
               </div>
@@ -648,7 +650,7 @@ export default function SubscriptionBillingPage() {
                   <span>2. Select Payment Method & Activate</span>
                 </h3>
                 <span className="text-[11px] font-bold text-gray-500">
-                  Total Due: <strong className="text-slate-900 font-mono text-xs">₹{selectedPlan === "PRO_MONTHLY" ? "999" : "9,990"}</strong>
+                  Total Due: <strong className="text-slate-900 font-mono text-xs">₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")}</strong>
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -731,7 +733,7 @@ export default function SubscriptionBillingPage() {
 
                   <div className="text-right shrink-0">
                     <span className="text-2xl font-black text-white font-mono">
-                      ₹{selectedPlan === "PRO_MONTHLY" ? "999" : "9,990"}
+                      ₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")}
                     </span>
                     <span className="text-xs text-slate-400 block font-sans">
                       {selectedPlan === "PRO_MONTHLY" ? "30 Days Access" : "365 Days Access"}
@@ -761,7 +763,7 @@ export default function SubscriptionBillingPage() {
                     className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 via-[#3399cc] to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-95"
                   >
                     <Lock className="w-4 h-4" />
-                    <span>Pay ₹{selectedPlan === "PRO_MONTHLY" ? "999" : "9,990"} via Razorpay Gateway (Instant)</span>
+                    <span>Pay ₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")} via Razorpay Gateway (Instant)</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -777,12 +779,12 @@ export default function SubscriptionBillingPage() {
                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">OFFICIAL UPI ID / VPA</span>
                     <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                       <div>
-                        <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
+                        <p className="font-mono font-bold text-xs text-[#201a17]">{platformConfig.founderUpiVpa}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard.writeText("rameshdarisi01@ybl");
+                          navigator.clipboard.writeText(platformConfig.founderUpiVpa);
                           triggerToast("UPI ID copied to clipboard!");
                         }}
                         className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
@@ -791,7 +793,7 @@ export default function SubscriptionBillingPage() {
                       </button>
                     </div>
                     <p className="text-[11px] text-gray-500">
-                      Scan or pay <strong>{selectedPlan === "PRO_MONTHLY" ? "₹999" : "₹9,990"}</strong> from PhonePe, Google Pay, Paytm, or BHIM.
+                      Scan or pay <strong>₹{selectedPlan === "PRO_MONTHLY" ? platformConfig.proMonthlyPrice.toLocaleString("en-IN") : platformConfig.proAnnualPrice.toLocaleString("en-IN")}</strong> from PhonePe, Google Pay, Paytm, or BHIM.
                     </p>
                   </div>
 
@@ -799,10 +801,10 @@ export default function SubscriptionBillingPage() {
                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">DIRECT FOUNDER WHATSAPP</span>
                     <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                       <p className="font-mono font-bold text-xs text-emerald-700">
-                        +91 92066 51295
+                        +91 {platformConfig.founderWhatsapp.slice(0, 5)} {platformConfig.founderWhatsapp.slice(5)}
                       </p>
                       <a
-                        href="https://wa.me/919206651295?text=Hi%20Ramesh%2C%20I%20have%20a%20question%20regarding%20TenoPilot%20Pro%20subscription."
+                        href={`https://wa.me/91${platformConfig.founderWhatsapp}?text=Hi%20Ramesh%2C%20I%20have%20a%20question%20regarding%20TenoPilot%20Pro%20subscription.`}
                         target="_blank"
                         rel="noreferrer"
                         className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold cursor-pointer transition-colors"

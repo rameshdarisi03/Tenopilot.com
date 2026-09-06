@@ -8,6 +8,7 @@ import {
   founderStore,
   FounderVipInvite,
 } from "@/constants/founderStore";
+import { usePlatformConfig } from "@/lib/platformConfig";
 import {
   Ticket,
   Plus,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 
 export default function ApexCommandInvitesPage() {
+  const { config: platformConfig } = usePlatformConfig();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [invites, setInvites] = useState<FounderVipInvite[]>(() => founderStore.getInvites());
   const [searchQuery, setSearchQuery] = useState("");
@@ -352,9 +354,9 @@ export default function ApexCommandInvitesPage() {
                       <td className="py-4 px-4">
                         <span className="text-[11px] font-bold text-slate-300 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
                           {inv.assignedPlan === "10_DAY_TRIAL"
-                            ? "10-Day Free Trial"
+                            ? `${platformConfig.trialDays}-Day Free Trial`
                             : inv.assignedPlan === "PRO_MONTHLY"
-                            ? "Pro Monthly (₹1,499)"
+                            ? `Pro Monthly (₹${platformConfig.proMonthlyPrice.toLocaleString("en-IN")})`
                             : "Annual VIP"}
                         </span>
                       </td>
@@ -422,7 +424,7 @@ export default function ApexCommandInvitesPage() {
                     <span className="text-[10px] font-black uppercase tracking-widest bg-black/30 px-2.5 py-1 rounded-full border border-white/20">
                       EXCLUSIVE ACCESS PASS
                     </span>
-                    <span className="text-xs font-bold">10-DAY FREE TRIAL</span>
+                    <span className="text-xs font-bold">{platformConfig.trialDays}-DAY FREE TRIAL</span>
                   </div>
 
                   <div className="py-2">
@@ -582,9 +584,9 @@ export default function ApexCommandInvitesPage() {
                       onChange={(e) => setAssignedPlan(e.target.value as any)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d0f12] border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-[#ff5436]"
                     >
-                      <option value="10_DAY_TRIAL">10-Day Free Trial (Full)</option>
-                      <option value="PRO_MONTHLY">Pro Monthly (₹1,499/mo)</option>
-                      <option value="ANNUAL_VIP">Annual Growth (₹14,999/yr)</option>
+                      <option value="10_DAY_TRIAL">{platformConfig.trialDays}-Day Free Trial (Full)</option>
+                      <option value="PRO_MONTHLY">Pro Monthly (₹{platformConfig.proMonthlyPrice.toLocaleString("en-IN")}/mo)</option>
+                      <option value="ANNUAL_VIP">Annual Growth (₹{platformConfig.proAnnualPrice.toLocaleString("en-IN")}/yr)</option>
                     </select>
                   </div>
                 </div>

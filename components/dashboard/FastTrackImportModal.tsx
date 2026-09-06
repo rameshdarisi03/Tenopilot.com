@@ -43,6 +43,7 @@ import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { useAuth } from "@/providers/AuthProvider";
 import { getEffectiveTenantLimit, TENANT_EXTENSION_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
+import { usePlatformConfig } from "@/lib/platformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 interface FastTrackImportModalProps {
@@ -107,6 +108,7 @@ export function FastTrackImportModal({
 
   // 🔒 Master Controls Capacity Enforcement & Customer Decision Guidance
   const { profile } = useAuth();
+  const { config: platformConfig } = usePlatformConfig();
   const effectiveTenantLimit = getEffectiveTenantLimit(profile);
   const currentActiveCount = useMemo(() => {
     return (occupantStore.getOccupants(propertyId) || []).filter((o) => o.lifecycleStatus !== "Past").length;
@@ -119,7 +121,7 @@ export function FastTrackImportModal({
   const excessCount = Math.max(0, projectedTotalTenants - effectiveTenantLimit);
   const extensionPacksNeeded = Math.max(1, Math.ceil(excessCount / 25));
   const packCapacityUnlocked = extensionPacksNeeded * 25;
-  const totalPackPrice = extensionPacksNeeded * (TENANT_EXTENSION_MONTHLY_PRICE || 399);
+  const totalPackPrice = extensionPacksNeeded * (platformConfig.tenantPackPrice || TENANT_EXTENSION_MONTHLY_PRICE || 75);
 
   // Extension Pack Proof Modal State
   const [showExtensionModal, setShowExtensionModal] = useState(false);
@@ -1654,13 +1656,13 @@ export function FastTrackImportModal({
                           <span>Unlock +{packCapacityUnlocked} Slots (₹{totalPackPrice})</span>
                         </button>
                         <a
-                          href={`https://wa.me/919206651295?text=${encodeURIComponent(
+                          href={`https://wa.me/91${platformConfig.founderWhatsapp}?text=${encodeURIComponent(
                             `Hi Ramesh, I am migrating ${editableRows.length} tenants via FastTrack for ${propertyId}. My limit is ${effectiveTenantLimit}. I need ${extensionPacksNeeded} Tenant Extension Pack(s) (+${packCapacityUnlocked} slots) for ₹${totalPackPrice}/mo. Please unlock my slots.`
                           )}`}
                           target="_blank"
                           rel="noreferrer"
                           className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center cursor-pointer shadow-sm"
-                          title="WhatsApp Founder (+91 92066 51295)"
+                          title={`WhatsApp Founder (+91 ${platformConfig.founderWhatsapp})`}
                         >
                           <MessageSquare className="w-4 h-4" />
                         </a>
@@ -2748,13 +2750,13 @@ Anil Verma   9812345678   Room 103   12000"
                     <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
-                        <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
+                        <p className="font-mono font-bold text-xs text-[#201a17]">{platformConfig.founderUpiVpa}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard.writeText("rameshdarisi01@ybl");
-                          alert("UPI ID copied to clipboard: rameshdarisi01@ybl");
+                          navigator.clipboard.writeText(platformConfig.founderUpiVpa);
+                          alert(`UPI ID copied to clipboard: ${platformConfig.founderUpiVpa}`);
                         }}
                         className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
                       >
@@ -2813,11 +2815,11 @@ Anil Verma   9812345678   Room 103   12000"
                         Direct Founder WhatsApp
                       </span>
                       <p className="font-mono font-bold text-sm text-emerald-950 mt-0.5">
-                        +91 92066 51295
+                        +91 {platformConfig.founderWhatsapp.slice(0, 5)} {platformConfig.founderWhatsapp.slice(5)}
                       </p>
                     </div>
                     <a
-                      href={`https://wa.me/919206651295?text=${encodeURIComponent(
+                      href={`https://wa.me/91${platformConfig.founderWhatsapp}?text=${encodeURIComponent(
                         `Hi Ramesh, I am migrating ${editableRows.length} tenants via FastTrack for ${propertyId}. My limit is ${effectiveTenantLimit}. I need ${extensionPacksNeeded} Tenant Extension Pack(s) (+${packCapacityUnlocked} slots) for ₹${totalPackPrice}/mo. Please unlock my slots.`
                       )}`}
                       target="_blank"
