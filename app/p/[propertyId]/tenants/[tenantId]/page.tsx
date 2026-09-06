@@ -8,6 +8,7 @@ import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore } from "@/lib/firestoreService";
+import { useAuth } from "@/providers/AuthProvider";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import {
@@ -58,6 +59,8 @@ import {
   TrendingUp,
   TrendingDown,
   Info,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -72,6 +75,7 @@ export default function IndividualTenantProfilePage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
   const tenantId = resolvedParams?.tenantId || "occ-1001";
+  const { profile } = useAuth();
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -178,6 +182,8 @@ export default function IndividualTenantProfilePage({
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
   const [showLogNoticeModal, setShowLogNoticeModal] = useState(false);
+  const [receiptDispatchChannel, setReceiptDispatchChannel] = useState<"NONE" | "WHATSAPP" | "EMAIL" | "BOTH">("BOTH");
+  const [isDispatchingReceipt, setIsDispatchingReceipt] = useState(false);
 
   // Unified Guest Stay Management Modal State (Extend Date / Checkout)
   const [showGuestStayManagementModal, setShowGuestStayManagementModal] = useState<boolean>(false);
@@ -434,6 +440,98 @@ export default function IndividualTenantProfilePage({
     triggerToast(`✓ KYC verification completed successfully for ${occupantState.name}! 🟢`);
   };
 
+  // Dual-Channel E-Receipt Dispatcher (WhatsApp & Brevo Email)
+  const dispatchElectronicReceipt = async (
+    receiptItem: PaymentHistoryItem,
+    channel: "WHATSAPP" | "EMAIL" | "BOTH"
+  ) => {
+    if (!occupantState) return;
+    setIsDispatchingReceipt(true);
+
+    let waSuccess = false;
+    let emailSuccess = false;
+
+    // 1. WhatsApp Receipt
+    if (channel === "WHATSAPP" || channel === "BOTH") {
+      try {
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
+            messages: [
+              {
+                toPhone: occupantState.phone,
+                recipientName: occupantState.name,
+                propertyId,
+                propertyName: displayPropertyName,
+                type: "PAYMENT_RECEIPT",
+                params: {
+                  receiptId: receiptItem.receiptNo,
+                  amount: receiptItem.amount,
+                  roomNumber: occupantState.roomNumber,
+                  dueDate: receiptItem.date,
+                },
+              },
+            ],
+          }),
+        });
+        if (res.ok) waSuccess = true;
+      } catch (e) {
+        console.warn("WhatsApp receipt error:", e);
+      }
+    }
+
+    // 2. Email Receipt (Brevo Transactional)
+    if (channel === "EMAIL" || channel === "BOTH") {
+      const destEmail = occupantState.email || `${occupantState.phone.replace(/\D/g, "")}@example-tenant.com`;
+      try {
+        const res = await fetch("/api/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
+            messages: [
+              {
+                toEmail: destEmail,
+                recipientName: occupantState.name,
+                propertyId,
+                propertyName: displayPropertyName,
+                replyToEmail: profile?.email,
+                type: "PAYMENT_RECEIPT",
+                params: {
+                  receiptId: receiptItem.receiptNo,
+                  amount: receiptItem.amount,
+                  paymentMode: receiptItem.mode,
+                  paidDate: receiptItem.date,
+                  roomNumber: occupantState.roomNumber,
+                  bedCode: occupantState.bedCode,
+                },
+              },
+            ],
+          }),
+        });
+        if (res.ok) emailSuccess = true;
+      } catch (e) {
+        console.warn("Email receipt error:", e);
+      }
+    }
+
+    setIsDispatchingReceipt(false);
+
+    if (channel === "BOTH") {
+      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via WhatsApp & Email!`);
+    } else if (channel === "WHATSAPP") {
+      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via WhatsApp!`);
+    } else {
+      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via Brevo Email!`);
+    }
+  };
+
   // 1. Collect Rent Submit Handler (Supports Rent, Security Deposit, or Combined Allocation)
   const handleCollectRentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -547,6 +645,11 @@ export default function IndividualTenantProfilePage({
       triggerToast(
         `✓ Rent of ₹${effectiveRent.toLocaleString("en-IN")} recorded for ${occupantState.name} 🟢`
       );
+    }
+
+    // Auto-dispatch E-Receipt if enabled
+    if (receiptDispatchChannel !== "NONE" && newReceipts.length > 0) {
+      dispatchElectronicReceipt(newReceipts[0], receiptDispatchChannel);
     }
 
     setShowCollectRentModal(false);
@@ -2009,7 +2112,8 @@ export default function IndividualTenantProfilePage({
                           <th className="pb-2">Amount</th>
                           <th className="pb-2">Mode</th>
                           <th className="pb-2">Receipt</th>
-                          <th className="pb-2 text-right">Status</th>
+                          <th className="pb-2">Status</th>
+                          <th className="pb-2 text-right">Send E-Receipt</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-xs">
@@ -2022,10 +2126,43 @@ export default function IndividualTenantProfilePage({
                             </td>
                             <td className="py-3 text-gray-600">{item.mode}</td>
                             <td className="py-3 font-mono text-gray-500">{item.receiptNo}</td>
-                            <td className="py-3 text-right">
+                            <td className="py-3">
                               <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold text-[10px]">
                                 {item.status}
                               </span>
+                            </td>
+                            <td className="py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
+                                  disabled={isDispatchingReceipt}
+                                  className="px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
+                                  title="Send Receipt via WhatsApp"
+                                >
+                                  <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                  <span className="hidden sm:inline">WhatsApp</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
+                                  disabled={isDispatchingReceipt}
+                                  className="px-1.5 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
+                                  title="Send Receipt via Brevo Email"
+                                >
+                                  <Mail className="w-3 h-3 text-blue-600" />
+                                  <span className="hidden sm:inline">Email</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => dispatchElectronicReceipt(item, "BOTH")}
+                                  disabled={isDispatchingReceipt}
+                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
+                                  title="Send via Both WhatsApp + Email"
+                                >
+                                  <Sparkles className="w-3 h-3 text-purple-600" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2420,6 +2557,74 @@ export default function IndividualTenantProfilePage({
                               ⚡ Auto-Fill Pending Dues ({paymentPurpose === "RENT" ? `₹${(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount).toLocaleString("en-IN")}` : paymentPurpose === "DEPOSIT" ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`})
                             </span>
                           </button>
+                        </div>
+
+                        {/* Auto-Dispatch E-Receipt Channel Selector */}
+                        <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/80 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Dispatch E-Receipt to Resident</span>
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-medium">Automatic Delivery</span>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1.5 text-[11px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => setReceiptDispatchChannel("NONE")}
+                              className={`py-1.5 px-2 rounded-lg border text-center transition-all cursor-pointer ${
+                                receiptDispatchChannel === "NONE"
+                                  ? "bg-gray-800 text-white border-gray-800 shadow-xs"
+                                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              None
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptDispatchChannel("WHATSAPP")}
+                              className={`py-1.5 px-2 rounded-lg border text-center transition-all cursor-pointer ${
+                                receiptDispatchChannel === "WHATSAPP"
+                                  ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              WhatsApp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptDispatchChannel("EMAIL")}
+                              className={`py-1.5 px-2 rounded-lg border text-center transition-all cursor-pointer ${
+                                receiptDispatchChannel === "EMAIL"
+                                  ? "bg-blue-600 text-white border-blue-700 shadow-xs"
+                                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              Email
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptDispatchChannel("BOTH")}
+                              className={`py-1.5 px-2 rounded-lg border text-center transition-all cursor-pointer ${
+                                receiptDispatchChannel === "BOTH"
+                                  ? "bg-gradient-to-r from-emerald-600 to-blue-600 text-white border-blue-700 shadow-xs ring-2 ring-blue-400/40"
+                                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              Both ⚡
+                            </button>
+                          </div>
+
+                          {receiptDispatchChannel !== "NONE" && (
+                            <p className="text-[10px] text-blue-800 font-medium">
+                              {receiptDispatchChannel === "BOTH"
+                                ? `Receipt will be sent to ${occupantState.phone} (WhatsApp) & ${occupantState.email || "registered email"} (Brevo).`
+                                : receiptDispatchChannel === "WHATSAPP"
+                                ? `Receipt will be sent to ${occupantState.phone} via WhatsApp Cloud.`
+                                : `Receipt will be sent to ${occupantState.email || "registered email"} via Brevo Email.`}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );

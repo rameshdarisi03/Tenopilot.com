@@ -60,6 +60,7 @@ import {
   Users,
   Zap,
   RefreshCw,
+  Mail,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -184,28 +185,27 @@ export default function TenantsDirectoryPage({
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
   const [deletePastTenantTarget, setDeletePastTenantTarget] = useState<Occupant | null>(null);
 
-  // WhatsApp Cloud Gateway & Credit Wallet States
+  // WhatsApp & Brevo Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [reminderChannel, setReminderChannel] = useState<"WHATSAPP" | "EMAIL" | "BOTH">("BOTH");
 
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
+  const [postponeModalOccupant, setPostponeModalOccupant] = useState<Occupant | null>(null);
+  const [newCheckInDate, setNewCheckInDate] = useState<string>("");
   const [showCompleteCheckInPopup, setShowCompleteCheckInPopup] = useState<boolean>(false);
   const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
   const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
   const [checkOutModalOccupant, setCheckOutModalOccupant] = useState<Occupant | null>(null);
 
+
   // Silent Automated Move-In Date Auto-Checkin Engine & Property Settings Reactive Subscriber
   useEffect(() => {
     runAutoCheckInEngine();
-    propertySettingsStore.initFirebaseListener(propertyId);
-    setCurrentSettings(propertySettingsStore.getSettings(propertyId));
-    const unsubscribeSettings = propertySettingsStore.subscribe(() => {
-      setCurrentSettings(propertySettingsStore.getSettings(propertyId));
-    });
-
+    
     whatsappCreditStore.initFirebaseListener(propertyId);
     whatsappCreditStore.fetchWalletFromFirestore(propertyId);
     setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
@@ -214,9 +214,17 @@ export default function TenantsDirectoryPage({
     });
 
     return () => {
-      unsubscribeSettings();
       unsubscribeWallet();
     };
+  }, [propertyId]);
+
+  // Sync Real-Time Property Settings
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setCurrentSettings(propertySettingsStore.getSettings(propertyId));
+    return propertySettingsStore.subscribe(() => {
+      setCurrentSettings(propertySettingsStore.getSettings(propertyId));
+    });
   }, [propertyId]);
 
   const triggerToast = (msg: string) => {
@@ -224,7 +232,7 @@ export default function TenantsDirectoryPage({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1-Tap Central WhatsApp Cloud Dispatch Handler
+  // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Brevo Email)
   const handleSendCloudWhatsAppReminders = async () => {
     const sub = evaluateSubscription(profile);
     if (!sub.isPro) {
@@ -241,70 +249,134 @@ export default function TenantsDirectoryPage({
       return;
     }
 
-    const currentBal = whatsappCreditStore.getCredits(propertyId);
-    if (currentBal < selectedOccupants.length) {
-      triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge.`);
-      setShowWhatsAppWalletModal(true);
-      return;
+    const isWhatsApp = reminderChannel === "WHATSAPP" || reminderChannel === "BOTH";
+    const isEmail = reminderChannel === "EMAIL" || reminderChannel === "BOTH";
+
+    // WhatsApp Credit Balance Validation (Only if WhatsApp channel is active)
+    if (isWhatsApp) {
+      const currentBal = whatsappCreditStore.getCredits(propertyId);
+      if (currentBal < selectedOccupants.length) {
+        triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge.`);
+        setShowWhatsAppWalletModal(true);
+        return;
+      }
     }
 
     setIsSendingCloudWhatsApp(true);
     setCloudSendProgress({ sent: 0, total: selectedOccupants.length });
 
-    let sentCount = 0;
-    for (const occ of selectedOccupants) {
-      try {
-        const res = await fetch("/api/whatsapp/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            propertyId,
-            userId: profile?.uid,
-            userEmail: profile?.email,
-            messages: [
-              {
-                toPhone: occ.phone,
-                recipientName: occ.name,
-                propertyId,
-                propertyName: currentSettings.propertyName || "TenoPilot PG",
-                type: "RENT_REMINDER",
-                params: {
-                  roomNumber: occ.roomNumber,
-                  bedCode: occ.bedCode,
-                  amount: occ.rentAmount,
-                  dueDate: occ.dueDate,
-                  upiId: activeQr?.upiId,
-                  bankLabel: activeQr?.bankLabel,
-                },
-              },
-            ],
-          }),
-        });
+    let waSentCount = 0;
+    let emailSentCount = 0;
 
-        if (res.ok) {
-          whatsappCreditStore.deductCredit(propertyId, {
-            recipientPhone: occ.phone,
-            recipientName: occ.name,
-            messageType: "RENT_REMINDER",
-            description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
+    for (const occ of selectedOccupants) {
+      // 1. Dispatch WhatsApp Cloud Reminder
+      if (isWhatsApp) {
+        try {
+          const res = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid,
+              userEmail: profile?.email,
+              messages: [
+                {
+                  toPhone: occ.phone,
+                  recipientName: occ.name,
+                  propertyId,
+                  propertyName: currentSettings.propertyName || "TenoPilot PG",
+                  type: "RENT_REMINDER",
+                  params: {
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    amount: occ.rentAmount,
+                    dueDate: occ.dueDate,
+                    upiId: activeQr?.upiId,
+                    bankLabel: activeQr?.bankLabel,
+                  },
+                },
+              ],
+            }),
           });
-          sentCount++;
-          setCloudSendProgress({ sent: sentCount, total: selectedOccupants.length });
+
+          if (res.ok) {
+            whatsappCreditStore.deductCredit(propertyId, {
+              recipientPhone: occ.phone,
+              recipientName: occ.name,
+              messageType: "RENT_REMINDER",
+              description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
+            });
+            waSentCount++;
+          }
+        } catch (err) {
+          console.warn("Failed sending WhatsApp for", occ.name, err);
         }
-      } catch (err) {
-        console.warn("Failed sending WhatsApp for", occ.name, err);
       }
+
+      // 2. Dispatch Brevo Transactional Email Reminder
+      if (isEmail) {
+        const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
+        try {
+          const emailRes = await fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid,
+              userEmail: profile?.email,
+              messages: [
+                {
+                  toEmail: destEmail,
+                  recipientName: occ.name,
+                  propertyId,
+                  propertyName: currentSettings.propertyName || "TenoPilot PG",
+                  replyToEmail: profile?.email,
+                  type: "RENT_REMINDER",
+                  params: {
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    amount: occ.rentAmount,
+                    dueDate: occ.dueDate,
+                    upiId: activeQr?.upiId,
+                    bankLabel: activeQr?.bankLabel,
+                  },
+                },
+              ],
+            }),
+          });
+
+          if (emailRes.ok) {
+            emailSentCount++;
+          }
+        } catch (err) {
+          console.warn("Failed sending Brevo Email for", occ.name, err);
+        }
+      }
+
+      setCloudSendProgress({
+        sent: Math.max(waSentCount, emailSentCount),
+        total: selectedOccupants.length,
+      });
     }
 
     setIsSendingCloudWhatsApp(false);
     setCloudSendProgress(null);
     setShowRentReminderQRModal(false);
-    triggerToast(`🎉 Successfully dispatched ${sentCount} automated WhatsApp reminders via TenoPilot Cloud!`);
+
+    let toastText = "";
+    if (reminderChannel === "BOTH") {
+      toastText = `🎉 Dispatched ${waSentCount} WhatsApp and ${emailSentCount} Brevo Email reminders!`;
+    } else if (reminderChannel === "WHATSAPP") {
+      toastText = `🎉 Successfully dispatched ${waSentCount} automated WhatsApp reminders!`;
+    } else {
+      toastText = `🎉 Successfully dispatched ${emailSentCount} automated Brevo Email reminders!`;
+    }
+    triggerToast(toastText);
 
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
-      title: `WhatsApp Reminders: ${sentCount} Sent`,
-      subtitle: `Batch dispatched to ${sentCount} selected tenants via Cloud API`,
+      title: `Rent Reminders Sent: ${selectedOccupants.length} tenants`,
+      subtitle: `Dispatched via ${reminderChannel === "BOTH" ? "WhatsApp + Brevo Email" : reminderChannel === "WHATSAPP" ? "WhatsApp Cloud" : "Brevo Email Gateway"}`,
       staffName: profile?.displayName || "Manager",
       staffRole: "Property Admin",
     });
@@ -2188,14 +2260,79 @@ Scroll vertically to browse all residents without pagination limits
                 })()}
               </div>
 
-              {/* Step 2: Selected Tenants Summary & Send Action */}
+              {/* Step 2: Choose Delivery Channel (WhatsApp, Brevo Email, or Both) */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-amber-500" />
+                    <span>2. Select Dispatch Channel</span>
+                  </h4>
+                  <span className="text-[10px] text-gray-500 font-medium">Powered by TenoPilot Cloud</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReminderChannel("WHATSAPP")}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                      reminderChannel === "WHATSAPP"
+                        ? "bg-emerald-600 text-white border-emerald-700 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>WhatsApp</span>
+                    <span className={`text-[9px] ${reminderChannel === "WHATSAPP" ? "text-emerald-100" : "text-gray-400"}`}>
+                      1 Credit / msg
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReminderChannel("EMAIL")}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                      reminderChannel === "EMAIL"
+                        ? "bg-blue-600 text-white border-blue-700 shadow-sm"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Email (Brevo)</span>
+                    <span className={`text-[9px] ${reminderChannel === "EMAIL" ? "text-blue-100" : "text-gray-400"}`}>
+                      Zero Credits
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReminderChannel("BOTH")}
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                      reminderChannel === "BOTH"
+                        ? "bg-gradient-to-r from-emerald-600 to-blue-600 text-white border-blue-700 shadow-sm ring-2 ring-blue-400/40"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                    <span>Both (2x Reach)</span>
+                    <span className={`text-[9px] ${reminderChannel === "BOTH" ? "text-white/90" : "text-emerald-600 font-extrabold"}`}>
+                      Recommended
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 3: Selected Tenants Summary & Send Action */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-gray-900 text-xs">
-                    2. Selected Tenants ({selectedIds.length}) & Instant Dispatch:
+                    3. Selected Tenants ({selectedIds.length}) & Recipients:
                   </h4>
                   <span className="text-[10px] text-gray-500 font-medium">
-                    Auto-sends verified WhatsApp text with UPI payment details
+                    {reminderChannel === "BOTH"
+                      ? "Dispatches WhatsApp text & Brevo HTML invoice"
+                      : reminderChannel === "WHATSAPP"
+                      ? "Dispatches verified WhatsApp cloud message"
+                      : "Dispatches transactional Brevo email invoice"}
                   </span>
                 </div>
 
@@ -2227,9 +2364,16 @@ Scroll vertically to browse all residents without pagination limits
                             className="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs"
                           >
                             <div>
-                              <span className="font-bold text-gray-900 block">{occ.name}</span>
-                              <span className="text-[10px] text-gray-500 block">
-                                Room {occ.roomNumber} ({occ.bedCode}) • Rent: ₹{occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-900">{occ.name}</span>
+                                {occ.email && (
+                                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono">
+                                    ✉️ {occ.email}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-gray-500 block mt-0.5">
+                                Room {occ.roomNumber} ({occ.bedCode}) • Rent: ₹${occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
                               </span>
                             </div>
 
@@ -2250,7 +2394,7 @@ Scroll vertically to browse all residents without pagination limits
                 </div>
               </div>
 
-              {/* Bottom Action Footer with 1-Tap Cloud Dispatch */}
+              {/* Bottom Action Footer with Dynamic Multi-Channel Dispatch */}
               <div className="flex flex-col sm:flex-row gap-2.5 pt-3 border-t border-gray-100">
                 <button
                   type="button"
@@ -2264,19 +2408,33 @@ Scroll vertically to browse all residents without pagination limits
                   type="button"
                   disabled={isSendingCloudWhatsApp || selectedIds.length === 0}
                   onClick={handleSendCloudWhatsAppReminders}
-                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className={`flex-1 py-3 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    reminderChannel === "BOTH"
+                      ? "bg-gradient-to-r from-emerald-600 via-teal-700 to-blue-700 hover:from-emerald-700 hover:to-blue-800"
+                      : reminderChannel === "WHATSAPP"
+                      ? "bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900"
+                      : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
+                  }`}
                 >
                   {isSendingCloudWhatsApp ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>
-                        Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length} Cloud Reminders...
+                        Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length}{" "}
+                        {reminderChannel === "BOTH" ? "Multi-Channel" : reminderChannel === "WHATSAPP" ? "WhatsApp" : "Brevo Email"}{" "}
+                        Reminders...
                       </span>
                     </>
                   ) : (
                     <>
                       <Zap className="w-4 h-4 fill-current text-yellow-300" />
-                      <span>1-Tap Cloud Dispatch (Auto-Send to All {selectedIds.length})</span>
+                      <span>
+                        {reminderChannel === "BOTH"
+                          ? `1-Tap Multi-Channel Dispatch (WhatsApp + Email to ${selectedIds.length})`
+                          : reminderChannel === "WHATSAPP"
+                          ? `1-Tap WhatsApp Cloud Dispatch (Send to ${selectedIds.length})`
+                          : `1-Tap Brevo Email Dispatch (Send to ${selectedIds.length})`}
+                      </span>
                     </>
                   )}
                 </button>
