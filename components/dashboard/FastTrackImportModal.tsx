@@ -30,6 +30,7 @@ import {
   ImageIcon,
   FolderOpen,
   FileCheck,
+  Lock,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -37,6 +38,8 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
+import { useAuth } from "@/providers/AuthProvider";
+import { getEffectiveTenantLimit } from "@/lib/subscriptionEngine";
 
 interface FastTrackImportModalProps {
   propertyId: string;
@@ -97,6 +100,15 @@ export function FastTrackImportModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
   const [dateFormatMode, setDateFormatMode] = useState<"DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD">("DD-MMM-YYYY");
+
+  // 🔒 Master Controls Capacity Enforcement
+  const { profile } = useAuth();
+  const effectiveTenantLimit = getEffectiveTenantLimit(profile);
+  const currentActiveCount = useMemo(() => {
+    return (occupantStore.getOccupants(propertyId) || []).filter((o) => o.lifecycleStatus !== "Past").length;
+  }, [propertyId]);
+  const projectedTotalTenants = currentActiveCount + editableRows.length;
+  const isOverCapacity = projectedTotalTenants > effectiveTenantLimit;
 
   // Draft & Multi-Page Append State
   const [savedDraft, setSavedDraft] = useState<{
@@ -989,6 +1001,11 @@ export function FastTrackImportModal({
 
   // 5. Execute 1-Click Commit
   const handleCommitIngest = async () => {
+    if (isOverCapacity) {
+      alert(`Platform Capacity Exceeded: Your plan limit is ${effectiveTenantLimit} active tenants. You currently have ${currentActiveCount} active tenants. Adding ${editableRows.length} tenants would exceed your quota (${projectedTotalTenants}/${effectiveTenantLimit}). Please upgrade your plan or purchase +25 Tenant Extension Packs.`);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await executeFastTrackBatchIngest(propertyId, editableRows, {
@@ -996,7 +1013,13 @@ export function FastTrackImportModal({
         rebuildLayout: importMode === "REBUILD",
         markDepositsPaid,
         markCurrentMonthRentPaid,
+        userProfile: profile,
       });
+
+      if (!result.success) {
+        alert(result.errors.join("\n") || "FastTrack Import could not be completed.");
+        return;
+      }
 
       setIngestResult(result);
       setStep("SUCCESS");
@@ -1429,6 +1452,21 @@ export function FastTrackImportModal({
                 <p className="font-serif text-xl font-bold text-gray-900">₹{totalRentAmount.toLocaleString("en-IN")}</p>
               </div>
             </div>
+
+            {/* 🔒 Master Control Capacity Warning Alert */}
+            {isOverCapacity && (
+              <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-start gap-3 text-xs text-red-950 animate-in fade-in">
+                <div className="p-2 rounded-xl bg-red-100 text-red-700 shrink-0 mt-0.5">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-bold text-red-900">Tenant Capacity Limit Exceeded ({projectedTotalTenants} / {effectiveTenantLimit} Allowed)</p>
+                  <p className="text-[11px] text-red-700 leading-relaxed">
+                    Your platform plan allows up to <strong>{effectiveTenantLimit} active tenants</strong> (Free Trial: 50, Active Pro: 200). You currently have <strong>{currentActiveCount} active tenants</strong>. Ingesting these {editableRows.length} tenants will push your total to <strong>{projectedTotalTenants}</strong>. Please trim rows or upgrade with a Tenant Extension Pack (+25 slots for ₹399/mo) to proceed.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* 🌟 Simple Room Setup Option for PG Owners */}
             {typeof window !== "undefined" && (propertyStore.getStructure(propertyId)?.length || 0) > 0 && (
@@ -2289,7 +2327,7 @@ Anil Verma   9812345678   Room 103   12000"
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitting || editableRows.length === 0 || tableDuplicateIndices.size > 0}
+                  disabled={isSubmitting || editableRows.length === 0 || tableDuplicateIndices.size > 0 || isOverCapacity}
                   onClick={handleCommitIngest}
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer"
                 >
@@ -2297,6 +2335,11 @@ Anil Verma   9812345678   Room 103   12000"
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>Enrolling {totalTenantsCount} Tenants...</span>
+                    </>
+                  ) : isOverCapacity ? (
+                    <>
+                      <Lock className="w-4 h-4 text-amber-200" />
+                      <span>Capacity Exceeded ({projectedTotalTenants}/{effectiveTenantLimit})</span>
                     </>
                   ) : tableDuplicateIndices.size > 0 ? (
                     <>

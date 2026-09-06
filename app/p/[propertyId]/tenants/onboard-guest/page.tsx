@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   Clock,
   Building2,
+  Lock,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -53,6 +54,8 @@ import { lookupExistingOccupant } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
+import { useAuth } from "@/providers/AuthProvider";
+import { getEffectiveTenantLimit, evaluateTenantCapacity } from "@/lib/subscriptionEngine";
 
 export default function OnboardGuestPage({
   params,
@@ -113,6 +116,19 @@ export default function OnboardGuestPage({
   } | null>(null);
   const [showOccupiedBeds, setShowOccupiedBeds] = useState<boolean>(false);
   const [occupantsSyncTick, setOccupantsSyncTick] = useState<number>(0);
+
+  // 🔒 Master Controls Capacity Enforcement
+  const { profile } = useAuth();
+  const allOccupants = useMemo(() => {
+    return occupantStore.getOccupants(propertyId) || [];
+  }, [propertyId, occupantsSyncTick]);
+
+  const activeOccupantsCount = useMemo(() => {
+    return allOccupants.filter((occ) => occ.lifecycleStatus !== "Past").length;
+  }, [allOccupants]);
+
+  const effectiveTenantLimit = getEffectiveTenantLimit(profile);
+  const capacityStatus = evaluateTenantCapacity(activeOccupantsCount, effectiveTenantLimit);
 
   // Form State — Step 3: Quick KYC Upload & Auto-Compression Documents (Capped PDF 1MB, Front/Back ID Images)
   const [photoUploaded, setPhotoUploaded] = useState(false);
@@ -362,6 +378,11 @@ export default function OnboardGuestPage({
 
   // Final Action: Complete Guest Onboarding
   const handleFinalGuestSubmit = () => {
+    if (capacityStatus.isAtCapacity) {
+      alert(`⚠️ Platform Tenant Capacity Limit (${effectiveTenantLimit}) reached! Upgrade to Pro or purchase a Tenant Extension Pack (+25 slots for ₹399/mo) to onboard additional occupants.`);
+      return;
+    }
+
     const newId = `og-guest-${Date.now()}`;
     const formattedCheckIn = new Date(checkInDate).toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -1322,13 +1343,23 @@ export default function OnboardGuestPage({
                   ← Back to Allocation
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleFinalGuestSubmit}
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
-                </button>
+                {capacityStatus.isAtCapacity ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-gray-300 text-gray-600 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed min-h-[48px]"
+                  >
+                    <Lock className="w-4 h-4 text-amber-700" /> Capacity Limit Reached ({activeOccupantsCount}/{effectiveTenantLimit})
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleFinalGuestSubmit}
+                    className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Complete Guest Onboarding
+                  </button>
+                )}
               </div>
             </div>
           )}

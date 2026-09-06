@@ -362,6 +362,18 @@ export default function HomeWorkspacePage() {
     e.preventDefault();
     if (!newPropName.trim()) return;
 
+    // 🔒 Master Controls Multi-Property Enforcement
+    if (isMultiPropertyGated) {
+      setShowAddPropertyModal(false);
+      setMultiPropertySuccess(false);
+      setMultiPropertyError(null);
+      setMultiPropertyScreenshot(null);
+      setMultiPropertyFileName(null);
+      setShowMultiPropertyModal(true);
+      triggerToast(`⚠️ Building limit reached (${properties.length}/${maxAllowedProperties}). Upgrade to add more buildings.`);
+      return;
+    }
+
     const slugId = newPropName
       .toLowerCase()
       .trim()

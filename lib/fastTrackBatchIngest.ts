@@ -9,12 +9,14 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { autoProvisionBuildingFromRoster } from "./autoBuildingProvisioner";
 import { FastTrackParsedRow } from "./fastTrackHeuristicParser";
 import { saveOccupantToFirestore } from "./firestoreService";
+import { getEffectiveTenantLimit } from "./subscriptionEngine";
 
 export interface BatchIngestOptions {
   autoProvisionBuilding: boolean;
   rebuildLayout?: boolean; // When true, clears dummy rooms and generates fresh from sheet
   markDepositsPaid?: boolean;
   markCurrentMonthRentPaid?: boolean;
+  userProfile?: any;
 }
 
 export interface BatchIngestResult {
@@ -43,6 +45,24 @@ export async function executeFastTrackBatchIngest(
       totalMonthlyRevenue: 0,
       occupants: [],
       errors: ["No valid rows provided to ingest."],
+    };
+  }
+
+  // 🔒 Master Controls Capacity Enforcement
+  const existingOccupants = occupantStore.getOccupants(propertyId) || [];
+  const existingActiveCount = existingOccupants.filter((o) => o.lifecycleStatus !== "Past").length;
+  const effectiveLimit = getEffectiveTenantLimit(options.userProfile);
+
+  if (existingActiveCount + rows.length > effectiveLimit) {
+    const errorMsg = `Platform Capacity Exceeded: Your plan limit is ${effectiveLimit} active tenants. You currently have ${existingActiveCount} active tenants. Ingesting ${rows.length} occupants would exceed your quota (${existingActiveCount + rows.length}/${effectiveLimit}). Please upgrade your plan or purchase +25 Tenant Extension Packs.`;
+    return {
+      success: false,
+      enrolledCount: 0,
+      createdRoomsCount: 0,
+      createdBedsCount: 0,
+      totalMonthlyRevenue: 0,
+      occupants: [],
+      errors: [errorMsg],
     };
   }
 
@@ -91,7 +111,6 @@ export async function executeFastTrackBatchIngest(
   }
 
   // 3. Build Occupant instances
-  const existingOccupants = occupantStore.getOccupants(propertyId) || [];
   const newOccupants: Occupant[] = [];
   let totalMonthlyRevenue = 0;
 
