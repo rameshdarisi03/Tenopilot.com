@@ -149,7 +149,7 @@ export default function Home() {
               id="nav-signup-btn"
               className="px-5 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-sm transition-all shadow-xs hover:shadow-sm flex items-center gap-1.5"
             >
-              <span>Activate Property</span>
+              <span>Join Now</span>
             </Link>
           </div>
         </div>
@@ -177,13 +177,13 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 mb-16">
-            {/* Primary CTA: Activate Property */}
+            {/* Primary CTA: Join Now */}
             <Link
               href="/signup"
               id="hero-primary-cta"
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#964407] hover:bg-[#c2652a] text-white text-base font-bold transition-all shadow-xl hover:shadow-[#964407]/20 hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Activate Property with Code</span> <ArrowRight className="w-5 h-5" />
+              <span>Join Now</span> <ArrowRight className="w-5 h-5" />
             </Link>
             <a
               href="https://wa.me/919550259837?text=Hi%20TenoPilot%2C%20I%20am%20a%20PG%20owner%20and%20I%20would%20like%20to%20request%20an%20Activation%20Pass."
