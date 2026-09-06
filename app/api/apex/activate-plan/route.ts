@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
       receiptUrl = "",
       notes = "",
       activatedBy = "Founder Console",
+      requestId = null,
     } = body;
 
     if (!email && !userId) {
@@ -76,6 +77,8 @@ export async function POST(req: NextRequest) {
       lastReceiptUrl: receiptUrl || null,
       lastActivatedBy: activatedBy,
       lastActivatedAt: nowIso,
+      pendingPaymentRequest: false,
+      lastPaymentApprovedAt: nowIso,
       notes: notes || null,
       updatedAt: nowIso,
     };
@@ -97,6 +100,24 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.warn(`User email doc update notice for ${cleanEmail}:`, err);
+      }
+    }
+
+    // 1b. If linked to an offline payment request, mark it APPROVED
+    if (requestId) {
+      try {
+        await setDoc(
+          doc(db, "subscription_requests", requestId),
+          {
+            status: "APPROVED",
+            reviewedAt: nowIso,
+            reviewedBy: activatedBy,
+            activatedPlan: resolvedPlan,
+          },
+          { merge: true }
+        );
+      } catch (reqErr) {
+        console.warn(`subscription_requests approval notice for ${requestId}:`, reqErr);
       }
     }
 

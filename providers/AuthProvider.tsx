@@ -24,6 +24,8 @@ export interface UserProfile {
   planExpiresAt?: string;
   plan?: string;
   subscriptionStatus?: string;
+  pendingPaymentRequest?: boolean;
+  lastPaymentRejectionReason?: string;
 }
 
 interface AuthContextType {

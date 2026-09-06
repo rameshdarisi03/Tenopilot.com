@@ -17,15 +17,17 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
 
   const sub = evaluateSubscription(profile);
 
-  // Only display if in Trial, Grace Period, 7-Day Pre-Expiry window, or Expired
-  if (!sub.inGracePeriod && !sub.isPreExpiry && sub.status !== "EXPIRED" && sub.status !== "TRIAL") {
+  const isPendingVerification = !!profile.pendingPaymentRequest;
+
+  // Only display if pending verification, or in Trial, Grace Period, 7-Day Pre-Expiry window, or Expired
+  if (!isPendingVerification && !sub.inGracePeriod && !sub.isPreExpiry && sub.status !== "EXPIRED" && sub.status !== "TRIAL") {
     return null;
   }
 
-  const isTrial = sub.status === "TRIAL";
-  const isGrace = sub.inGracePeriod;
-  const isPreExpiry = sub.isPreExpiry;
-  const isExpired = sub.status === "EXPIRED";
+  const isTrial = !isPendingVerification && sub.status === "TRIAL";
+  const isGrace = !isPendingVerification && sub.inGracePeriod;
+  const isPreExpiry = !isPendingVerification && sub.isPreExpiry;
+  const isExpired = !isPendingVerification && sub.status === "EXPIRED";
 
   return (
     <div
@@ -40,7 +42,11 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
       }`}
     >
       <div className="flex items-center gap-2.5 min-w-0">
-        {isTrial ? (
+        {isPendingVerification ? (
+          <div className="p-1 rounded-lg bg-amber-500/20 text-amber-900 shrink-0">
+            <Clock className="w-3.5 h-3.5 animate-spin" />
+          </div>
+        ) : isTrial ? (
           <div className="p-1 rounded-lg bg-amber-500/20 text-amber-800 shrink-0">
             <Zap className="w-3.5 h-3.5 text-[#c2652a]" />
           </div>
@@ -60,7 +66,9 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
 
         <p className="truncate text-[11px] sm:text-xs">
           <strong>
-            {isTrial
+            {isPendingVerification
+              ? `⏳ Payment Verification Pending`
+              : isTrial
               ? `⚡ 10-Day Free Express Trial: ${sub.daysRemaining} Days Remaining`
               : isGrace
               ? `⏳ 7-Day Pro Grace Period Active (${sub.graceDaysRemaining} Days Left)`
@@ -70,7 +78,9 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
             :
           </strong>{" "}
           <span className="opacity-90">
-            {isTrial
+            {isPendingVerification
+              ? `Your payment proof has been submitted and is under review by the founder. Pro unlocks instantly upon verification.`
+              : isTrial
               ? `Enjoying full free trial access. Upgrade to Pro for ₹999/mo to unlock unlimited features.`
               : isGrace
               ? `Your Pro cycle ended on ${sub.expiryDateFormatted}. All operations remain active.`
@@ -85,7 +95,9 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
         <Link
           href={`/p/${propertyId}/subscription`}
           className={`px-3 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs ${
-            isTrial
+            isPendingVerification
+              ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse"
+              : isTrial
               ? "bg-[#c2652a] hover:bg-[#964407] text-white"
               : isGrace
               ? "bg-amber-600 hover:bg-amber-700 text-white"
@@ -94,7 +106,7 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
               : "bg-rose-600 hover:bg-rose-700 text-white"
           }`}
         >
-          <span>{isTrial ? "Upgrade to Pro (₹999)" : isGrace ? "Renew Now (₹999)" : isPreExpiry ? "Renew Early" : "Reactivate"}</span>
+          <span>{isPendingVerification ? "Check Status" : isTrial ? "Upgrade to Pro (₹999)" : isGrace ? "Renew Now (₹999)" : isPreExpiry ? "Renew Early" : "Reactivate"}</span>
           <ChevronRight className="w-3 h-3" />
         </Link>
 

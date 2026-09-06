@@ -6,6 +6,7 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { useAuth } from "@/providers/AuthProvider";
 import { evaluateSubscription, calculateStackedExpiry } from "@/lib/subscriptionEngine";
+import { RazorpayModalMockup } from "@/components/dashboard/RazorpayModalMockup";
 import {
   Sparkles,
   ShieldCheck,
@@ -23,6 +24,15 @@ import {
   Phone,
   HelpCircle,
   Lock,
+  Upload,
+  Image as ImageIcon,
+  Check,
+  X,
+  RefreshCw,
+  Eye,
+  Trash2,
+  AlertCircle,
+  Smartphone,
 } from "lucide-react";
 import Link from "next/link";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -36,10 +46,21 @@ export default function SubscriptionBillingPage() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"PRO_MONTHLY" | "PRO_ANNUAL">("PRO_MONTHLY");
-  const [paymentMode, setPaymentMode] = useState<"UPI" | "BANK" | "CASH">("UPI");
-  const [utrNumber, setUtrNumber] = useState("");
+  const [paymentChannel, setPaymentChannel] = useState<"ONLINE" | "OFFLINE">("ONLINE");
+  const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+
+  // Offline Verification State
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotFileName, setScreenshotFileName] = useState<string | null>(null);
   const [receiptNotes, setReceiptNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingProof, setIsSubmittingProof] = useState(false);
+  const [isCancellingProof, setIsCancellingProof] = useState(false);
+
+  // Pending Request Tracking
+  const [pendingRequest, setPendingRequest] = useState<any | null>(null);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [historyTransactions, setHistoryTransactions] = useState<any[]>([]);
 
@@ -50,7 +71,33 @@ export default function SubscriptionBillingPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Fetch past subscription transactions for this customer
+  // 1. Fetch pending verification request if any
+  const loadPendingRequest = async () => {
+    if (!profile?.email && !profile?.uid) return;
+    try {
+      setLoadingPending(true);
+      const url = `/api/subscription/pending?${profile.uid ? `userId=${profile.uid}&` : ""}${
+        profile.email ? `email=${encodeURIComponent(profile.email)}` : ""
+      }`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.hasPending && data.request) {
+        setPendingRequest(data.request);
+      } else {
+        setPendingRequest(null);
+      }
+    } catch (err) {
+      console.warn("Notice checking pending subscription request:", err);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPendingRequest();
+  }, [profile?.email, profile?.uid]);
+
+  // 2. Fetch past subscription transactions for this customer
   useEffect(() => {
     async function loadTransactions() {
       if (!profile?.email) return;
@@ -70,53 +117,108 @@ export default function SubscriptionBillingPage() {
     loadTransactions();
   }, [profile?.email]);
 
-  const handleSelfRenewalSubmit = async (e: React.FormEvent) => {
+  // Handle Screenshot Selection
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      triggerToast("⚠️ Please upload a valid image file (PNG, JPG, JPEG, WebP).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      triggerToast("⚠️ File size exceeds 5MB. Please upload a smaller image.");
+      return;
+    }
+
+    setScreenshotFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setScreenshotPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Submit Offline Payment Proof for Manual Founder Approval
+  const handleSubmitPaymentProof = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+
+    if (!screenshotPreview) {
+      triggerToast("⚠️ Please upload your payment screenshot before proceeding.");
+      return;
+    }
+
+    setIsSubmittingProof(true);
 
     try {
-      const res = await fetch("/api/apex/activate-plan", {
+      const res = await fetch("/api/subscription/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: profile?.uid,
-          email: profile?.email,
+          customerEmail: profile?.email,
+          customerName: profile?.displayName || "PG Owner",
+          customerPhone: profile?.phone || "",
+          propertyId,
+          propertyName: "TenoPilot PG",
           plan: selectedPlan,
-          durationDays: selectedPlan === "PRO_MONTHLY" ? 30 : 365,
-          paymentMode: paymentMode,
-          amountPaid: selectedPlan === "PRO_MONTHLY" ? 999 : 9990,
-          receiptNumber: utrNumber || `ONLINE-${Date.now().toString().slice(-6)}`,
-          notes: receiptNotes || `Self-Service Renewal submitted by property owner`,
-          activatedBy: `Self-Pay (${profile?.displayName || profile?.email})`,
+          amount: selectedPlan === "PRO_MONTHLY" ? 999 : 9990,
+          paymentMode: "UPI / Bank Transfer (Offline)",
+          screenshotData: screenshotPreview,
+          notes: receiptNotes || "Payment screenshot submitted via client subscription portal",
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        triggerToast("🎉 Renewal successfully confirmed! Your Pro plan has been seamlessly extended.");
-        setUtrNumber("");
+        triggerToast("🎉 Payment proof submitted! Founder review typically takes under 15 minutes.");
+        setScreenshotPreview(null);
+        setScreenshotFileName(null);
         setReceiptNotes("");
-        // Reload after 1.5s
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        setPendingRequest(data.request);
       } else {
-        triggerToast(`⚠️ Renewal notice: ${data.message}`);
+        triggerToast(`⚠️ Notice: ${data.message}`);
       }
     } catch (err: any) {
       triggerToast(`⚠️ Submission failed: ${err.message}`);
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingProof(false);
+    }
+  };
+
+  // Cancel Pending Request to re-upload
+  const handleCancelPendingRequest = async () => {
+    if (!pendingRequest?.id) return;
+    setIsCancellingProof(true);
+
+    try {
+      const res = await fetch(
+        `/api/subscription/request?requestId=${pendingRequest.id}&userId=${profile?.uid || ""}&email=${encodeURIComponent(
+          profile?.email || ""
+        )}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        triggerToast("Request cancelled. You can now submit a new payment proof.");
+        setPendingRequest(null);
+      } else {
+        triggerToast(`⚠️ Could not cancel: ${data.message}`);
+      }
+    } catch (err: any) {
+      triggerToast(`⚠️ Error: ${err.message}`);
+    } finally {
+      setIsCancellingProof(false);
     }
   };
 
   const proFeatures = [
     "Unlimited Tenants & Multi-Bed Management",
     "Dual-Ledger Accounting (Rent vs Security Deposit)",
-    "Automated WhatsApp Payment Receipts & Rent Invoices",
-    "FastTrack AI 1-Click OCR Migration Engine",
-    "Police Verification & Digital KYC Register",
-    "7-Day Trusted Pro Grace Period on Every Cycle",
+    "1-Tap WhatsApp Cloud & Official Email Reminders",
+    "Dynamic UPI QR Code Generation per Room/Bed",
+    "Instant E-Receipt Auto-Dispatch with PDF Invoices",
     "Instant Multi-Property Portfolio Switching",
     "24/7 Dedicated Priority Phone & WhatsApp Support",
   ];
@@ -125,7 +227,7 @@ export default function SubscriptionBillingPage() {
     <div className="flex h-screen bg-[#fff8f6] text-[#201a17] overflow-hidden font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-3">
+        <div className="fixed bottom-6 right-6 z-[120] px-5 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-3">
           <CheckCircle2 className="w-4 h-4 text-white" />
           <span>{toastMessage}</span>
         </div>
@@ -161,11 +263,95 @@ export default function SubscriptionBillingPage() {
               Subscription & Plan Management
             </h1>
             <p className="text-xs text-gray-500">
-              Manage your Pro subscription, view upcoming renewals, download past receipts, and seamlessly extend your workspace.
+              Manage your Pro subscription, choose between Instant Online Gateway (Razorpay) or Direct Offline UPI, and extend your workspace.
             </p>
           </div>
 
-          {/* SINGLE MINIMAL ACTIVE PLAN STATUS CARD */}
+          {/* ⏳ PENDING VERIFICATION NOTICE CARD (Rendered if customer has an offline proof under review) */}
+          {pendingRequest && (
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-amber-100/40 border-2 border-amber-300 shadow-md animate-in fade-in space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shrink-0 shadow-md shadow-amber-500/20 animate-pulse">
+                    ⏳
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-black text-[10px] uppercase tracking-wider">
+                        Verification In Progress
+                      </span>
+                      <span className="text-[11px] font-mono text-gray-500">
+                        Request ID: <strong>{pendingRequest.id}</strong>
+                      </span>
+                    </div>
+                    <h3 className="text-base font-black text-gray-900 font-serif">
+                      Your Payment Screenshot is Under Review
+                    </h3>
+                    <p className="text-xs text-gray-700 leading-relaxed max-w-2xl">
+                      We have safely received your proof for <strong>{pendingRequest.plan === "PRO_MONTHLY" ? "Pro Monthly (₹999)" : "Pro Annual (₹9,990)"}</strong>. Our founder team verifies transactions directly with bank records. Your workspace will automatically unlock immediately upon approval.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap sm:flex-col items-end gap-2 shrink-0">
+                  <a
+                    href={`https://wa.me/919876543210?text=${encodeURIComponent(
+                      `Hi Ramesh, I have submitted payment proof for TenoPilot Pro (${pendingRequest.plan}) for my PG. Request ID: ${pendingRequest.id}. Please verify.`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>📱 Priority WhatsApp Ping</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    disabled={isCancellingProof}
+                    onClick={handleCancelPendingRequest}
+                    className="text-[11px] text-gray-500 hover:text-rose-600 underline font-medium cursor-pointer transition-colors"
+                  >
+                    {isCancellingProof ? "Cancelling..." : "Cancel & Re-Upload Proof"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Uploaded Proof Preview Bar */}
+              {pendingRequest.screenshotUrl && (
+                <div className="pt-3 border-t border-amber-200/60 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-3">
+                    <div
+                      onClick={() => setZoomedScreenshot(pendingRequest.screenshotUrl)}
+                      className="relative w-16 h-12 rounded-xl bg-gray-200 border border-amber-300 overflow-hidden cursor-pointer hover:opacity-90 shadow-2xs group"
+                      title="Click to zoom screenshot"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={pendingRequest.screenshotUrl}
+                        alt="Payment Proof"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold transition-opacity">
+                        <Eye className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-800 text-[11px]">Payment Proof Attached</p>
+                      <p className="text-[10px] text-gray-500">
+                        Submitted: {new Date(pendingRequest.submittedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} • Click thumbnail to inspect
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-100/80 border border-amber-300 text-amber-900 font-mono text-[10px] font-bold">
+                    Pending Founder Approval
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ACTIVE PLAN STATUS CARD */}
           <div
             className={`p-5 sm:p-6 rounded-3xl border transition-all shadow-xs ${
               sub.status === "ACTIVE_PRO"
@@ -218,45 +404,31 @@ export default function SubscriptionBillingPage() {
                   {sub.inGracePeriod
                     ? `Your Pro cycle completed on ${sub.expiryDateFormatted}. All operations remain active during your 7-day grace period.`
                     : sub.isPreExpiry
-                    ? `Your Pro plan renews in ${sub.daysRemaining} days. Early renewals stack automatically onto your remaining days.`
+                    ? `Your Pro subscription will renew on ${sub.expiryDateFormatted}. Early renewals seamlessly stack +30 days without losing current days.`
                     : sub.isPro
-                    ? `You are enjoying full TenoPilot Pro power with unlimited WhatsApp reminders and automated dual-ledger computing.`
-                    : `You have 100% full access to all core modules. (Automated WhatsApp & Email reminders are locked during trial and unlock on Pro).`}
-                </p>
-
-                <p className="text-[11px] text-[#964407] font-medium flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                  <span>Early renewals stack seamlessly onto your expiry date — zero lost days.</span>
+                    ? `Enjoy uninterrupted access to automated WhatsApp reminders, verified email dispatches, and multi-bed management.`
+                    : `You have full access to explore TenoPilot features. Upgrade to Pro (₹999/mo) to unlock automated multi-channel batch reminders.`}
                 </p>
               </div>
 
-              {/* Action Button */}
-              <div className="shrink-0 w-full sm:w-auto">
+              <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href="#renewal-section"
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#964407] text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  href="#payment-options"
+                  className="px-5 py-2.5 rounded-xl bg-[#201a17] hover:bg-[#342924] text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>
-                    {sub.inGracePeriod
-                      ? "Renew Pro (₹999/mo)"
-                      : sub.isPreExpiry
-                      ? "Renew Early (Stack 30d)"
-                      : sub.isPro
-                      ? "Extend Plan (+30d)"
-                      : "Upgrade to Pro (₹999/mo)"}
-                  </span>
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>{sub.isPro ? "Extend / Stack Renewal" : "Upgrade to Pro (₹999)"}</span>
                 </a>
               </div>
             </div>
           </div>
 
-          {/* PLAN COMPARISON CARDS */}
-          <div className="space-y-4" id="renewal-section">
+          {/* PLAN SELECTION CARDS */}
+          <div className="space-y-4" id="payment-options">
             <div>
-              <h3 className="text-lg font-black text-[#201a17]">Choose Your Pro Subscription Plan</h3>
+              <h3 className="text-lg font-black text-[#201a17]">1. Choose Your Plan</h3>
               <p className="text-xs text-gray-500">
-                Select your preferred billing cycle to unlock automated WhatsApp and email reminders.
+                Select your billing frequency. Early renewals stack seamlessly onto your current days.
               </p>
             </div>
 
@@ -371,279 +543,265 @@ export default function SubscriptionBillingPage() {
             </div>
           </div>
 
-          {/* 🔍 FREE TRIAL VS PRO PLAN TRANSPARENCY MATRIX */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-[#d7c2b9]/60 shadow-xs space-y-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#964407] bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                  FULL TRANSPARENCY MATRIX 🔍
-                </span>
-                <h3 className="text-lg font-black text-[#201a17] mt-1.5">
-                  10-Day Free Express Trial vs. Pro Plan Comparison
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Everything you get in your trial account versus unlocking automated WhatsApp & email power in TenoPilot Pro.
-                </p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-200 text-[#201a17]">
-                    <th className="py-3 px-4 font-black uppercase text-[11px] text-gray-500">Capabilities</th>
-                    <th className="py-3 px-4 font-black text-xs text-amber-900 bg-amber-50/60 rounded-t-xl w-56 text-center">
-                      ⚡ 10-Day Free Trial
-                    </th>
-                    <th className="py-3 px-4 font-black text-xs text-emerald-900 bg-emerald-50/60 rounded-t-xl w-56 text-center">
-                      💎 Pro Plan (₹999/mo)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Duration & Validity
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20 font-medium">
-                      10 Days Full Trial Access
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      Unlimited Recurring (30d / 365d)
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Tenant & Bed Capacity
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
-                      ✅ Unlimited Tenants, Rooms & Beds
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ Unlimited Tenants, Rooms & Beds
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Dual-Ledger Accounting Engine
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
-                      ✅ Rent vs Security Deposit + Pro-Rata
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ Rent vs Security Deposit + Pro-Rata
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      FastTrack AI 1-Click OCR Migration
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
-                      ✅ Full AI OCR Ingestion
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ Full AI OCR Ingestion
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Digital Police Verification & KYC Vault
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
-                      ✅ Full Legal Register & Storage
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ Full Legal Register & Storage
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Multi-Branch Receptionist Accounts (6-Digit PIN)
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-gray-800 bg-amber-50/20">
-                      ✅ Unlimited Staff & PIN Security
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ Unlimited Staff & PIN Security
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors bg-amber-50/30">
-                    <td className="py-3.5 px-4 font-bold text-amber-950 flex items-center gap-1.5">
-                      <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>Automated WhatsApp & Email Reminders</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-bold text-amber-800 bg-amber-100/50">
-                      🔒 Locked (Exclusive to Pro Plan)
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-black text-emerald-800 bg-emerald-100/60">
-                      ✅ Unlimited Instant WhatsApp Dispatches
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      7-Day Trusted Pro Grace Period
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-400 bg-amber-50/20">
-                      ❌ None (Trial ends on Day 10)
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      ✅ 7 Days Uninterrupted Grace Every Month
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4 font-bold text-gray-800">
-                      Support Level
-                    </td>
-                    <td className="py-3 px-4 text-center text-gray-600 bg-amber-50/20">
-                      Standard Support
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700 bg-emerald-50/20">
-                      24/7 Priority WhatsApp & Founder Call
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* SELF-PAYMENT / RENEWAL SUBMISSION FORM */}
+          {/* DUAL PAYMENT METHOD HUB: ONLINE (RAZORPAY) vs OFFLINE (PROOF APPROVAL) */}
           <div className="p-6 sm:p-8 rounded-3xl bg-white border border-[#d7c2b9]/60 shadow-xs space-y-6">
             <div>
-              <h3 className="text-lg font-black text-[#201a17] flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-[#c2652a]" />
-                <span>Complete Renewal & Instant Activation</span>
-              </h3>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-lg font-black text-[#201a17] flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-[#c2652a]" />
+                  <span>2. Select Payment Method & Activate</span>
+                </h3>
+                <span className="text-[11px] font-bold text-gray-500">
+                  Total Due: <strong className="text-slate-900 font-mono text-xs">₹{selectedPlan === "PRO_MONTHLY" ? "999" : "9,990"}</strong>
+                </span>
+              </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Pay via your preferred UPI app or Bank Transfer and record your transaction for instant verification.
+                Choose between Instant Automated Activation via Online Gateway (Razorpay) or Direct Bank/UPI Transfer with manual proof verification.
               </p>
             </div>
 
-            {/* Payment Mode Selector */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Payment Channel Selector Tabs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setPaymentMode("UPI")}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs border flex items-center gap-2 transition-all cursor-pointer ${
-                  paymentMode === "UPI"
-                    ? "bg-[#201a17] text-white border-[#201a17]"
-                    : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                onClick={() => setPaymentChannel("ONLINE")}
+                className={`p-4 rounded-2xl border-2 flex items-start gap-3 transition-all cursor-pointer text-left ${
+                  paymentChannel === "ONLINE"
+                    ? "bg-gradient-to-br from-blue-50/60 to-white border-blue-600 shadow-sm ring-2 ring-blue-500/20"
+                    : "bg-slate-50/50 border-slate-200 hover:bg-slate-50 text-slate-700"
                 }`}
               >
-                <QrCode className="w-4 h-4 text-amber-400" />
-                <span>UPI / QR Code (GPay / PhonePe / Paytm)</span>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  paymentChannel === "ONLINE" ? "bg-blue-600 text-white shadow-sm" : "bg-slate-200 text-slate-700"
+                }`}>
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-slate-900">Online Gateway (Razorpay)</span>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                      Instant ⚡
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    UPI, Cards, NetBanking. Automated activation in 10 seconds.
+                  </p>
+                </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => setPaymentMode("BANK")}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs border flex items-center gap-2 transition-all cursor-pointer ${
-                  paymentMode === "BANK"
-                    ? "bg-[#201a17] text-white border-[#201a17]"
-                    : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                onClick={() => setPaymentChannel("OFFLINE")}
+                className={`p-4 rounded-2xl border-2 flex items-start gap-3 transition-all cursor-pointer text-left ${
+                  paymentChannel === "OFFLINE"
+                    ? "bg-gradient-to-br from-amber-50/60 to-white border-amber-600 shadow-sm ring-2 ring-amber-500/20"
+                    : "bg-slate-50/50 border-slate-200 hover:bg-slate-50 text-slate-700"
                 }`}
               >
-                <Building2 className="w-4 h-4 text-blue-500" />
-                <span>Bank Transfer (IMPS / NEFT)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMode("CASH")}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs border flex items-center gap-2 transition-all cursor-pointer ${
-                  paymentMode === "CASH"
-                    ? "bg-[#201a17] text-white border-[#201a17]"
-                    : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
-                }`}
-              >
-                <FileText className="w-4 h-4 text-emerald-600" />
-                <span>Cash In-Hand / In-Person</span>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  paymentChannel === "OFFLINE" ? "bg-amber-600 text-white shadow-sm" : "bg-slate-200 text-slate-700"
+                }`}>
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-slate-900">Direct Offline UPI / Bank</span>
+                    <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-black uppercase">
+                      Manual Approval
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Scan QR, upload screenshot. Verified & approved by founder.
+                  </p>
+                </div>
               </button>
             </div>
 
-            {/* Payment Details Box */}
-            <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9]/60 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">OFFICIAL UPI ID / VPA</span>
-                <p className="font-mono font-black text-sm text-[#201a17]">
-                  tenopilot@icici <span className="text-gray-400 font-normal font-sans">(or 9876543210@paytm)</span>
-                </p>
-                <p className="text-[11px] text-gray-500">
-                  Pay <strong>{selectedPlan === "PRO_MONTHLY" ? "₹999" : "₹9,990"}</strong> from any UPI app.
-                </p>
-              </div>
+            {/* CHANNEL 1: ONLINE GATEWAY (RAZORPAY MOCKUP) */}
+            {paymentChannel === "ONLINE" && (
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-[#0c2340] text-white space-y-5 animate-in fade-in">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-blue-300 uppercase tracking-widest block">
+                      RECOMMENDED FOR FASTEST ACCESS
+                    </span>
+                    <h4 className="text-xl font-black text-white font-serif">
+                      Instant Automated Activation via Razorpay
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-lg">
+                      Pay securely with Google Pay, PhonePe, Paytm, RuPay, Visa, Mastercard, or NetBanking. Instant webhook verification unlocks your Pro plan automatically.
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">DIRECT FOUNDER WHATSAPP</span>
-                <p className="font-mono font-bold text-sm text-emerald-700">
-                  +91 98765 43210
-                </p>
-                <p className="text-[11px] text-gray-500">
-                  Send payment screenshot directly for 60-second priority verification.
-                </p>
-              </div>
-            </div>
-
-            {/* Submission Form */}
-            <form onSubmit={handleSelfRenewalSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block font-bold text-gray-700">
-                    UPI Reference / UTR Number / Receipt Tag *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={utrNumber}
-                    onChange={(e) => setUtrNumber(e.target.value)}
-                    placeholder="e.g. UTR202608304918 or CASH-REC-01"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 font-mono text-xs focus:ring-2 focus:ring-[#c2652a]"
-                  />
+                  <div className="text-right shrink-0">
+                    <span className="text-2xl font-black text-white font-mono">
+                      ₹{selectedPlan === "PRO_MONTHLY" ? "999" : "9,990"}
+                    </span>
+                    <span className="text-xs text-slate-400 block font-sans">
+                      {selectedPlan === "PRO_MONTHLY" ? "30 Days Access" : "365 Days Access"}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block font-bold text-gray-700">
-                    Payment Notes / Remarks (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={receiptNotes}
-                    onChange={(e) => setReceiptNotes(e.target.value)}
-                    placeholder="e.g. Paid via GPay from Ramesh account"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 text-xs focus:ring-2 focus:ring-[#c2652a]"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-white/10 text-xs">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>256-Bit SSL Encrypted</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Zap className="w-4 h-4 text-yellow-400 shrink-0" />
+                    <span>Zero Manual Wait Time</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <FileText className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span>Official GST Invoice Generated</span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRazorpayModal(true)}
+                    className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 via-[#3399cc] to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-95"
+                  >
+                    <Lock className="w-4 h-4" />
+                    <span>Pay ₹{selectedPlan === "PRO_MONTHLY" ? "999" : "9,990"} via Razorpay Gateway (Instant)</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
+            )}
 
-              <div className="pt-2 flex items-center justify-between">
-                <p className="text-[11px] text-gray-500 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Instant automated activation & transaction logging.</span>
-                </p>
+            {/* CHANNEL 2: OFFLINE UPI / BANK TRANSFER (MANUAL PROOF APPROVAL) */}
+            {paymentChannel === "OFFLINE" && (
+              <div className="space-y-5 animate-in fade-in">
+                {/* Official Bank / VPA Details */}
+                <div className="p-4 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9]/60 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">OFFICIAL UPI ID / VPA</span>
+                    <p className="font-mono font-black text-sm text-[#201a17]">
+                      tenopilot@icici <span className="text-gray-400 font-normal font-sans">(or 9876543210@paytm)</span>
+                    </p>
+                    <p className="text-[11px] text-gray-500">
+                      Scan or pay <strong>{selectedPlan === "PRO_MONTHLY" ? "₹999" : "₹9,990"}</strong> from any UPI app.
+                    </p>
+                  </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-3 rounded-xl bg-[#201a17] hover:bg-[#342924] text-white font-black text-xs shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>Confirm Renewal & Extend Plan</span>
-                    </>
-                  )}
-                </button>
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">DIRECT FOUNDER WHATSAPP</span>
+                    <p className="font-mono font-bold text-sm text-emerald-700">
+                      +91 98765 43210
+                    </p>
+                    <p className="text-[11px] text-gray-500">
+                      Have questions or need offline invoice? WhatsApp founder directly.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Proof Upload & Submission Form */}
+                <form onSubmit={handleSubmitPaymentProof} className="space-y-4 text-xs">
+                  <div className="space-y-2">
+                    <label className="block font-bold text-gray-800 text-xs flex items-center justify-between">
+                      <span>Upload Payment Screenshot (Receipt / UTR) *</span>
+                      <span className="text-[10px] text-gray-500 font-normal">PNG, JPG, WebP up to 5MB</span>
+                    </label>
+
+                    {screenshotPreview ? (
+                      /* Preview Box */
+                      <div className="p-4 rounded-2xl bg-slate-50 border-2 border-emerald-300 flex items-center justify-between gap-3 animate-in zoom-in-95">
+                        <div className="flex items-center gap-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={screenshotPreview}
+                            alt="Screenshot Preview"
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-200 shadow-2xs cursor-pointer"
+                            onClick={() => setZoomedScreenshot(screenshotPreview)}
+                          />
+                          <div>
+                            <p className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <span>{screenshotFileName || "payment_screenshot.jpg"}</span>
+                            </p>
+                            <p className="text-[10px] text-emerald-700 font-medium">
+                              Ready for verification. Click thumbnail to zoom.
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScreenshotPreview(null);
+                            setScreenshotFileName(null);
+                          }}
+                          className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                          title="Remove screenshot"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Dropzone */
+                      <label className="border-2 border-dashed border-gray-300 hover:border-[#c2652a] rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-white group">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-50 group-hover:bg-amber-100 text-[#c2652a] flex items-center justify-center mb-2 transition-colors">
+                          <Upload className="w-6 h-6" />
+                        </div>
+                        <span className="font-bold text-gray-800 text-xs">
+                          Click to upload payment screenshot
+                        </span>
+                        <span className="text-[11px] text-gray-500 mt-0.5">
+                          Drag and drop screenshot from GPay, PhonePe, Paytm, or net banking
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleScreenshotChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block font-bold text-gray-700">
+                      Payment Remarks / Account Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={receiptNotes}
+                      onChange={(e) => setReceiptNotes(e.target.value)}
+                      placeholder="e.g. Paid via GPay from Ramesh account (UTR: 20260906...)"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 text-xs focus:ring-2 focus:ring-[#c2652a]"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Reviewed & approved by founder. Turnaround typically under 15 minutes.</span>
+                    </p>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmittingProof || !screenshotPreview}
+                      className="w-full sm:w-auto px-7 py-3 rounded-xl bg-[#201a17] hover:bg-[#342924] text-white font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingProof ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Submitting Proof for Review...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-amber-400" />
+                          <span>Proceed for Approval 🚀</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+            )}
           </div>
 
           {/* PAYMENT HISTORY & RECEIPTS TABLE */}
@@ -658,47 +816,43 @@ export default function SubscriptionBillingPage() {
             {historyTransactions.length === 0 ? (
               <div className="py-12 text-center text-gray-400 space-y-1 bg-[#fff8f6] rounded-2xl border border-dashed border-[#d7c2b9]/60">
                 <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="font-bold text-xs text-gray-700">No Past Invoices Found</p>
-                <p className="text-[11px] text-gray-500">Your future subscription receipts will automatically be archived here.</p>
+                <p className="text-xs font-bold text-gray-600">No Past Invoices Found</p>
+                <p className="text-[11px] text-gray-400">Your completed renewals and digital invoices will appear here.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-gray-200 text-gray-500 text-[10px] uppercase font-black tracking-wider">
-                      <th className="py-3 px-4">Receipt / UTR #</th>
-                      <th className="py-3 px-4">Plan Description</th>
-                      <th className="py-3 px-4">Amount</th>
-                      <th className="py-3 px-4">Mode</th>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4 text-right">Status</th>
+                    <tr className="border-b border-[#d7c2b9]/60 text-gray-500 text-[10px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Receipt / Txn ID</th>
+                      <th className="py-2.5 px-3">Plan</th>
+                      <th className="py-2.5 px-3">Payment Mode</th>
+                      <th className="py-2.5 px-3">Amount</th>
+                      <th className="py-2.5 px-3">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-[#d7c2b9]/30">
                     {historyTransactions.map((tx) => (
                       <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-gray-900">
+                        <td className="py-3 px-3 text-gray-600 font-mono text-[11px]">
+                          {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB") : "Recent"}
+                        </td>
+                        <td className="py-3 px-3 font-mono font-bold text-gray-900">
                           {tx.receiptNumber || tx.id}
                         </td>
-                        <td className="py-3.5 px-4 font-medium text-gray-800">
-                          {tx.plan === "PRO_ANNUAL" ? "Pro Annual Plan (365 Days)" : "Pro Monthly Plan (30 Days)"}
+                        <td className="py-3 px-3 font-bold text-gray-800">
+                          {tx.plan === "PRO_ANNUAL" ? "Pro Annual" : "Pro Monthly"}
                         </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-gray-900">
-                          ₹{(tx.amountPaid || 999).toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-gray-600">
+                        <td className="py-3 px-3 text-gray-600">
                           {tx.paymentMode || "UPI"}
                         </td>
-                        <td className="py-3.5 px-4 text-gray-500 font-mono">
-                          {new Date(tx.createdAt).toLocaleDateString("en-GB", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                        <td className="py-3 px-3 font-mono font-black text-gray-900">
+                          ₹{Number(tx.amountPaid || 999).toLocaleString("en-IN")}
                         </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            ✓ {tx.status || "COMPLETED"}
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                            COMPLETED
                           </span>
                         </td>
                       </tr>
@@ -710,6 +864,49 @@ export default function SubscriptionBillingPage() {
           </div>
         </div>
       </div>
+
+      {/* RAZORPAY GATEWAY CHECKOUT MODAL MOCKUP */}
+      <RazorpayModalMockup
+        isOpen={showRazorpayModal}
+        onClose={() => setShowRazorpayModal(false)}
+        onSuccess={() => {
+          setShowRazorpayModal(false);
+          triggerToast("🎉 Instant activation verified! Pro plan extended.");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }}
+        plan={selectedPlan}
+        amount={selectedPlan === "PRO_MONTHLY" ? 999 : 9990}
+        customerEmail={profile?.email}
+        customerName={profile?.displayName || "PG Owner"}
+        customerPhone={profile?.phone || "9876543210"}
+        userId={profile?.uid}
+      />
+
+      {/* SCREENSHOT ZOOM MODAL */}
+      {zoomedScreenshot && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setZoomedScreenshot(null)}
+        >
+          <div className="relative max-w-2xl max-h-[85vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setZoomedScreenshot(null)}
+              className="absolute -top-10 right-0 w-8 h-8 rounded-full bg-white/20 text-white hover:bg-white/40 flex items-center justify-center cursor-pointer transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={zoomedScreenshot}
+              alt="Payment Proof Full View"
+              className="max-h-[80vh] w-auto rounded-2xl shadow-2xl object-contain border border-white/20"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

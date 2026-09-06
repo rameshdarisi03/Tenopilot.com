@@ -41,6 +41,12 @@ export default function ApexCommandClientsPage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accounts, setAccounts] = useState<ScannedAccountRecord[]>([]);
+  // Pending Offline Payment Approvals Queue State
+  const [pendingPaymentRequests, setPendingPaymentRequests] = useState<any[]>([]);
+  const [isLoadingPendingRequests, setIsLoadingPendingRequests] = useState(false);
+  const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
+  const [isApprovingRequestId, setIsApprovingRequestId] = useState<string | null>(null);
+  const [isRejectingRequestId, setIsRejectingRequestId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "GRACE_PERIOD" | "EXPIRED" | "SUSPENDED">("ALL");
@@ -92,9 +98,94 @@ export default function ApexCommandClientsPage() {
     }
   };
 
+  const fetchPendingRequests = async () => {
+    setIsLoadingPendingRequests(true);
+    try {
+      const res = await fetch("/api/apex/pending-requests");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.requests)) {
+          setPendingPaymentRequests(data.requests);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch pending payment requests:", err);
+    } finally {
+      setIsLoadingPendingRequests(false);
+    }
+  };
+
   useEffect(() => {
     fetchScannedAccounts();
+    fetchPendingRequests();
   }, []);
+
+  // Handle Approve Offline Payment Proof
+  const handleApproveRequest = async (req: any) => {
+    setIsApprovingRequestId(req.id);
+    try {
+      const res = await fetch("/api/apex/activate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: req.userId,
+          email: req.customerEmail,
+          plan: req.plan || "PRO_MONTHLY",
+          durationDays: req.plan === "PRO_ANNUAL" ? 365 : 30,
+          paymentMode: req.paymentMode || "UPI / Bank Transfer (Offline)",
+          amountPaid: req.amount || 999,
+          receiptNumber: req.id,
+          receiptUrl: req.screenshotUrl,
+          notes: req.notes || ("Approved offline payment proof for " + req.customerEmail),
+          activatedBy: "Founder Console (Approval Queue)",
+          requestId: req.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast("✓ Pro Pass granted & activated for " + req.customerEmail + "!");
+        setPendingPaymentRequests((prev) => prev.filter((r) => r.id !== req.id));
+        await fetchScannedAccounts();
+      } else {
+        triggerToast("⚠️ Activation error: " + data.message);
+      }
+    } catch (err: any) {
+      triggerToast("⚠️ Activation failed: " + err.message);
+    } finally {
+      setIsApprovingRequestId(null);
+    }
+  };
+
+  // Handle Reject Offline Payment Proof
+  const handleRejectRequest = async (req: any) => {
+    setIsRejectingRequestId(req.id);
+    try {
+      const res = await fetch("/api/apex/reject-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: req.id,
+          userId: req.userId,
+          email: req.customerEmail,
+          reason: "Payment could not be verified in bank records.",
+          rejectedBy: "Founder Console",
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast("Proof rejected for " + req.customerEmail);
+        setPendingPaymentRequests((prev) => prev.filter((r) => r.id !== req.id));
+      } else {
+        triggerToast("⚠️ Rejection error: " + data.message);
+      }
+    } catch (err: any) {
+      triggerToast("⚠️ Rejection failed: " + err.message);
+    } finally {
+      setIsRejectingRequestId(null);
+    }
+  };
 
   // Handle Deep Purge Execution
   const handleExecuteDeepPurge = async () => {
@@ -422,6 +513,130 @@ export default function ApexCommandClientsPage() {
             </div>
           </div>
 
+          {/* PENDING OFFLINE PAYMENT APPROVALS QUEUE */}
+          {pendingPaymentRequests.length > 0 && (
+            <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-500/15 via-[#161b22] to-amber-950/20 border-2 border-amber-500/40 shadow-xl space-y-4 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-black font-black flex items-center justify-center text-base shadow-sm animate-pulse">
+                    ⏳
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                      <span>Pending Offline Payment Approvals</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono">
+                        {pendingPaymentRequests.length} Awaiting Verification
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-gray-400">
+                      Customers have uploaded proof of payment. Verify against your bank credit and click Approve to activate Pro.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchPendingRequests}
+                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-[11px] border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <RefreshCw className={"w-3 h-3 " + (isLoadingPendingRequests ? "animate-spin" : "")} />
+                  <span>Refresh Queue</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {pendingPaymentRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-4 rounded-2xl bg-[#0d1117]/80 border border-amber-500/30 space-y-3 flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold uppercase">
+                          {req.plan === "PRO_MONTHLY" ? "Pro Monthly" : "Pro Annual"}
+                        </span>
+                        <span className="font-mono font-black text-amber-400 text-xs">
+                          ₹{Number(req.amount || 999).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold text-xs text-white truncate">{req.customerName || "PG Owner"}</h4>
+                        <p className="text-[11px] text-gray-400 truncate">{req.customerEmail}</p>
+                        {req.customerPhone && (
+                          <p className="text-[10px] text-gray-500 font-mono">📞 {req.customerPhone}</p>
+                        )}
+                        {req.propertyName && (
+                          <p className="text-[10px] text-emerald-400 font-medium truncate">🏢 {req.propertyName}</p>
+                        )}
+                      </div>
+
+                      {req.notes && (
+                        <p className="text-[10px] text-gray-400 bg-white/5 p-2 rounded-lg italic">
+                          "{req.notes}"
+                        </p>
+                      )}
+
+                      {/* Clickable Screenshot Preview */}
+                      {req.screenshotUrl && (
+                        <div
+                          onClick={() => setZoomedProofUrl(req.screenshotUrl)}
+                          className="relative h-28 rounded-xl overflow-hidden bg-black/50 border border-white/10 cursor-pointer group hover:border-amber-400 transition-colors"
+                          title="Click to zoom screenshot"
+                        >
+                          <img
+                            src={req.screenshotUrl}
+                            alt="Payment Proof"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-white text-[11px] font-bold transition-opacity">
+                            <Eye className="w-4 h-4" />
+                            <span>Click to Zoom</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <span className="text-[9px] text-gray-500 block font-mono">
+                        Submitted: {new Date(req.submittedAt).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                      <button
+                        type="button"
+                        disabled={isApprovingRequestId === req.id || isRejectingRequestId === req.id}
+                        onClick={() => handleApproveRequest(req)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-black font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      >
+                        {isApprovingRequestId === req.id ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Granting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Approve & Grant Pass</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isApprovingRequestId === req.id || isRejectingRequestId === req.id}
+                        onClick={() => handleRejectRequest(req)}
+                        className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs border border-rose-500/30 transition-all cursor-pointer disabled:opacity-50"
+                        title="Reject Proof"
+                      >
+                        {isRejectingRequestId === req.id ? "..." : "Reject"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Search & Filter Nav */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -708,6 +923,30 @@ export default function ApexCommandClientsPage() {
           </div>
         </div>
       </div>
+
+      {/* ZOOMED PAYMENT PROOF MODAL */}
+      {zoomedProofUrl && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setZoomedProofUrl(null)}
+        >
+          <div className="relative max-w-2xl max-h-[85vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setZoomedProofUrl(null)}
+              className="absolute -top-10 right-0 w-8 h-8 rounded-full bg-white/20 text-white hover:bg-white/40 flex items-center justify-center cursor-pointer transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={zoomedProofUrl}
+              alt="Payment Proof Full View"
+              className="max-h-[80vh] w-auto rounded-2xl shadow-2xl object-contain border border-white/20"
+            />
+          </div>
+        </div>
+      )}
 
       {/* 👑 CUSTOMER 360° PROFILE & MANUAL PLAN ACTIVATION MODAL */}
       {selectedCustomer360 && (
