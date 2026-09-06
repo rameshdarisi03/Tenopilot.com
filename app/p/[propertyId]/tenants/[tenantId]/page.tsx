@@ -472,6 +472,8 @@ export default function IndividualTenantProfilePage({
                   receiptId: receiptItem.receiptNo,
                   amount: receiptItem.amount,
                   roomNumber: occupantState.roomNumber,
+                  bedCode: occupantState.bedCode,
+                  paymentMode: receiptItem.mode,
                   dueDate: receiptItem.date,
                 },
               },

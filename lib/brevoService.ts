@@ -71,132 +71,187 @@ export function generateEmailContent(payload: BrevoSendParams): { subject: strin
 
   switch (payload.type) {
     case "RENT_REMINDER": {
-      const subject = `📢 Rent Payment Reminder — ${pName} (Room ${p.roomNumber || "N/A"})`;
-      const upiText = p.upiId ? `UPI ID: ${p.upiId}${p.bankLabel ? ` (${p.bankLabel})` : ""}` : "Contact PG Front Desk";
+      const subject = `🏠 Rent Payment Reminder for Room ${p.roomNumber || "N/A"} — ${pName}`;
+      const upiText = p.upiId ? `UPI ID: ${p.upiId}${p.bankLabel ? ` (${p.bankLabel})` : ""}` : "Contact Management Desk";
       
       const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${subject}</title>
 </head>
-<body style="margin:0;padding:24px;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:28px 24px;text-align:center;color:#ffffff;">
-      <h1 style="margin:0 0 6px 0;font-size:22px;font-weight:800;letter-spacing:-0.5px;">${pName}</h1>
-      <p style="margin:0;color:#94a3b8;font-size:13px;">Official Rent Payment Notification</p>
+<body style="margin:0;padding:28px 12px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
+    
+    <!-- Top Header Banner -->
+    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%);padding:32px 24px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.12);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.15);">
+        🏢 ${pName.toUpperCase()}
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Rent Payment Reminder</h1>
+      <p style="margin:0;color:#cbd5e1;font-size:13px;">Official Notice for Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})</p>
     </div>
 
-    <div style="padding:28px 24px;">
-      <p style="font-size:15px;margin:0 0 16px 0;">Hello <strong>${payload.recipientName}</strong>,</p>
-      <p style="font-size:14px;color:#475569;margin:0 0 24px 0;line-height:1.5;">
-        This is a friendly reminder regarding your upcoming rent payment for your accommodation at <strong>${pName}</strong>.
+    <!-- Main Body -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#0f172a;">Dear <strong>${payload.recipientName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 24px 0;line-height:1.6;">
+        We hope you are having a pleasant, comfortable, and peaceful stay at <strong>${pName}</strong>! ✨<br/>
+        This is a friendly reminder regarding your monthly accommodation dues for your room.
       </p>
 
-      <div style="background:#f1f5f9;border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid #e2e8f0;">
+      <!-- Financial Statement Box -->
+      <div style="background:#f8fafc;border-radius:16px;padding:22px;margin-bottom:24px;border:1px solid #e2e8f0;">
         <table style="width:100%;font-size:14px;border-collapse:collapse;">
-          <tr>
-            <td style="padding:6px 0;color:#64748b;">Room & Bed:</td>
-            <td style="padding:6px 0;text-align:right;font-weight:700;color:#0f172a;">Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard"})</td>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Resident Name:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;color:#0f172a;">${payload.recipientName}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Room Location:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;color:#0f172a;">Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Payment Due Date:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;color:#dc2626;">${p.dueDate || "5th of this month"}</td>
           </tr>
           <tr>
-            <td style="padding:6px 0;color:#64748b;">Rent Amount Due:</td>
-            <td style="padding:6px 0;text-align:right;font-weight:800;font-size:18px;color:#059669;">₹${formattedAmount}</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#64748b;">Due Date:</td>
-            <td style="padding:6px 0;text-align:right;font-weight:700;color:#dc2626;">${p.dueDate || "5th of this month"}</td>
+            <td style="padding:16px 0 4px 0;color:#0f172a;font-weight:800;font-size:15px;">Total Amount Due:</td>
+            <td style="padding:16px 0 4px 0;text-align:right;font-weight:900;font-size:22px;color:#059669;">₹${formattedAmount}</td>
           </tr>
         </table>
       </div>
 
-      <div style="background:#ecfdf5;border-radius:12px;padding:18px;margin-bottom:24px;border:1px solid #a7f3d0;text-align:center;">
-        <p style="margin:0 0 8px 0;font-size:12px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:0.5px;">Quick Payment Mode</p>
-        <p style="margin:0;font-size:15px;font-weight:800;color:#047857;">${upiText}</p>
-        <p style="margin:8px 0 0 0;font-size:12px;color:#065f46;">You can also scan the QR code available at the PG reception desk.</p>
+      <!-- Quick UPI Payment Card -->
+      <div style="background:#ecfdf5;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #a7f3d0;text-align:center;">
+        <p style="margin:0 0 6px 0;font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;letter-spacing:1px;">⚡ Quick Payment Details</p>
+        <p style="margin:0;font-size:16px;font-weight:800;color:#047857;font-family:monospace;letter-spacing:0.5px;">${p.upiId || "Contact Management Desk"}</p>
+        ${p.bankLabel ? `<p style="margin:4px 0 0 0;font-size:12px;color:#047857;font-weight:600;">Bank / Account: ${p.bankLabel}</p>` : ""}
+        <p style="margin:10px 0 0 0;font-size:12px;color:#065f46;line-height:1.4;">
+          👉 <em>You can also scan the QR code available at the <strong>${pName}</strong> reception desk.</em>
+        </p>
       </div>
 
-      <p style="font-size:13px;color:#64748b;margin:0;line-height:1.5;">
-        If you have already made this payment, please disregard this notice or share the receipt with your property manager.
+      <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.5;">
+        💡 <em>If you have already completed this payment, please disregard this notice or share the payment screenshot with our desk so we can generate your official e-receipt immediately.</em>
       </p>
+
+      <div style="border-top:1px solid #f1f5f9;padding-top:18px;margin-top:20px;">
+        <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Warm regards,</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#0f172a;">${pName} Management & Operations</p>
+        <p style="margin:2px 0 0 0;font-size:12px;color:#64748b;">Resident Services Desk</p>
+      </div>
     </div>
 
-    <div style="background:#f8fafc;padding:16px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
-      Generated automatically via <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a> Property Operating System.
+    <!-- Footer -->
+    <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
+      Delivered securely via <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a> Operating System.
     </div>
   </div>
 </body>
 </html>`;
 
-      const text = `Hello ${payload.recipientName},\n\nRent reminder for ${pName}:\nRoom: ${p.roomNumber || "N/A"} (${p.bedCode || "Standard"})\nAmount Due: ₹${formattedAmount}\nDue Date: ${p.dueDate || "5th of this month"}\nPayment: ${upiText}\n\nGenerated via TenoPilot.com`;
+      const text = `Hello ${payload.recipientName},\n\nFriendly rent payment reminder for ${pName}:\n🏠 Resident: ${payload.recipientName}\n🏠 Room: Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n💰 Amount Due: ₹${formattedAmount}\n📅 Due Date: ${p.dueDate || "5th of this month"}\n💳 Payment UPI: ${upiText}\n\nThank you for being a valued resident of ${pName}!\n\n${pName} Management Desk\nGenerated via TenoPilot.com`;
       return { subject, html, text };
     }
 
     case "PAYMENT_RECEIPT": {
       const receiptNo = p.receiptId || `REC-${Date.now().toString().slice(-6)}`;
-      const subject = `🧾 Payment Receipt: ${receiptNo} — ${pName}`;
-      const paidDate = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const subject = `🧾 Official Payment Receipt #${receiptNo} — ${pName} (Room ${p.roomNumber || "N/A"})`;
+      const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const payMode = p.paymentMode || "UPI / Digital Transfer";
 
       const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${subject}</title>
 </head>
-<body style="margin:0;padding:24px;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-    <div style="background:linear-gradient(135deg,#064e3b 0%,#047857 100%);padding:28px 24px;text-align:center;color:#ffffff;">
-      <span style="background:rgba(255,255,255,0.2);padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Official Payment Receipt</span>
-      <h1 style="margin:10px 0 4px 0;font-size:22px;font-weight:800;">${pName}</h1>
-      <p style="margin:0;color:#a7f3d0;font-size:13px;">Receipt #${receiptNo}</p>
+<body style="margin:0;padding:28px 12px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
+    
+    <!-- Top Emerald Header Banner -->
+    <div style="background:linear-gradient(135deg,#064e3b 0%,#047857 50%,#059669 100%);padding:32px 24px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.18);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.2);">
+        ✅ OFFICIAL PAYMENT RECEIPT
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;">${pName}</h1>
+      <p style="margin:0;color:#a7f3d0;font-size:13px;font-family:monospace;letter-spacing:0.5px;">Receipt #${receiptNo}</p>
     </div>
 
-    <div style="padding:28px 24px;">
-      <p style="font-size:15px;margin:0 0 16px 0;">Dear <strong>${payload.recipientName}</strong>,</p>
-      <p style="font-size:14px;color:#475569;margin:0 0 24px 0;line-height:1.5;">
-        Thank you for your payment. We have successfully received and verified your payment. Below are the official receipt details for your records:
+    <!-- Main Body -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#0f172a;">Dear <strong>${payload.recipientName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 24px 0;line-height:1.6;">
+        We have successfully received and verified your payment. Thank you for clearing your dues promptly! 🟢<br/>
+        Below are the official transaction details recorded in the <strong>${pName}</strong> property ledger.
       </p>
 
-      <div style="background:#f8fafc;border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid #e2e8f0;">
+      <!-- Verified Receipt Table -->
+      <div style="background:#f8fafc;border-radius:16px;padding:22px;margin-bottom:24px;border:1px solid #e2e8f0;">
         <table style="width:100%;font-size:14px;border-collapse:collapse;">
           <tr style="border-bottom:1px dashed #cbd5e1;">
-            <td style="padding:8px 0;color:#64748b;">Receipt Number:</td>
-            <td style="padding:8px 0;text-align:right;font-weight:700;font-family:monospace;color:#0f172a;">${receiptNo}</td>
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Receipt Number:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;font-family:monospace;color:#0f172a;">${receiptNo}</td>
           </tr>
           <tr style="border-bottom:1px dashed #cbd5e1;">
-            <td style="padding:8px 0;color:#64748b;">Date Paid:</td>
-            <td style="padding:8px 0;text-align:right;font-weight:600;color:#0f172a;">${paidDate}</td>
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Resident Name:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;color:#0f172a;">${payload.recipientName}</td>
           </tr>
           <tr style="border-bottom:1px dashed #cbd5e1;">
-            <td style="padding:8px 0;color:#64748b;">Room / Unit:</td>
-            <td style="padding:8px 0;text-align:right;font-weight:600;color:#0f172a;">Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard"})</td>
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Date of Payment:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:600;color:#0f172a;">${paidDate}</td>
           </tr>
           <tr style="border-bottom:1px dashed #cbd5e1;">
-            <td style="padding:8px 0;color:#64748b;">Payment Mode:</td>
-            <td style="padding:8px 0;text-align:right;font-weight:600;color:#0f172a;">${p.paymentMode || "UPI / Direct Transfer"}</td>
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Accommodation:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:600;color:#0f172a;">Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #cbd5e1;">
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">Payment Channel:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:600;color:#0f172a;">${payMode}</td>
           </tr>
           <tr>
-            <td style="padding:12px 0 4px 0;color:#0f172a;font-weight:700;">Total Amount Paid:</td>
-            <td style="padding:12px 0 4px 0;text-align:right;font-weight:800;font-size:20px;color:#059669;">₹${formattedAmount}</td>
+            <td style="padding:16px 0 4px 0;color:#0f172a;font-weight:800;font-size:15px;">Total Amount Paid:</td>
+            <td style="padding:16px 0 4px 0;text-align:right;font-weight:900;font-size:22px;color:#059669;">₹${formattedAmount}</td>
           </tr>
         </table>
       </div>
 
-      <p style="font-size:13px;color:#64748b;margin:0;line-height:1.5;">
-        This is an authentic digital receipt generated by ${pName} administration. Please preserve this receipt for your personal expense records.
+      <!-- Verification Seal Box -->
+      <div style="background:#ecfdf5;border-radius:12px;padding:14px 18px;margin-bottom:24px;border:1px solid #a7f3d0;display:flex;align-items:center;gap:12px;">
+        <span style="font-size:20px;">🛡️</span>
+        <p style="margin:0;font-size:13px;color:#065f46;line-height:1.4;">
+          <strong>Ledger Status: Fully Verified & Locked</strong><br/>
+          This electronic confirmation serves as your authentic digital proof of payment for personal records and company HRA reimbursement.
+        </p>
+      </div>
+
+      <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.5;">
+        We appreciate having you as our resident at <strong>${pName}</strong>. Wishing you a great day ahead! 🌟
       </p>
+
+      <div style="border-top:1px solid #f1f5f9;padding-top:18px;margin-top:20px;">
+        <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Warm regards,</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#0f172a;">${pName} Administration</p>
+        <p style="margin:2px 0 0 0;font-size:12px;color:#64748b;">Finance & Resident Operations</p>
+      </div>
     </div>
 
-    <div style="background:#f8fafc;padding:16px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
+    <!-- Footer -->
+    <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
       Verified & Issued by ${pName} • Powered by <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a>
     </div>
   </div>
 </body>
 </html>`;
 
-      const text = `Receipt #${receiptNo}\n\nDear ${payload.recipientName},\nPayment of ₹${formattedAmount} received for ${pName} (Room ${p.roomNumber || "N/A"}).\nDate: ${paidDate}\nPayment Mode: ${p.paymentMode || "UPI"}\n\nThank you!\n${pName} Management via TenoPilot`;
+      const text = `Official Payment Receipt #${receiptNo}\n\nDear ${payload.recipientName},\n\nWe have received and verified your payment of ₹${formattedAmount} for ${pName} (Room ${p.roomNumber || "N/A"}).\n\nDate: ${paidDate}\nPayment Mode: ${payMode}\nReceipt No: #${receiptNo}\nStatus: Verified & Logged in Property Ledger\n\nThank you for being a valued resident!\n${pName} Administration via TenoPilot.com`;
       return { subject, html, text };
     }
 

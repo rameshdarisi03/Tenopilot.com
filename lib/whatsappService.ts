@@ -15,6 +15,8 @@ export interface WhatsAppSendParams {
     upiId?: string;
     bankLabel?: string;
     receiptId?: string;
+    paidDate?: string;
+    paymentMode?: string;
     onboardUrl?: string;
     complaintId?: string;
     complaintTitle?: string;
@@ -52,30 +54,53 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
     case "RENT_REMINDER": {
       const isCash = p.upiId === "CASH_PAYMENT" || p.upiId?.toLowerCase().includes("cash");
       const paymentInstr = isCash
-        ? `💵 *Payment Mode*: Cash at Reception Desk (${p.bankLabel || "PG Front Desk"})`
-        : `💳 *Pay via UPI ID*: ${p.upiId || "Contact Manager"}${p.bankLabel ? ` (${p.bankLabel})` : ""}\n👉 Tap to pay or scan QR in PG lobby.`;
+        ? `💵 *Payment Mode*: Cash settlement at Front Desk (${p.bankLabel || "Reception Desk"})`
+        : `💳 *Pay via UPI*: \`${p.upiId || "Contact Management"}\`${p.bankLabel ? ` (${p.bankLabel})` : ""}\n👉 _You can also scan the QR code available at the PG reception desk._`;
 
       return (
         `👋 *Hello ${payload.recipientName}*,\n\n` +
-        `Friendly rent payment reminder for *${pName}*:\n` +
-        `🏠 *Room*: ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n` +
+        `Hope you're having a comfortable stay with us at *${pName}*! ✨\n\n` +
+        `This is a friendly reminder regarding your monthly accommodation dues for Room *${p.roomNumber || "N/A"}* (${p.bedCode || "Standard Bed"}):\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
         `💰 *Amount Due*: ₹${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
-        `📅 *Due Date*: ${p.dueDate || "5th of this month"}\n\n` +
+        `📅 *Due Date*: ${p.dueDate || "5th of this month"}\n` +
+        `🏠 *Stay*: Room ${p.roomNumber || "N/A"} • ${p.bedCode || "Standard Bed"}\n` +
+        `🏢 *Property*: ${pName}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `${paymentInstr}\n\n` +
-        `_Generated automatically via TenoPilot.com Operating System._`
+        `💡 _Once paid, kindly share the screenshot or transaction reference so we can issue your official digital receipt immediately._\n\n` +
+        `_Thank you for being a valued resident of ${pName}!_\n\n` +
+        `Warm regards,\n` +
+        `*Management & Operations Desk*\n` +
+        `*${pName}*\n` +
+        `_Powered by TenoPilot.com_`
       );
     }
 
     case "PAYMENT_RECEIPT": {
+      const receiptNo = p.receiptId || `REC-${Date.now().toString().slice(-6)}`;
+      const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const payMode = p.paymentMode || "UPI / Digital Transfer";
+
       return (
-        `✅ *Rent Payment Confirmation — ${pName}*\n\n` +
-        `Dear ${payload.recipientName},\n` +
-        `We have received your rent payment of *₹${Number(p.amount || 0).toLocaleString("en-IN")}*.\n\n` +
-        `🧾 *Receipt No*: ${p.receiptId || `REC-${Date.now().toString().slice(-6)}`}\n` +
-        `🏠 *Room*: ${p.roomNumber || "N/A"}\n` +
-        `📅 *Date*: ${new Date().toLocaleDateString("en-IN")}\n\n` +
-        `Thank you for being a valued resident!\n` +
-        `_${pName} Management via TenoPilot_`
+        `🎉 *OFFICIAL PAYMENT RECEIPT — ${pName}*\n\n` +
+        `Dear *${payload.recipientName}*,\n\n` +
+        `We have successfully received and verified your payment. Thank you for clearing your accommodation dues promptly! 🟢\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🧾 *Receipt No*: ${receiptNo}\n` +
+        `💵 *Amount Received*: ₹${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
+        `📅 *Date Paid*: ${paidDate}\n` +
+        `💳 *Payment Mode*: ${payMode}\n` +
+        `🏠 *Stay Details*: Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n` +
+        `🏢 *Property*: ${pName}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `✅ *Status*: Fully Verified & Recorded in Property Ledger\n` +
+        `📄 _This electronic confirmation serves as your authentic proof of payment._\n\n` +
+        `We appreciate having you as our resident at *${pName}*. Wishing you a wonderful day! 🌟\n\n` +
+        `Warm regards,\n` +
+        `*Administration & Accounts*\n` +
+        `*${pName}*\n` +
+        `_TenoPilot Verified Ledger_`
       );
     }
 
