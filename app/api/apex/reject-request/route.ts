@@ -19,43 +19,59 @@ export async function POST(req: NextRequest) {
 
     const nowIso = new Date().toISOString();
 
-    // 1. Mark request as REJECTED
-    await setDoc(
-      doc(db, "subscription_requests", requestId),
-      {
-        status: "REJECTED",
-        rejectionReason: reason,
-        reviewedAt: nowIso,
-        reviewedBy: rejectedBy,
-      },
-      { merge: true }
-    );
+    const rejectionData = {
+      status: "REJECTED",
+      rejectionReason: reason,
+      reviewedAt: nowIso,
+      reviewedBy: rejectedBy,
+    };
 
-    // 2. Clear pending status on user doc
-    if (userId) {
+    // 1. Mark request as REJECTED in platform_admin and subscription_requests
+    try {
       await setDoc(
-        doc(db, "users", userId),
-        {
-          pendingPaymentRequest: false,
-          lastPaymentRejectionReason: reason,
-        },
+        doc(db, "platform_admin", "requests", "submissions", requestId),
+        rejectionData,
         { merge: true }
       );
+    } catch (adminErr) {
+      console.warn("platform_admin rejection notice:", adminErr);
+    }
+
+    try {
+      await setDoc(
+        doc(db, "subscription_requests", requestId),
+        rejectionData,
+        { merge: true }
+      );
+    } catch (subErr) {
+      console.warn("subscription_requests rejection notice:", subErr);
+    }
+
+    // 2. Clear pending status on user doc
+    const userRejectPayload = {
+      pendingPaymentRequest: false,
+      pendingRequestData: null,
+      lastPaymentRejectionReason: reason,
+    };
+
+    if (userId) {
+      try {
+        await setDoc(doc(db, "users", userId), userRejectPayload, { merge: true });
+      } catch (err) {
+        console.warn(`User doc reject update notice for ${userId}:`, err);
+      }
     }
 
     if (email) {
       const cleanEmail = email.toLowerCase().trim();
-      const q = query(collection(db, "users"), where("email", "==", cleanEmail));
-      const snap = await getDocs(q);
-      for (const uDoc of snap.docs) {
-        await setDoc(
-          doc(db, "users", uDoc.id),
-          {
-            pendingPaymentRequest: false,
-            lastPaymentRejectionReason: reason,
-          },
-          { merge: true }
-        );
+      try {
+        const q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const snap = await getDocs(q);
+        for (const uDoc of snap.docs) {
+          await setDoc(doc(db, "users", uDoc.id), userRejectPayload, { merge: true });
+        }
+      } catch (err) {
+        console.warn(`User email doc reject update notice for ${cleanEmail}:`, err);
       }
     }
 

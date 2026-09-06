@@ -95,5 +95,16 @@ service cloud.firestore {
     match /apex_monitoring/{document=**} {
       allow read, write: if true;
     }
+
+    // ==========================================
+    // 💳 6. SUBSCRIPTION & BILLING
+    // ==========================================
+    match /subscription_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /subscription_transactions/{txnId} {
+      allow read, write: if true;
+    }
   }
 }

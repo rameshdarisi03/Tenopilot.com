@@ -102,6 +102,22 @@ export default function SubscriptionBillingPage() {
     async function loadTransactions() {
       if (!profile?.email) return;
       try {
+        try {
+          const qAdmin = query(
+            collection(db, "platform_admin", "billing", "transactions"),
+            where("customerEmail", "==", profile.email.toLowerCase().trim())
+          );
+          const snapAdmin = await getDocs(qAdmin);
+          if (!snapAdmin.empty) {
+            const list = snapAdmin.docs.map((d) => ({ id: d.id, ...d.data() }));
+            list.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setHistoryTransactions(list);
+            return;
+          }
+        } catch (e) {
+          // ignore and try subscription_transactions
+        }
+
         const q = query(
           collection(db, "subscription_transactions"),
           where("customerEmail", "==", profile.email.toLowerCase().trim())

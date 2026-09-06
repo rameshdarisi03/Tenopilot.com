@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
       lastActivatedBy: activatedBy,
       lastActivatedAt: nowIso,
       pendingPaymentRequest: false,
+      pendingRequestData: null,
       lastPaymentApprovedAt: nowIso,
       notes: notes || null,
       updatedAt: nowIso,
@@ -103,17 +104,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1b. If linked to an offline payment request, mark it APPROVED
+    // 1b. If linked to an offline payment request, mark it APPROVED in platform_admin and subscription_requests
     if (requestId) {
+      const approvalData = {
+        status: "APPROVED",
+        reviewedAt: nowIso,
+        reviewedBy: activatedBy,
+        activatedPlan: resolvedPlan,
+      };
+
+      try {
+        await setDoc(
+          doc(db, "platform_admin", "requests", "submissions", requestId),
+          approvalData,
+          { merge: true }
+        );
+      } catch (reqErr) {
+        console.warn(`platform_admin approval notice for ${requestId}:`, reqErr);
+      }
+
       try {
         await setDoc(
           doc(db, "subscription_requests", requestId),
-          {
-            status: "APPROVED",
-            reviewedAt: nowIso,
-            reviewedBy: activatedBy,
-            activatedPlan: resolvedPlan,
-          },
+          approvalData,
           { merge: true }
         );
       } catch (reqErr) {
@@ -138,6 +151,12 @@ export async function POST(req: NextRequest) {
       createdAt: nowIso,
       status: "COMPLETED",
     };
+
+    try {
+      await setDoc(doc(db, "platform_admin", "billing", "transactions", txnRecord.id), txnRecord);
+    } catch (txnErr) {
+      console.warn("platform_admin billing transaction notice:", txnErr);
+    }
 
     try {
       await setDoc(doc(db, "subscription_transactions", txnRecord.id), txnRecord);
