@@ -42,7 +42,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { useAuth } from "@/providers/AuthProvider";
-import { getEffectiveTenantLimit, TENANT_EXTENSION_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
+import { getEffectiveTenantLimit, evaluateSubscription, TENANT_EXTENSION_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
 import { usePlatformConfig } from "@/lib/platformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
@@ -1119,6 +1119,12 @@ export function FastTrackImportModal({
 
   // 5. Execute 1-Click Commit
   const handleCommitIngest = async () => {
+    const sub = evaluateSubscription(profile);
+    if (sub.status === "EXPIRED") {
+      alert("🔒 Free Trial Ended: Your trial has completed. Please upgrade to the Pro Plan to import and onboard tenants via FastTrack AI.");
+      return;
+    }
+
     if (isOverCapacity) {
       alert(`Platform Capacity Exceeded: Your plan limit is ${effectiveTenantLimit} active tenants. You currently have ${currentActiveCount} active tenants. Adding ${editableRows.length} tenants would exceed your quota (${projectedTotalTenants}/${effectiveTenantLimit}). Please upgrade your plan or purchase +25 Tenant Extension Packs.`);
       return;

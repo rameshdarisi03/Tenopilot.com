@@ -55,7 +55,7 @@ import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploa
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { useAuth } from "@/providers/AuthProvider";
-import { getEffectiveTenantLimit, evaluateTenantCapacity } from "@/lib/subscriptionEngine";
+import { getEffectiveTenantLimit, evaluateTenantCapacity, evaluateSubscription } from "@/lib/subscriptionEngine";
 
 export default function OnboardGuestPage({
   params,
@@ -127,6 +127,7 @@ export default function OnboardGuestPage({
     return allOccupants.filter((occ) => occ.lifecycleStatus !== "Past").length;
   }, [allOccupants]);
 
+  const sub = evaluateSubscription(profile);
   const effectiveTenantLimit = getEffectiveTenantLimit(profile);
   const capacityStatus = evaluateTenantCapacity(activeOccupantsCount, effectiveTenantLimit);
 
@@ -378,6 +379,12 @@ export default function OnboardGuestPage({
 
   // Final Action: Complete Guest Onboarding
   const handleFinalGuestSubmit = () => {
+    if (sub.status === "EXPIRED") {
+      alert("🔒 Free Trial Ended: Your trial has expired. Upgrade to the Pro Plan to onboard new guests.");
+      router.push(`/p/${propertyId}/subscription`);
+      return;
+    }
+
     if (capacityStatus.isAtCapacity) {
       alert(`⚠️ Platform Tenant Capacity Limit (${effectiveTenantLimit}) reached! Upgrade to Pro or purchase a Tenant Extension Pack (+25 slots for ₹399/mo) to onboard additional occupants.`);
       return;
@@ -1343,7 +1350,14 @@ export default function OnboardGuestPage({
                   ← Back to Allocation
                 </button>
 
-                {capacityStatus.isAtCapacity ? (
+                {sub.status === "EXPIRED" ? (
+                  <Link
+                    href={`/p/${propertyId}/subscription`}
+                    className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
+                  >
+                    <Lock className="w-4 h-4" /> Free Trial Ended — Upgrade to Pro to Onboard
+                  </Link>
+                ) : capacityStatus.isAtCapacity ? (
                   <button
                     type="button"
                     disabled

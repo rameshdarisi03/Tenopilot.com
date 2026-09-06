@@ -9,7 +9,7 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { autoProvisionBuildingFromRoster } from "./autoBuildingProvisioner";
 import { FastTrackParsedRow } from "./fastTrackHeuristicParser";
 import { saveOccupantToFirestore } from "./firestoreService";
-import { getEffectiveTenantLimit } from "./subscriptionEngine";
+import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
 
 export interface BatchIngestOptions {
   autoProvisionBuilding: boolean;
@@ -46,6 +46,22 @@ export async function executeFastTrackBatchIngest(
       occupants: [],
       errors: ["No valid rows provided to ingest."],
     };
+  }
+
+  // 🔒 Subscription Status Guard Rail: Expired trials cannot ingest new tenants
+  if (options.userProfile) {
+    const sub = evaluateSubscription(options.userProfile);
+    if (sub.status === "EXPIRED") {
+      return {
+        success: false,
+        enrolledCount: 0,
+        createdRoomsCount: 0,
+        createdBedsCount: 0,
+        totalMonthlyRevenue: 0,
+        occupants: [],
+        errors: ["🔒 Free Trial Ended: Your trial has expired. Upgrade to the Pro Plan to import and onboard tenants."],
+      };
+    }
   }
 
   // 🔒 Master Controls Capacity Enforcement

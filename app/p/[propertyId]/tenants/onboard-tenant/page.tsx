@@ -68,6 +68,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import {
   getEffectiveTenantLimit,
   evaluateTenantCapacity,
+  evaluateSubscription,
   TENANT_EXTENSION_MONTHLY_PRICE,
   TENANT_EXTENSION_PACK_SIZE,
 } from "@/lib/subscriptionEngine";
@@ -187,6 +188,7 @@ export default function OnboardTenantPage({
     return allOccupants.filter((occ) => occ.lifecycleStatus !== "Past").length;
   }, [allOccupants]);
 
+  const sub = evaluateSubscription(profile);
   const effectiveTenantLimit = getEffectiveTenantLimit(profile);
   const capacityStatus = evaluateTenantCapacity(activeOccupantsCount, effectiveTenantLimit);
 
@@ -499,6 +501,12 @@ export default function OnboardTenantPage({
 
   // Final Action: Agree & Onboard Tenant
   const handleFinalSubmit = () => {
+    if (sub.status === "EXPIRED") {
+      triggerToast("🔒 Free Trial Ended: Upgrade to Pro to onboard new tenants.");
+      router.push(`/p/${propertyId}/subscription`);
+      return;
+    }
+
     if (capacityStatus.isAtCapacity) {
       setExtensionSuccess(false);
       setExtensionError(null);
@@ -1559,7 +1567,14 @@ export default function OnboardTenantPage({
                 >
                   ← Back to KYC
                 </button>
-                {capacityStatus.isAtCapacity ? (
+                {sub.status === "EXPIRED" ? (
+                  <Link
+                    href={`/p/${propertyId}/subscription`}
+                    className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
+                  >
+                    <Lock className="w-4 h-4" /> Free Trial Ended — Upgrade to Pro to Onboard
+                  </Link>
+                ) : capacityStatus.isAtCapacity ? (
                   <button
                     type="button"
                     onClick={() => {
