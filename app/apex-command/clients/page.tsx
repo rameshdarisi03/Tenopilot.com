@@ -40,6 +40,9 @@ import {
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 import { usePlatformConfig } from "@/lib/platformConfig";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 
 export default function ApexCommandClientsPage() {
   const router = useRouter();
@@ -103,7 +106,7 @@ export default function ApexCommandClientsPage() {
 
   const fetchGlobalCapacity = async () => {
     try {
-      const res = await fetch("/api/apex/global-capacity");
+      const res = await fetch(`/api/apex/global-capacity?t=${Date.now()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.config) {
@@ -154,18 +157,83 @@ export default function ApexCommandClientsPage() {
     }
   };
 
+  const fallbackDirectFirestoreScan = async () => {
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      const fallbackList: ScannedAccountRecord[] = [];
+      usersSnap.docs.forEach((d) => {
+        const data = { id: d.id, ...d.data() } as any;
+        const email = (data.email || "").toLowerCase().trim();
+        if (d.id.startsWith("portfolio_") || !email) return;
+
+        // Skip internal staff-only accounts
+        if ((data.role === "admin" || data.role === "receptionist") && data.role !== "master_admin") {
+          return;
+        }
+
+        const sub = evaluateSubscription({
+          ...data,
+          status: data.status,
+          plan: data.plan,
+          planExpiresAt: data.planExpiresAt,
+          createdAt: data.createdAt,
+        });
+
+        fallbackList.push({
+          id: d.id,
+          userId: d.id,
+          email: email,
+          displayName: data.displayName || email.split("@")[0],
+          phone: data.phone || "",
+          role: data.role || "master_admin",
+          organizationId: data.organizationId || "",
+          classification: sub.status,
+          subscriptionStatus: sub.status,
+          trialDaysLeft: sub.daysRemaining,
+          graceDaysRemaining: sub.graceDaysRemaining,
+          planExpiresAt: data.planExpiresAt,
+          detectionReason: sub.badgeLabel,
+          propertyIds: data.assignedPropertyId ? [data.assignedPropertyId] : [],
+          primaryPropertyName: data.assignedPropertyId || "Primary Property",
+          city: "Bengaluru",
+          plan: sub.plan,
+          totalBeds: 40,
+          createdAt: data.createdAt || "Live Account",
+          lastActive: data.lastActive || "Recently",
+          hasStorageFootprints: true,
+          maxPropertiesAllowed: data.maxPropertiesAllowed ?? 1,
+          maxTenantsLimit: data.maxTenantsLimit ?? (sub.status === "ACTIVE_PRO" || sub.status === "PRO_PRE_EXPIRY" ? 300 : 50),
+          tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
+        });
+      });
+
+      if (fallbackList.length > 0) {
+        setAccounts(fallbackList);
+      }
+    } catch (e) {
+      console.error("Direct Firestore fallback error:", e);
+    }
+  };
+
   const fetchScannedAccounts = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/apex/scan-accounts");
+      const res = await fetch(`/api/apex/scan-accounts?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && Array.isArray(data.accounts)) {
+        if (data.success && Array.isArray(data.accounts) && data.accounts.length > 0) {
           setAccounts(data.accounts);
+          return;
         }
       }
+      // If API returned 0 accounts (e.g. edge cache lag or cold boot issue), run direct Firestore scan
+      await fallbackDirectFirestoreScan();
     } catch (err) {
-      console.warn("Failed to scan Firestore accounts:", err);
+      console.warn("Failed to scan Firestore accounts via API, running direct client fallback:", err);
+      await fallbackDirectFirestoreScan();
     } finally {
       setIsLoading(false);
     }
@@ -174,7 +242,7 @@ export default function ApexCommandClientsPage() {
   const fetchPendingRequests = async () => {
     setIsLoadingPendingRequests(true);
     try {
-      const res = await fetch("/api/apex/pending-requests");
+      const res = await fetch(`/api/apex/pending-requests?t=${Date.now()}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.requests)) {

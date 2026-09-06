@@ -39,6 +39,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /portfolio_properties/{docId} {
+      allow read, write: if true;
+    }
+
     // ==========================================
     // 👥 3. GLOBAL STAFF ACCOUNTS
     // Path: staff_accounts/{staffId}

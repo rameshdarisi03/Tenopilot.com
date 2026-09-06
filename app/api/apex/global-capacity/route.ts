@@ -9,6 +9,9 @@ import {
   TENANT_EXTENSION_MONTHLY_PRICE,
 } from "@/lib/subscriptionEngine";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const configSnap = await getDoc(

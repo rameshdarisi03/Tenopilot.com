@@ -30,6 +30,9 @@ export interface ScannedAccountRecord {
   tenantExtensionPacks?: number;
 }
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   try {
     const scannedAccounts: ScannedAccountRecord[] = [];
@@ -59,6 +62,31 @@ export async function GET(req: NextRequest) {
       });
     } catch (e) {
       console.warn("Scanner portfolio_properties fetch warning:", e);
+    }
+
+    // 1b. Also query portfolios collection to ensure coverage
+    try {
+      const portfoliosSnap = await getDocs(collection(db, "portfolios"));
+      portfoliosSnap.docs.forEach((d) => {
+        const data = d.data() as any;
+        const ownerEmail = (data.ownerEmail || data.owner || "").toLowerCase().trim();
+        const orgId = data.organizationId || d.id;
+        const name = String(data.name || data.portfolioName || d.id);
+        const beds = Number(data.totalBeds) || 40;
+        const city = String(data.city || "Bengaluru");
+
+        const keysToMap = [ownerEmail, orgId].filter(Boolean);
+        keysToMap.forEach((key) => {
+          const current: { names: string[]; totalBeds: number; city: string; ids: string[] } =
+            ownerPropertiesMap.get(key) || { names: [], totalBeds: 0, city: city, ids: [] };
+          if (!current.names.includes(name)) current.names.push(name);
+          if (!current.ids.includes(d.id)) current.ids.push(d.id);
+          current.totalBeds += beds;
+          ownerPropertiesMap.set(key, current);
+        });
+      });
+    } catch (e) {
+      console.warn("Scanner portfolios fetch warning:", e);
     }
 
     // 2. Fetch VIP Invites
@@ -234,17 +262,26 @@ export async function GET(req: NextRequest) {
     };
     scannedAccounts.sort((a, b) => (sortWeights[a.subscriptionStatus] || 9) - (sortWeights[b.subscriptionStatus] || 9));
 
-    return NextResponse.json({
-      success: true,
-      totalCount: scannedAccounts.length,
-      trialCount: scannedAccounts.filter((a) => a.subscriptionStatus === "TRIAL").length,
-      proCount: scannedAccounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO" || a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
-      graceCount: scannedAccounts.filter((a) => a.subscriptionStatus === "GRACE_PERIOD").length,
-      preExpiryCount: scannedAccounts.filter((a) => a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
-      expiredCount: scannedAccounts.filter((a) => a.subscriptionStatus === "EXPIRED").length,
-      suspendedCount: scannedAccounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length,
-      accounts: scannedAccounts,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        totalCount: scannedAccounts.length,
+        trialCount: scannedAccounts.filter((a) => a.subscriptionStatus === "TRIAL").length,
+        proCount: scannedAccounts.filter((a) => a.subscriptionStatus === "ACTIVE_PRO" || a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
+        graceCount: scannedAccounts.filter((a) => a.subscriptionStatus === "GRACE_PERIOD").length,
+        preExpiryCount: scannedAccounts.filter((a) => a.subscriptionStatus === "PRO_PRE_EXPIRY").length,
+        expiredCount: scannedAccounts.filter((a) => a.subscriptionStatus === "EXPIRED").length,
+        suspendedCount: scannedAccounts.filter((a) => a.subscriptionStatus === "SUSPENDED").length,
+        accounts: scannedAccounts,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      }
+    );
   } catch (err: any) {
     console.error("GET /api/apex/scan-accounts error:", err);
     return NextResponse.json(
