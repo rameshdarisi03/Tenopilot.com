@@ -317,32 +317,26 @@ export async function loginWithGoogle(
 export async function syncUserSecurityPinToCloud(
   email: string,
   pin: string,
-  uid?: string
+  uid?: string,
+  customSessionVersion?: string
 ): Promise<string> {
   const cleanEmail = email.trim().toLowerCase();
-  const newSessionVersion = Date.now().toString();
+  const newSessionVersion = customSessionVersion || Date.now().toString();
   const nowIso = new Date().toISOString();
   const nowTimestamp = Date.now();
 
-  try {
-    // 1. Update staff_accounts collection in Firestore
-    await setDoc(
-      doc(db, "staff_accounts", cleanEmail),
-      {
-        securityPin: pin,
-        hasSetPin: true,
-        sessionVersion: newSessionVersion,
-        pinUpdatedAt: nowTimestamp,
-        updatedAt: nowIso,
-      },
-      { merge: true }
-    );
+  // Commit local session version immediately
+  if (typeof window !== "undefined") {
+    localStorage.setItem("tenopilot_session_version", newSessionVersion);
+  }
 
-    // 2. Update users collection in Firestore
-    const targetUid = uid || auth.currentUser?.uid;
-    if (targetUid) {
-      await setDoc(
-        doc(db, "users", targetUid),
+  try {
+    const writes: Promise<any>[] = [];
+
+    // 1. Update staff_accounts collection in Firestore
+    writes.push(
+      setDoc(
+        doc(db, "staff_accounts", cleanEmail),
         {
           securityPin: pin,
           hasSetPin: true,
@@ -351,15 +345,34 @@ export async function syncUserSecurityPinToCloud(
           updatedAt: nowIso,
         },
         { merge: true }
+      )
+    );
+
+    // 2. Update users collection in Firestore
+    const targetUid = uid || auth.currentUser?.uid;
+    if (targetUid) {
+      writes.push(
+        setDoc(
+          doc(db, "users", targetUid),
+          {
+            securityPin: pin,
+            hasSetPin: true,
+            sessionVersion: newSessionVersion,
+            pinUpdatedAt: nowTimestamp,
+            updatedAt: nowIso,
+          },
+          { merge: true }
+        )
       );
     }
+
+    // Safety timeout: Never hang caller if Firestore WebChannel socket is reconnecting
+    await Promise.race([
+      Promise.all(writes),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
   } catch (err) {
     console.warn("syncUserSecurityPinToCloud warning:", err);
-  }
-
-  // Update local session version for current device
-  if (typeof window !== "undefined") {
-    localStorage.setItem("tenopilot_session_version", newSessionVersion);
   }
 
   return newSessionVersion;

@@ -132,10 +132,11 @@ class StaffStore {
     return { valid: false, error: "Incorrect 6-digit security PIN." };
   }
 
-  // Set / Update Security PIN in Real-Time
-  async setSecurityPin(staffId: string, newPin: string): Promise<boolean> {
+  // Synchronously update security PIN in memory and local storage
+  setSecurityPinInMemory(staffId: string, newPin: string, sessionVersion?: string) {
     const all = this.getAllGlobalStaff();
     const target = all.find((s) => s.id === staffId);
+    const newSessionVersion = sessionVersion || Date.now().toString();
 
     // Update global memory & localStorage
     this.globalStaffList = all.map((s) =>
@@ -145,6 +146,7 @@ class StaffStore {
 
     // If updating currently logged in session, update session store too
     if (typeof window !== "undefined") {
+      localStorage.setItem("tenopilot_session_version", newSessionVersion);
       const saved = localStorage.getItem("tenopilot_saved_session");
       if (saved) {
         try {
@@ -162,47 +164,67 @@ class StaffStore {
       }
     }
 
-    // Save to Firestore properties, staff_accounts, and users
+    this.notify();
+  }
+
+  // Set / Update Security PIN in Real-Time (Local Pre-Commit + Background Cloud Sync)
+  async setSecurityPin(staffId: string, newPin: string, sessionVersion?: string): Promise<boolean> {
+    const all = this.getAllGlobalStaff();
+    const target = all.find((s) => s.id === staffId);
+    const newSessionVersion = sessionVersion || Date.now().toString();
+
+    // 1. Commit in-memory and local storage immediately
+    this.setSecurityPinInMemory(staffId, newPin, newSessionVersion);
+
+    // 2. Save to Firestore properties, staff_accounts, and users in background with timeout safety
     if (target) {
-      const newSessionVersion = Date.now().toString();
       const nowTimestamp = Date.now();
       const nowIso = new Date().toISOString();
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("tenopilot_session_version", newSessionVersion);
-      }
-
       try {
+        const writes: Promise<any>[] = [];
+
         if (target.assignedPropertyId) {
           const docRef = doc(db, "properties", target.assignedPropertyId, "staff", staffId);
-          await setDoc(
-            docRef,
-            { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
-            { merge: true }
+          writes.push(
+            setDoc(
+              docRef,
+              { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
+              { merge: true }
+            )
           );
         }
         if (target.email) {
           const staffAccRef = doc(db, "staff_accounts", target.email.toLowerCase());
-          await setDoc(
-            staffAccRef,
-            { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
-            { merge: true }
+          writes.push(
+            setDoc(
+              staffAccRef,
+              { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
+              { merge: true }
+            )
           );
         }
         if (auth.currentUser) {
           const userDocRef = doc(db, "users", auth.currentUser.uid);
-          await setDoc(
-            userDocRef,
-            { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
-            { merge: true }
+          writes.push(
+            setDoc(
+              userDocRef,
+              { securityPin: newPin, hasSetPin: true, sessionVersion: newSessionVersion, pinUpdatedAt: nowTimestamp, updatedAt: nowIso },
+              { merge: true }
+            )
           );
         }
+
+        // Timeout race: never let Firestore socket pause freeze caller
+        await Promise.race([
+          Promise.all(writes),
+          new Promise((res) => setTimeout(res, 2500)),
+        ]);
       } catch (e) {
         console.warn("Firestore setSecurityPin fallback:", e);
       }
     }
 
-    this.notify();
     return true;
   }
 

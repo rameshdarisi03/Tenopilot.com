@@ -482,9 +482,12 @@ export default function LoginPage() {
       const targetEmail = (savedSession?.email || email || "admin@tenopilot.com").trim().toLowerCase();
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === targetEmail.toLowerCase());
+      const unifiedSessionVersion = Date.now().toString();
 
+      // 1. LOCAL-FIRST PRE-COMMIT: Update in-memory & localStorage immediately!
+      // This guarantees that any real-time snapshot listener sees the exact matching PIN & version.
       if (match) {
-        await staffStore.setSecurityPin(match.id, finalPin);
+        staffStore.setSecurityPinInMemory(match.id, finalPin, unifiedSessionVersion);
       } else {
         const newStaff: StaffMember = {
           id: `staff_user_${Date.now()}`,
@@ -503,9 +506,6 @@ export default function LoginPage() {
         staffStore.addGlobalStaff(newStaff);
       }
 
-      // Sync PIN across both Firestore users and staff_accounts collections & generate new epoch
-      const newVersion = await syncUserSecurityPinToCloud(targetEmail, finalPin);
-
       // Clear any lockout
       clearLockout();
 
@@ -521,7 +521,7 @@ export default function LoginPage() {
       };
       setSavedSession(updated);
       localStorage.setItem("tenopilot_saved_session", JSON.stringify(updated));
-      localStorage.setItem("tenopilot_session_version", newVersion);
+      localStorage.setItem("tenopilot_session_version", unifiedSessionVersion);
 
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
@@ -530,18 +530,56 @@ export default function LoginPage() {
       const role = updated.role || "master_admin";
       staffStore.setActiveRole(role);
 
+      // 2. TIMEOUT-GUARDED CLOUD SYNC: Run cloud sync with a 2.5s race timeout
+      const cloudSyncAction = async () => {
+        try {
+          if (match && match.assignedPropertyId) {
+            setDoc(
+              doc(db, "properties", match.assignedPropertyId, "staff", match.id),
+              {
+                securityPin: finalPin,
+                hasSetPin: true,
+                sessionVersion: unifiedSessionVersion,
+                pinUpdatedAt: Date.now(),
+                updatedAt: new Date().toISOString(),
+              },
+              { merge: true }
+            ).catch(() => {});
+          }
+          await syncUserSecurityPinToCloud(targetEmail, finalPin, auth.currentUser?.uid, unifiedSessionVersion);
+        } catch (syncErr) {
+          console.warn("Cloud PIN sync non-blocking warning:", syncErr);
+        }
+      };
+
+      await Promise.race([
+        cloudSyncAction(),
+        new Promise((res) => setTimeout(res, 2500)),
+      ]);
+
+      // 3. Determine Onboarding & Destination with 1.5s timeout
       const isMasterTest = targetEmail === "isharapandey01@gmail.com";
       let hasCompletedOnboarding = true;
       if (!isMasterTest && role === "master_admin") {
         try {
           if (auth.currentUser) {
-            const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-            if (userSnap.exists()) {
-              const uData = userSnap.data();
-              hasCompletedOnboarding = uData.onboardingCompleted === true;
-            }
+            const checkOnboardingPromise = (async () => {
+              const userSnap = await getDoc(doc(db, "users", auth.currentUser!.uid));
+              if (userSnap.exists()) {
+                const uData = userSnap.data();
+                return uData.onboardingCompleted === true;
+              }
+              return true;
+            })();
+
+            hasCompletedOnboarding = await Promise.race([
+              checkOnboardingPromise,
+              new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 1500)),
+            ]);
           }
-        } catch {}
+        } catch {
+          hasCompletedOnboarding = true;
+        }
       }
 
       const targetProp = updated.assignedPropertyId || "sunshine-pg";
@@ -551,10 +589,16 @@ export default function LoginPage() {
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
-        window.location.href = targetPath;
+        setTimeout(() => {
+          if (window.location.pathname === "/login") {
+            window.location.href = targetPath;
+          }
+        }, 300);
       }
     } catch (err: any) {
+      console.error("Save PIN error:", err);
       setError("Failed to save PIN. Please try again.");
+      setIsPinMatching(false);
     } finally {
       setIsLoading(false);
     }
@@ -1219,7 +1263,7 @@ export default function LoginPage() {
 
                       <button
                         type="button"
-                        disabled={confirmPinValue.length !== 6 || isLoading || isPinMatching}
+                        disabled={confirmPinValue.length !== 6 || isLoading}
                         onClick={() => {
                           if (confirmPinValue === firstTimePin) {
                             setIsPinMatching(true);

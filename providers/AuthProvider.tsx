@@ -366,6 +366,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const evaluateCloudSecurityState = (cloudData: any, source: string) => {
       if (!cloudData) return;
 
+      // 🛡️ Do NOT evict when user is on auth/onboarding pages (/login, /signup, /welcome)
+      if (pathname === "/login" || pathname === "/signup" || pathname === "/welcome") {
+        const remoteVer = cloudData.sessionVersion;
+        if (remoteVer && typeof window !== "undefined") {
+          localStorage.setItem("tenopilot_session_version", remoteVer);
+        }
+        return;
+      }
+
       const remoteVersion = cloudData.sessionVersion;
       const remotePin = cloudData.securityPin;
       const localVersion = localStorage.getItem("tenopilot_session_version");
@@ -379,9 +388,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {}
 
-      // 1. Version Mismatch Check
-      if (remoteVersion && localVersion && remoteVersion !== localVersion) {
-        evictCurrentSession(`${source} remote version (${remoteVersion}) differs from local (${localVersion})`);
+      // 1. If remote PIN matches local PIN, this is NOT a breach or unauthorized change!
+      // Synchronize version silently without eviction
+      if (remotePin && localPin && remotePin === localPin) {
+        if (remoteVersion && remoteVersion !== localVersion) {
+          localStorage.setItem("tenopilot_session_version", remoteVersion);
+        }
         return;
       }
 
@@ -391,7 +403,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 3. Initialize local version if aligned
+      // 3. Version Mismatch Check (only evict if version differs and PIN is not verified identical)
+      if (remoteVersion && localVersion && remoteVersion !== localVersion) {
+        evictCurrentSession(`${source} remote version (${remoteVersion}) differs from local (${localVersion})`);
+        return;
+      }
+
+      // 4. Initialize local version if aligned
       if (remoteVersion && !localVersion) {
         localStorage.setItem("tenopilot_session_version", remoteVersion);
       }
