@@ -31,6 +31,9 @@ import {
   FolderOpen,
   FileCheck,
   Lock,
+  Scissors,
+  AlertCircle,
+  Download,
 } from "lucide-react";
 import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
@@ -39,7 +42,8 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { useAuth } from "@/providers/AuthProvider";
-import { getEffectiveTenantLimit } from "@/lib/subscriptionEngine";
+import { getEffectiveTenantLimit, TENANT_EXTENSION_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
+import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 interface FastTrackImportModalProps {
   propertyId: string;
@@ -101,7 +105,7 @@ export function FastTrackImportModal({
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
   const [dateFormatMode, setDateFormatMode] = useState<"DD-MMM-YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD">("DD-MMM-YYYY");
 
-  // 🔒 Master Controls Capacity Enforcement
+  // 🔒 Master Controls Capacity Enforcement & Customer Decision Guidance
   const { profile } = useAuth();
   const effectiveTenantLimit = getEffectiveTenantLimit(profile);
   const currentActiveCount = useMemo(() => {
@@ -109,6 +113,118 @@ export function FastTrackImportModal({
   }, [propertyId]);
   const projectedTotalTenants = currentActiveCount + editableRows.length;
   const isOverCapacity = projectedTotalTenants > effectiveTenantLimit;
+
+  // Capacity calculations for customer decision guidance
+  const allowedToKeep = Math.max(0, effectiveTenantLimit - currentActiveCount);
+  const excessCount = Math.max(0, projectedTotalTenants - effectiveTenantLimit);
+  const extensionPacksNeeded = Math.max(1, Math.ceil(excessCount / 25));
+  const packCapacityUnlocked = extensionPacksNeeded * 25;
+  const totalPackPrice = extensionPacksNeeded * (TENANT_EXTENSION_MONTHLY_PRICE || 399);
+
+  // Extension Pack Proof Modal State
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extensionScreenshot, setExtensionScreenshot] = useState<string | null>(null);
+  const [extensionFileName, setExtensionFileName] = useState<string | null>(null);
+  const [isCompressingExtensionProof, setIsCompressingExtensionProof] = useState(false);
+  const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+  const [extensionSuccess, setExtensionSuccess] = useState(false);
+  const [extensionError, setExtensionError] = useState<string | null>(null);
+
+  const handleAutoTrimRows = () => {
+    if (!isOverCapacity || allowedToKeep < 0) return;
+    const keptRows = editableRows.slice(0, allowedToKeep);
+    const trimmedRows = editableRows.slice(allowedToKeep);
+
+    try {
+      const backupContent = [
+        "============================================================",
+        "TENOPILOT FASTTRACK - TRIMMED TENANTS BACKUP EXPORT",
+        "============================================================",
+        `Exported At: ${new Date().toLocaleString("en-IN")}`,
+        `Property: ${propertyId}`,
+        `Plan Quota Limit: ${effectiveTenantLimit} Tenants`,
+        `Tenants Retained: ${keptRows.length}`,
+        `Tenants Trimmed: ${trimmedRows.length}`,
+        "------------------------------------------------------------",
+        "Name\tPhone\tRoom\tRent\tAdvance",
+        ...trimmedRows.map(
+          (r) => `${r.fullName || "Unknown"}\t${r.phone || "-"}\t${r.roomNumber || "-"}\t${r.rentAmount || 0}\t${r.securityDeposit || 0}`
+        ),
+      ].join("\n");
+
+      const blob = new Blob([backupContent], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tenopilot-trimmed-tenants-${propertyId}-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.warn("Auto-trim backup download notice:", e);
+    }
+
+    setEditableRows(keptRows);
+    alert(`✂️ Successfully trimmed ${trimmedRows.length} excess tenants to match your account capacity.\n\nA backup text file containing the trimmed tenants has been downloaded to your device.\n\nYou now have ${keptRows.length} tenants in your list and can proceed to enroll!`);
+  };
+
+  const handleExtensionProofFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsCompressingExtensionProof(true);
+    setExtensionError(null);
+    try {
+      setExtensionFileName(file.name);
+      const result = await compressPaymentScreenshot(file);
+      setExtensionScreenshot(result.base64);
+    } catch (err) {
+      setExtensionError("Failed to process screenshot. Please try another image.");
+    } finally {
+      setIsCompressingExtensionProof(false);
+    }
+  };
+
+  const handleExtensionProofSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extensionScreenshot) {
+      setExtensionError("Please upload your UPI payment screenshot proof.");
+      return;
+    }
+    setExtensionError(null);
+    setIsSubmittingExtension(true);
+
+    try {
+      const res = await fetch("/api/subscription/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: profile?.uid,
+          customerEmail: profile?.email || "owner@example.com",
+          customerName: profile?.displayName || "PG Owner",
+          customerPhone: profile?.phone || "",
+          propertyId,
+          propertyName: propertyId,
+          plan: "TENANT_EXTENSION_PACK_25",
+          amount: totalPackPrice,
+          paymentMode: "UPI",
+          screenshotData: extensionScreenshot,
+          notes: `FastTrack import requested ${extensionPacksNeeded} Extension Pack(s) (+${packCapacityUnlocked} slots) for ${editableRows.length} incoming tenants.`,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setExtensionSuccess(true);
+      } else {
+        setExtensionError(data.message || "Failed to submit extension proof. Please try again.");
+      }
+    } catch (err: any) {
+      setExtensionError(err.message || "Network error submitting proof.");
+    } finally {
+      setIsSubmittingExtension(false);
+    }
+  };
 
   // Draft & Multi-Page Append State
   const [savedDraft, setSavedDraft] = useState<{
@@ -1453,17 +1569,104 @@ export function FastTrackImportModal({
               </div>
             </div>
 
-            {/* 🔒 Master Control Capacity Warning Alert */}
+            {/* 🔒 Master Control Capacity Decision Guide */}
             {isOverCapacity && (
-              <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-start gap-3 text-xs text-red-950 animate-in fade-in">
-                <div className="p-2 rounded-xl bg-red-100 text-red-700 shrink-0 mt-0.5">
-                  <Lock className="w-4 h-4" />
+              <div className="p-5 bg-gradient-to-br from-amber-50/90 via-orange-50/70 to-red-50/80 rounded-3xl border-2 border-amber-300 shadow-md space-y-4 animate-in fade-in">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-2xl bg-amber-500 text-white shrink-0 shadow-sm mt-0.5">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-serif font-bold text-sm text-gray-900">
+                          Tenant Limit Exceeded: {projectedTotalTenants} in List ({effectiveTenantLimit} Quota)
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-extrabold uppercase tracking-wide">
+                          +{excessCount} Over Limit
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        Your account allows up to <strong>{effectiveTenantLimit} active tenants</strong> (Free Trial: 50, Active Pro: 300). You currently have <strong>{currentActiveCount} active tenants</strong> in your building, leaving space for <strong>{allowedToKeep} more</strong>. This import list of {editableRows.length} tenants exceeds your available quota by <strong className="text-red-700">{excessCount} tenants</strong>.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="font-bold text-red-900">Tenant Capacity Limit Exceeded ({projectedTotalTenants} / {effectiveTenantLimit} Allowed)</p>
-                  <p className="text-[11px] text-red-700 leading-relaxed">
-                    Your platform plan allows up to <strong>{effectiveTenantLimit} active tenants</strong> (Free Trial: 50, Active Pro: 200). You currently have <strong>{currentActiveCount} active tenants</strong>. Ingesting these {editableRows.length} tenants will push your total to <strong>{projectedTotalTenants}</strong>. Please trim rows or upgrade with a Tenant Extension Pack (+25 slots for ₹399/mo) to proceed.
+
+                <div className="pt-2 border-t border-amber-200/80">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-700 mb-2.5">
+                    How would you like to proceed?
                   </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {/* Option 1: Auto-Trim */}
+                    <div className="p-4 bg-white rounded-2xl border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all flex flex-col justify-between space-y-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                            <Scissors className="w-3.5 h-3.5 text-gray-700" /> Option 1: Auto-Trim List
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                            Free • Instant
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                          Keep the top <strong>{allowedToKeep} tenants</strong> to fit your plan immediately. The {excessCount} excess tenants will be automatically saved to a downloaded text file so no data is lost.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAutoTrimRows}
+                        className="w-full py-2.5 px-3 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-98"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Keep {allowedToKeep} & Export {excessCount} Trimmed</span>
+                      </button>
+                    </div>
+
+                    {/* Option 2: Add Extension Pack */}
+                    <div className="p-4 bg-white rounded-2xl border-2 border-[#c2652a]/40 bg-orange-50/20 hover:border-[#c2652a] hover:shadow-md transition-all flex flex-col justify-between space-y-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[#964407] flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-[#c2652a]" /> Option 2: Expand Capacity
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#964407] text-[10px] font-bold">
+                            +25 Slots / ₹399/mo
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-600 leading-relaxed">
+                          Add <strong>{extensionPacksNeeded} Extension Pack{extensionPacksNeeded > 1 ? "s" : ""} (+{packCapacityUnlocked} slots)</strong> for ₹{totalPackPrice.toLocaleString("en-IN")}/mo to enroll all {editableRows.length} tenants without trimming anyone.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExtensionSuccess(false);
+                            setExtensionError(null);
+                            setExtensionScreenshot(null);
+                            setExtensionFileName(null);
+                            setShowExtensionModal(true);
+                          }}
+                          className="flex-1 py-2.5 px-3 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>Unlock +{packCapacityUnlocked} Slots (₹{totalPackPrice})</span>
+                        </button>
+                        <a
+                          href={`https://wa.me/919550259837?text=${encodeURIComponent(
+                            `Hi Ramesh, I am migrating ${editableRows.length} tenants via FastTrack for ${propertyId}. My limit is ${effectiveTenantLimit}. I need ${extensionPacksNeeded} Tenant Extension Pack(s) (+${packCapacityUnlocked} slots) for ₹${totalPackPrice}/mo. Please unlock my slots.`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center cursor-pointer shadow-sm"
+                          title="WhatsApp Founder for Instant Unlock"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -2476,6 +2679,181 @@ Anil Verma   9812345678   Room 103   12000"
                   <span>Discard Duplicates & Proceed ({duplicateConflictModal.uniqueIncoming.length} Unique)</span>
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+        {/* 🏢 FASTTRACK TENANT EXTENSION PACK PURCHASE MODAL */}
+        {showExtensionModal && (
+          <div
+            className="fixed inset-0 z-60 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setShowExtensionModal(false)}
+          >
+            <div
+              className="bg-white rounded-3xl border border-[#d7c2b9] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-orange-100 text-[#964407]">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-[#201a17]">
+                      Unlock +{packCapacityUnlocked} Tenant Slots
+                    </h3>
+                    <p className="text-[11px] text-[#554339] font-medium">
+                      {extensionPacksNeeded} × Extension Pack{extensionPacksNeeded > 1 ? "s" : ""} (+25 tenants each)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowExtensionModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {extensionSuccess ? (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2.5 animate-in zoom-in-95">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-xl">
+                    ✓
+                  </div>
+                  <h4 className="font-bold text-sm text-emerald-950">Payment Proof Submitted!</h4>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    Our team will verify your UPI payment and unlock your +{packCapacityUnlocked} tenant slots within 15–30 minutes. You can also ping Ramesh directly on WhatsApp for instant unlock.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowExtensionModal(false)}
+                    className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs"
+                  >
+                    Close Window
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleExtensionProofSubmit} className="space-y-4 pt-1">
+                  {/* UPI Box */}
+                  <div className="p-4 rounded-2xl bg-[#f8ede3]/70 border border-[#d7c2b9] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#964407]">
+                        Direct Founder UPI Transfer
+                      </span>
+                      <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded-md border border-[#d7c2b9]">
+                        ₹{totalPackPrice.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
+                        <p className="font-mono font-bold text-xs text-[#201a17]">rameshdarisi01@ybl</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText("rameshdarisi01@ybl");
+                          alert("UPI ID copied to clipboard: rameshdarisi01@ybl");
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        Copy VPA
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-[#8a7f74]">
+                      Pay ₹{totalPackPrice} using PhonePe, Google Pay, Paytm, or BHIM, then upload your transaction screenshot below.
+                    </p>
+                  </div>
+
+                  {/* Screenshot Upload */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#554339] mb-1.5">
+                      Upload UPI Transaction Screenshot *
+                    </label>
+                    <label className="border-2 border-dashed border-[#d7c2b9] hover:border-[#964407] bg-[#fff8f6] rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleExtensionProofFileUpload}
+                        className="hidden"
+                        disabled={isCompressingExtensionProof || isSubmittingExtension}
+                      />
+                      {isCompressingExtensionProof ? (
+                        <div className="flex items-center gap-2 text-xs text-[#964407]">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Optimizing image for fast verification...</span>
+                        </div>
+                      ) : extensionScreenshot ? (
+                        <div className="flex items-center gap-2 text-xs text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span className="truncate max-w-[240px]">
+                            {extensionFileName || "Screenshot Attached"}
+                          </span>
+                          <span className="text-[10px] text-gray-500 underline ml-1">Change</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center text-center">
+                          <Upload className="w-5 h-5 text-[#964407] mb-1" />
+                          <span className="font-bold text-xs text-[#201a17]">
+                            Click to upload payment proof
+                          </span>
+                          <span className="text-[10px] text-[#8a7f74]">
+                            JPG, PNG, or screenshot from your UPI app
+                          </span>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* Direct WhatsApp Founder Link */}
+                  <div className="flex items-center justify-between text-[11px] px-1">
+                    <span className="text-[#8a7f74]">Need instant activation?</span>
+                    <a
+                      href={`https://wa.me/919550259837?text=${encodeURIComponent(
+                        `Hi Ramesh, I am migrating ${editableRows.length} tenants via FastTrack for ${propertyId}. My limit is ${effectiveTenantLimit}. I need ${extensionPacksNeeded} Tenant Extension Pack(s) (+${packCapacityUnlocked} slots) for ₹${totalPackPrice}/mo. Please unlock my slots.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-800"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>WhatsApp Founder</span>
+                    </a>
+                  </div>
+
+                  {extensionError && (
+                    <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{extensionError}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                    <button
+                      type="button"
+                      onClick={() => setShowExtensionModal(false)}
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isCompressingExtensionProof || isSubmittingExtension || !extensionScreenshot}
+                      className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] disabled:opacity-50 text-white font-bold shadow-md cursor-pointer flex items-center gap-2"
+                    >
+                      {isSubmittingExtension ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Submitting Proof...</span>
+                        </>
+                      ) : (
+                        <span>Submit Proof for Approval</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}

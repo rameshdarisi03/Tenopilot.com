@@ -68,7 +68,7 @@ export default function ApexCommandClientsPage() {
   const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "ACTIONS">("OVERVIEW");
 
   // Global Platform Master Capacity State (SSOT)
-  const [globalProLimit, setGlobalProLimit] = useState<number>(200);
+  const [globalProLimit, setGlobalProLimit] = useState<number>(300);
   const [globalTrialLimit, setGlobalTrialLimit] = useState<number>(50);
   const [globalAllowedProps, setGlobalAllowedProps] = useState<number>(1);
   const [globalMultiPropPrice, setGlobalMultiPropPrice] = useState<number>(899);
@@ -77,7 +77,7 @@ export default function ApexCommandClientsPage() {
 
   // Capacity Form State in 360 Modal
   const [capacityMaxProps, setCapacityMaxProps] = useState<number>(1);
-  const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(200);
+  const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(300);
   const [capacityExtensionPacks, setCapacityExtensionPacks] = useState<number>(0);
   const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
@@ -104,7 +104,7 @@ export default function ApexCommandClientsPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.config) {
-          setGlobalProLimit(Number(data.config.proTenantLimit) || 200);
+          setGlobalProLimit(Number(data.config.proTenantLimit) || 300);
           setGlobalTrialLimit(Number(data.config.trialTenantLimit) || 50);
           setGlobalAllowedProps(Number(data.config.defaultAllowedProperties) || 1);
           setGlobalMultiPropPrice(Number(data.config.multiPropertyPrice) || 899);
@@ -821,7 +821,7 @@ export default function ApexCommandClientsPage() {
 
             {/* Matrix Inputs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-              {/* Pro Plan Default Limit (200) */}
+              {/* Pro Plan Default Limit (300) */}
               <div className="p-4 rounded-2xl bg-[#0d1117] border border-blue-500/20 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">💎 PRO PLAN DEFAULT</span>
@@ -1758,10 +1758,10 @@ export default function ApexCommandClientsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCapacityBaseTenants(200)}
+                    onClick={() => setCapacityBaseTenants(300)}
                     className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>Set 200 (Pro)</span>
+                    <span>Set 300 (Pro)</span>
                   </button>
                   <button
                     type="button"

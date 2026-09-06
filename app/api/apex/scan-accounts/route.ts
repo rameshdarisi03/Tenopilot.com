@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
           maxPropertiesAllowed: data.maxPropertiesAllowed ?? 1,
           maxTenantsLimit:
             data.maxTenantsLimit ??
-            (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 200 : 50),
+            (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 50),
           tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
         });
       }

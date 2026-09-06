@@ -262,8 +262,8 @@ export function calculateStackedExpiry(currentExpiryIso?: string | null, duratio
 // 🏢 CAPACITY LIMITS & ADD-ON CONSTANTS (SSOT)
 // ==========================================
 export const DEFAULT_TRIAL_TENANT_LIMIT = 50;
-export const DEFAULT_PRO_TENANT_LIMIT = 200;
-export const DEFAULT_BASE_TENANT_LIMIT = 200; // SSOT Pro default
+export const DEFAULT_PRO_TENANT_LIMIT = 300;
+export const DEFAULT_BASE_TENANT_LIMIT = 300; // SSOT Pro default
 export const DEFAULT_ALLOWED_PROPERTIES = 1;
 export const TENANT_EXTENSION_PACK_SIZE = 25;
 export const MULTI_PROPERTY_MONTHLY_PRICE = 899;
