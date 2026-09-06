@@ -34,6 +34,8 @@ import {
   FileSpreadsheet,
   AlertOctagon,
   Loader2,
+  Users,
+  Lock,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 
@@ -44,9 +46,10 @@ export default function ApexCommandClientsPage() {
   // Pending Offline Payment Approvals Queue State
   const [pendingPaymentRequests, setPendingPaymentRequests] = useState<any[]>([]);
   const [isLoadingPendingRequests, setIsLoadingPendingRequests] = useState(false);
-  const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
   const [isApprovingRequestId, setIsApprovingRequestId] = useState<string | null>(null);
   const [isRejectingRequestId, setIsRejectingRequestId] = useState<string | null>(null);
+  const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"ALL" | "TRIAL" | "ACTIVE_PRO" | "GRACE_PERIOD" | "EXPIRED" | "SUSPENDED">("ALL");
@@ -62,10 +65,16 @@ export default function ApexCommandClientsPage() {
 
   // Selected account for Customer 360° Profile & Activation modal
   const [selectedCustomer360, setSelectedCustomer360] = useState<ScannedAccountRecord | null>(null);
-  const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "ACTIONS">("OVERVIEW");
+  const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "ACTIONS">("OVERVIEW");
+
+  // Capacity Form State in 360 Modal
+  const [capacityMaxProps, setCapacityMaxProps] = useState<number>(1);
+  const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(50);
+  const [capacityExtensionPacks, setCapacityExtensionPacks] = useState<number>(0);
+  const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
   // Plan Activation Form State
-  const [planSelection, setPlanSelection] = useState<"PRO_MONTHLY" | "PRO_ANNUAL" | "TRIAL_EXTENSION">("PRO_MONTHLY");
+  const [planSelection, setPlanSelection] = useState<"PRO_MONTHLY" | "PRO_ANNUAL" | "MULTI_PROPERTY_MONTHLY" | "TENANT_EXTENSION_PACK_25" | "TRIAL_EXTENSION">("PRO_MONTHLY");
   const [planDurationDays, setPlanDurationDays] = useState<number>(30);
   const [paymentModeSelection, setPaymentModeSelection] = useState<"UPI" | "Cash" | "Bank Transfer" | "VIP Pass">("UPI");
   const [planAmount, setPlanAmount] = useState<number>(999);
@@ -119,6 +128,68 @@ export default function ApexCommandClientsPage() {
     fetchScannedAccounts();
     fetchPendingRequests();
   }, []);
+
+  // Sync capacity limits whenever a customer is selected in Customer 360 modal
+  useEffect(() => {
+    if (selectedCustomer360) {
+      setCapacityMaxProps(selectedCustomer360.maxPropertiesAllowed ?? 1);
+      setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? 50);
+      setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
+    }
+  }, [selectedCustomer360]);
+
+  // Handle Save Capacity Limits in Founder 360 Modal
+  const handleSaveCapacityLimits = async () => {
+    if (!selectedCustomer360) return;
+    setIsSavingCapacity(true);
+    try {
+      const res = await fetch("/api/apex/update-limits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedCustomer360.userId || selectedCustomer360.id,
+          email: selectedCustomer360.email,
+          maxPropertiesAllowed: Number(capacityMaxProps),
+          maxTenantsLimit: Number(capacityBaseTenants),
+          tenantExtensionPacks: Number(capacityExtensionPacks),
+          updatedBy: "Founder Apex Command",
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`✓ Capacity limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
+        setSelectedCustomer360((prev) =>
+          prev
+            ? {
+                ...prev,
+                maxPropertiesAllowed: Number(capacityMaxProps),
+                maxTenantsLimit: Number(capacityBaseTenants),
+                tenantExtensionPacks: Number(capacityExtensionPacks),
+              }
+            : null
+        );
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.email.toLowerCase() === selectedCustomer360.email.toLowerCase()
+              ? {
+                  ...a,
+                  maxPropertiesAllowed: Number(capacityMaxProps),
+                  maxTenantsLimit: Number(capacityBaseTenants),
+                  tenantExtensionPacks: Number(capacityExtensionPacks),
+                }
+              : a
+          )
+        );
+      } else {
+        triggerToast(`⚠️ Failed to update limits: ${data.message}`);
+      }
+    } catch (e: any) {
+      triggerToast(`⚠️ Error saving capacity: ${e.message}`);
+    } finally {
+      setIsSavingCapacity(false);
+    }
+  };
 
   // Handle Approve Offline Payment Proof
   const handleApproveRequest = async (req: any) => {
@@ -553,7 +624,15 @@ export default function ApexCommandClientsPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold uppercase">
-                          {req.plan === "PRO_MONTHLY" ? "Pro Monthly" : "Pro Annual"}
+                          {req.plan === "MULTI_PROPERTY_MONTHLY"
+                            ? "Multi-Property Add-on"
+                            : req.plan === "TENANT_EXTENSION_PACK_25"
+                            ? "Tenant Pack (+25)"
+                            : req.plan === "PRO_MONTHLY"
+                            ? "Pro Monthly"
+                            : req.plan === "PRO_ANNUAL"
+                            ? "Pro Annual"
+                            : req.plan}
                         </span>
                         <span className="font-mono font-black text-amber-400 text-xs">
                           ₹{Number(req.amount || 999).toLocaleString("en-IN")}
@@ -1007,6 +1086,17 @@ export default function ApexCommandClientsPage() {
                 <span>⚡ Activate Plan / VIP Pass</span>
               </button>
               <button
+                onClick={() => setModalTab("CAPACITY")}
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                  modalTab === "CAPACITY"
+                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-xs"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                <span>🏢 Capacity & Limits</span>
+              </button>
+              <button
                 onClick={() => setModalTab("ACTIONS")}
                 className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                   modalTab === "ACTIONS"
@@ -1140,6 +1230,12 @@ export default function ApexCommandClientsPage() {
                         } else if (val === "PRO_ANNUAL") {
                           setPlanDurationDays(365);
                           setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 9990);
+                        } else if (val === "MULTI_PROPERTY_MONTHLY") {
+                          setPlanDurationDays(30);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 899);
+                        } else if (val === "TENANT_EXTENSION_PACK_25") {
+                          setPlanDurationDays(30);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 399);
                         } else if (val === "TRIAL_EXTENSION") {
                           setPlanDurationDays(10);
                           setPlanAmount(0);
@@ -1149,6 +1245,8 @@ export default function ApexCommandClientsPage() {
                     >
                       <option value="PRO_MONTHLY">💎 Pro Monthly Plan (₹999 / 30 Days)</option>
                       <option value="PRO_ANNUAL">🏆 Pro Annual Plan (₹9,990 / 365 Days)</option>
+                      <option value="MULTI_PROPERTY_MONTHLY">🏢 Multi-Property Add-on (+1 Building @ ₹899 / 30 Days)</option>
+                      <option value="TENANT_EXTENSION_PACK_25">👥 Tenant Extension Pack (+25 Tenants @ ₹399 / 30 Days)</option>
                       <option value="TRIAL_EXTENSION">⏳ Extend Free Trial (+10 / +30 Days)</option>
                     </select>
                   </div>
@@ -1249,7 +1347,195 @@ export default function ApexCommandClientsPage() {
               </form>
             )}
 
-            {/* TAB 3: ADMIN POWER CONTROLS */}
+            {/* TAB: CAPACITY & LIMITS OVERRIDES */}
+            {modalTab === "CAPACITY" && (
+              <div className="space-y-5 animate-in fade-in text-xs">
+                <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-200 text-xs flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span>
+                    Master Founder Control: Override property building limits, base tenant thresholds, and add-on extension packs directly.
+                  </span>
+                </div>
+
+                {/* Summary Matrix Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Allowed Buildings
+                    </span>
+                    <p className="font-mono font-black text-xl text-white">
+                      {capacityMaxProps} <span className="text-xs font-normal text-gray-400">properties</span>
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Base Tenant Limit
+                    </span>
+                    <p className="font-mono font-black text-xl text-white">
+                      {capacityBaseTenants} <span className="text-xs font-normal text-gray-400">tenants</span>
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Total Capacity
+                    </span>
+                    <p className="font-mono font-black text-xl text-emerald-400">
+                      {Number(capacityBaseTenants) + (Number(capacityExtensionPacks) * 25)}{" "}
+                      <span className="text-xs font-normal text-emerald-300/70">max active</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Interactive Limit Controls */}
+                <div className="space-y-4 p-5 rounded-2xl bg-[#0d1117] border border-white/10">
+                  <h4 className="font-bold text-white text-xs uppercase tracking-wider border-b border-white/10 pb-2">
+                    Adjust Account Limits
+                  </h4>
+
+                  {/* 1. Max Allowed Properties */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-bold text-white">Max Allowed Buildings</p>
+                      <p className="text-[11px] text-gray-400">Default is 1 building on base Pro plan. Each extra building is +₹899/mo.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCapacityMaxProps((p) => Math.max(1, p - 1))}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        max="999"
+                        value={capacityMaxProps}
+                        onChange={(e) => setCapacityMaxProps(Math.max(1, Number(e.target.value)))}
+                        className="w-16 px-2 py-1.5 rounded-lg bg-black/40 border border-white/15 text-center font-mono font-bold text-white text-xs focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCapacityMaxProps((p) => p + 1)}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Base Tenant Limit */}
+                  <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
+                    <div>
+                      <p className="font-bold text-white">Base Tenant Limit</p>
+                      <p className="text-[11px] text-gray-400">Default base threshold is 50 active tenants before extension packs.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        step="5"
+                        value={capacityBaseTenants}
+                        onChange={(e) => setCapacityBaseTenants(Math.max(1, Number(e.target.value)))}
+                        className="w-20 px-2 py-1.5 rounded-lg bg-black/40 border border-white/15 text-center font-mono font-bold text-white text-xs focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3. Tenant Extension Packs (+25 each) */}
+                  <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
+                    <div>
+                      <p className="font-bold text-white">Active Tenant Extension Packs (+25 tenants each)</p>
+                      <p className="text-[11px] text-gray-400">Adds +25 active occupant slots per pack (₹399/mo each).</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCapacityExtensionPacks((p) => Math.max(0, p - 1))}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={capacityExtensionPacks}
+                        onChange={(e) => setCapacityExtensionPacks(Math.max(0, Number(e.target.value)))}
+                        className="w-16 px-2 py-1.5 rounded-lg bg-black/40 border border-white/15 text-center font-mono font-bold text-white text-xs focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCapacityExtensionPacks((p) => p + 1)}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Grant Shortcuts */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCapacityMaxProps((p) => p + 1)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+1 Building Slot (Multi-Property)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCapacityExtensionPacks((p) => p + 1)}
+                    className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+25 Tenants (+1 Extension Pack)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCapacityMaxProps(999);
+                      setCapacityBaseTenants(9999);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer ml-auto"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                    <span>VIP Unlimited Bypass</span>
+                  </button>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCustomer360(null)}
+                    className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingCapacity}
+                    onClick={handleSaveCapacityLimits}
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingCapacity ? (
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Save Capacity Limits</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: ADMIN POWER CONTROLS */}
             {modalTab === "ACTIONS" && (
               <div className="space-y-4 animate-in fade-in text-xs">
                 {/* 1-Click +10 Days Extension */}

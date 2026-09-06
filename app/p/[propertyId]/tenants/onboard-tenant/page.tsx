@@ -46,6 +46,12 @@ import {
   Filter,
   Loader2,
   AlertTriangle,
+  Lock,
+  MessageSquare,
+  RefreshCw,
+  X,
+  AlertCircle,
+  Users,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -58,6 +64,14 @@ import { lookupExistingOccupant } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
+import { useAuth } from "@/providers/AuthProvider";
+import {
+  getEffectiveTenantLimit,
+  evaluateTenantCapacity,
+  TENANT_EXTENSION_MONTHLY_PRICE,
+  TENANT_EXTENSION_PACK_SIZE,
+} from "@/lib/subscriptionEngine";
+import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 export default function OnboardTenantPage({
   params,
@@ -151,6 +165,84 @@ export default function OnboardTenantPage({
   // Success Modal State (Step 5)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
+
+  // User Profile & Tenant Capacity Limits
+  const { profile } = useAuth();
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extensionScreenshot, setExtensionScreenshot] = useState<string | null>(null);
+  const [extensionFileName, setExtensionFileName] = useState<string | null>(null);
+  const [isCompressingExtensionProof, setIsCompressingExtensionProof] = useState(false);
+  const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+  const [extensionSuccess, setExtensionSuccess] = useState(false);
+  const [extensionError, setExtensionError] = useState<string | null>(null);
+
+  const allOccupants = useMemo(() => {
+    return occupantStore.getOccupants(propertyId) || [];
+  }, [propertyId, occupantsSyncTick]);
+
+  const activeOccupantsCount = useMemo(() => {
+    return allOccupants.filter((occ) => occ.lifecycleStatus !== "Past").length;
+  }, [allOccupants]);
+
+  const effectiveTenantLimit = getEffectiveTenantLimit(profile);
+  const capacityStatus = evaluateTenantCapacity(activeOccupantsCount, effectiveTenantLimit);
+
+  const handleExtensionProofFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsCompressingExtensionProof(true);
+    setExtensionError(null);
+    try {
+      setExtensionFileName(file.name);
+      const result = await compressPaymentScreenshot(file);
+      setExtensionScreenshot(result.base64);
+    } catch (err) {
+      setExtensionError("Failed to process screenshot. Please try another image.");
+    } finally {
+      setIsCompressingExtensionProof(false);
+    }
+  };
+
+  const handleExtensionProofSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extensionScreenshot) {
+      setExtensionError("Please upload your UPI payment screenshot proof.");
+      return;
+    }
+    setExtensionError(null);
+    setIsSubmittingExtension(true);
+
+    try {
+      const res = await fetch("/api/subscription/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: profile?.uid,
+          customerEmail: profile?.email || "",
+          customerName: profile?.displayName || "Property Owner",
+          customerPhone: profile?.phone || "",
+          propertyName: propertyId,
+          plan: "TENANT_EXTENSION_PACK_25",
+          amount: TENANT_EXTENSION_MONTHLY_PRICE,
+          paymentMode: "UPI",
+          screenshotData: extensionScreenshot,
+          notes: `Tenant Extension Pack Request (+25 Tenants for ${propertyId})`,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setExtensionSuccess(true);
+        triggerToast("✓ Payment proof submitted! Founder will approve your +25 tenant pack shortly.");
+      } else {
+        setExtensionError(data.message || "Failed to submit request.");
+      }
+    } catch (err: any) {
+      setExtensionError("Failed to submit payment proof. Please try again.");
+    } finally {
+      setIsSubmittingExtension(false);
+    }
+  };
 
   // Reactive property structure state subscribed to propertyStore
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
@@ -404,6 +496,16 @@ export default function OnboardTenantPage({
 
   // Final Action: Agree & Onboard Tenant
   const handleFinalSubmit = () => {
+    if (capacityStatus.isAtCapacity) {
+      setExtensionSuccess(false);
+      setExtensionError(null);
+      setExtensionScreenshot(null);
+      setExtensionFileName(null);
+      setShowExtensionModal(true);
+      triggerToast(`⚠️ Tenant capacity limit (${effectiveTenantLimit}) reached! Upgrade to proceed.`);
+      return;
+    }
+
     const newId = `og-tenant-${Date.now()}`;
     const formattedJoiningDate = new Date(joiningDate).toLocaleDateString(
       "en-GB",
@@ -548,6 +650,61 @@ export default function OnboardTenantPage({
               </div>
             </div>
           )}
+
+          {/* Tenant Capacity Status Banner */}
+          {capacityStatus.isAtCapacity ? (
+            <div className="p-4 rounded-2xl bg-red-50 border-2 border-red-200 text-red-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-red-100 text-red-700 shrink-0 mt-0.5">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-red-900">
+                    Tenant Capacity Limit Reached ({activeOccupantsCount} / {effectiveTenantLimit})
+                  </h4>
+                  <p className="text-xs text-red-800/90 leading-relaxed mt-0.5">
+                    Your plan allows up to {effectiveTenantLimit} active tenants. To onboard this new resident, unlock a Tenant Extension Pack (+25 Tenants @ ₹{TENANT_EXTENSION_MONTHLY_PRICE}/month).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setExtensionSuccess(false);
+                  setExtensionError(null);
+                  setExtensionScreenshot(null);
+                  setExtensionFileName(null);
+                  setShowExtensionModal(true);
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold text-xs shadow-md shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Unlock +25 Tenants (₹{TENANT_EXTENSION_MONTHLY_PRICE}/mo)</span>
+              </button>
+            </div>
+          ) : capacityStatus.isNearCapacity ? (
+            <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between text-xs font-medium animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Approaching Capacity:</strong> You currently have {activeOccupantsCount} of {effectiveTenantLimit} active tenants ({capacityStatus.percentage}% used).
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setExtensionSuccess(false);
+                  setExtensionError(null);
+                  setExtensionScreenshot(null);
+                  setExtensionFileName(null);
+                  setShowExtensionModal(true);
+                }}
+                className="text-[11px] font-bold text-amber-800 hover:underline shrink-0 ml-2 cursor-pointer"
+              >
+                Pre-order Extension Pack →
+              </button>
+            </div>
+          ) : null}
 
           {!hasConfiguredRooms ? (
             <div className="bg-white rounded-3xl border border-[#d7c2b9] p-6 md:p-10 shadow-sm space-y-6 animate-in fade-in my-4">
@@ -1399,13 +1556,29 @@ export default function OnboardTenantPage({
                 >
                   ← Back to KYC
                 </button>
-                <button
-                  type="button"
-                  onClick={handleFinalSubmit}
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px]"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Agree & Onboard Tenant
-                </button>
+                {capacityStatus.isAtCapacity ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtensionSuccess(false);
+                      setExtensionError(null);
+                      setExtensionScreenshot(null);
+                      setExtensionFileName(null);
+                      setShowExtensionModal(true);
+                    }}
+                    className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px] cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4" /> Capacity Limit Reached ({activeOccupantsCount}/{effectiveTenantLimit}) — Unlock +25
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleFinalSubmit}
+                    className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all min-h-[48px] cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Agree & Onboard Tenant
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1482,6 +1655,225 @@ export default function OnboardTenantPage({
             router.refresh();
           }}
         />
+
+        {/* 🔒 TENANT EXTENSION PACK MODAL */}
+        {showExtensionModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in overflow-y-auto"
+            onClick={() => setShowExtensionModal(false)}
+          >
+            <div
+              className="bg-white rounded-3xl border border-[#d7c2b9] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17] my-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-purple-100 text-purple-800">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-800 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                        Tenant Extension Pack
+                      </span>
+                    </div>
+                    <h3 className="font-serif font-bold text-lg text-[#201a17]">
+                      Unlock +25 Resident Slots
+                    </h3>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowExtensionModal(false)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Capacity status info */}
+              <div className="p-3.5 rounded-2xl bg-[#fff8f6] border border-[#eedad0] flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-[#554339]">Current Tenant Limit</p>
+                  <p className="text-xs text-[#8a7f74]">
+                    You have <span className="font-bold text-[#201a17]">{activeOccupantsCount}</span> active occupants of{" "}
+                    <span className="font-bold text-[#201a17]">{effectiveTenantLimit}</span> limit.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-base font-extrabold text-purple-700">
+                    ₹{TENANT_EXTENSION_MONTHLY_PRICE}
+                  </span>
+                  <span className="text-[10px] text-[#8a7f74] block">/mo (+25 tenants)</span>
+                </div>
+              </div>
+
+              {/* Feature Bullets */}
+              <div className="space-y-2 text-[11px] text-[#554339]">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="text-[#201a17]">+25 Active Occupants:</strong> Continue onboarding residents without friction or downtime.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="text-[#201a17]">Full SSOT Ledger Support:</strong> Complete dual-ledger accounting, automated pro-rata rent calculations, and rent receipts.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong className="text-[#201a17]">Unlimited Document Vault:</strong> Secure compressed storage for tenant KYC, Aadhaar IDs, and digital agreements.
+                  </span>
+                </div>
+              </div>
+
+              {extensionSuccess ? (
+                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-sm text-emerald-950">Payment Proof Submitted!</h4>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    Our team will verify your UPI payment and activate your +25 tenant extension pack within 15–30 minutes.
+                  </p>
+                  <button
+                    onClick={() => setShowExtensionModal(false)}
+                    className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs"
+                  >
+                    Close Window
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleExtensionProofSubmit} className="space-y-4 pt-1">
+                  {/* UPI box */}
+                  <div className="p-4 rounded-2xl bg-[#f8ede3]/70 border border-[#d7c2b9] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#964407]">
+                        Direct Founder UPI Transfer
+                      </span>
+                      <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded-md border border-[#d7c2b9]">
+                        ₹{TENANT_EXTENSION_MONTHLY_PRICE}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
+                        <p className="font-mono font-bold text-xs text-[#201a17]">9550259837@ybl</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText("9550259837@ybl");
+                          triggerToast("UPI ID copied to clipboard!");
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        Copy VPA
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-[#8a7f74]">
+                      Pay using PhonePe, Google Pay, Paytm, or BHIM, then upload your transaction screenshot below.
+                    </p>
+                  </div>
+
+                  {/* Screenshot Upload */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#554339] mb-1.5">
+                      Upload UPI Transaction Screenshot *
+                    </label>
+                    <label className="border-2 border-dashed border-[#d7c2b9] hover:border-[#964407] bg-[#fff8f6] rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleExtensionProofFileUpload}
+                        className="hidden"
+                        disabled={isCompressingExtensionProof || isSubmittingExtension}
+                      />
+                      {isCompressingExtensionProof ? (
+                        <div className="flex items-center gap-2 text-xs text-[#964407]">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Optimizing image for fast verification...</span>
+                        </div>
+                      ) : extensionScreenshot ? (
+                        <div className="flex items-center gap-2 text-xs text-emerald-800 font-medium">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span className="truncate max-w-[240px]">
+                            {extensionFileName || "Screenshot Attached"}
+                          </span>
+                          <span className="text-[10px] text-gray-500 underline ml-1">Change</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center text-center">
+                          <Upload className="w-5 h-5 text-[#964407] mb-1" />
+                          <span className="font-bold text-xs text-[#201a17]">
+                            Click to upload payment proof
+                          </span>
+                          <span className="text-[10px] text-[#8a7f74]">
+                            JPG, PNG, or screenshot from your UPI app
+                          </span>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* Direct WhatsApp Founder Link */}
+                  <div className="flex items-center justify-between text-[11px] px-1">
+                    <span className="text-[#8a7f74]">Need instant activation or custom billing?</span>
+                    <a
+                      href={`https://wa.me/919550259837?text=${encodeURIComponent(
+                        `Hi TenoPilot Team, I need to unlock a Tenant Extension Pack (+25 Tenants) for ${propertyId}.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-800"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>WhatsApp Founder</span>
+                    </a>
+                  </div>
+
+                  {extensionError && (
+                    <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{extensionError}</span>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                    <button
+                      type="button"
+                      onClick={() => setShowExtensionModal(false)}
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!extensionScreenshot || isCompressingExtensionProof || isSubmittingExtension}
+                      className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-bold shadow-md cursor-pointer flex items-center gap-2"
+                    >
+                      {isSubmittingExtension ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Submitting Proof...</span>
+                        </>
+                      ) : (
+                        <span>Submit Payment Proof</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

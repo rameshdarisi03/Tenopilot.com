@@ -15,7 +15,11 @@ import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
-import { evaluateSubscription } from "@/lib/subscriptionEngine";
+import {
+  evaluateSubscription,
+  getEffectiveTenantLimit,
+  evaluateTenantCapacity,
+} from "@/lib/subscriptionEngine";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
@@ -103,6 +107,14 @@ export default function TenantsDirectoryPage({
       unsubscribeFirestore();
     };
   }, [propertyId]);
+
+  // Dynamic Tenant Capacity Evaluation (SSOT)
+  const activeTenantsCount = useMemo(() => {
+    return occupantsList.filter((o) => o.lifecycleStatus !== "Past").length;
+  }, [occupantsList]);
+
+  const effectiveTenantLimit = getEffectiveTenantLimit(profile);
+  const capacityStatus = evaluateTenantCapacity(activeTenantsCount, effectiveTenantLimit);
 
   // Filter & Search states
   const [rawSearchTerm, setRawSearchTerm] = useState("");
@@ -805,9 +817,34 @@ export default function TenantsDirectoryPage({
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="font-serif text-3xl font-bold text-gray-800">
-                Tenant Operations
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="font-serif text-3xl font-bold text-gray-800">
+                  Tenant Operations
+                </h1>
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-2xs ${
+                    capacityStatus.isAtCapacity
+                      ? "bg-red-50 text-red-700 border-red-300"
+                      : capacityStatus.isNearCapacity
+                      ? "bg-amber-50 text-amber-700 border-amber-300"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  }`}
+                  title={`${activeTenantsCount} of ${effectiveTenantLimit} active tenant slots occupied (${capacityStatus.percentage}%)`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>
+                    {activeTenantsCount} / {effectiveTenantLimit} Tenants
+                  </span>
+                  <span className="text-[10px] opacity-75 font-normal">
+                    ({capacityStatus.percentage}%)
+                  </span>
+                  {capacityStatus.isAtCapacity && (
+                    <span className="bg-red-200 text-red-900 text-[9px] px-1.5 py-0.2 rounded-full font-extrabold uppercase ml-0.5">
+                      Limit
+                    </span>
+                  )}
+                </div>
+              </div>
               <p className="text-gray-500 text-xs md:text-sm mt-1">
                 Manage tenants across their lifecycle and track rent collection
               </p>

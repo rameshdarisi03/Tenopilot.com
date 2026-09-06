@@ -23,6 +23,10 @@ import {
   Verified,
   X,
   Key,
+  Lock,
+  MessageSquare,
+  Upload,
+  RefreshCw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -35,6 +39,8 @@ import { initializeCleanProperty } from "@/lib/accountInitializer";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { staffStore, UserRole } from "@/lib/staffStore";
+import { getMaxAllowedProperties, MULTI_PROPERTY_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
+import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
 
@@ -82,6 +88,75 @@ export default function HomeWorkspacePage() {
 
   // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Multi-Property Gating State
+  const [showMultiPropertyModal, setShowMultiPropertyModal] = useState(false);
+  const [multiPropertyScreenshot, setMultiPropertyScreenshot] = useState<string | null>(null);
+  const [multiPropertyFileName, setMultiPropertyFileName] = useState<string | null>(null);
+  const [isCompressingProof, setIsCompressingProof] = useState(false);
+  const [isSubmittingMultiProperty, setIsSubmittingMultiProperty] = useState(false);
+  const [multiPropertySuccess, setMultiPropertySuccess] = useState(false);
+  const [multiPropertyError, setMultiPropertyError] = useState<string | null>(null);
+
+  const maxAllowedProperties = getMaxAllowedProperties(profile);
+  const isMultiPropertyGated = properties.length >= maxAllowedProperties;
+
+  const handleProofFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsCompressingProof(true);
+    setMultiPropertyError(null);
+    try {
+      setMultiPropertyFileName(file.name);
+      const result = await compressPaymentScreenshot(file);
+      setMultiPropertyScreenshot(result.base64);
+    } catch (err) {
+      setMultiPropertyError("Failed to process screenshot. Please try another image.");
+    } finally {
+      setIsCompressingProof(false);
+    }
+  };
+
+  const handleMultiPropertyProofSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!multiPropertyScreenshot) {
+      setMultiPropertyError("Please upload your UPI payment screenshot proof.");
+      return;
+    }
+    setMultiPropertyError(null);
+    setIsSubmittingMultiProperty(true);
+
+    try {
+      const res = await fetch("/api/subscription/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: profile?.uid,
+          customerEmail: profile?.email || "",
+          customerName: profile?.displayName || "Property Owner",
+          customerPhone: profile?.phone || "",
+          propertyName: properties[0]?.name || "Main Branch",
+          plan: "MULTI_PROPERTY_MONTHLY",
+          amount: MULTI_PROPERTY_MONTHLY_PRICE,
+          paymentMode: "UPI",
+          screenshotData: multiPropertyScreenshot,
+          notes: `Multi-Property Expansion Request (Adding Building #${properties.length + 1})`,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setMultiPropertySuccess(true);
+        triggerToast("✓ Payment proof submitted! Founder will approve your building slot shortly.");
+      } else {
+        setMultiPropertyError(data.message || "Failed to submit request.");
+      }
+    } catch (err: any) {
+      setMultiPropertyError("Failed to submit payment proof. Please try again.");
+    } finally {
+      setIsSubmittingMultiProperty(false);
+    }
+  };
 
   // 3D Parallax Mouse Tracking & Radial Glass Spotlight Handler
   const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -522,16 +597,37 @@ export default function HomeWorkspacePage() {
             {/* Add New Property Card Trigger (Master Admin Only) */}
             {activeRole === "master_admin" && (
               <button
-                onClick={() => setShowAddPropertyModal(true)}
-                className="group border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl"
+                onClick={() => {
+                  if (isMultiPropertyGated) {
+                    setMultiPropertySuccess(false);
+                    setMultiPropertyError(null);
+                    setMultiPropertyScreenshot(null);
+                    setMultiPropertyFileName(null);
+                    setShowMultiPropertyModal(true);
+                  } else {
+                    setShowAddPropertyModal(true);
+                  }
+                }}
+                className="group relative border-2 border-dashed border-[#241b16]/25 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] hover:border-[#c6572a]/60 hover:bg-[#f1e7dd]/40 transition-all text-center active:scale-98 cursor-pointer shadow-xs hover:shadow-xl overflow-hidden"
               >
+                {isMultiPropertyGated && (
+                  <div className="absolute top-4 right-4 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold shadow-xs">
+                    <Lock className="w-3 h-3 text-amber-700" />
+                    <span>Multi-Property Add-on</span>
+                  </div>
+                )}
+
                 <div className="w-14 h-14 bg-[#f1e7dd] rounded-full flex items-center justify-center mb-4 text-[#241b16] group-hover:bg-[#c6572a]/15 group-hover:text-[#c6572a] transition-all transform group-hover:rotate-90 duration-300 shadow-xs">
-                  <Plus className="w-7 h-7" />
+                  {isMultiPropertyGated ? <Lock className="w-6 h-6 text-[#964407]" /> : <Plus className="w-7 h-7" />}
                 </div>
                 <span className="font-serif font-bold text-xl text-[#241b16] group-hover:text-[#c6572a] transition-colors">
                   Add New Property
                 </span>
-                <p className="text-xs text-[#8a7f74] mt-1">Expand your PG or Hostel portfolio</p>
+                <p className="text-xs text-[#8a7f74] mt-1">
+                  {isMultiPropertyGated
+                    ? `Expand your portfolio (₹${MULTI_PROPERTY_MONTHLY_PRICE}/mo)`
+                    : "Expand your PG or Hostel portfolio"}
+                </p>
               </button>
             )}
           </div>
@@ -635,6 +731,223 @@ export default function HomeWorkspacePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🔒 MULTI-PROPERTY EXPANSION MODAL */}
+      {showMultiPropertyModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in overflow-y-auto"
+          onClick={() => setShowMultiPropertyModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-[#d7c2b9] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17] my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Portfolio Expansion
+                    </span>
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-[#201a17]">
+                    Unlock Multi-Property Add-on
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowMultiPropertyModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Current Limit notice */}
+            <div className="p-3.5 rounded-2xl bg-[#fff8f6] border border-[#eedad0] flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-[#554339]">Current Portfolio Limit</p>
+                <p className="text-xs text-[#8a7f74]">
+                  You have onboarded <span className="font-bold text-[#201a17]">{properties.length}</span> of{" "}
+                  <span className="font-bold text-[#201a17]">{maxAllowedProperties}</span> allowed buildings.
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-base font-extrabold text-[#964407]">
+                  ₹{MULTI_PROPERTY_MONTHLY_PRICE}
+                </span>
+                <span className="text-[10px] text-[#8a7f74] block">/mo per building</span>
+              </div>
+            </div>
+
+            {/* Feature Bullets */}
+            <div className="space-y-2 text-[11px] text-[#554339]">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-[#201a17]">Centralized Founder Hub:</strong> Instant 1-click switching across all branches with aggregate dashboard metrics.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-[#201a17]">Segregated Staff Security:</strong> Assign branch managers and wardens strictly to their assigned property without cross-contamination.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-[#201a17]">Isolated Dual-Ledgers:</strong> Independent rent books, security deposit vaults, and vendor expense tracking.
+                </span>
+              </div>
+            </div>
+
+            {multiPropertySuccess ? (
+              <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-sm text-emerald-950">Payment Proof Submitted!</h4>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  Our founding team will verify your UPI transaction and unlock your additional building slot within 15–30 minutes. You will be able to onboard your new building immediately.
+                </p>
+                <button
+                  onClick={() => setShowMultiPropertyModal(false)}
+                  className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs"
+                >
+                  Close Window
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleMultiPropertyProofSubmit} className="space-y-4 pt-1">
+                {/* UPI Payment Instructions Box */}
+                <div className="p-4 rounded-2xl bg-[#f8ede3]/70 border border-[#d7c2b9] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#964407]">
+                      Direct Founder UPI Transfer
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded-md border border-[#d7c2b9]">
+                      ₹{MULTI_PROPERTY_MONTHLY_PRICE}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded-xl border border-[#eedad0] flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-[#8a7f74]">Official UPI VPA</p>
+                      <p className="font-mono font-bold text-xs text-[#201a17]">9550259837@ybl</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText("9550259837@ybl");
+                        triggerToast("UPI ID copied to clipboard!");
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-[#f8ede3] hover:bg-[#eedad0] text-[#964407] text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      Copy VPA
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#8a7f74]">
+                    Pay using PhonePe, Google Pay, Paytm, or BHIM, then upload your transaction screenshot below.
+                  </p>
+                </div>
+
+                {/* Screenshot Upload */}
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#554339] mb-1.5">
+                    Upload UPI Transaction Screenshot *
+                  </label>
+                  <label className="border-2 border-dashed border-[#d7c2b9] hover:border-[#964407] bg-[#fff8f6] rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProofFileUpload}
+                      className="hidden"
+                      disabled={isCompressingProof || isSubmittingMultiProperty}
+                    />
+                    {isCompressingProof ? (
+                      <div className="flex items-center gap-2 text-xs text-[#964407]">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Optimizing image for fast verification...</span>
+                      </div>
+                    ) : multiPropertyScreenshot ? (
+                      <div className="flex items-center gap-2 text-xs text-emerald-800 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span className="truncate max-w-[240px]">
+                          {multiPropertyFileName || "Screenshot Attached"}
+                        </span>
+                        <span className="text-[10px] text-gray-500 underline ml-1">Change</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center text-center">
+                        <Upload className="w-5 h-5 text-[#964407] mb-1" />
+                        <span className="font-bold text-xs text-[#201a17]">
+                          Click to upload payment proof
+                        </span>
+                        <span className="text-[10px] text-[#8a7f74]">
+                          JPG, PNG, or screenshot from your UPI app
+                        </span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+
+                {/* Direct WhatsApp Founder Link */}
+                <div className="flex items-center justify-between text-[11px] px-1">
+                  <span className="text-[#8a7f74]">Need instant activation or custom invoicing?</span>
+                  <a
+                    href="https://wa.me/919550259837?text=Hi%20TenoPilot%20Team%2C%20I%20want%20to%20unlock%20a%20Multi-Property%20slot%20for%20my%20PG%20account."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-800"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>WhatsApp Founder</span>
+                  </a>
+                </div>
+
+                {multiPropertyError && (
+                  <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{multiPropertyError}</span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                  <button
+                    type="button"
+                    onClick={() => setShowMultiPropertyModal(false)}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!multiPropertyScreenshot || isCompressingProof || isSubmittingMultiProperty}
+                    className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] disabled:opacity-50 text-white font-bold shadow-md cursor-pointer flex items-center gap-2"
+                  >
+                    {isSubmittingMultiProperty ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Submitting Proof...</span>
+                      </>
+                    ) : (
+                      <span>Submit Payment Proof</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

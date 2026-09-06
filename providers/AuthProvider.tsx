@@ -26,6 +26,9 @@ export interface UserProfile {
   subscriptionStatus?: string;
   pendingPaymentRequest?: boolean;
   lastPaymentRejectionReason?: string;
+  maxPropertiesAllowed?: number;
+  maxTenantsLimit?: number;
+  tenantExtensionPacks?: number;
 }
 
 interface AuthContextType {

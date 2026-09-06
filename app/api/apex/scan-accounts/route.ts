@@ -25,6 +25,9 @@ export interface ScannedAccountRecord {
   createdAt: string;
   lastActive?: string;
   hasStorageFootprints?: boolean;
+  maxPropertiesAllowed?: number;
+  maxTenantsLimit?: number;
+  tenantExtensionPacks?: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -183,6 +186,9 @@ export async function GET(req: NextRequest) {
           createdAt: data.createdAt || founderClient?.createdAt || vipInvite?.createdAt || "Legacy Account",
           lastActive: data.lastActive || founderClient?.lastActiveDate || "Recently",
           hasStorageFootprints: propIds.length > 0,
+          maxPropertiesAllowed: data.maxPropertiesAllowed ?? 1,
+          maxTenantsLimit: data.maxTenantsLimit ?? 50,
+          tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
         });
       }
     } catch (e) {

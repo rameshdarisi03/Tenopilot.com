@@ -31,8 +31,11 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const nowIso = now.toISOString();
 
-    // Check existing expiry for stacked renewal
+    // Check existing expiry and capacity limits for stacked renewal & add-ons
     let currentExpiryIso: string | null = null;
+    let existingMaxProperties = 1;
+    let existingExtensionPacks = 0;
+
     if (userId) {
       try {
         const existingSnap = await getDoc(doc(db, "users", userId));
@@ -41,18 +44,30 @@ export async function POST(req: NextRequest) {
           if (uData?.planExpiresAt) {
             currentExpiryIso = uData.planExpiresAt;
           }
+          if (uData?.maxPropertiesAllowed !== undefined) {
+            existingMaxProperties = Number(uData.maxPropertiesAllowed) || 1;
+          }
+          if (uData?.tenantExtensionPacks !== undefined) {
+            existingExtensionPacks = Number(uData.tenantExtensionPacks) || 0;
+          }
         }
       } catch (e) {
         console.warn("Notice checking existing expiry:", e);
       }
     }
-    if (!currentExpiryIso && cleanEmail) {
+    if ((!currentExpiryIso || existingMaxProperties === 1) && cleanEmail) {
       try {
         const q = query(collection(db, "users"), where("email", "==", cleanEmail));
         const snap = await getDocs(q);
         if (!snap.empty) {
           const uData = snap.docs[0].data();
           if (uData?.planExpiresAt) currentExpiryIso = uData.planExpiresAt;
+          if (uData?.maxPropertiesAllowed !== undefined) {
+            existingMaxProperties = Number(uData.maxPropertiesAllowed) || 1;
+          }
+          if (uData?.tenantExtensionPacks !== undefined) {
+            existingExtensionPacks = Number(uData.tenantExtensionPacks) || 0;
+          }
         }
       } catch (e) {
         console.warn("User email lookup for expiry notice:", e);
@@ -83,6 +98,16 @@ export async function POST(req: NextRequest) {
       notes: notes || null,
       updatedAt: nowIso,
     };
+
+    // If activating Multi-Property Add-on, increment maxPropertiesAllowed
+    if (plan === "MULTI_PROPERTY_MONTHLY") {
+      updatePayload.maxPropertiesAllowed = Math.max(1, existingMaxProperties) + 1;
+    }
+
+    // If activating Tenant Extension Pack, increment tenantExtensionPacks
+    if (plan === "TENANT_EXTENSION_PACK_25") {
+      updatePayload.tenantExtensionPacks = existingExtensionPacks + 1;
+    }
 
     // 1. Update users collection (both by explicit userId and by email query)
     if (userId) {

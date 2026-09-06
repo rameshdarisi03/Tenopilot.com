@@ -257,3 +257,52 @@ export function calculateStackedExpiry(currentExpiryIso?: string | null, duratio
   const newExpiryTime = baseTime + Number(durationDays) * 24 * 60 * 60 * 1000;
   return new Date(newExpiryTime).toISOString();
 }
+
+// ==========================================
+// 🏢 CAPACITY LIMITS & ADD-ON CONSTANTS (SSOT)
+// ==========================================
+export const DEFAULT_BASE_TENANT_LIMIT = 50;
+export const DEFAULT_ALLOWED_PROPERTIES = 1;
+export const TENANT_EXTENSION_PACK_SIZE = 25;
+export const MULTI_PROPERTY_MONTHLY_PRICE = 899;
+export const TENANT_EXTENSION_MONTHLY_PRICE = 399;
+
+export interface TenantCapacityStatus {
+  activeCount: number;
+  limit: number;
+  isAtCapacity: boolean;
+  isNearCapacity: boolean; // >= 85%
+  remainingSlots: number;
+  percentage: number;
+}
+
+export function getMaxAllowedProperties(userProfile?: any): number {
+  if (!userProfile) return DEFAULT_ALLOWED_PROPERTIES;
+  if (userProfile.email?.toLowerCase() === "isharapandey01@gmail.com") return 999;
+  return Number(userProfile.maxPropertiesAllowed) || DEFAULT_ALLOWED_PROPERTIES;
+}
+
+export function getEffectiveTenantLimit(userProfile?: any): number {
+  if (!userProfile) return DEFAULT_BASE_TENANT_LIMIT;
+  if (userProfile.email?.toLowerCase() === "isharapandey01@gmail.com") return 9999;
+  const baseLimit = Number(userProfile.maxTenantsLimit) || DEFAULT_BASE_TENANT_LIMIT;
+  const packs = Number(userProfile.tenantExtensionPacks) || 0;
+  return baseLimit + (packs * TENANT_EXTENSION_PACK_SIZE);
+}
+
+export function evaluateTenantCapacity(activeCount: number, limit: number): TenantCapacityStatus {
+  const safeLimit = Math.max(1, limit);
+  const remainingSlots = Math.max(0, safeLimit - activeCount);
+  const percentage = Math.min(100, Math.round((activeCount / safeLimit) * 100));
+  const isAtCapacity = activeCount >= safeLimit;
+  const isNearCapacity = !isAtCapacity && percentage >= 85;
+
+  return {
+    activeCount,
+    limit: safeLimit,
+    isAtCapacity,
+    isNearCapacity,
+    remainingSlots,
+    percentage,
+  };
+}
