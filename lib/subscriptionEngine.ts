@@ -35,6 +35,20 @@ export interface EvaluatedSubscription {
 const GRACE_PERIOD_DAYS = 7;
 const PRE_EXPIRY_ALERT_DAYS = 7;
 export const DEFAULT_TRIAL_DAYS = 10;
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // Indian Standard Time (UTC+05:30)
+
+/**
+ * Calculates remaining calendar days in IST (midnight-to-midnight)
+ */
+export function getCalendarDaysDiff(targetMs: number, currentMs: number = Date.now()): number {
+  const targetDate = new Date(targetMs + IST_OFFSET_MS);
+  const currentDate = new Date(currentMs + IST_OFFSET_MS);
+
+  const targetMidnight = Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), targetDate.getUTCDate());
+  const currentMidnight = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate());
+
+  return Math.round((targetMidnight - currentMidnight) / (24 * 60 * 60 * 1000));
+}
 
 export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
   const now = Date.now();
@@ -92,8 +106,9 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     expiryTime = 0; // Expired!
   }
 
-  const msDiff = expiryTime - now;
-  const daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+  const isTimeActive = now < expiryTime;
+  const calendarDaysRemaining = getCalendarDaysDiff(expiryTime, now);
+  const daysRemaining = isTimeActive ? Math.max(0, calendarDaysRemaining) : 0;
   const expiryDateFormatted = !isNaN(expiryTime)
     ? new Date(expiryTime).toLocaleDateString("en-GB", {
         day: "2-digit",
@@ -105,8 +120,9 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
   // 1. PRO SUBSCRIPTIONS (With 7-Day Grace Period)
   if (isProPlan) {
     // A. Plan is actively valid
-    if (daysRemaining > 0) {
+    if (isTimeActive) {
       const isPreExpiry = daysRemaining <= PRE_EXPIRY_ALERT_DAYS;
+      const renewsText = daysRemaining === 0 ? "Renews Today" : `Renews in ${daysRemaining}d`;
 
       return {
         status: isPreExpiry ? "PRO_PRE_EXPIRY" : "ACTIVE_PRO",
@@ -119,29 +135,31 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
         canAccessProFeatures: true,
         expiryDateFormatted: expiryDateFormatted,
         badgeLabel: isPreExpiry
-          ? `💎 Pro (Renews in ${daysRemaining}d)`
+          ? `💎 Pro (${renewsText})`
           : `💎 Pro Active`,
         badgeColor: isPreExpiry ? "amber" : "emerald",
         notificationMessage: isPreExpiry
-          ? `Renewal Notice: Your Pro plan will renew in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""} (on ${expiryDateFormatted}). Early renewals stack automatically without losing any days.`
+          ? `Renewal Notice: Your Pro plan will renew ${daysRemaining === 0 ? "today" : `in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}`} (on ${expiryDateFormatted}). Early renewals stack automatically without losing any days.`
           : undefined,
         bannerMessage: isPreExpiry
-          ? `💎 Pro Plan Renewal: Your cycle ends on ${expiryDateFormatted} (${daysRemaining} days left). Renew now to seamlessly extend your plan.`
+          ? `💎 Pro Plan Renewal: Your cycle ends on ${expiryDateFormatted} (${daysRemaining === 0 ? "today" : `${daysRemaining} days left`}). Renew now to seamlessly extend your plan.`
           : undefined,
       };
     }
 
     // B. Plan has passed expiry — check 7-Day Trusted Grace Period
     const graceExpiryTime = expiryTime + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
-    const graceMsDiff = graceExpiryTime - now;
-    const graceDaysRemaining = Math.max(0, Math.ceil(graceMsDiff / (1000 * 60 * 60 * 24)));
+    const isGraceActive = now < graceExpiryTime;
+    const graceCalendarDays = getCalendarDaysDiff(graceExpiryTime, now);
+    const graceDaysRemaining = isGraceActive ? Math.max(0, graceCalendarDays) : 0;
 
-    if (graceDaysRemaining > 0) {
+    if (isGraceActive) {
       const graceEndFormatted = new Date(graceExpiryTime).toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "short",
         year: "numeric",
       });
+      const graceLabel = graceDaysRemaining === 0 ? "Ends Today" : `${graceDaysRemaining}d Left`;
 
       return {
         status: "GRACE_PERIOD",
@@ -153,10 +171,10 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
         inGracePeriod: true,
         canAccessProFeatures: true, // 100% uninterrupted Pro access during grace period
         expiryDateFormatted: expiryDateFormatted,
-        badgeLabel: `⏳ Pro Grace (${graceDaysRemaining}d Left)`,
+        badgeLabel: `⏳ Pro Grace (${graceLabel})`,
         badgeColor: "amber",
-        notificationMessage: `Grace Period Active: Your Pro plan ended on ${expiryDateFormatted}. Enjoy uninterrupted Pro services until ${graceEndFormatted} (${graceDaysRemaining} days remaining). Please renew to continue without interruption.`,
-        bannerMessage: `⏳ Pro Plan Grace Period Active: Your monthly cycle expired on ${expiryDateFormatted}. All Pro operations remain active for ${graceDaysRemaining} more days. Renew now (₹999/mo) to keep uninterrupted access.`,
+        notificationMessage: `Grace Period Active: Your Pro plan ended on ${expiryDateFormatted}. Enjoy uninterrupted Pro services until ${graceEndFormatted} (${graceDaysRemaining === 0 ? "ends today" : `${graceDaysRemaining} days remaining`}). Please renew to continue without interruption.`,
+        bannerMessage: `⏳ Pro Plan Grace Period Active: Your monthly cycle expired on ${expiryDateFormatted}. All Pro operations remain active for ${graceDaysRemaining === 0 ? "today" : `${graceDaysRemaining} more days`}. Renew now (₹999/mo) to keep uninterrupted access.`,
       };
     }
 
@@ -178,8 +196,10 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     };
   }
 
-  // 2. 10-DAY FREE TRIAL (Strict Cloud-Stapped SSOT)
-  if (daysRemaining > 0) {
+  // 2. 10-DAY FREE TRIAL (Strict Cloud-Stamped SSOT)
+  if (isTimeActive) {
+    const trialLabel = daysRemaining === 0 ? "Ends Today" : `${daysRemaining}d Left`;
+
     return {
       status: "TRIAL",
       plan: userProfile.plan || "10_DAY_TRIAL",
@@ -190,11 +210,11 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
       inGracePeriod: false,
       canAccessProFeatures: true,
       expiryDateFormatted: expiryDateFormatted,
-      badgeLabel: `⚡ 10-Day Free Trial (${daysRemaining}d Left)`,
+      badgeLabel: `⚡ 10-Day Free Trial (${trialLabel})`,
       badgeColor: "amber",
       notificationMessage:
         daysRemaining <= 3
-          ? `Trial Ending Soon: Your 10-day free trial ends in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}. Upgrade to Pro (₹999/mo) for uninterrupted management.`
+          ? `Trial Ending Soon: Your 10-day free trial ends ${daysRemaining === 0 ? "today" : `in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}`}. Upgrade to Pro (₹999/mo) for uninterrupted management.`
           : undefined,
     };
   }

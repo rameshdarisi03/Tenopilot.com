@@ -47,8 +47,10 @@ export async function initializePropertyTrial(propertyId: string): Promise<Trial
   return trialData;
 }
 
+import { getCalendarDaysDiff } from "./subscriptionEngine";
+
 /**
- * Calculates remaining trial days & validates active status.
+ * Calculates remaining trial days & validates active status using calendar days (IST midnight-to-midnight).
  */
 export function calculateTrialDaysRemaining(trialEndsAtMs: number): {
   daysRemaining: number;
@@ -56,13 +58,12 @@ export function calculateTrialDaysRemaining(trialEndsAtMs: number): {
   percentageLeft: number;
 } {
   const now = Date.now();
-  const remainingMs = trialEndsAtMs - now;
-  
-  if (remainingMs <= 0) {
+  if (now >= trialEndsAtMs) {
     return { daysRemaining: 0, isExpired: true, percentageLeft: 0 };
   }
 
-  const daysRemaining = Math.ceil(remainingMs / MS_PER_DAY);
+  const calendarDays = getCalendarDaysDiff(trialEndsAtMs, now);
+  const daysRemaining = Math.max(0, calendarDays);
   const percentageLeft = Math.min(100, Math.max(0, Math.round((daysRemaining / TRIAL_DURATION_DAYS) * 100)));
 
   return {

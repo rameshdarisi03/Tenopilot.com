@@ -579,7 +579,7 @@ export default function ApexCommandClientsPage() {
                               {acc.subscriptionStatus === "TRIAL" && (
                                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  <span>⚡ 10-DAY TRIAL ({acc.trialDaysLeft}D LEFT)</span>
+                                  <span>⚡ 10-DAY TRIAL ({acc.trialDaysLeft === 0 ? "ENDS TODAY" : `${acc.trialDaysLeft}D LEFT`})</span>
                                 </span>
                               )}
                               {acc.subscriptionStatus === "EXPIRED" && (
@@ -812,7 +812,7 @@ export default function ApexCommandClientsPage() {
                         {selectedCustomer360.subscriptionStatus === "ACTIVE_PRO"
                           ? "💎 Active Pro (₹999/mo)"
                           : selectedCustomer360.subscriptionStatus === "TRIAL"
-                          ? `⚡ 10-Day Free Trial (${selectedCustomer360.trialDaysLeft} Days Left)`
+                          ? `⚡ 10-Day Free Trial (${selectedCustomer360.trialDaysLeft === 0 ? "Ends Today" : `${selectedCustomer360.trialDaysLeft} Days Left`})`
                           : selectedCustomer360.subscriptionStatus === "EXPIRED"
                           ? "⚠️ Free Trial Expired"
                           : "🔴 Suspended"}

@@ -205,7 +205,7 @@ export default function SubscriptionBillingPage() {
                         ? `⏳ 7-Day Pro Grace (${sub.graceDaysRemaining}d Left)`
                         : sub.isPreExpiry
                         ? `💎 Pro (Renews in ${sub.daysRemaining}d)`
-                        : `⚡ 10-Day Free Express Trial (${sub.daysRemaining}d Left)`}
+                        : `⚡ 10-Day Free Express Trial (${sub.daysRemaining === 0 ? "Ends Today" : `${sub.daysRemaining}d Left`})`}
                     </span>
                   </span>
 
