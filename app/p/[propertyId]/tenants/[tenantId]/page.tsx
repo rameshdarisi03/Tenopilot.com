@@ -24,6 +24,7 @@ import {
 } from "@/utils/domainSSOT";
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { partnerStore, PaymentAccountConfig } from "@/constants/partnerStore";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
@@ -286,7 +287,20 @@ export default function IndividualTenantProfilePage({
   const [depositPaymentPortion, setDepositPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(occupantState?.rentAmount || 0);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
+  const [paidTo, setPaidTo] = useState<string>("Main Business Account");
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>(() =>
+    partnerStore.getPaymentAccounts(propertyId)
+  );
   const [transactionRef, setTransactionRef] = useState<string>("");
+
+  useEffect(() => {
+    partnerStore.initFirebaseListener(propertyId);
+    setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+    const unsub = partnerStore.subscribe(() => {
+      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+    });
+    return unsub;
+  }, [propertyId]);
 
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
@@ -677,6 +691,7 @@ export default function IndividualTenantProfilePage({
         date: formattedPaidDate,
         amount: effectiveRent,
         mode: modeLabel,
+        paidTo: paidTo || "Main Business Account",
         receiptNo: `#REC-${Math.floor(10000 + Math.random() * 90000)}`,
         status: "PAID",
       });
@@ -690,6 +705,7 @@ export default function IndividualTenantProfilePage({
         date: formattedPaidDate,
         amount: effectiveDeposit,
         mode: modeLabel,
+        paidTo: paidTo || "Main Business Account",
         receiptNo: `#DEP-${Math.floor(10000 + Math.random() * 90000)}`,
         status: "PAID",
       });
@@ -2259,7 +2275,12 @@ export default function IndividualTenantProfilePage({
                             <td className="py-3 font-mono font-bold text-gray-900">
                               ₹{item.amount.toLocaleString("en-IN")}
                             </td>
-                            <td className="py-3 text-gray-600">{item.mode}</td>
+                            <td className="py-3 text-gray-600">
+                              <div className="font-semibold text-gray-900">{item.mode}</div>
+                              <div className="text-[10px] text-gray-400 font-medium">
+                                To: {item.paidTo || "Business Account"}
+                              </div>
+                            </td>
                             <td className="py-3 font-mono text-gray-500">{item.receiptNo}</td>
                             <td className="py-3">
                               <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold text-[10px]">
@@ -2476,6 +2497,24 @@ export default function IndividualTenantProfilePage({
                         <option value="Cash">Cash</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* 🏦 Paid To / Deposited In Account Selector */}
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Paid To / Deposited In Account *
+                    </label>
+                    <select
+                      value={paidTo}
+                      onChange={(e) => setPaidTo(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    >
+                      {paymentAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.name}>
+                          {acc.name} ({acc.type})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* 💵 Dynamic Amount Inputs Based on Selected Category */}

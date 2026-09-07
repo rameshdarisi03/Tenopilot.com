@@ -795,7 +795,12 @@ export function GuestProfileView({
                               <td className="py-3.5 font-bold font-mono">
                                 ₹{item.amount.toLocaleString("en-IN")}
                               </td>
-                              <td className="py-3.5">{item.mode}</td>
+                              <td className="py-3.5">
+                                <div>{item.mode}</div>
+                                <div className="text-[10px] text-gray-400 font-medium">
+                                  To: {item.paidTo || "Business Account"}
+                                </div>
+                              </td>
                               <td className="py-3.5 font-mono text-[11px] text-gray-500">{item.receiptNo}</td>
                               <td className="py-3.5 text-right">
                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">

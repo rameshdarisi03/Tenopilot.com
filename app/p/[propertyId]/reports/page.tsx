@@ -507,6 +507,7 @@ export default function ReportsAnalyticsPage({
         "Total Paid This Cycle": stmt.totalPaid,
         "Outstanding Due": stmt.netOutstandingBalance,
         "Deposit Status": stmt.isDepositCleared ? "PAID" : "PENDING",
+        "Deposited To Account": (occ.paymentHistory && occ.paymentHistory.length > 0 ? occ.paymentHistory[occ.paymentHistory.length - 1].paidTo : undefined) || "Main Business Account",
       };
     });
     const wsRent = XLSX.utils.json_to_sheet(rentRows);

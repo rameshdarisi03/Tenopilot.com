@@ -6,6 +6,7 @@ export interface PaymentHistoryItem {
   date: string;
   amount: number;
   mode: string;
+  paidTo?: string; // "Main Business Account" | "Petty Cash" | Partner Name
   receiptNo: string;
   status: "PAID" | "PENDING" | "PARTIAL";
   collectedBy?: {

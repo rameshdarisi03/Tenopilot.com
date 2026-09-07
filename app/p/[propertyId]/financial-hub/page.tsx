@@ -276,6 +276,8 @@ export default function FinancialHubPage({
     let bankAmount = 0;
     let cashAmount = 0;
     let occupiedCount = 0;
+    const partnerRentCollections: Record<string, number> = {};
+    const accountCollections: Record<string, number> = {};
 
     occupants.forEach((occ) => {
       const isOccupied = occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice";
@@ -313,6 +315,11 @@ export default function FinancialHubPage({
         periodPayments.forEach((pm) => {
           totalGrossRevenue += pm.amount;
 
+          // Track collection account and partner allocation
+          const targetAccount = pm.paidTo || "Main Business Account";
+          accountCollections[targetAccount] = (accountCollections[targetAccount] || 0) + pm.amount;
+          partnerRentCollections[targetAccount] = (partnerRentCollections[targetAccount] || 0) + pm.amount;
+
           const isDeposit =
             (pm.month || "").toLowerCase().includes("deposit") ||
             (pm.receiptNo || "").toLowerCase().includes("dep");
@@ -347,6 +354,7 @@ export default function FinancialHubPage({
 
         if (isCurrentPeriod && stmt.totalPaid > 0) {
           totalGrossRevenue += stmt.totalPaid;
+          accountCollections["Main Business Account"] = (accountCollections["Main Business Account"] || 0) + stmt.totalPaid;
           rentStream += stmt.totalRentPaid;
           if (stmt.isDepositCleared) {
             depositStream += stmt.securityDepositRequired;
@@ -417,6 +425,8 @@ export default function FinancialHubPage({
       upiPct,
       cashPct,
       occupants,
+      partnerRentCollections,
+      accountCollections,
     };
   };
 
@@ -1120,6 +1130,26 @@ export default function FinancialHubPage({
                         <span className="text-[10px] font-bold text-emerald-700">{revenueMetrics.cashPct}% of Total</span>
                       </div>
                     </div>
+
+                    {/* 🏦 Collections by Deposited Account / Partner */}
+                    {Object.keys(revenueMetrics.accountCollections || {}).length > 0 && (
+                      <div className="pt-3 border-t border-gray-100 space-y-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                          Collections by Deposited Account / Partner
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(revenueMetrics.accountCollections).map(([accName, accAmt]) => (
+                            <span
+                              key={accName}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-800"
+                            >
+                              <span className="text-gray-500 text-[11px]">{accName}:</span>
+                              <span className="font-mono font-bold text-gray-900">₹{accAmt.toLocaleString("en-IN")}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1174,8 +1204,11 @@ export default function FinancialHubPage({
                                 {occ.stayType === "Guest" ? "Guest Stay Fee" : "Monthly Rent"}
                               </span>
                             </td>
-                            <td className="py-3.5 px-4 text-gray-600 font-mono">
-                              {lastPayment?.mode || "PhonePe UPI"}
+                            <td className="py-3.5 px-4 text-gray-600">
+                              <div className="font-semibold text-gray-900">{lastPayment?.mode || "UPI"}</div>
+                              <div className="text-[10px] text-gray-400 font-medium">
+                                To: {lastPayment?.paidTo || "Business Account"}
+                              </div>
                             </td>
                             <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">
                               ₹{stmt.totalPaid.toLocaleString("en-IN")}
@@ -2251,46 +2284,86 @@ export default function FinancialHubPage({
                       No partner equity profiles configured yet. Configure partner profit sharing in Property Settings.
                     </div>
                   ) : (
-                    <table className="w-full min-w-[700px] text-left text-xs border-collapse">
+                    <table className="w-full min-w-[820px] text-left text-xs border-collapse">
                       <thead>
                         <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
-                          <th className="py-3 px-4 font-bold">Partner</th>
-                          <th className="py-3 px-4 font-bold">Ownership %</th>
-                          <th className="py-3 px-4 font-bold">Paid Out-Of-Pocket ({activeDateBounds.label})</th>
-                          <th className="py-3 px-4 font-bold">Profit Share</th>
-                          <th className="py-3 px-4 font-bold">Receivable / Payable</th>
-                          <th className="py-3 px-4 font-bold text-right">Status</th>
+                          <th className="py-3 px-3 font-bold">Partner</th>
+                          <th className="py-3 px-3 font-bold text-center">Equity %</th>
+                          <th className="py-3 px-3 font-bold">Rent Collected (Personal A/c)</th>
+                          <th className="py-3 px-3 font-bold">Paid Out-Of-Pocket</th>
+                          <th className="py-3 px-3 font-bold">Net Cash in Hand</th>
+                          <th className="py-3 px-3 font-bold">Profit Share</th>
+                          <th className="py-3 px-3 font-bold">Net Settlement</th>
+                          <th className="py-3 px-3 font-bold text-right">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {partners.map((p) => {
                           const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
                           const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
+                          const rentCollected = revenueMetrics.partnerRentCollections?.[p.name] || 0;
                           const actualPaid = partnerContributions[p.name] || 0;
-                          const receivable = profitShare - actualPaid;
+                          const netCashInHand = rentCollected - actualPaid;
+                          const netSettlement = profitShare - netCashInHand;
 
                           return (
                             <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
-                              <td className="py-4 px-4 font-bold flex items-center gap-2.5 text-gray-900 whitespace-nowrap">
+                              <td className="py-4 px-3 font-bold flex items-center gap-2.5 text-gray-900 whitespace-nowrap">
                                 <span
                                   className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs"
                                   style={{ backgroundColor: p.color || "#c2652a" }}
                                 >
                                   {p.name.charAt(0)}
                                 </span>
-                                <span>{p.name}</span>
+                                <div>
+                                  <div>{p.name}</div>
+                                  <div className="text-[10px] text-gray-400 font-normal">{p.accountType || "Partner"}</div>
+                                </div>
                               </td>
-                              <td className="py-4 px-4 text-gray-500 font-sans font-bold tabular-nums whitespace-nowrap">{p.ownershipPercentage}%</td>
-                              <td className="py-4 px-4 text-gray-700 font-sans font-semibold tabular-nums whitespace-nowrap">₹{actualPaid.toLocaleString("en-IN")}</td>
-                              <td className="py-4 px-4 font-sans font-bold text-gray-900 tabular-nums whitespace-nowrap">₹{profitShare.toLocaleString("en-IN")}</td>
-                              <td className={`py-4 px-4 font-sans font-bold tabular-nums whitespace-nowrap ${receivable >= 0 ? "text-[#059669]" : "text-red-600"}`}>
-                                {receivable >= 0 ? `+₹${receivable.toLocaleString("en-IN")}` : `-₹${Math.abs(receivable).toLocaleString("en-IN")}`}
+                              <td className="py-4 px-3 text-gray-500 font-sans font-bold tabular-nums text-center whitespace-nowrap">
+                                {p.ownershipPercentage}%
                               </td>
-                              <td className="py-4 px-4 text-right whitespace-nowrap">
-                                <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
-                                  receivable >= 0 ? "bg-emerald-100 text-emerald-900 border border-emerald-200" : "bg-red-100 text-red-900 border border-red-200"
+                              <td className="py-4 px-3 text-gray-900 font-sans font-semibold tabular-nums whitespace-nowrap">
+                                ₹{rentCollected.toLocaleString("en-IN")}
+                              </td>
+                              <td className="py-4 px-3 text-gray-700 font-sans font-semibold tabular-nums whitespace-nowrap">
+                                ₹{actualPaid.toLocaleString("en-IN")}
+                              </td>
+                              <td className="py-4 px-3 whitespace-nowrap">
+                                <span className={`font-mono font-bold text-xs ${
+                                  netCashInHand > 0
+                                    ? "text-amber-800"
+                                    : netCashInHand < 0
+                                    ? "text-purple-800"
+                                    : "text-gray-500"
                                 }`}>
-                                  {receivable >= 0 ? "Receivable" : "Payable"}
+                                  {netCashInHand >= 0 ? `+₹${netCashInHand.toLocaleString("en-IN")}` : `-₹${Math.abs(netCashInHand).toLocaleString("en-IN")}`}
+                                </span>
+                                <span className="block text-[9px] text-gray-400">
+                                  {netCashInHand > 0 ? "Holding PG Cash" : netCashInHand < 0 ? "Excess Spent" : "Balanced"}
+                                </span>
+                              </td>
+                              <td className="py-4 px-3 font-sans font-bold text-gray-900 tabular-nums whitespace-nowrap">
+                                ₹{profitShare.toLocaleString("en-IN")}
+                              </td>
+                              <td className={`py-4 px-3 font-sans font-bold tabular-nums whitespace-nowrap ${
+                                netSettlement > 0 ? "text-[#059669]" : netSettlement < 0 ? "text-red-600" : "text-gray-600"
+                              }`}>
+                                {netSettlement > 0
+                                  ? `+₹${netSettlement.toLocaleString("en-IN")}`
+                                  : netSettlement < 0
+                                  ? `-₹${Math.abs(netSettlement).toLocaleString("en-IN")}`
+                                  : "₹0"}
+                              </td>
+                              <td className="py-4 px-3 text-right whitespace-nowrap">
+                                <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  netSettlement > 0
+                                    ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                                    : netSettlement < 0
+                                    ? "bg-red-100 text-red-900 border border-red-200"
+                                    : "bg-gray-100 text-gray-700 border border-gray-200"
+                                }`}>
+                                  {netSettlement > 0 ? "Receivable 🟢" : netSettlement < 0 ? "Payable 🔴" : "Settled ⚪"}
                                 </span>
                               </td>
                             </tr>
@@ -2299,6 +2372,13 @@ export default function FinancialHubPage({
                       </tbody>
                     </table>
                   )}
+                </div>
+
+                <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
+                  <span className="text-sm shrink-0">💡</span>
+                  <span>
+                    <strong>Partner Dual-Ledger Equation:</strong> Final Settlement = Profit Share − (Rent Collected into Personal Account − Out-Of-Pocket Expenses). Partners holding excess collected rent pay into the pool; partners with pending profit share or out-of-pocket expenses receive from the pool.
+                  </span>
                 </div>
               </div>
 

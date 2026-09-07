@@ -10,6 +10,7 @@ import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from 
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
+import { partnerStore, PaymentAccountConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
@@ -180,6 +181,10 @@ export default function TenantsDirectoryPage({
   const [depositPaymentPortion, setDepositPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(14500);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
+  const [paidTo, setPaidTo] = useState<string>("Main Business Account");
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>(() =>
+    partnerStore.getPaymentAccounts(propertyId)
+  );
   const [transactionRef, setTransactionRef] = useState<string>("");
   const [showLedgerBreakdownDetail, setShowLedgerBreakdownDetail] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -188,6 +193,15 @@ export default function TenantsDirectoryPage({
   const [currentSettings, setCurrentSettings] = useState(() =>
     typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : propertySettingsStore.getSettings()
   );
+
+  useEffect(() => {
+    partnerStore.initFirebaseListener(propertyId);
+    setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+    const unsub = partnerStore.subscribe(() => {
+      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+    });
+    return unsub;
+  }, [propertyId]);
 
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
@@ -507,6 +521,7 @@ export default function TenantsDirectoryPage({
         amount: effectiveRent,
         date: formattedPaidDate,
         mode: modeLabel,
+        paidTo: paidTo || "Main Business Account",
         status: "PAID",
         collectedBy: {
           id: profile?.uid,
@@ -526,6 +541,7 @@ export default function TenantsDirectoryPage({
         amount: effectiveDeposit,
         date: formattedPaidDate,
         mode: modeLabel,
+        paidTo: paidTo || "Main Business Account",
         status: "PAID",
         collectedBy: {
           id: profile?.uid,
@@ -1917,6 +1933,24 @@ Scroll vertically to browse all residents without pagination limits
                       <option value="Cash">Cash</option>
                     </select>
                   </div>
+                </div>
+
+                {/* 🏦 Paid To / Deposited In Account Selector */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Paid To / Deposited In Account *
+                  </label>
+                  <select
+                    value={paidTo}
+                    onChange={(e) => setPaidTo(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  >
+                    {paymentAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.name}>
+                        {acc.name} ({acc.type})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* 💵 Dynamic Amount Inputs Based on Selected Category */}
