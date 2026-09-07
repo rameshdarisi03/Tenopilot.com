@@ -413,19 +413,80 @@ export function calculateOccupantFinancialStatement(
     const priorArrears = 0;
     const totalGrossDue = stayTariff + securityDepositRequired;
 
-    // Total actual payment receipts collected
+    // Categorize receipts between deposit receipts and stay tariff receipts
+    const depositReceipts = history.filter(
+      (item) =>
+        item.month === "Security Deposit" ||
+        item.id?.includes("-dep-") ||
+        item.receiptNo?.startsWith("#DEP-")
+    );
+    const rentReceipts = history.filter(
+      (item) =>
+        item.month !== "Security Deposit" &&
+        !item.id?.includes("-dep-") &&
+        !item.receiptNo?.startsWith("#DEP-")
+    );
+
     const totalCollectedReceipts = history.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalDepositPaidFromReceipts = depositReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalRentPaidFromReceipts = rentReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
 
     const isFullyPaidExplicitly = occupant.paymentStatus === "Paid" && occupant.depositStatus === "PAID";
-    const totalPaid = isFullyPaidExplicitly && totalCollectedReceipts === 0
-      ? totalGrossDue
-      : totalCollectedReceipts;
+    const hasCategorizedReceipts = depositReceipts.length > 0 || rentReceipts.length > 0;
 
-    const netOutstandingBalance = Math.max(0, totalGrossDue - totalPaid);
+    let totalDepositPaid = 0;
+    let totalRentPaid = 0;
+    let remainingDepositDue = securityDepositRequired;
+    let remainingRentDue = stayTariff;
+    let isDepositCleared = false;
+
+    if (isFullyPaidExplicitly && totalCollectedReceipts === 0) {
+      totalDepositPaid = securityDepositRequired;
+      totalRentPaid = stayTariff;
+      remainingDepositDue = 0;
+      remainingRentDue = 0;
+      isDepositCleared = true;
+    } else if (hasCategorizedReceipts) {
+      isDepositCleared =
+        occupant.depositStatus === "PAID" || totalDepositPaidFromReceipts >= securityDepositRequired;
+      const isRentCleared =
+        occupant.paymentStatus === "Paid" || totalRentPaidFromReceipts >= stayTariff;
+
+      totalDepositPaid = isDepositCleared && totalDepositPaidFromReceipts === 0
+        ? securityDepositRequired
+        : totalDepositPaidFromReceipts;
+      totalRentPaid = isRentCleared && totalRentPaidFromReceipts === 0
+        ? stayTariff
+        : totalRentPaidFromReceipts;
+
+      remainingDepositDue = isDepositCleared
+        ? 0
+        : Math.max(0, securityDepositRequired - totalDepositPaid);
+      remainingRentDue = isRentCleared
+        ? 0
+        : Math.max(0, stayTariff - totalRentPaid);
+    } else {
+      // General or uncategorized payments
+      const totalPaidRaw = totalCollectedReceipts;
+      if (occupant.depositStatus === "PAID") {
+        isDepositCleared = true;
+        totalDepositPaid = securityDepositRequired;
+        remainingDepositDue = 0;
+        totalRentPaid = Math.min(stayTariff, totalPaidRaw);
+        remainingRentDue = Math.max(0, stayTariff - totalRentPaid);
+      } else {
+        totalRentPaid = Math.min(stayTariff, totalPaidRaw);
+        remainingRentDue = Math.max(0, stayTariff - totalRentPaid);
+        totalDepositPaid = Math.min(securityDepositRequired, Math.max(0, totalPaidRaw - stayTariff));
+        remainingDepositDue = Math.max(0, securityDepositRequired - totalDepositPaid);
+        isDepositCleared = remainingDepositDue === 0;
+      }
+    }
+
+    const totalPaid = totalRentPaid + totalDepositPaid;
+    const netOutstandingBalance = remainingRentDue + remainingDepositDue;
     const isFullyPaid = netOutstandingBalance === 0;
     const isPartialPaid = !isFullyPaid && totalPaid > 0;
-    const isDepositCleared =
-      occupant.depositStatus === "PAID" || totalPaid >= totalGrossDue || (totalPaid >= securityDepositRequired && occupant.depositStatus === "PARTIAL");
 
     const isOverdue = !isFullyPaid && isPastGrace;
     const paymentStatusLabel: "Paid" | "Due" | "Overdue" = isFullyPaid
@@ -436,7 +497,7 @@ export function calculateOccupantFinancialStatement(
 
     const depositStatusLabel: "PAID" | "PENDING" | "PARTIAL" = isDepositCleared
       ? "PAID"
-      : totalPaid > 0
+      : totalDepositPaid > 0
       ? "PARTIAL"
       : "PENDING";
 
@@ -461,10 +522,10 @@ export function calculateOccupantFinancialStatement(
       priorArrears,
       totalGrossDue,
       totalPaid,
-      totalRentPaid: Math.min(totalPaid, stayTariff),
-      totalDepositPaid: Math.max(0, totalPaid - stayTariff),
-      remainingRentDue: isFullyPaid ? 0 : Math.max(0, stayTariff - totalPaid),
-      remainingDepositDue: isDepositCleared ? 0 : securityDepositRequired,
+      totalRentPaid,
+      totalDepositPaid,
+      remainingRentDue,
+      remainingDepositDue,
       netOutstandingBalance,
       isFullyPaid,
       isPartialPaid,

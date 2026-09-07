@@ -30,6 +30,7 @@ import {
   Lock,
   FileText,
   Target,
+  Info,
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
@@ -70,6 +71,7 @@ export function GuestProfileView({
   );
   const [guestFrontUrl, setGuestFrontUrl] = useState<string>(occupantState.kycDocs?.aadhaarFrontUrl || "");
   const [guestBackUrl, setGuestBackUrl] = useState<string>(occupantState.kycDocs?.aadhaarBackUrl || "");
+  const [showBalanceBreakdown, setShowBalanceBreakdown] = useState<boolean>(false);
 
   const [propertySettings, setPropertySettings] = useState(() =>
     propertySettingsStore.getSettings(propertyId)
@@ -283,11 +285,30 @@ export function GuestProfileView({
               <p className="text-[10px] text-gray-400">{guestHistory.length} Payment{guestHistory.length === 1 ? "" : "s"} Recorded</p>
             </div>
 
-            {/* Metric Card 2: Outstanding Balance */}
-            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2">
-              <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
-                OUTSTANDING BALANCE
-              </span>
+            {/* Metric Card 2: Outstanding Balance (with Interactive Breakdown Popover) */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs space-y-2 relative">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">
+                  OUTSTANDING BALANCE
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowBalanceBreakdown(!showBalanceBreakdown);
+                  }}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold active:scale-95 ${
+                    showBalanceBreakdown
+                      ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                      : "bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
+                  }`}
+                  title="View Dues Breakdown"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Breakdown</span>
+                </button>
+              </div>
+
               <div className="flex items-baseline justify-between">
                 <span className="font-serif font-bold text-2xl text-gray-900">
                   ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
@@ -302,9 +323,203 @@ export function GuestProfileView({
                   {stmt.isFullyPaid ? "ALL CLEAR 🟢" : stmt.isPartialPaid ? "PARTIAL DUE 🟧" : "DUE NOW 🔴"}
                 </span>
               </div>
+
               <p className="text-[10px] text-gray-400">
                 {stmt.isFullyPaid ? "Everything Paid for Stay" : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")} Remaining to Collect`}
               </p>
+
+              {/* 💡 Crystal-Clear Dual-Ledger Sub-Line Chips (Just like Tenant Profile) */}
+              <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center gap-1.5 text-[10px]">
+                {stmt.isFullyPaid ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Stay & Deposit Settled
+                  </span>
+                ) : (
+                  <>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold border ${
+                      stmt.remainingRentDue > 0
+                        ? "bg-orange-50 text-orange-900 border-orange-200/70"
+                        : "bg-emerald-50 text-emerald-800 border-emerald-200/70"
+                    }`}>
+                      🏠 Stay: {stmt.remainingRentDue > 0 ? `₹${stmt.remainingRentDue.toLocaleString("en-IN")}` : "Paid ✓"}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold border ${
+                      stmt.remainingDepositDue > 0
+                        ? "bg-purple-50 text-purple-900 border-purple-200/70"
+                        : "bg-emerald-50 text-emerald-800 border-emerald-200/70"
+                    }`}>
+                      🔒 Deposit: {stmt.remainingDepositDue > 0 ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : "Paid ✓"}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* 📊 Interactive Breakdown Popover / Modal (Responsive Mobile Center & Desktop Popover) */}
+              {showBalanceBreakdown && (
+                <>
+                  {/* Mobile Backdrop & Centered Modal */}
+                  <div
+                    className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 sm:hidden animate-in fade-in"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowBalanceBreakdown(false);
+                    }}
+                  >
+                    <div
+                      className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-sm p-5 space-y-4 animate-in zoom-in-95 text-xs select-none"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                        <span className="font-serif font-bold text-base text-gray-900 flex items-center gap-2">
+                          <Info className="w-5 h-5 text-[#c2652a]" /> Dues Breakdown
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowBalanceBreakdown(false)}
+                          className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3 font-medium text-xs">
+                        <div className="flex items-center justify-between py-1 text-gray-700">
+                          <span className="flex items-center gap-2">
+                            🏠 Short-Stay Tariff ({timeline.totalDays} Days)
+                          </span>
+                          <div className="text-right">
+                            <span className="font-bold font-mono text-gray-900 text-sm">
+                              ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
+                            </span>
+                            {stmt.totalRentPaid > 0 && (
+                              <span className="block text-[10px] text-emerald-600 font-semibold">
+                                Paid: ₹{stmt.totalRentPaid.toLocaleString("en-IN")} of ₹{stmt.proRataRent.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between py-1 text-gray-700">
+                          <span className="flex items-center gap-2">
+                            🔒 Refundable Key Deposit
+                          </span>
+                          <div className="text-right">
+                            <span className="font-bold font-mono text-gray-900 text-sm">
+                              ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                            </span>
+                            {stmt.totalDepositPaid > 0 && (
+                              <span className="block text-[10px] text-emerald-600 font-semibold">
+                                Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")} of ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
+                          <span className="text-xs">Total Net Outstanding:</span>
+                          <span className="font-mono text-base text-rose-700 font-extrabold">
+                            ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-gray-50 rounded-2xl text-[11px] text-gray-500 font-normal leading-relaxed">
+                        💡 Computed live via TenoPilot SSOT Financial Matrix based on stay period ({checkInDateStr} to {checkOutDateStr}) and verified receipts.
+                      </div>
+
+                      {stmt.netOutstandingBalance > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowBalanceBreakdown(false);
+                            onCollectPayment();
+                          }}
+                          className="w-full py-2.5 px-3 bg-[#c2652a] hover:bg-[#a35220] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 cursor-pointer"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" /> Collect Payment Now
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Desktop Popover (Anchored) */}
+                  <div
+                    className="hidden sm:block absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-gray-200 shadow-2xl z-40 p-4 space-y-3 animate-in fade-in zoom-in-95 text-xs select-none"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                      <span className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-[#c2652a]" /> Dues Breakdown
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowBalanceBreakdown(false)}
+                        className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 font-medium">
+                      <div className="flex items-center justify-between py-1 text-gray-700">
+                        <span className="flex items-center gap-1.5">
+                          🏠 Short-Stay Tariff ({timeline.totalDays} Days)
+                        </span>
+                        <div className="text-right">
+                          <span className="font-bold font-mono text-gray-900">
+                            ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
+                          </span>
+                          {stmt.totalRentPaid > 0 && (
+                            <span className="block text-[9px] text-emerald-600 font-semibold">
+                              Paid: ₹{stmt.totalRentPaid.toLocaleString("en-IN")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 text-gray-700">
+                        <span className="flex items-center gap-1.5">
+                          🔒 Refundable Key Deposit
+                        </span>
+                        <div className="text-right">
+                          <span className="font-bold font-mono text-gray-900">
+                            ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                          </span>
+                          {stmt.totalDepositPaid > 0 && (
+                            <span className="block text-[9px] text-emerald-600 font-semibold">
+                              Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900 text-xs">
+                        <span>Total Net Outstanding:</span>
+                        <span className="font-mono text-sm text-rose-700 font-extrabold">
+                          ₹{stmt.netOutstandingBalance.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 bg-gray-50 rounded-xl text-[10px] text-gray-500 font-normal leading-relaxed">
+                      💡 Computed live via TenoPilot SSOT Financial Matrix based on stay period and verified receipts.
+                    </div>
+
+                    {stmt.netOutstandingBalance > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowBalanceBreakdown(false);
+                          onCollectPayment();
+                        }}
+                        className="w-full py-2 px-3 bg-[#c2652a] hover:bg-[#a35220] text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-98 cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" /> Collect Payment Now
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Metric Card 3: Security Deposit */}
@@ -323,7 +538,11 @@ export function GuestProfileView({
                 </span>
               </div>
               <p className="text-[10px] text-gray-400">
-                {stmt.isDepositCleared ? "Refunded upon guest checkout" : "Deposit pending collection"}
+                {stmt.isDepositCleared
+                  ? "Refunded upon guest checkout (Paid ✓)"
+                  : stmt.totalDepositPaid > 0
+                  ? `₹${stmt.totalDepositPaid.toLocaleString("en-IN")} Paid · ₹${stmt.remainingDepositDue.toLocaleString("en-IN")} Pending`
+                  : "Deposit pending collection"}
               </p>
             </div>
 
