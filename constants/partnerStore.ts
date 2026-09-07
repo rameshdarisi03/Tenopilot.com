@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { propertySettingsStore, PaymentQRProfile } from "./propertySettings";
 
 // TenoPilot Single Source of Truth (SSOT) Partner Ownership & Expense Categories Store
 
@@ -24,6 +25,11 @@ export interface PaymentAccountConfig {
   name: string;
   type: "Business Account" | "Petty Cash" | "Bank Account" | "Partner Account";
   isDefault?: boolean;
+  partnerId?: string;
+  partnerName?: string;
+  bankLabel?: string;
+  upiId?: string;
+  accountType?: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK";
 }
 
 export function getOwnerDisplayName(): string {
@@ -244,30 +250,80 @@ export const partnerStore = {
 
   getPaymentAccounts(propertyId?: string): PaymentAccountConfig[] {
     const partners = this.getPartners(propertyId);
+    const partnerMap = new Map<string, PartnerConfig>();
+    partners.forEach((p) => partnerMap.set(p.id, p));
+
+    const qrProfiles = propertyId ? propertySettingsStore.getSettings(propertyId).qrProfiles : [];
+
+    if (qrProfiles && qrProfiles.length > 0) {
+      const unified: PaymentAccountConfig[] = qrProfiles.map((qr) => {
+        let mappedType: PaymentAccountConfig["type"] = "Bank Account";
+        let resolvedPartnerName = qr.partnerName;
+
+        if (qr.partnerId && partnerMap.has(qr.partnerId)) {
+          resolvedPartnerName = partnerMap.get(qr.partnerId)!.name;
+          mappedType = "Partner Account";
+        } else if (qr.partnerId === "BUSINESS" || qr.name.toLowerCase().includes("business")) {
+          mappedType = "Business Account";
+          resolvedPartnerName = "Main Business Pool";
+        } else if (
+          qr.partnerId === "PETTY_CASH" ||
+          qr.accountType === "CASH_DESK" ||
+          qr.name.toLowerCase().includes("cash")
+        ) {
+          mappedType = "Petty Cash";
+          resolvedPartnerName = "Petty Cash Desk";
+        } else if (resolvedPartnerName) {
+          mappedType = "Partner Account";
+        }
+
+        return {
+          id: qr.id,
+          name: qr.name,
+          type: mappedType,
+          partnerId: qr.partnerId,
+          partnerName: resolvedPartnerName,
+          bankLabel: qr.bankLabel,
+          upiId: qr.upiId,
+          accountType: qr.accountType,
+          isDefault: qr.isDefault,
+        };
+      });
+
+      // Ensure Petty Cash is always present as a funding source
+      const hasCash = unified.some(
+        (a) => a.type === "Petty Cash" || a.accountType === "CASH_DESK" || a.name.toLowerCase().includes("cash")
+      );
+      if (!hasCash) {
+        unified.push({
+          id: "acc-cash-reception",
+          name: "Petty Cash / Reception Desk",
+          type: "Petty Cash",
+          partnerId: "PETTY_CASH",
+          partnerName: "Petty Cash Desk",
+          bankLabel: "PG Reception",
+          upiId: "CASH",
+          accountType: "CASH_DESK",
+        });
+      }
+
+      return unified;
+    }
+
+    // Default fallback if no qrProfiles configured yet
     const partnerAccountConfigs: PaymentAccountConfig[] = partners.map((p) => ({
       id: `acc-partner-${p.id}`,
-      name: p.name,
+      name: `${p.name} (Partner Account)`,
       type: "Partner Account",
+      partnerId: p.id,
+      partnerName: p.name,
     }));
 
-    if (!propertyId) {
-      const base = [...DEFAULT_PAYMENT_ACCOUNTS];
-      const nonPartner = base.filter((a) => a.type !== "Partner Account");
-      return [...nonPartner, ...partnerAccountConfigs];
-    }
-    if (PROPERTY_PAYMENT_ACCOUNTS_MAP.has(propertyId)) {
-      const cached = PROPERTY_PAYMENT_ACCOUNTS_MAP.get(propertyId)!;
-      if (cached && cached.length > 0) {
-        const nonPartner = cached.filter((a) => a.type !== "Partner Account");
-        return [...nonPartner, ...partnerAccountConfigs];
-      }
-    }
-    const fromStorage = getStoredArray<PaymentAccountConfig>(`tenopilot_payment_accounts_${propertyId}`, DEFAULT_PAYMENT_ACCOUNTS);
-    const baseList = (fromStorage && fromStorage.length > 0) ? fromStorage : DEFAULT_PAYMENT_ACCOUNTS;
-    const nonPartner = baseList.filter((a) => a.type !== "Partner Account");
-    const finalAccounts = [...nonPartner, ...partnerAccountConfigs];
-    PROPERTY_PAYMENT_ACCOUNTS_MAP.set(propertyId, finalAccounts);
-    return finalAccounts;
+    return [
+      { id: "acc-1", name: "Main Business Account", type: "Business Account", isDefault: true, partnerId: "BUSINESS", partnerName: "Main Business Pool" },
+      { id: "acc-2", name: "Petty Cash / Reception Desk", type: "Petty Cash", partnerId: "PETTY_CASH", partnerName: "Petty Cash Desk" },
+      ...partnerAccountConfigs,
+    ];
   },
 
   addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account", propertyId?: string) {

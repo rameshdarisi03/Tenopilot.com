@@ -67,8 +67,8 @@ export default function PropertySettingsPage({
     whatsappCreditStore.getTransactions(propertyId)
   );
 
-  // QR Profiles State
-  const [newQrName, setNewQrName] = useState("");
+  // Unified Payment Accounts & QR Profiles State
+  const [newQrPartnerId, setNewQrPartnerId] = useState<string>("BUSINESS");
   const [newQrBank, setNewQrBank] = useState("");
   const [newQrUpi, setNewQrUpi] = useState("");
   const [newQrType, setNewQrType] = useState<"UPI_QR" | "BANK_TRANSFER" | "CASH_DESK">("UPI_QR");
@@ -80,35 +80,73 @@ export default function PropertySettingsPage({
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Partners, Expense Categories & Payment Accounts State
+  // Partners & Expense Categories State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
-  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
   const [newCatName, setNewCatName] = useState("");
-  const [newAccName, setNewAccName] = useState("");
-  const [newAccType, setNewAccType] = useState<PaymentAccountConfig["type"]>("Bank Account");
 
   const handleAddQrProfile = async () => {
-    if (!newQrName || !newQrUpi) {
-      alert("Please enter a Profile Name and UPI VPA ID.");
+    if (!newQrBank.trim() && newQrType !== "CASH_DESK") {
+      alert("Please enter a Bank / Account Label (e.g. HDFC Bank, ICICI Bank).");
       return;
     }
+    if (newQrType === "UPI_QR" && !newQrUpi.trim()) {
+      alert("Please enter a UPI VPA ID for UPI QR accounts.");
+      return;
+    }
+
+    let resolvedPartnerName = "Main Business Pool";
+    let autoProfileName = "";
+
+    if (newQrPartnerId === "BUSINESS") {
+      resolvedPartnerName = "Main Business Pool";
+      autoProfileName = newQrBank.trim() ? `Main Business — ${newQrBank.trim()}` : "Main Business Account";
+    } else if (newQrPartnerId === "PETTY_CASH") {
+      resolvedPartnerName = "Petty Cash Desk";
+      autoProfileName = newQrBank.trim() ? `Petty Cash — ${newQrBank.trim()}` : "Petty Cash Desk";
+    } else {
+      const matchedPartner = partners.find((p) => p.id === newQrPartnerId);
+      if (matchedPartner) {
+        resolvedPartnerName = matchedPartner.name;
+        autoProfileName = newQrBank.trim() ? `${matchedPartner.name} — ${newQrBank.trim()}` : `${matchedPartner.name} Account`;
+      } else {
+        autoProfileName = newQrBank.trim() || "Account";
+      }
+    }
+
+    const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
+    const isFirstAccount = currentProfiles.length === 0;
+
     const newProf: PaymentQRProfile = {
       id: `qr-${Date.now()}`,
-      name: newQrName,
-      bankLabel: newQrBank || "UPI Bank Account",
-      upiId: newQrUpi.trim(),
+      name: autoProfileName,
+      bankLabel: newQrBank.trim() || (newQrType === "CASH_DESK" ? "Reception Cash Drawer" : "Bank Account"),
+      upiId: newQrType === "CASH_DESK" ? "CASH" : newQrUpi.trim(),
       accountType: newQrType,
+      partnerId: newQrPartnerId,
+      partnerName: resolvedPartnerName,
+      isDefault: isFirstAccount,
     };
-    const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
+
     const updated = [...currentProfiles, newProf];
     const newSettings = { ...settings, qrProfiles: updated };
     setSettings(newSettings);
     await propertySettingsStore.updateSettings(newSettings, propertyId);
-    setNewQrName("");
     setNewQrBank("");
     setNewQrUpi("");
-    triggerToast(`Added Payment Profile: ${newProf.name}`);
+    triggerToast(`✓ Added Payment Account: ${newProf.name}`);
+  };
+
+  const handleSetDefaultProfile = async (id: string) => {
+    const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
+    const updated = currentProfiles.map((q) => ({
+      ...q,
+      isDefault: q.id === id,
+    }));
+    const newSettings = { ...settings, qrProfiles: updated };
+    setSettings(newSettings);
+    await propertySettingsStore.updateSettings(newSettings, propertyId);
+    triggerToast("✓ Updated default payment profile for rent reminders.");
   };
 
   const handleConfirmDeleteQrProfile = async () => {
@@ -152,17 +190,14 @@ export default function PropertySettingsPage({
     partnerStore.fetchPartnersFromFirestore(propertyId, ownerDisplayName).then(() => {
       setPartners(partnerStore.getPartners(propertyId, ownerDisplayName));
       setCategories(partnerStore.getCategories(propertyId));
-      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
 
     setPartners(partnerStore.getPartners(propertyId, ownerDisplayName));
     setCategories(partnerStore.getCategories(propertyId));
-    setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
 
     const unsubPartners = partnerStore.subscribe(() => {
       setPartners(partnerStore.getPartners(propertyId, ownerDisplayName));
       setCategories(partnerStore.getCategories(propertyId));
-      setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
     });
 
     whatsappCreditStore.initFirebaseListener(propertyId);
@@ -243,21 +278,6 @@ export default function PropertySettingsPage({
     if (confirm(`Remove expense category "${name}"?`)) {
       partnerStore.deleteCategory(id, propertyId);
       triggerToast(`✓ Expense category "${name}" removed.`);
-    }
-  };
-
-  const handleAddPaymentAccountSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAccName.trim()) return;
-    partnerStore.addPaymentAccount(newAccName, newAccType, propertyId);
-    setNewAccName("");
-    triggerToast(`✓ Added payment account "${newAccName.trim()}" (${newAccType})! Reflected across Financial Hub.`);
-  };
-
-  const handleDeletePaymentAccountClick = (id: string, name: string) => {
-    if (confirm(`Delete payment account "${name}"?`)) {
-      partnerStore.deletePaymentAccount(id, propertyId);
-      triggerToast(`✓ Payment account "${name}" removed.`);
     }
   };
 
@@ -374,7 +394,7 @@ export default function PropertySettingsPage({
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <Users className="w-4 h-4" /> Partner Ownership & Expenses
+              <Users className="w-4 h-4" /> Partner Ownership & Equity
             </button>
 
             <button
@@ -514,76 +534,6 @@ export default function PropertySettingsPage({
                     </button>
                   </div>
                 </div>
-
-                {/* 2. Payment Accounts Configuration Card */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
-                        <CreditCard className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-gray-900">Payment Accounts & Funding Sources</h3>
-                        <p className="text-[11px] text-gray-500">Configure business bank accounts, petty cash, or partner personal payment sources</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Add New Payment Account Form */}
-                  <form onSubmit={handleAddPaymentAccountSubmit} className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Account Name (e.g. HDFC Main Operating, Axis Petty Cash)"
-                      value={newAccName}
-                      onChange={(e) => setNewAccName(e.target.value)}
-                      className="flex-1 px-4 py-2 rounded-xl border border-gray-300 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
-                    <select
-                      value={newAccType}
-                      onChange={(e) => setNewAccType(e.target.value as any)}
-                      className="px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-gray-900 bg-white"
-                    >
-                      <option value="Business Account">Business Account</option>
-                      <option value="Petty Cash">Petty Cash</option>
-                      <option value="Bank Account">Bank Account</option>
-                      <option value="Partner Account">Partner Account</option>
-                    </select>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0"
-                    >
-                      <Plus className="w-4 h-4" /> Add Account
-                    </button>
-                  </form>
-
-                  {/* Accounts Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {paymentAccounts.map((acc) => (
-                      <div
-                        key={acc.id}
-                        className="p-3.5 rounded-xl border border-gray-200 bg-[#fcfcfc] flex items-center justify-between"
-                      >
-                        <div>
-                          <h4 className="font-bold text-xs text-gray-900">{acc.name}</h4>
-                          <span className="text-[9px] font-extrabold text-[#964407] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                            {acc.type}
-                          </span>
-                        </div>
-                        {!acc.isDefault && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePaymentAccountClick(acc.id, acc.name)}
-                            className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors cursor-pointer"
-                            title="Delete Account"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
 
@@ -597,12 +547,12 @@ export default function PropertySettingsPage({
                       </div>
                       <div>
                         <h3 className="font-bold text-sm text-gray-900">Pre-Configured Payment Profiles & Bank Accounts</h3>
-                        <p className="text-[11px] text-gray-500">Manage business bank accounts and UPI VPA IDs saved in Firebase Firestore</p>
+                        <p className="text-[11px] text-gray-500">Unified accounts tagged to business pool or partners. Used across rent collections and expenses.</p>
                       </div>
                     </div>
 
                     <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-50 text-[#c2652a] border border-orange-200">
-                      {(settings.qrProfiles || DEFAULT_QR_PROFILES).length} Profiles Configured
+                      {(settings.qrProfiles || DEFAULT_QR_PROFILES).length} Accounts Configured
                     </span>
                   </div>
 
@@ -610,48 +560,96 @@ export default function PropertySettingsPage({
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 leading-relaxed">
                     <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Direct UPI ID Reminders: </span>
-                      <span>Tenants receive reminders with your exact UPI VPA ID and direct app payment links. UPI apps restrict scanned gallery QR images to ₹2,000, but direct UPI ID transfers allow tenants to pay their full rent (₹5,000 – ₹50,000+) without any restrictions.</span>
+                      <span className="font-bold">Unified Revenue & Expense Accounts: </span>
+                      <span>Bank accounts and UPI IDs configured here are automatically available for both tenant rent collections (&quot;Paid To&quot;) and logging property expenses (&quot;Paid From&quot;). Tagging each account under a partner ensures financial settlements accurately track partner cashflows across multiple accounts.</span>
                     </div>
                   </div>
 
-                  {/* Add New UPI Profile Input Row */}
+                  {/* Add New Unified Payment Profile / Bank Account Input Card */}
                   <div className="p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
-                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Profile
+                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Account / QR Profile
                       </h4>
                       <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
-                      <input
-                        type="text"
-                        placeholder="Profile Name (e.g. ICICI Primary)"
-                        value={newQrName}
-                        onChange={(e) => setNewQrName(e.target.value)}
-                        className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Bank Label (e.g. ICICI Bank Ltd)"
-                        value={newQrBank}
-                        onChange={(e) => setNewQrBank(e.target.value)}
-                        className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                      <input
-                        type="text"
-                        placeholder="UPI VPA ID (e.g. tenopilot@icici)"
-                        value={newQrUpi}
-                        onChange={(e) => setNewQrUpi(e.target.value)}
-                        className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          Tag Under Partner / Entity *
+                        </label>
+                        <select
+                          value={newQrPartnerId}
+                          onChange={(e) => setNewQrPartnerId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        >
+                          <option value="BUSINESS">🏢 Main Business (Common Pool)</option>
+                          <option value="PETTY_CASH">💵 Petty Cash Desk (Reception Drawer)</option>
+                          {partners.length > 0 && (
+                            <optgroup label="👤 Tag Under Partner">
+                              {partners.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  👤 {p.name} ({p.ownershipPercentage}%)
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          Account Type *
+                        </label>
+                        <select
+                          value={newQrType}
+                          onChange={(e) => setNewQrType(e.target.value as any)}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        >
+                          <option value="UPI_QR">⚡ UPI / QR Profile</option>
+                          <option value="BANK_TRANSFER">🏦 Bank Transfer (IMPS / NEFT)</option>
+                          <option value="CASH_DESK">💵 Petty Cash / Reception Counter</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          Bank / Account Label *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={newQrType === "CASH_DESK" ? "Reception Cash Drawer" : "e.g. HDFC Bank, ICICI Bank"}
+                          value={newQrBank}
+                          onChange={(e) => setNewQrBank(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          UPI VPA ID {newQrType === "UPI_QR" ? "*" : "(Optional)"}
+                        </label>
+                        <input
+                          type="text"
+                          disabled={newQrType === "CASH_DESK"}
+                          placeholder={newQrType === "CASH_DESK" ? "N/A — Cash Counter" : "e.g. name@okhdfcbank"}
+                          value={newQrType === "CASH_DESK" ? "" : newQrUpi}
+                          onChange={(e) => setNewQrUpi(e.target.value)}
+                          className={`w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a] ${
+                            newQrType === "CASH_DESK" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-1">
                       <button
                         type="button"
                         onClick={handleAddQrProfile}
-                        className="py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                        className="py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                       >
-                        <Plus className="w-4 h-4" /> Save Profile
+                        <Plus className="w-4 h-4" /> Save Account Profile
                       </button>
                     </div>
                   </div>
@@ -664,7 +662,7 @@ export default function PropertySettingsPage({
                       </div>
                       <h4 className="font-bold text-sm text-gray-900">No Payment Profiles Configured Yet</h4>
                       <p className="text-xs text-gray-500 max-w-md mx-auto">
-                        Add your business bank account or UPI VPA ID above to enable seamless rent reminders and instant payment links for tenants.
+                        Add your business bank account or partner accounts above to enable unified rent collections, QR reminders, and expense logging.
                       </p>
                     </div>
                   ) : (
@@ -679,12 +677,53 @@ export default function PropertySettingsPage({
                               <CreditCard className="w-5 h-5" />
                             </div>
 
-                            <div className="min-w-0 space-y-0.5">
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {qr.partnerId === "BUSINESS" || (!qr.partnerId && qr.name.toLowerCase().includes("business")) ? (
+                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                    🏢 Main Business
+                                  </span>
+                                ) : qr.partnerId === "PETTY_CASH" || qr.accountType === "CASH_DESK" || (!qr.partnerId && qr.name.toLowerCase().includes("cash")) ? (
+                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    💵 Petty Cash Desk
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                    👤 {qr.partnerName || "Partner Account"}
+                                  </span>
+                                )}
+
+                                {qr.isDefault ? (
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    ✓ Default QR
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetDefaultProfile(qr.id)}
+                                    className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-100 hover:bg-orange-50 text-gray-600 hover:text-[#c2652a] border border-gray-200 transition-colors cursor-pointer"
+                                    title="Set as default QR profile for tenant rent reminders"
+                                  >
+                                    Set Default
+                                  </button>
+                                )}
+                              </div>
+
                               <span className="font-bold text-xs text-gray-900 block truncate">{qr.name}</span>
                               <span className="text-[11px] text-gray-500 block truncate">🏦 {qr.bankLabel}</span>
-                              <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
-                                💳 {qr.upiId}
-                              </span>
+                              {qr.accountType === "CASH_DESK" ? (
+                                <span className="text-[10px] text-emerald-700 font-bold block truncate">
+                                  💵 Cash Counter (Reception Desk)
+                                </span>
+                              ) : qr.upiId && qr.upiId !== "CASH_PAYMENT" && qr.upiId !== "CASH" ? (
+                                <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
+                                  💳 {qr.upiId}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-600 font-semibold block truncate">
+                                  🏦 Direct Bank Transfer / NEFT / IMPS
+                                </span>
+                              )}
                             </div>
                           </div>
 

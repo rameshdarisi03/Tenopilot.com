@@ -4,12 +4,14 @@ import { db } from "@/lib/firebase";
 
 export interface PaymentQRProfile {
   id: string;
-  name: string; // e.g. "Main PhonePe PG Account"
-  bankLabel: string; // e.g. "PhonePe / Yes Bank"
-  upiId: string; // e.g. "tenopilot@ybl"
+  name: string; // e.g. "Ramesh Darisi — HDFC Bank"
+  bankLabel: string; // e.g. "HDFC Bank", "ICICI Bank"
+  upiId: string; // e.g. "tenopilot@ybl" or empty for cash/bank transfer
   accountType: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK";
   isDefault?: boolean;
   qrImageUrl?: string; // Optional custom uploaded image URL/base64
+  partnerId?: string; // "BUSINESS" | "PETTY_CASH" | Partner ID
+  partnerName?: string; // "Main Business Pool" | "Petty Cash Desk" | Partner Name
 }
 
 export const DEFAULT_QR_PROFILES: PaymentQRProfile[] = [];
@@ -20,6 +22,8 @@ export const PAY_BY_CASH_PROFILE: PaymentQRProfile = {
   bankLabel: "PG Reception / Front Desk",
   upiId: "CASH_PAYMENT",
   accountType: "CASH_DESK",
+  partnerId: "PETTY_CASH",
+  partnerName: "Petty Cash Desk",
 };
 
 export interface PropertySettingsData {

@@ -4,6 +4,7 @@ import {
   deleteExpenseFromFirestore,
   subscribeExpensesFromFirestore,
 } from "@/lib/firestoreService";
+import { partnerStore } from "./partnerStore";
 
 export interface ExpenseRecord {
   id: string;
@@ -225,11 +226,53 @@ class ExpenseStore {
   ): Record<string, number> {
     const records = this.getExpenses(propertyId, startDate, endDate);
     const partnerTotals: Record<string, number> = {};
+    const paymentAccounts = partnerStore.getPaymentAccounts(propertyId);
+    const partners = partnerStore.getPartners(propertyId);
+
+    // Build lookup map from account name to partner name
+    const accountToPartner = new Map<string, string>();
+    paymentAccounts.forEach((acc) => {
+      if (acc.partnerName && acc.type === "Partner Account") {
+        accountToPartner.set(acc.name.toLowerCase().trim(), acc.partnerName);
+      }
+    });
 
     records.forEach((e) => {
-      // If paidFrom is not Business Account or Petty Cash, it's paid by a Partner out of pocket
-      if (e.paidFrom !== "Business Account" && e.paidFrom !== "Petty Cash") {
-        partnerTotals[e.paidFrom] = (partnerTotals[e.paidFrom] || 0) + e.amount;
+      const pFrom = (e.paidFrom || "").trim();
+      const pFromLower = pFrom.toLowerCase();
+
+      // Check if it's explicitly a business account or petty cash
+      if (
+        pFromLower.includes("business account") ||
+        pFromLower.includes("main business") ||
+        pFromLower.includes("petty cash") ||
+        pFromLower.includes("cash desk")
+      ) {
+        return;
+      }
+
+      // Check 1: Direct match in accountToPartner map
+      if (accountToPartner.has(pFromLower)) {
+        const partner = accountToPartner.get(pFromLower)!;
+        partnerTotals[partner] = (partnerTotals[partner] || 0) + e.amount;
+        return;
+      }
+
+      // Check 2: Direct partner name match or prefix match (e.g. "Ramesh Darisi — HDFC Bank")
+      const matchedPartner = partners.find((p) => {
+        const pNameLower = p.name.toLowerCase().trim();
+        return (
+          pFromLower === pNameLower ||
+          pFromLower.startsWith(pNameLower) ||
+          pFromLower.includes(`(${pNameLower})`)
+        );
+      });
+
+      if (matchedPartner) {
+        partnerTotals[matchedPartner.name] = (partnerTotals[matchedPartner.name] || 0) + e.amount;
+      } else {
+        // Fallback: attribute to the raw paidFrom string if not a business account
+        partnerTotals[pFrom] = (partnerTotals[pFrom] || 0) + e.amount;
       }
     });
 

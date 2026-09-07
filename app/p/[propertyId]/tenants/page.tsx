@@ -10,7 +10,7 @@ import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from 
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
-import { partnerStore, PaymentAccountConfig } from "@/constants/partnerStore";
+import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
@@ -185,6 +185,9 @@ export default function TenantsDirectoryPage({
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>(() =>
     partnerStore.getPaymentAccounts(propertyId)
   );
+  const [partners, setPartners] = useState<PartnerConfig[]>(() =>
+    partnerStore.getPartners(propertyId)
+  );
   const [transactionRef, setTransactionRef] = useState<string>("");
   const [showLedgerBreakdownDetail, setShowLedgerBreakdownDetail] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -197,8 +200,10 @@ export default function TenantsDirectoryPage({
   useEffect(() => {
     partnerStore.initFirebaseListener(propertyId);
     setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+    setPartners(partnerStore.getPartners(propertyId));
     const unsub = partnerStore.subscribe(() => {
       setPaymentAccounts(partnerStore.getPaymentAccounts(propertyId));
+      setPartners(partnerStore.getPartners(propertyId));
     });
     return unsub;
   }, [propertyId]);
@@ -1967,11 +1972,50 @@ Scroll vertically to browse all residents without pagination limits
                     onChange={(e) => setPaidTo(e.target.value)}
                     className="w-full px-2.5 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   >
-                    {paymentAccounts.map((acc) => (
-                      <option key={acc.id} value={acc.name}>
-                        {acc.name} ({acc.type})
-                      </option>
-                    ))}
+                    <optgroup label="🏢 Common Business Pool">
+                      {paymentAccounts
+                        .filter((a) => a.type === "Business Account" || a.partnerId === "BUSINESS")
+                        .map((acc) => (
+                          <option key={acc.id} value={acc.name}>
+                            {acc.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="💵 Cash / Reception Drawer">
+                      {paymentAccounts
+                        .filter((a) => a.type === "Petty Cash" || a.partnerId === "PETTY_CASH" || a.accountType === "CASH_DESK")
+                        .map((acc) => (
+                          <option key={acc.id} value={acc.name}>
+                            {acc.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                    {partners.map((p) => {
+                      const pAccs = paymentAccounts.filter(
+                        (a) =>
+                          a.partnerId === p.id ||
+                          (a.partnerName && a.partnerName.toLowerCase() === p.name.toLowerCase()) ||
+                          a.name.toLowerCase().startsWith(p.name.toLowerCase())
+                      );
+                      if (pAccs.length === 0) {
+                        return (
+                          <optgroup key={p.id} label={`👤 ${p.name} (Partner)`}>
+                            <option value={`${p.name} (Partner Account)`}>
+                              {p.name} (Partner Account)
+                            </option>
+                          </optgroup>
+                        );
+                      }
+                      return (
+                        <optgroup key={p.id} label={`👤 ${p.name} (${p.ownershipPercentage}% Partner)`}>
+                          {pAccs.map((acc) => (
+                            <option key={acc.id} value={acc.name}>
+                              {acc.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
                 </div>
 
