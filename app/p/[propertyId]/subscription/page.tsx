@@ -6,7 +6,7 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { useAuth } from "@/providers/AuthProvider";
 import { evaluateSubscription, calculateStackedExpiry } from "@/lib/subscriptionEngine";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { RazorpayModalMockup } from "@/components/dashboard/RazorpayModalMockup";
 import {
   Sparkles,

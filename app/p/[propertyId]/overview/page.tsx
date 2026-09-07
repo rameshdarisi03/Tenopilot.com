@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";

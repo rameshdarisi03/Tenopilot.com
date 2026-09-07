@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Building2, Users, ArrowRight, MessageCircle } from "lucide-react";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 
 interface DynamicPricingSectionProps {
   variant?: "pricing" | "landing";

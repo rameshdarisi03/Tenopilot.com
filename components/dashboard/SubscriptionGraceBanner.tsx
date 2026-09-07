@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/AuthProvider";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { Sparkles, Clock, AlertTriangle, ChevronRight, X, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";

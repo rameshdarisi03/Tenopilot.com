@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 
 export function DynamicPricingSubtitle() {
   const { config } = usePlatformConfig();

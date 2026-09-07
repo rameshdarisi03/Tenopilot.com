@@ -40,7 +40,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { getMaxAllowedProperties, MULTI_PROPERTY_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";

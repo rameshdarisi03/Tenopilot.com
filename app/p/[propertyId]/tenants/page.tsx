@@ -21,7 +21,7 @@ import {
   getEffectiveTenantLimit,
   evaluateTenantCapacity,
 } from "@/lib/subscriptionEngine";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
 import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";

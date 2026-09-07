@@ -25,7 +25,7 @@ import {
   getCleanAuthErrorMessage,
 } from "@/lib/authService";
 import { auth } from "@/lib/firebase";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 
 function SignUpPageContent() {
   const router = useRouter();

@@ -48,7 +48,7 @@ import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { useAuth } from "@/providers/AuthProvider";
 import { getEffectiveTenantLimit, evaluateSubscription, TENANT_EXTENSION_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 interface FastTrackImportModalProps {

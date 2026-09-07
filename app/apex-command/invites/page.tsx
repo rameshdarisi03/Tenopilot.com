@@ -8,7 +8,7 @@ import {
   founderStore,
   FounderVipInvite,
 } from "@/constants/founderStore";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import {
   Ticket,
   Plus,

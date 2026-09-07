@@ -72,7 +72,7 @@ import {
   TENANT_EXTENSION_MONTHLY_PRICE,
   TENANT_EXTENSION_PACK_SIZE,
 } from "@/lib/subscriptionEngine";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 export default function OnboardTenantPage({

@@ -39,7 +39,7 @@ import {
   Sliders,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
-import { usePlatformConfig } from "@/lib/platformConfig";
+import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
