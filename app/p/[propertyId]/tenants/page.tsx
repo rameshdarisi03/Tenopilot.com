@@ -136,6 +136,26 @@ export default function TenantsDirectoryPage({
     "name" | "dueDate" | "room" | "rent"
   >("room");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+
+  // Single clubbed sort options configuration
+  const sortOptions = useMemo(() => [
+    { id: "room-asc", label: "Room: Low to High", shortLabel: "Room (1→9)", column: "room" as const, direction: "asc" as const, icon: "🏢" },
+    { id: "room-desc", label: "Room: High to Low", shortLabel: "Room (9→1)", column: "room" as const, direction: "desc" as const, icon: "🏢" },
+    { id: "name-asc", label: "Name: A to Z", shortLabel: "Name (A→Z)", column: "name" as const, direction: "asc" as const, icon: "🔤" },
+    { id: "name-desc", label: "Name: Z to A", shortLabel: "Name (Z→A)", column: "name" as const, direction: "desc" as const, icon: "🔤" },
+    { id: "due-asc", label: "Payment Due: Earliest", shortLabel: "Due: Earliest", column: "dueDate" as const, direction: "asc" as const, icon: "📅" },
+    { id: "due-desc", label: "Payment Due: Latest", shortLabel: "Due: Latest", column: "dueDate" as const, direction: "desc" as const, icon: "📅" },
+    { id: "rent-desc", label: "Rent: Highest First", shortLabel: "Rent: High→Low", column: "rent" as const, direction: "desc" as const, icon: "💰" },
+    { id: "rent-asc", label: "Rent: Lowest First", shortLabel: "Rent: Low→High", column: "rent" as const, direction: "asc" as const, icon: "💰" },
+  ], []);
+
+  const currentSortOption = useMemo(() => {
+    return (
+      sortOptions.find((opt) => opt.column === sortColumn && opt.direction === sortDirection) ||
+      sortOptions[0]
+    );
+  }, [sortOptions, sortColumn, sortDirection]);
 
   // Mobile Tactile Multi-Select Mode (Long-press activated)
   const [isMobileMultiSelectMode, setIsMobileMultiSelectMode] = useState(false);
@@ -1118,105 +1138,76 @@ export default function TenantsDirectoryPage({
             </div>
           )}
 
-          {/* ⇅ Tactile Quick-Sort Filter Chips (Unified for Smartphone & Desktop) */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 pb-1 border-b border-gray-100">
+          {/* ⇅ Single Unified Sort Pill Filter (Smartphone & Desktop) */}
+          <div className="flex items-center justify-between gap-3 pt-2 pb-1 border-b border-gray-100 relative">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-gray-700 tracking-wide">
                 {filteredOccupants.length} {filteredOccupants.length === 1 ? "Resident" : "Residents"}
               </span>
-              <span className="text-[11px] text-gray-400 hidden sm:inline">
-                • Ordered by{" "}
-                {sortColumn === "room"
-                  ? "Room Number"
-                  : sortColumn === "name"
-                  ? "Tenant Name"
-                  : sortColumn === "dueDate"
-                  ? "Payment Due"
-                  : "Rent Amount"}{" "}
-                ({sortDirection === "asc" ? "Ascending" : "Descending"})
-              </span>
             </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
-              <span className="text-[11px] font-semibold text-gray-400 mr-0.5 shrink-0 flex items-center gap-1">
-                <ArrowUpDown className="w-3 h-3" /> Sort:
-              </span>
-
-              {/* 🏢 Room Sort Button */}
+            {/* Single Clubbed Sort Pill */}
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => handleHeaderSort("room")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
-                  sortColumn === "room"
-                    ? "bg-[#c2652a] text-white shadow-xs"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-                title="Sort by Room Number. Click again to toggle Low/High."
+                onClick={() => setIsSortDropdownOpen((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-[#c2652a] text-xs font-bold text-gray-800 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-95"
               >
-                <span>🏢 Room</span>
-                {sortColumn === "room" && (
-                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
-                    {sortDirection === "asc" ? "1→9 ↑" : "9→1 ↓"}
-                  </span>
-                )}
+                <ArrowUpDown className="w-3.5 h-3.5 text-[#c2652a]" />
+                <span className="text-[#c2652a] font-extrabold">{currentSortOption.icon}</span>
+                <span className="truncate max-w-[130px] sm:max-w-none">{currentSortOption.shortLabel}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${
+                    isSortDropdownOpen ? "rotate-180 text-[#c2652a]" : ""
+                  }`}
+                />
               </button>
 
-              {/* 🔤 Name Sort Button */}
-              <button
-                type="button"
-                onClick={() => handleHeaderSort("name")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
-                  sortColumn === "name"
-                    ? "bg-[#c2652a] text-white shadow-xs"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-                title="Sort Alphabetically by Name. Click again to toggle A-Z/Z-A."
-              >
-                <span>🔤 Name</span>
-                {sortColumn === "name" && (
-                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
-                    {sortDirection === "asc" ? "A→Z ↑" : "Z→A ↓"}
-                  </span>
-                )}
-              </button>
-
-              {/* 📅 Due Date Sort Button */}
-              <button
-                type="button"
-                onClick={() => handleHeaderSort("dueDate")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
-                  sortColumn === "dueDate"
-                    ? "bg-[#c2652a] text-white shadow-xs"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-                title="Sort by Payment Due Date. Click again to toggle Earliest/Latest."
-              >
-                <span>📅 Due</span>
-                {sortColumn === "dueDate" && (
-                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
-                    {sortDirection === "asc" ? "Earliest ↑" : "Latest ↓"}
-                  </span>
-                )}
-              </button>
-
-              {/* 💰 Rent Sort Button */}
-              <button
-                type="button"
-                onClick={() => handleHeaderSort("rent")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
-                  sortColumn === "rent"
-                    ? "bg-[#c2652a] text-white shadow-xs"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-                title="Sort by Rent Amount. Click again to toggle Low/High."
-              >
-                <span>💰 Rent</span>
-                {sortColumn === "rent" && (
-                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
-                    {sortDirection === "asc" ? "Low→High ↑" : "High→Low ↓"}
-                  </span>
-                )}
-              </button>
+              {/* Dropdown Menu */}
+              {isSortDropdownOpen && (
+                <>
+                  {/* Invisible Click-away Backdrop */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsSortDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 flex items-center justify-between">
+                      <span>Sort Residents By</span>
+                      <ArrowUpDown className="w-3 h-3 text-[#c2652a]" />
+                    </div>
+                    <div className="max-h-72 overflow-y-auto py-1">
+                      {sortOptions.map((opt) => {
+                        const isSelected = opt.column === sortColumn && opt.direction === sortDirection;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setSortColumn(opt.column);
+                              setSortDirection(opt.direction);
+                              setIsSortDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-left transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-orange-50/80 text-[#c2652a] font-bold"
+                                : "text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="text-sm">{opt.icon}</span>
+                              <span>{opt.label}</span>
+                            </span>
+                            {isSelected && (
+                              <span className="text-[#c2652a] font-black text-sm">✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
