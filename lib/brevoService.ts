@@ -20,6 +20,7 @@ export interface BrevoSendParams {
     dueDate?: string;
     upiId?: string;
     bankLabel?: string;
+    accountType?: string;
     receiptId?: string;
     paymentMode?: string;
     paidDate?: string;
@@ -71,9 +72,34 @@ export function generateEmailContent(payload: BrevoSendParams): { subject: strin
 
   switch (payload.type) {
     case "RENT_REMINDER": {
-      const subject = `🏠 Rent Payment Reminder for Room ${p.roomNumber || "N/A"} — ${pName}`;
-      const upiText = p.upiId ? `UPI ID: ${p.upiId}${p.bankLabel ? ` (${p.bankLabel})` : ""}` : "Contact Management Desk";
+      const isCash = p.upiId === "CASH_PAYMENT" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
+      const subject = isCash
+        ? `🏠 Rent Payment Notice (Pay by Cash) for Room ${p.roomNumber || "N/A"} — ${pName}`
+        : `🏠 Rent Payment Reminder for Room ${p.roomNumber || "N/A"} — ${pName}`;
+      const upiText = isCash
+        ? "CASH IN HAND at PG Reception / Front Desk"
+        : (p.upiId ? `Pay to UPI ID: ${p.upiId}${p.bankLabel ? ` (${p.bankLabel})` : ""}` : "Contact Management Desk");
       
+      const paymentCardHtml = isCash
+        ? `<!-- Cash In Hand Card -->
+      <div style="background:#fef3c7;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #fde68a;text-align:center;">
+        <p style="margin:0 0 6px 0;font-size:11px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:1px;">💵 In-Person Cash Settlement</p>
+        <p style="margin:0;font-size:16px;font-weight:800;color:#78350f;">PG Reception / Front Desk</p>
+        ${p.bankLabel ? `<p style="margin:4px 0 0 0;font-size:12px;color:#92400e;font-weight:600;">Location: ${p.bankLabel}</p>` : ""}
+        <p style="margin:10px 0 0 0;font-size:12px;color:#92400e;line-height:1.4;">
+          👉 <em>Please visit the property desk in person to pay your rent in cash to the manager and collect your official stamped receipt.</em>
+        </p>
+      </div>`
+        : `<!-- Quick UPI Payment Card -->
+      <div style="background:#ecfdf5;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #a7f3d0;text-align:center;">
+        <p style="margin:0 0 6px 0;font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;letter-spacing:1px;">⚡ Pay via UPI ID</p>
+        <p style="margin:0;font-size:16px;font-weight:800;color:#047857;font-family:monospace;letter-spacing:0.5px;">Pay to UPI: ${p.upiId || "Contact Management Desk"}</p>
+        ${p.bankLabel ? `<p style="margin:4px 0 0 0;font-size:12px;color:#047857;font-weight:600;">Bank / Account: ${p.bankLabel}</p>` : ""}
+        <p style="margin:10px 0 0 0;font-size:12px;color:#065f46;line-height:1.4;">
+          👉 <em>Please transfer to this UPI ID using PhonePe, Google Pay, Paytm, or BHIM.</em>
+        </p>
+      </div>`;
+
       const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -125,18 +151,10 @@ export function generateEmailContent(payload: BrevoSendParams): { subject: strin
         </table>
       </div>
 
-      <!-- Quick UPI Payment Card -->
-      <div style="background:#ecfdf5;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #a7f3d0;text-align:center;">
-        <p style="margin:0 0 6px 0;font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;letter-spacing:1px;">⚡ Quick Payment Details</p>
-        <p style="margin:0;font-size:16px;font-weight:800;color:#047857;font-family:monospace;letter-spacing:0.5px;">${p.upiId || "Contact Management Desk"}</p>
-        ${p.bankLabel ? `<p style="margin:4px 0 0 0;font-size:12px;color:#047857;font-weight:600;">Bank / Account: ${p.bankLabel}</p>` : ""}
-        <p style="margin:10px 0 0 0;font-size:12px;color:#065f46;line-height:1.4;">
-          👉 <em>You can also scan the QR code available at the <strong>${pName}</strong> reception desk.</em>
-        </p>
-      </div>
+      ${paymentCardHtml}
 
       <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.5;">
-        💡 <em>If you have already completed this payment, please disregard this notice or share the payment screenshot with our desk so we can generate your official e-receipt immediately.</em>
+        💡 <em>If you have already completed this payment, please disregard this notice or share the payment receipt with our desk so we can generate your official e-receipt immediately.</em>
       </p>
 
       <div style="border-top:1px solid #f1f5f9;padding-top:18px;margin-top:20px;">
@@ -154,7 +172,7 @@ export function generateEmailContent(payload: BrevoSendParams): { subject: strin
 </body>
 </html>`;
 
-      const text = `Hello ${payload.recipientName},\n\nFriendly rent payment reminder for ${pName}:\n🏠 Resident: ${payload.recipientName}\n🏠 Room: Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n💰 Amount Due: ₹${formattedAmount}\n📅 Due Date: ${p.dueDate || "5th of this month"}\n💳 Payment UPI: ${upiText}\n\nThank you for being a valued resident of ${pName}!\n\n${pName} Management Desk\nGenerated via TenoPilot.com`;
+      const text = `Hello ${payload.recipientName},\n\nFriendly rent payment reminder for ${pName}:\n🏠 Resident: ${payload.recipientName}\n🏠 Room: Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n💰 Amount Due: ₹${formattedAmount}\n📅 Due Date: ${p.dueDate || "5th of this month"}\n💳 Payment Mode: ${upiText}\n\nThank you for being a valued resident of ${pName}!\n\n${pName} Management Desk\nGenerated via TenoPilot.com`;
       return { subject, html, text };
     }
 

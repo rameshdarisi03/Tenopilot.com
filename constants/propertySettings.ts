@@ -14,6 +14,14 @@ export interface PaymentQRProfile {
 
 export const DEFAULT_QR_PROFILES: PaymentQRProfile[] = [];
 
+export const PAY_BY_CASH_PROFILE: PaymentQRProfile = {
+  id: "profile-cash-desk",
+  name: "Pay by Cash",
+  bankLabel: "PG Reception / Front Desk",
+  upiId: "CASH_PAYMENT",
+  accountType: "CASH_DESK",
+};
+
 export interface PropertySettingsData {
   billingCycleDates: "1st to End of Month" | "Anniversary Date";
   desiredDueDate: number; // e.g. 5 for 5th of every month

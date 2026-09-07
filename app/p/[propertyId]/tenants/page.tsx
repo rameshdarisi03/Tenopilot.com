@@ -9,7 +9,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
-import { propertySettingsStore, DEFAULT_QR_PROFILES } from "@/constants/propertySettings";
+import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
@@ -56,6 +56,7 @@ import {
   Eye,
   User,
   CreditCard,
+  Banknote,
   ArrowRightLeft,
   FileText,
   ArrowUpDown,
@@ -282,6 +283,26 @@ export default function TenantsDirectoryPage({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Helper to obtain all available reminder payment cards (Configured UPI Profiles + Pay by Cash Card)
+  const getReminderPaymentCards = (): PaymentQRProfile[] => {
+    const configured = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0
+      ? currentSettings.qrProfiles
+      : (currentSettings.upiPaymentId ? [{
+          id: "default-upi-profile",
+          name: "Primary UPI Account",
+          bankLabel: "Primary Bank Account",
+          upiId: currentSettings.upiPaymentId,
+          accountType: "UPI_QR" as const,
+          isDefault: true,
+        }] : []);
+
+    const hasCashCard = configured.some(
+      (p) => p.accountType === "CASH_DESK" || p.upiId === "CASH_PAYMENT" || p.id === PAY_BY_CASH_PROFILE.id
+    );
+
+    return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
+  };
+
   // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Official Email)
   const handleSendCloudWhatsAppReminders = async () => {
     const sub = evaluateSubscription(profile);
@@ -291,8 +312,8 @@ export default function TenantsDirectoryPage({
       return;
     }
 
-    const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
-    const activeQr = profiles[activeQrIndex] || profiles[0];
+    const reminderCards = getReminderPaymentCards();
+    const activeQr = reminderCards[activeQrIndex] || reminderCards[0];
     const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
 
     if (selectedOccupants.length === 0) {
@@ -344,6 +365,7 @@ export default function TenantsDirectoryPage({
                     dueDate: occ.dueDate,
                     upiId: activeQr?.upiId,
                     bankLabel: activeQr?.bankLabel,
+                    accountType: activeQr?.accountType,
                   },
                 },
               ],
@@ -398,6 +420,7 @@ export default function TenantsDirectoryPage({
                     dueDate: occ.dueDate,
                     upiId: activeQr?.upiId,
                     bankLabel: activeQr?.bankLabel,
+                    accountType: activeQr?.accountType,
                   },
                 },
               ],
@@ -1788,7 +1811,7 @@ Scroll vertically to browse all residents without pagination limits
               <div className="hidden sm:block">
                 <span className="font-bold text-white block">Tenants Selected</span>
                 <span className="text-[10px] text-slate-400">
-                  Batch Rent Reminders & Payment QR
+                  Batch Rent Reminders (UPI & Cash)
                 </span>
               </div>
             </div>
@@ -1800,7 +1823,7 @@ Scroll vertically to browse all residents without pagination limits
                 className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Send Reminders & QR ({selectedIds.length})</span>
+                <span>Send Reminders ({selectedIds.length})</span>
               </button>
 
               <button
@@ -2341,14 +2364,14 @@ Scroll vertically to browse all residents without pagination limits
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                    <QrCode className="w-5 h-5" />
+                    <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Send Rent Reminders & Payment QR
+                      Send Rent Reminders & Payment Info
                     </h3>
                     <p className="text-[11px] text-gray-500 font-medium">
-                      {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected for Batch WhatsApp Notification
+                      {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected for Batch Notification
                     </p>
                   </div>
                 </div>
@@ -2375,109 +2398,147 @@ Scroll vertically to browse all residents without pagination limits
                 </div>
               </div>
 
-              {/* Step 1: Horizontal Carousel Slider for Pre-Configured QR Profiles */}
+              {/* Step 1: Payment Method Card Selector (UPI Profiles & Pay by Cash) */}
               <div className="space-y-3 p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
-                    <QrCode className="w-4 h-4 text-[#c2652a]" />
-                    <span>1. Select Pre-Configured Payment QR Profile</span>
+                    <CreditCard className="w-4 h-4 text-[#c2652a]" />
+                    <span>1. Select Payment Method (UPI Profile or Pay by Cash)</span>
                   </h4>
 
-                  {(currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length > 0 && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setActiveQrIndex((prev) =>
-                            prev > 0 ? prev - 1 : (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1
-                          )
-                        }
-                        className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
-                        title="Previous QR Profile"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <span className="text-[10px] font-bold text-gray-600 px-1 font-mono">
-                        {activeQrIndex + 1} / {(currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setActiveQrIndex((prev) =>
-                            prev < (currentSettings.qrProfiles || DEFAULT_QR_PROFILES).length - 1 ? prev + 1 : 0
-                          )
-                        }
-                        className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
-                        title="Next QR Profile"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const reminderCards = getReminderPaymentCards();
+                    return reminderCards.length > 0 ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActiveQrIndex((prev) =>
+                              prev > 0 ? prev - 1 : reminderCards.length - 1
+                            )
+                          }
+                          className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
+                          title="Previous Payment Option"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-[10px] font-bold text-gray-600 px-1 font-mono">
+                          {activeQrIndex + 1} / {reminderCards.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActiveQrIndex((prev) =>
+                              prev < reminderCards.length - 1 ? prev + 1 : 0
+                            )
+                          }
+                          className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
+                          title="Next Payment Option"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
-                {/* Active QR Profile Display Card or Empty State */}
+                {/* Quick Selection Cards Pills & Active Preview Box */}
                 {(() => {
-                  const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
-                  
-                  if (profiles.length === 0) {
-                    return (
-                      <div className="p-5 bg-white rounded-2xl border border-gray-200 text-center space-y-2.5">
-                        <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto">
-                          <QrCode className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h5 className="font-bold text-xs text-gray-900">No Payment QR Profiles Configured</h5>
-                          <p className="text-[11px] text-gray-500 mt-0.5">
-                            Add your real business bank accounts or UPI QR profiles in Settings to send custom QR payment reminders.
-                          </p>
-                        </div>
-                        <Link
-                          href={`/p/${propertyId}/settings`}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#c2652a] text-white font-bold text-xs shadow-2xs hover:bg-[#c2652a]/90"
-                        >
-                          <span>Configure QR Profiles in Settings</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Link>
-                      </div>
-                    );
-                  }
-
-                  const activeQr = profiles[activeQrIndex] || profiles[0];
+                  const reminderCards = getReminderPaymentCards();
+                  const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+                  const isCash = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
 
                   return (
-                    <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-4">
-                      <div className="w-28 h-28 bg-white p-2 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex flex-col items-center justify-center overflow-hidden">
-                        {activeQr.qrImageUrl ? (
-                          <img src={activeQr.qrImageUrl} alt={activeQr.name} className="w-full h-full object-cover rounded-lg" />
-                        ) : (
-                          <QRCodeSVG
-                            value={activeQr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${activeQr.upiId}&pn=TenoPilot%20PG&cu=INR`}
-                            size={96}
-                            fgColor="#201a17"
-                            bgColor="#ffffff"
-                          />
-                        )}
+                    <div className="space-y-3">
+                      {/* Card Selection Tabs */}
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {reminderCards.map((card, idx) => {
+                          const isSelected = idx === activeQrIndex;
+                          const isCardCash = card.upiId === "CASH_PAYMENT" || card.accountType === "CASH_DESK";
+                          return (
+                            <button
+                              key={card.id || idx}
+                              type="button"
+                              onClick={() => setActiveQrIndex(idx)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 border cursor-pointer ${
+                                isSelected
+                                  ? isCardCash
+                                    ? "bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/40"
+                                    : "bg-[#c2652a] text-white border-[#a5521e] shadow-xs ring-2 ring-orange-400/40"
+                                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              {isCardCash ? (
+                                <>
+                                  <Banknote className="w-3.5 h-3.5" />
+                                  <span>💵 Pay by Cash</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>💳 {card.name}</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
 
-                      <div className="space-y-1.5 flex-1 min-w-0 text-center sm:text-left">
-                        <div className="flex items-center justify-center sm:justify-start gap-2">
-                          <span className="font-bold text-sm text-gray-900">{activeQr.name}</span>
-                          {activeQr.isDefault && (
-                            <span className="bg-orange-100 text-[#c2652a] text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
-                              Default
+                      {/* Active Card Preview Box */}
+                      {isCash ? (
+                        <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50/50 via-orange-50/20 to-white shadow-xs flex flex-col sm:flex-row items-center gap-4">
+                          <div className="w-24 h-24 bg-amber-100 rounded-2xl border border-amber-200 shrink-0 flex flex-col items-center justify-center text-amber-800 shadow-2xs">
+                            <Banknote className="w-9 h-9 text-amber-600 mb-1" />
+                            <span className="font-extrabold text-[10px] tracking-wider uppercase text-amber-900">PAY BY CASH</span>
+                            <span className="text-[8px] text-amber-700 font-semibold">Front Counter</span>
+                          </div>
+
+                          <div className="space-y-1 flex-1 min-w-0 text-center sm:text-left">
+                            <div className="flex items-center justify-center sm:justify-start gap-2">
+                              <span className="font-bold text-sm text-gray-900">{activeCard.name}</span>
+                              <span className="bg-amber-100 text-amber-800 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
+                                In-Person Cash
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-600 block">🏢 Desk: <strong>{activeCard.bankLabel}</strong></span>
+                            <span className="text-xs font-mono text-amber-800 font-bold block bg-amber-100/70 px-2.5 py-1 rounded-lg border border-amber-200/80 inline-block">
+                              💵 Cash Handover at PG Reception
                             </span>
-                          )}
+                            <p className="text-[10px] text-gray-500">
+                              Reminders will instruct tenants to pay rent in cash directly at the PG reception counter and collect their official receipt.
+                            </p>
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-500 block">🏦 Bank: <strong>{activeQr.bankLabel}</strong></span>
-                        <span className="text-xs font-mono text-[#c2652a] font-bold block bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/50 inline-block">
-                          💳 UPI VPA: {activeQr.upiId}
-                        </span>
+                      ) : (
+                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-4">
+                          <div className="w-24 h-24 bg-white p-1 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center overflow-hidden">
+                            <QRCodeSVG
+                              value={`upi://pay?pa=${activeCard.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&cu=INR`}
+                              size={80}
+                              fgColor="#201a17"
+                              bgColor="#ffffff"
+                            />
+                          </div>
 
-                        <p className="text-[10px] text-gray-400">
-                          Pre-configured via Settings → Payment QR Profiles & Accounts
-                        </p>
-                      </div>
+                          <div className="space-y-1 flex-1 min-w-0 text-center sm:text-left">
+                            <div className="flex items-center justify-center sm:justify-start gap-2">
+                              <span className="font-bold text-sm text-gray-900">{activeCard.name}</span>
+                              {activeCard.isDefault && (
+                                <span className="bg-orange-100 text-[#c2652a] text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-500 block">🏦 Bank: <strong>{activeCard.bankLabel}</strong></span>
+                            <span className="text-xs font-mono text-[#c2652a] font-bold block bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/50 inline-block">
+                              💳 Pay to UPI ID: {activeCard.upiId}
+                            </span>
+                            <p className="text-[10px] text-gray-400">
+                              Reminders will instruct tenants to pay directly to UPI ID: <strong className="text-gray-700">{activeCard.upiId}</strong>.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -2587,23 +2648,28 @@ Scroll vertically to browse all residents without pagination limits
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {(() => {
-                    const profiles = currentSettings.qrProfiles && currentSettings.qrProfiles.length > 0 ? currentSettings.qrProfiles : DEFAULT_QR_PROFILES;
-                    const activeQr = profiles[activeQrIndex] || profiles[0];
+                    const reminderCards = getReminderPaymentCards();
+                    const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+                    const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
 
                     return occupantsList
                       .filter((o) => selectedIds.includes(o.id))
                       .map((occ) => {
                         const cleanPhone = occ.phone.replace(/\D/g, "");
                         const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-                        const isCashReq = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.accountType === "CASH_DESK";
-                        const paymentNote = activeQr
-                          ? (isCashReq
-                            ? `💵 *Payment Mode*: Cash Request at ${activeQr.bankLabel}\nPlease visit reception desk to clear rent.`
-                            : `💳 *Pay via UPI ID*: ${activeQr.upiId} (${activeQr.bankLabel})\nPlease scan QR code or pay via UPI.`)
-                          : `💳 *Payment Details*: Please contact management for rent payment instructions.`;
+                        const paymentDetailsText = isCashReq
+                          ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
+                          : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
 
                         const msg = encodeURIComponent(
-                          `Hello ${occ.name},\n\nFriendly rent payment reminder for ${currentSettings.propertyName || "TenoPilot.com"}:\n🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n📅 *Due Date*: ${occ.dueDate}\n\n${paymentNote}\n\nThank you,\n${currentSettings.propertyName || "TenoPilot.com"} Management`
+                          `Hello ${occ.name},\n\n` +
+                          `Friendly rent payment reminder for *${currentSettings.propertyName || "TenoPilot PG"}*:\n` +
+                          `🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n` +
+                          `💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n` +
+                          `📅 *Due Date*: ${occ.dueDate}\n\n` +
+                          `${paymentDetailsText}\n\n` +
+                          `Thank you,\n` +
+                          `*${currentSettings.propertyName || "TenoPilot PG"}* Management Desk`
                         );
                         const waUrl = `https://wa.me/${formattedPhone}?text=${msg}`;
 

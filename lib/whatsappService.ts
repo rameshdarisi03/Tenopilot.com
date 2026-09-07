@@ -14,6 +14,7 @@ export interface WhatsAppSendParams {
     dueDate?: string;
     upiId?: string;
     bankLabel?: string;
+    accountType?: string;
     receiptId?: string;
     paidDate?: string;
     paymentMode?: string;
@@ -52,10 +53,14 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
 
   switch (payload.type) {
     case "RENT_REMINDER": {
-      const isCash = p.upiId === "CASH_PAYMENT" || p.upiId?.toLowerCase().includes("cash");
+      const isCash = p.upiId === "CASH_PAYMENT" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
       const paymentInstr = isCash
-        ? `💵 *Payment Mode*: Cash settlement at Front Desk (${p.bankLabel || "Reception Desk"})`
-        : `💳 *Pay via UPI*: \`${p.upiId || "Contact Management"}\`${p.bankLabel ? ` (${p.bankLabel})` : ""}\n👉 _You can also scan the QR code available at the PG reception desk._`;
+        ? `💵 *Payment Mode: CASH IN HAND*\n` +
+          `🏢 *Payment Counter*: ${p.bankLabel || "PG Reception / Front Desk"}\n` +
+          `👉 _Please visit the property desk to pay your rent in cash to the manager and collect your signed physical or digital receipt._`
+        : `💳 *Pay to UPI ID*: \`${p.upiId || "Contact Management"}\`${p.bankLabel ? ` (${p.bankLabel})` : ""}\n` +
+          `📲 _Please make payment to this UPI ID using PhonePe, Google Pay, Paytm, or BHIM._\n` +
+          (p.upiId && p.upiId !== "CASH_PAYMENT" ? `🔗 _Direct UPI Pay Link:_ upi://pay?pa=${p.upiId}&pn=${encodeURIComponent(pName)}&am=${Number(p.amount || 0)}&cu=INR` : "");
 
       return (
         `👋 *Hello ${payload.recipientName}*,\n\n` +

@@ -19,7 +19,7 @@ import {
   Users,
   Plus,
   Trash2,
-  Upload,
+  Info,
   X,
   MessageSquare,
   Zap,
@@ -73,8 +73,6 @@ export default function PropertySettingsPage({
   const [newQrBank, setNewQrBank] = useState("");
   const [newQrUpi, setNewQrUpi] = useState("");
   const [newQrType, setNewQrType] = useState<"UPI_QR" | "BANK_TRANSFER" | "CASH_DESK">("UPI_QR");
-  const [newQrImageName, setNewQrImageName] = useState<string | null>(null);
-  const [newQrImageUrl, setNewQrImageUrl] = useState<string | null>(null);
 
   // Custom Delete Confirmation Modal State
   const [deleteQrTarget, setDeleteQrTarget] = useState<PaymentQRProfile | null>(null);
@@ -100,9 +98,8 @@ export default function PropertySettingsPage({
       id: `qr-${Date.now()}`,
       name: newQrName,
       bankLabel: newQrBank || "UPI Bank Account",
-      upiId: newQrUpi,
+      upiId: newQrUpi.trim(),
       accountType: newQrType,
-      qrImageUrl: newQrImageUrl || undefined,
     };
     const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
     const updated = [...currentProfiles, newProf];
@@ -112,9 +109,7 @@ export default function PropertySettingsPage({
     setNewQrName("");
     setNewQrBank("");
     setNewQrUpi("");
-    setNewQrImageName(null);
-    setNewQrImageUrl(null);
-    triggerToast(`Added Payment QR Profile: ${newProf.name}`);
+    triggerToast(`Added Payment Profile: ${newProf.name}`);
   };
 
   const handleConfirmDeleteQrProfile = async () => {
@@ -590,8 +585,8 @@ export default function PropertySettingsPage({
                         <QrCode className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-sm text-gray-900">Pre-Configured Payment QR Profiles & Bank Accounts</h3>
-                        <p className="text-[11px] text-gray-500">Manage business bank accounts, UPI QR IDs, and custom uploaded QR images directly saved in Firebase Firestore</p>
+                        <h3 className="font-bold text-sm text-gray-900">Pre-Configured UPI Payment Profiles & Bank Accounts</h3>
+                        <p className="text-[11px] text-gray-500">Manage business bank accounts and UPI VPA IDs saved in Firebase Firestore</p>
                       </div>
                     </div>
 
@@ -600,19 +595,28 @@ export default function PropertySettingsPage({
                     </span>
                   </div>
 
-                  {/* Add New QR Profile Input Row with Custom Image Upload */}
+                  {/* Info notice explaining why UPI ID is used instead of image uploads */}
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 leading-relaxed">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Why Direct UPI IDs instead of Uploaded Image QRs? </span>
+                      <span>Payment apps (PhonePe, GPay, Paytm) restrict scanned QR codes uploaded from image galleries to a ₹2,000 transaction limit per NPCI guidelines. By configuring clean UPI VPA IDs, TenoPilot generates live vector QR codes allowing tenants to pay their full rent amounts (₹5,000 – ₹50,000+) without any restrictions.</span>
+                    </div>
+                  </div>
+
+                  {/* Add New UPI Profile Input Row */}
                   <div className="p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
-                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment QR Profile & Upload Image
+                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Profile
                       </h4>
                       <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
                       <input
                         type="text"
-                        placeholder="Profile Name (e.g. ICICI Tax Acc)"
+                        placeholder="Profile Name (e.g. ICICI Primary)"
                         value={newQrName}
                         onChange={(e) => setNewQrName(e.target.value)}
                         className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
@@ -631,29 +635,6 @@ export default function PropertySettingsPage({
                         onChange={(e) => setNewQrUpi(e.target.value)}
                         className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
-
-                      {/* File Picker for Custom QR Image */}
-                      <label className="px-3 py-2.5 rounded-xl border border-dashed border-orange-300 bg-white hover:bg-orange-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer truncate">
-                        <Upload className="w-4 h-4 text-[#c2652a] shrink-0" />
-                        <span className="truncate">{newQrImageName || "Upload QR Image"}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setNewQrImageName(file.name);
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                setNewQrImageUrl(event.target?.result as string);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-
                       <button
                         type="button"
                         onClick={handleAddQrProfile}
@@ -662,27 +643,6 @@ export default function PropertySettingsPage({
                         <Plus className="w-4 h-4" /> Save Profile
                       </button>
                     </div>
-
-                    {/* Image Thumbnail Preview if selected */}
-                    {newQrImageUrl && (
-                      <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-orange-200 w-fit">
-                        <img src={newQrImageUrl} alt="QR Preview" className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
-                        <div className="text-xs">
-                          <span className="font-bold text-emerald-700 block">✓ Custom QR Image Attached</span>
-                          <span className="text-[10px] text-gray-500 font-mono">{newQrImageName}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewQrImageUrl(null);
-                            setNewQrImageName(null);
-                          }}
-                          className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                   {/* Configured Profiles Grid or Empty State */}
@@ -691,9 +651,9 @@ export default function PropertySettingsPage({
                       <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto">
                         <QrCode className="w-6 h-6" />
                       </div>
-                      <h4 className="font-bold text-sm text-gray-900">No Payment QR Profiles Configured Yet</h4>
+                      <h4 className="font-bold text-sm text-gray-900">No Payment Profiles Configured Yet</h4>
                       <p className="text-xs text-gray-500 max-w-md mx-auto">
-                        Add your business bank account, UPI VPA ID, or upload a custom QR image above to enable seamless rent reminders for tenants.
+                        Add your business bank account or UPI VPA ID above to enable seamless rent reminders and instant payment links for tenants.
                       </p>
                     </div>
                   ) : (
@@ -705,16 +665,12 @@ export default function PropertySettingsPage({
                         >
                           <div className="flex items-center gap-3.5 min-w-0">
                             <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
-                              {qr.qrImageUrl ? (
-                                <img src={qr.qrImageUrl} alt={qr.name} className="w-full h-full object-cover rounded-lg" />
-                              ) : (
-                                <QRCodeSVG
-                                  value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=TenoPilot%20PG&cu=INR`}
-                                  size={56}
-                                  fgColor="#201a17"
-                                  bgColor="#ffffff"
-                                />
-                              )}
+                              <QRCodeSVG
+                                value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=${encodeURIComponent(settings.propertyName || "TenoPilot PG")}&cu=INR`}
+                                size={56}
+                                fgColor="#201a17"
+                                bgColor="#ffffff"
+                              />
                             </div>
 
                             <div className="min-w-0 space-y-0.5">
@@ -723,9 +679,6 @@ export default function PropertySettingsPage({
                               <span className="text-[10px] font-mono text-[#c2652a] font-bold block truncate">
                                 💳 {qr.upiId}
                               </span>
-                              {qr.qrImageUrl && (
-                                <span className="text-[9px] text-emerald-700 font-bold block">✓ Custom Image Attached</span>
-                              )}
                             </div>
                           </div>
 
@@ -733,7 +686,7 @@ export default function PropertySettingsPage({
                             type="button"
                             onClick={() => setDeleteQrTarget(qr)}
                             className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors cursor-pointer shrink-0"
-                            title="Remove QR Profile"
+                            title="Remove Profile"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
