@@ -64,6 +64,7 @@ export function UnifiedPhotoUploadSlot({
   placeholder?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
   const [showChoiceDropdown, setShowChoiceDropdown] = useState(false);
   const [showWebcamModal, setShowWebcamModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -108,16 +109,15 @@ export function UnifiedPhotoUploadSlot({
   };
 
   const handleMainButtonClick = () => {
-    // Reset file input value so re-selecting same file triggers change
+    // Reset file input values so re-selecting same file triggers change
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-    const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      fileInputRef.current?.click();
-    } else {
-      setShowChoiceDropdown((prev) => !prev);
+    if (nativeCameraInputRef.current) {
+      nativeCameraInputRef.current.value = "";
     }
+    // Always toggle choice dropdown on both mobile and desktop
+    setShowChoiceDropdown((prev) => !prev);
   };
 
   const isRealPhoto = Boolean(
@@ -129,11 +129,21 @@ export function UnifiedPhotoUploadSlot({
 
   return (
     <div className="space-y-2 relative" ref={dropdownRef}>
-      {/* Hidden File Input for Native File Chooser */}
+      {/* Hidden File Input for Native File Chooser (Gallery / Storage) */}
       <input
         type="file"
         ref={fileInputRef}
         accept={acceptedFormats}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Hidden File Input for Native Camera App Launcher */}
+      <input
+        type="file"
+        ref={nativeCameraInputRef}
+        accept="image/*"
+        capture={aspectRatio === "headshot" ? "user" : "environment"}
         onChange={handleFileChange}
         className="hidden"
       />
@@ -203,13 +213,14 @@ export function UnifiedPhotoUploadSlot({
         </button>
       )}
 
-      {/* Choice Dropdown Popup (Available in both Empty and Change states) */}
+      {/* Choice Dropdown Popup (Available in both Empty and Change states on all devices) */}
       {showChoiceDropdown && (
         <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-2xl p-2 space-y-1 animate-in zoom-in-95 text-xs">
           <div className="px-3 py-1.5 border-b border-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Select Photo Method
           </div>
 
+          {/* Option 1: Live In-App Camera Viewfinder */}
           <button
             type="button"
             onClick={() => {
@@ -222,11 +233,33 @@ export function UnifiedPhotoUploadSlot({
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold text-gray-900 block">📸 Take Snapshot with Webcam</span>
-              <span className="text-[10px] text-gray-500">Uses laptop or PC camera stream</span>
+              <span className="font-bold text-gray-900 block">📸 Live In-App Camera</span>
+              <span className="text-[10px] text-gray-500">Live preview with alignment guide</span>
             </div>
           </button>
 
+          {/* Option 2: Native Device Camera App (Direct Camera Snap) */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowChoiceDropdown(false);
+              if (nativeCameraInputRef.current) {
+                nativeCameraInputRef.current.value = "";
+              }
+              nativeCameraInputRef.current?.click();
+            }}
+            className="w-full p-2.5 rounded-xl hover:bg-emerald-50 flex items-center gap-3 text-left transition-colors cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-gray-900 block">📷 Phone Camera App</span>
+              <span className="text-[10px] text-gray-500">Take snapshot directly with phone camera</span>
+            </div>
+          </button>
+
+          {/* Option 3: Choose from Gallery / Files */}
           <button
             type="button"
             onClick={() => {
@@ -236,14 +269,14 @@ export function UnifiedPhotoUploadSlot({
               }
               fileInputRef.current?.click();
             }}
-            className="w-full p-2.5 rounded-xl hover:bg-gray-100 flex items-center gap-3 text-left transition-colors cursor-pointer"
+            className="w-full p-2.5 rounded-xl hover:bg-blue-50 flex items-center gap-3 text-left transition-colors cursor-pointer"
           >
             <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
               <Upload className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold text-gray-900 block">📁 Choose Photo File from Device</span>
-              <span className="text-[10px] text-gray-500">Browse disk or photo gallery</span>
+              <span className="font-bold text-gray-900 block">📁 Choose from Gallery / Files</span>
+              <span className="text-[10px] text-gray-500">Browse Google Photos or device storage</span>
             </div>
           </button>
         </div>
