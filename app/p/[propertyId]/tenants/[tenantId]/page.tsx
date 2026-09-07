@@ -68,6 +68,69 @@ import {
   downloadRentReceiptPdf,
 } from "@/utils/pdfGenerator";
 
+// Helper: Format joining date into clean DD MMM YYYY (e.g. 02 Apr 2026)
+function formatJoiningDateDisplay(dateStr?: string): string {
+  if (!dateStr || dateStr === "—" || dateStr.includes("Pending")) return "Not specified";
+  const trimmed = dateStr.trim();
+  // Standard ISO format "YYYY-MM-DD"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return formatIsoToDisplayDate(trimmed);
+  }
+  // Standard parseOccupantDate ("15 Aug 2026", etc.)
+  const parsed = parseOccupantDate(trimmed);
+  if (parsed && !isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  // Try parsing ordinal dates like "2nd April", "3rd May 2026"
+  const ordinalMatch = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)(?:\s+(\d{4}))?$/i);
+  if (ordinalMatch) {
+    const day = parseInt(ordinalMatch[1], 10);
+    const month = ordinalMatch[2];
+    const year = ordinalMatch[3] ? parseInt(ordinalMatch[3], 10) : 2026;
+    const testDate = new Date(`${day} ${month} ${year}`);
+    if (!isNaN(testDate.getTime())) {
+      return testDate.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    }
+  }
+  return dateStr;
+}
+
+// Helper: Convert any date string into standard YYYY-MM-DD for native <input type="date" />
+function toDateInputValue(dateStr?: string): string {
+  if (!dateStr) return new Date().toISOString().split("T")[0];
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = parseOccupantDate(trimmed);
+  if (parsed && !isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    const d = String(parsed.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  const ordinalMatch = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)(?:\s+(\d{4}))?$/i);
+  if (ordinalMatch) {
+    const day = parseInt(ordinalMatch[1], 10);
+    const month = ordinalMatch[2];
+    const year = ordinalMatch[3] ? parseInt(ordinalMatch[3], 10) : 2026;
+    const testDate = new Date(`${day} ${month} ${year}`);
+    if (!isNaN(testDate.getTime())) {
+      const y = testDate.getFullYear();
+      const m = String(testDate.getMonth() + 1).padStart(2, "0");
+      const d = String(testDate.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function IndividualTenantProfilePage({
   params,
 }: {
@@ -121,6 +184,7 @@ export default function IndividualTenantProfilePage({
       setEditName(existing.name);
       setEditPhone(existing.phone);
       setEditEmail(existing.email || "");
+      setEditJoiningDate(toDateInputValue(existing.joiningDate));
       setEditRent(existing.rentAmount);
       setEditOccupation(existing.occupation || "");
       setEditWorkplace(existing.workplace || "");
@@ -137,6 +201,7 @@ export default function IndividualTenantProfilePage({
         setEditName(updated.name);
         setEditPhone(updated.phone);
         setEditEmail(updated.email || "");
+        setEditJoiningDate(toDateInputValue(updated.joiningDate));
         setEditRent(updated.rentAmount);
         setEditOccupation(updated.occupation || "");
         setEditWorkplace(updated.workplace || "");
@@ -156,6 +221,7 @@ export default function IndividualTenantProfilePage({
           setEditName(updated.name);
           setEditPhone(updated.phone);
           setEditEmail(updated.email || "");
+          setEditJoiningDate(toDateInputValue(updated.joiningDate));
           setEditRent(updated.rentAmount);
           setEditOccupation(updated.occupation || "");
           setEditWorkplace(updated.workplace || "");
@@ -271,6 +337,9 @@ export default function IndividualTenantProfilePage({
   const [editName, setEditName] = useState<string>(occupantState?.name || "");
   const [editPhone, setEditPhone] = useState<string>(occupantState?.phone || "");
   const [editEmail, setEditEmail] = useState<string>(occupantState?.email || "");
+  const [editJoiningDate, setEditJoiningDate] = useState<string>(
+    toDateInputValue(occupantState?.joiningDate)
+  );
   const [editRent, setEditRent] = useState<number>(occupantState?.rentAmount || 0);
   const [editDeposit, setEditDeposit] = useState<number>(occupantState?.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState?.rentAmount ? occupantState.rentAmount * 2 : 0));
   const [editOccupation, setEditOccupation] = useState<string>(occupantState?.occupation || "");
@@ -1198,6 +1267,7 @@ export default function IndividualTenantProfilePage({
     setEditName(occupantState.name);
     setEditPhone(occupantState.phone);
     setEditEmail(occupantState.email);
+    setEditJoiningDate(toDateInputValue(occupantState.joiningDate));
     setEditRent(occupantState.rentAmount);
     setEditDeposit(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
     setEditOccupation(occupantState.occupation || "");
@@ -1206,16 +1276,19 @@ export default function IndividualTenantProfilePage({
     setShowEditProfileModal(true);
   };
 
-  // Edit Profile Submit Handler (Updates Name, Phone, Email, Rent, Deposit, Occupation, Workplace, Purpose across state)
+  // Edit Profile Submit Handler (Updates Name, Phone, Email, Joining Date, Rent, Deposit, Occupation, Workplace, Purpose across state)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
+
+    const formattedJoiningDate = formatIsoToDisplayDate(editJoiningDate) || editJoiningDate || occupantState.joiningDate;
 
     const updated: Occupant = {
       ...occupantState,
       name: editName.trim(),
       phone: editPhone.trim(),
       email: editEmail.trim(),
+      joiningDate: formattedJoiningDate,
       rentAmount: editRent,
       securityDeposit: editDeposit,
       occupation: editOccupation.trim() || undefined,
@@ -1225,6 +1298,7 @@ export default function IndividualTenantProfilePage({
 
     setOccupantState(updated);
     occupantStore.updateOccupant(updated, propertyId);
+    saveOccupantToFirestore(propertyId, updated).catch(console.error);
 
     // DDS-13 Dynamic Cascading Matrix Compliance: Update bed occupant details in propertyStore!
     const currentStructure = propertyStore.getStructure(propertyId);
@@ -1384,8 +1458,11 @@ export default function IndividualTenantProfilePage({
                     ></span>
                     {occupantState.lifecycleStatus.toUpperCase()}
                   </span>
-                  <span className="text-xs text-gray-500 font-medium">
-                    Resident since {occupantState.joiningDate}
+
+                  {/* Highlighted Joined Date Pill */}
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/80 shadow-2xs">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Joined on {formatJoiningDateDisplay(occupantState.joiningDate)}</span>
                   </span>
                   {occupantState.vacatingDate && (
                     <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full">
@@ -3622,6 +3699,19 @@ export default function IndividualTenantProfilePage({
                     required
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Joining Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editJoiningDate}
+                    onChange={(e) => setEditJoiningDate(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>
