@@ -204,7 +204,7 @@ export async function executeFastTrackBatchIngest(
     const occ: Occupant = {
       id: occupantId,
       name: row.fullName,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row.fullName)}`,
+      avatar: "",
       roomNumber: rawRoom,
       bedCode: finalBedCode,
       rentAmount: rent,

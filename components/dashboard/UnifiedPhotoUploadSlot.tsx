@@ -120,6 +120,13 @@ export function UnifiedPhotoUploadSlot({
     }
   };
 
+  const isRealPhoto = Boolean(
+    value &&
+    value.trim() !== "" &&
+    !value.includes("dicebear") &&
+    !value.includes("api.dicebear.com")
+  );
+
   return (
     <div className="space-y-2 relative" ref={dropdownRef}>
       {/* Hidden File Input for Native File Chooser */}
@@ -131,11 +138,11 @@ export function UnifiedPhotoUploadSlot({
         className="hidden"
       />
 
-      {value ? (
+      {isRealPhoto ? (
         /* Preview Card State when photo is captured or uploaded */
         <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-center gap-3 min-w-0">
-            {value.startsWith("data:image") || value.startsWith("http") ? (
+            {value && (value.startsWith("data:image") || value.startsWith("http")) ? (
               <img
                 src={value}
                 alt={label}

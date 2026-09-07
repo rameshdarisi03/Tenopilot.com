@@ -3844,41 +3844,55 @@ export default function IndividualTenantProfilePage({
 
               {/* Upload / Change & Remove Controls */}
               <div className="space-y-2 pt-2 border-t border-gray-100">
-                <UnifiedPhotoUploadSlot
-                  label={occupantState.avatar ? "Change Profile Photo" : "Upload Profile Photo"}
-                  aspectRatio="headshot"
-                  value={occupantState.avatar}
-                  onChange={(base64) => {
-                    const updated: Occupant = {
-                      ...occupantState,
-                      avatar: base64,
-                      kycDocs: {
-                        ...(occupantState.kycDocs || { idMode: "IMAGES" }),
-                        photoUrl: base64 || undefined,
-                      },
-                    };
-                    setOccupantState(updated);
-                    occupantStore.updateOccupant(updated, propertyId);
-                    saveOccupantToFirestore(propertyId, updated);
-                    triggerToast("✓ Profile photo updated!");
-                    setShowAvatarModal(false);
-                  }}
-                  onRemove={() => {
-                    const updated: Occupant = {
-                      ...occupantState,
-                      avatar: "",
-                      kycDocs: {
-                        ...(occupantState.kycDocs || { idMode: "IMAGES" }),
-                        photoUrl: undefined,
-                      },
-                    };
-                    setOccupantState(updated);
-                    occupantStore.updateOccupant(updated, propertyId);
-                    saveOccupantToFirestore(propertyId, updated);
-                    triggerToast("Profile photo removed.");
-                    setShowAvatarModal(false);
-                  }}
-                />
+                {(() => {
+                  const hasRealAvatar = Boolean(
+                    occupantState.avatar &&
+                    occupantState.avatar.trim() !== "" &&
+                    !occupantState.avatar.includes("dicebear") &&
+                    !occupantState.avatar.includes("api.dicebear.com")
+                  );
+                  return (
+                    <UnifiedPhotoUploadSlot
+                      label={hasRealAvatar ? "Change Profile Photo" : "Upload Profile Photo"}
+                      aspectRatio="headshot"
+                      value={hasRealAvatar ? occupantState.avatar : ""}
+                      onChange={(base64) => {
+                        const updated: Occupant = {
+                          ...occupantState,
+                          avatar: base64,
+                          kycDocs: {
+                            ...(occupantState.kycDocs || { idMode: "IMAGES" }),
+                            photoUrl: base64 || undefined,
+                          },
+                        };
+                        setOccupantState(updated);
+                        occupantStore.updateOccupant(updated, propertyId);
+                        saveOccupantToFirestore(propertyId, updated);
+                        triggerToast("✓ Profile photo updated!");
+                        setShowAvatarModal(false);
+                      }}
+                      onRemove={
+                        hasRealAvatar
+                          ? () => {
+                              const updated: Occupant = {
+                                ...occupantState,
+                                avatar: "",
+                                kycDocs: {
+                                  ...(occupantState.kycDocs || { idMode: "IMAGES" }),
+                                  photoUrl: undefined,
+                                },
+                              };
+                              setOccupantState(updated);
+                              occupantStore.updateOccupant(updated, propertyId);
+                              saveOccupantToFirestore(propertyId, updated);
+                              triggerToast("Profile photo removed.");
+                              setShowAvatarModal(false);
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })()}
               </div>
             </div>
           </div>
