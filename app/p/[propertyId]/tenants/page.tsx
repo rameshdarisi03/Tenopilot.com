@@ -787,20 +787,9 @@ export default function TenantsDirectoryPage({
     }
   };
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
-
-  // Pagination slice
-  const totalPages = Math.ceil(filteredOccupants.length / pageSize);
-  const paginatedOccupants = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredOccupants.slice(start, start + pageSize);
-  }, [filteredOccupants, currentPage]);
-
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedIds(paginatedOccupants.map((o) => o.id));
+      setSelectedIds(filteredOccupants.map((o) => o.id));
     } else {
       setSelectedIds([]);
     }
@@ -844,7 +833,6 @@ export default function TenantsDirectoryPage({
           searchValue={rawSearchTerm}
           onSearchChange={(val) => {
             setRawSearchTerm(val);
-            setCurrentPage(1);
           }}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
@@ -1078,7 +1066,6 @@ export default function TenantsDirectoryPage({
               value={rawSearchTerm}
               onChange={(e) => {
                 setRawSearchTerm(e.target.value);
-                setCurrentPage(1);
               }}
               placeholder="Search resident name, room, phone..."
               className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 focus:border-[#c2652a] rounded-2xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a]/20 shadow-xs transition-all"
@@ -1113,7 +1100,6 @@ export default function TenantsDirectoryPage({
                 if (newTab !== "Guests") {
                   setTenantStatusFilter(newTab);
                 }
-                setCurrentPage(1);
               }}
             />
           </div>
@@ -1523,8 +1509,8 @@ Scroll vertically to browse all residents without pagination limits
               </div>
             )}
 
-            {paginatedOccupants.length > 0 ? (
-              paginatedOccupants.map((occ) => {
+            {filteredOccupants.length > 0 ? (
+              filteredOccupants.map((occ) => {
                 const isSelected = selectedIds.includes(occ.id);
                 const isPastTenant = occ.lifecycleStatus === "Past" || activeFilterTab === "Past";
                 const isActionMenuOpen = activeActionDropdownId === occ.id;
@@ -1763,6 +1749,12 @@ Scroll vertically to browse all residents without pagination limits
                 <p className="text-[11px] text-gray-400 mt-1">
                   Try adjusting your search query or status filter.
                 </p>
+              </div>
+            )}
+
+            {filteredOccupants.length > 0 && (
+              <div className="py-4 text-center text-xs text-gray-400 font-medium">
+                Showing all {filteredOccupants.length} residents (Continuous Scroll)
               </div>
             )}
           </div>
