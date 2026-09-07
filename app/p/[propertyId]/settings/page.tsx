@@ -67,11 +67,10 @@ export default function PropertySettingsPage({
     whatsappCreditStore.getTransactions(propertyId)
   );
 
-  // Unified Payment Accounts & QR Profiles State
+  // Unified Payment Accounts State
   const [newQrPartnerId, setNewQrPartnerId] = useState<string>("BUSINESS");
   const [newQrBank, setNewQrBank] = useState("");
   const [newQrUpi, setNewQrUpi] = useState("");
-  const [newQrType, setNewQrType] = useState<"UPI_QR" | "BANK_TRANSFER" | "CASH_DESK">("UPI_QR");
 
   // Custom Delete Confirmation Modal State
   const [deleteQrTarget, setDeleteQrTarget] = useState<PaymentQRProfile | null>(null);
@@ -86,12 +85,10 @@ export default function PropertySettingsPage({
   const [newCatName, setNewCatName] = useState("");
 
   const handleAddQrProfile = async () => {
-    if (!newQrBank.trim() && newQrType !== "CASH_DESK") {
+    const isCashDesk = newQrPartnerId === "PETTY_CASH";
+
+    if (!newQrBank.trim() && !isCashDesk) {
       alert("Please enter a Bank / Account Label (e.g. HDFC Bank, ICICI Bank).");
-      return;
-    }
-    if (newQrType === "UPI_QR" && !newQrUpi.trim()) {
-      alert("Please enter a UPI VPA ID for UPI QR accounts.");
       return;
     }
 
@@ -117,12 +114,18 @@ export default function PropertySettingsPage({
     const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
     const isFirstAccount = currentProfiles.length === 0;
 
+    const resolvedAccountType: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK" = isCashDesk
+      ? "CASH_DESK"
+      : newQrUpi.trim()
+      ? "UPI_QR"
+      : "BANK_TRANSFER";
+
     const newProf: PaymentQRProfile = {
       id: `qr-${Date.now()}`,
       name: autoProfileName,
-      bankLabel: newQrBank.trim() || (newQrType === "CASH_DESK" ? "Reception Cash Drawer" : "Bank Account"),
-      upiId: newQrType === "CASH_DESK" ? "CASH" : newQrUpi.trim(),
-      accountType: newQrType,
+      bankLabel: newQrBank.trim() || (isCashDesk ? "Reception Cash Drawer" : "Bank Account"),
+      upiId: isCashDesk ? "CASH" : newQrUpi.trim(),
+      accountType: resolvedAccountType,
       partnerId: newQrPartnerId,
       partnerName: resolvedPartnerName,
       isDefault: isFirstAccount,
@@ -156,7 +159,7 @@ export default function PropertySettingsPage({
     const newSettings = { ...settings, qrProfiles: updated };
     setSettings(newSettings);
     await propertySettingsStore.updateSettings(newSettings, propertyId);
-    triggerToast(`✓ Removed Payment QR Profile: ${deleteQrTarget.name}`);
+    triggerToast(`✓ Removed Payment Account: ${deleteQrTarget.name}`);
     setDeleteQrTarget(null);
   };
 
@@ -565,16 +568,16 @@ export default function PropertySettingsPage({
                     </div>
                   </div>
 
-                  {/* Add New Unified Payment Profile / Bank Account Input Card */}
+                  {/* Add New Unified Payment Account Input Card */}
                   <div className="p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
-                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Account / QR Profile
+                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Account
                       </h4>
                       <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1">
                           Tag Under Partner / Entity *
@@ -600,26 +603,11 @@ export default function PropertySettingsPage({
 
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          Account Type *
-                        </label>
-                        <select
-                          value={newQrType}
-                          onChange={(e) => setNewQrType(e.target.value as any)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        >
-                          <option value="UPI_QR">⚡ UPI / QR Profile</option>
-                          <option value="BANK_TRANSFER">🏦 Bank Transfer (IMPS / NEFT)</option>
-                          <option value="CASH_DESK">💵 Petty Cash / Reception Counter</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
                           Bank / Account Label *
                         </label>
                         <input
                           type="text"
-                          placeholder={newQrType === "CASH_DESK" ? "Reception Cash Drawer" : "e.g. HDFC Bank, ICICI Bank"}
+                          placeholder={newQrPartnerId === "PETTY_CASH" ? "Reception Cash Drawer" : "e.g. HDFC Bank, ICICI Bank"}
                           value={newQrBank}
                           onChange={(e) => setNewQrBank(e.target.value)}
                           className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
@@ -628,16 +616,16 @@ export default function PropertySettingsPage({
 
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          UPI VPA ID {newQrType === "UPI_QR" ? "*" : "(Optional)"}
+                          UPI ID {newQrPartnerId === "PETTY_CASH" ? "(N/A for Cash)" : "(Optional for Bank Transfer)"}
                         </label>
                         <input
                           type="text"
-                          disabled={newQrType === "CASH_DESK"}
-                          placeholder={newQrType === "CASH_DESK" ? "N/A — Cash Counter" : "e.g. name@okhdfcbank"}
-                          value={newQrType === "CASH_DESK" ? "" : newQrUpi}
+                          disabled={newQrPartnerId === "PETTY_CASH"}
+                          placeholder={newQrPartnerId === "PETTY_CASH" ? "N/A — Cash Counter" : "e.g. name@okhdfcbank"}
+                          value={newQrPartnerId === "PETTY_CASH" ? "" : newQrUpi}
                           onChange={(e) => setNewQrUpi(e.target.value)}
                           className={`w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a] ${
-                            newQrType === "CASH_DESK" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
+                            newQrPartnerId === "PETTY_CASH" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
                           }`}
                         />
                       </div>
@@ -695,16 +683,16 @@ export default function PropertySettingsPage({
 
                                 {qr.isDefault ? (
                                   <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                    ✓ Default QR
+                                    ✓ Default UPI
                                   </span>
                                 ) : (
                                   <button
                                     type="button"
                                     onClick={() => handleSetDefaultProfile(qr.id)}
                                     className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-100 hover:bg-orange-50 text-gray-600 hover:text-[#c2652a] border border-gray-200 transition-colors cursor-pointer"
-                                    title="Set as default QR profile for tenant rent reminders"
+                                    title="Set as default UPI account for tenant rent reminders"
                                   >
-                                    Set Default
+                                    Set Default UPI
                                   </button>
                                 )}
                               </div>
@@ -1087,7 +1075,7 @@ export default function PropertySettingsPage({
                 </div>
 
                 <div>
-                  <h3 className="font-serif font-bold text-lg text-gray-900">Remove Payment QR Profile?</h3>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">Remove Payment Account?</h3>
                   <p className="text-xs text-gray-500 mt-1">
                     Are you sure you want to delete <strong>"{deleteQrTarget.name}"</strong>? This profile will be permanently removed from Firebase Firestore.
                   </p>
