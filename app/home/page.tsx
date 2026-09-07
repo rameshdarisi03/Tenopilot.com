@@ -403,7 +403,13 @@ export default function HomeWorkspacePage() {
       ownerEmail: profile?.email || "isharapandey01@gmail.com",
     };
 
-    await initializeCleanProperty(newBuilding.id, newBuilding.name, profile?.displayName || userDisplayName);
+    await initializeCleanProperty(
+      newBuilding.id,
+      newBuilding.name,
+      profile?.displayName || userDisplayName,
+      newPropLocation.trim() || undefined,
+      profile?.phone || undefined
+    );
     await portfolioStore.addProperty(newBuilding, profile?.email);
 
     setShowAddPropertyModal(false);

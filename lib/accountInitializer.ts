@@ -33,7 +33,8 @@ export async function initializeCleanProperty(
   propertyId: string,
   propertyName: string = "New Property Estate",
   ownerName?: string,
-  city?: string
+  city?: string,
+  ownerPhone?: string
 ) {
   if (typeof window === "undefined" || !propertyId) return;
 
@@ -43,6 +44,7 @@ export async function initializeCleanProperty(
       ...CLEAN_ZERO_PROPERTY_SETTINGS,
       propertyName: propertyName,
       propertyAddress: city ? `${city}, India` : "Bengaluru, Karnataka",
+      managerPhone: ownerPhone || "",
     };
     await propertySettingsStore.updateSettings(initialSettings, propertyId);
 
@@ -82,7 +84,7 @@ export async function provisionNewPropertyWorkspace(params: ProvisionWorkspacePa
   if (typeof window === "undefined" || !propertyId) return;
 
   // 1. Initialize clean property database
-  await initializeCleanProperty(propertyId, propertyName, ownerName, city);
+  await initializeCleanProperty(propertyId, propertyName, ownerName, city, ownerPhone);
 
   // 2. Provision building inside Owner's Organization Portfolio
   const portfolioProperty: PortfolioProperty = {

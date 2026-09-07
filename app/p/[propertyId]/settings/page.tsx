@@ -126,13 +126,25 @@ export default function PropertySettingsPage({
     // Load local & Cloud Firestore settings with active onSnapshot WebSocket listener
     propertySettingsStore.initFirebaseListener(propertyId);
     const loaded = propertySettingsStore.getSettings(propertyId);
+    if (!loaded.managerPhone && profile?.phone) {
+      loaded.managerPhone = profile.phone;
+    }
     setSettings(loaded);
     propertySettingsStore.fetchSettingsFromFirestore(propertyId).then((fs) => {
-      setSettings(fs);
+      if (fs) {
+        if (!fs.managerPhone && profile?.phone) {
+          fs.managerPhone = profile.phone;
+        }
+        setSettings(fs);
+      }
     });
 
     const unsubSettings = propertySettingsStore.subscribe(() => {
-      setSettings(propertySettingsStore.getSettings(propertyId));
+      const fresh = propertySettingsStore.getSettings(propertyId);
+      if (!fresh.managerPhone && profile?.phone) {
+        fresh.managerPhone = profile.phone;
+      }
+      setSettings(fresh);
     });
 
     const ownerDisplayName = profile?.displayName;
@@ -965,14 +977,29 @@ export default function PropertySettingsPage({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Manager Mobile *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-gray-700">Manager Mobile *</label>
+                        {profile?.phone && settings.managerPhone !== profile.phone && (
+                          <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, managerPhone: profile.phone! })}
+                            className="text-[10px] font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            ⚡ Use Owner Phone ({profile.phone})
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         value={settings.managerPhone}
                         onChange={(e) => setSettings({ ...settings, managerPhone: e.target.value })}
+                        placeholder="e.g. 9876543210 or +91 98765 43210"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Printed on tenant receipts and shared with occupants as the on-site manager contact.
+                      </p>
                     </div>
                   </div>
                 </div>
