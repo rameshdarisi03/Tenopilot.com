@@ -52,6 +52,7 @@ import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
+import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -733,98 +734,6 @@ export default function FinancialHubPage({
     }
   };
 
-  const renderAccountOptions = () => {
-    const businessAccs = paymentAccounts.filter(
-      (a) => a.type === "Business Account" || a.partnerId === "BUSINESS"
-    );
-    const cashAccs = paymentAccounts.filter(
-      (a) => a.type === "Petty Cash" || a.partnerId === "PETTY_CASH" || a.accountType === "CASH_DESK"
-    );
-
-    const partnerAccMap = new Map<string, PaymentAccountConfig[]>();
-    partners.forEach((p) => partnerAccMap.set(p.id, []));
-
-    const otherAccs: PaymentAccountConfig[] = [];
-
-    paymentAccounts.forEach((acc) => {
-      if (businessAccs.includes(acc) || cashAccs.includes(acc)) return;
-
-      if (acc.partnerId && partnerAccMap.has(acc.partnerId)) {
-        partnerAccMap.get(acc.partnerId)!.push(acc);
-        return;
-      }
-
-      const matched = partners.find(
-        (p) =>
-          (acc.partnerName && acc.partnerName.toLowerCase() === p.name.toLowerCase()) ||
-          acc.name.toLowerCase().startsWith(p.name.toLowerCase()) ||
-          acc.name.toLowerCase().includes(`(${p.name.toLowerCase()})`)
-      );
-
-      if (matched) {
-        partnerAccMap.get(matched.id)!.push(acc);
-      } else {
-        otherAccs.push(acc);
-      }
-    });
-
-    return (
-      <>
-        <optgroup label="🏢 Common Business Pool">
-          {businessAccs.length > 0 ? (
-            businessAccs.map((acc) => (
-              <option key={acc.id} value={acc.name}>
-                {acc.name}
-              </option>
-            ))
-          ) : (
-            <option value="Main Business Account">Main Business Account</option>
-          )}
-        </optgroup>
-
-        <optgroup label="💵 Cash / Reception Drawer">
-          {cashAccs.length > 0 ? (
-            cashAccs.map((acc) => (
-              <option key={acc.id} value={acc.name}>
-                {acc.name}
-              </option>
-            ))
-          ) : (
-            <option value="Petty Cash">Petty Cash / Reception Desk</option>
-          )}
-        </optgroup>
-
-        {partners.map((p) => {
-          const pAccs = partnerAccMap.get(p.id) || [];
-          return (
-            <optgroup key={p.id} label={`👤 ${p.name} (${p.ownershipPercentage}% Partner)`}>
-              {pAccs.length > 0 ? (
-                pAccs.map((acc) => (
-                  <option key={acc.id} value={acc.name}>
-                    {acc.name}
-                  </option>
-                ))
-              ) : (
-                <option value={`${p.name} (Personal Account)`}>
-                  {p.name} (Personal Account)
-                </option>
-              )}
-            </optgroup>
-          );
-        })}
-
-        {otherAccs.length > 0 && (
-          <optgroup label="Other Accounts">
-            {otherAccs.map((acc) => (
-              <option key={acc.id} value={acc.name}>
-                {acc.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </>
-    );
-  };
 
   return (
     <div className="flex min-h-screen bg-[#fcf9f8] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
@@ -2061,13 +1970,12 @@ export default function FinancialHubPage({
                           <label className="block font-bold text-gray-900 mb-1">
                             Paid From Account *
                           </label>
-                          <select
+                          <ThemedAccountSelect
                             value={paidFrom}
-                            onChange={(e) => setPaidFrom(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                          >
-                            {renderAccountOptions()}
-                          </select>
+                            onChange={(val) => setPaidFrom(val)}
+                            accounts={paymentAccounts}
+                            partners={partners}
+                          />
                         </div>
 
                         <div>
@@ -2253,15 +2161,14 @@ export default function FinancialHubPage({
                         <label className="block font-bold text-gray-900 mb-1">
                           Paid From Account *
                         </label>
-                        <select
+                        <ThemedAccountSelect
                           value={recurringModal.paidFrom}
-                          onChange={(e) =>
-                            setRecurringModal({ ...recurringModal, paidFrom: e.target.value })
+                          onChange={(val) =>
+                            setRecurringModal({ ...recurringModal, paidFrom: val })
                           }
-                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-medium text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        >
-                          {renderAccountOptions()}
-                        </select>
+                          accounts={paymentAccounts}
+                          partners={partners}
+                        />
                       </div>
 
                       <div>
@@ -2693,13 +2600,12 @@ export default function FinancialHubPage({
                   <label className="block font-bold text-gray-900 mb-1">
                     Default Paid From *
                   </label>
-                  <select
+                  <ThemedAccountSelect
                     value={recPaidFrom}
-                    onChange={(e) => setRecPaidFrom(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    {renderAccountOptions()}
-                  </select>
+                    onChange={(val) => setRecPaidFrom(val)}
+                    accounts={paymentAccounts}
+                    partners={partners}
+                  />
                 </div>
               </div>
 

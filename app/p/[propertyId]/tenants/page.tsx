@@ -30,6 +30,7 @@ import { StaggerItem } from "@/components/motion/StaggerContainer";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
+import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 import {
   Search,
@@ -1967,56 +1968,12 @@ Scroll vertically to browse all residents without pagination limits
                   <label className="block font-bold text-gray-700 mb-1">
                     Paid To / Deposited In Account *
                   </label>
-                  <select
+                  <ThemedAccountSelect
                     value={paidTo}
-                    onChange={(e) => setPaidTo(e.target.value)}
-                    className="w-full px-2.5 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  >
-                    <optgroup label="🏢 Common Business Pool">
-                      {paymentAccounts
-                        .filter((a) => a.type === "Business Account" || a.partnerId === "BUSINESS")
-                        .map((acc) => (
-                          <option key={acc.id} value={acc.name}>
-                            {acc.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                    <optgroup label="💵 Cash / Reception Drawer">
-                      {paymentAccounts
-                        .filter((a) => a.type === "Petty Cash" || a.partnerId === "PETTY_CASH" || a.accountType === "CASH_DESK")
-                        .map((acc) => (
-                          <option key={acc.id} value={acc.name}>
-                            {acc.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                    {partners.map((p) => {
-                      const pAccs = paymentAccounts.filter(
-                        (a) =>
-                          a.partnerId === p.id ||
-                          (a.partnerName && a.partnerName.toLowerCase() === p.name.toLowerCase()) ||
-                          a.name.toLowerCase().startsWith(p.name.toLowerCase())
-                      );
-                      if (pAccs.length === 0) {
-                        return (
-                          <optgroup key={p.id} label={`👤 ${p.name} (Partner)`}>
-                            <option value={`${p.name} (Partner Account)`}>
-                              {p.name} (Partner Account)
-                            </option>
-                          </optgroup>
-                        );
-                      }
-                      return (
-                        <optgroup key={p.id} label={`👤 ${p.name} (${p.ownershipPercentage}% Partner)`}>
-                          {pAccs.map((acc) => (
-                            <option key={acc.id} value={acc.name}>
-                              {acc.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
+                    onChange={(val) => setPaidTo(val)}
+                    accounts={paymentAccounts}
+                    partners={partners}
+                  />
                 </div>
 
                 {/* 💵 Dynamic Amount Inputs Based on Selected Category */}

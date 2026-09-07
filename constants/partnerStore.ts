@@ -290,6 +290,22 @@ export const partnerStore = {
         };
       });
 
+      // Ensure Main Business Account is always present as a pool source
+      const hasBusiness = unified.some(
+        (a) => a.type === "Business Account" || a.partnerId === "BUSINESS" || a.name.toLowerCase().includes("business")
+      );
+      if (!hasBusiness) {
+        unified.unshift({
+          id: "acc-main-business-default",
+          name: "Main Business Account",
+          type: "Business Account",
+          partnerId: "BUSINESS",
+          partnerName: "Main Business Pool",
+          bankLabel: "Primary Operating Pool",
+          isDefault: true,
+        });
+      }
+
       // Ensure Petty Cash is always present as a funding source
       const hasCash = unified.some(
         (a) => a.type === "Petty Cash" || a.accountType === "CASH_DESK" || a.name.toLowerCase().includes("cash")
