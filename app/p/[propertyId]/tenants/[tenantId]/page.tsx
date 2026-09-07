@@ -3672,200 +3672,203 @@ export default function IndividualTenantProfilePage({
 
         {/* 3. Edit Profile Modal */}
         {showEditProfileModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+              <div className="flex items-center justify-between p-5 sm:p-6 pb-3 border-b border-gray-100 shrink-0">
                 <div>
                   <h3 className="font-serif font-bold text-lg text-gray-900">
-                    Edit Tenant Profile
+                    {occupantState?.stayType === "Guest" ? "Edit Guest Profile" : "Edit Tenant Profile"}
                   </h3>
                   <p className="text-xs text-gray-500">
                     Update personal and rental information
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowEditProfileModal(false)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleEditProfileSubmit} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Full Name (Typo Correction) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Mobile Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Joining Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={editJoiningDate}
-                    onChange={(e) => setEditJoiningDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Monthly Rent (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={editRent}
-                    onChange={(e) => setEditRent(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Security Deposit (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={editDeposit}
-                    onChange={(e) => setEditDeposit(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                {occupantState?.stayType !== "Guest" && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block font-bold text-gray-700">
-                        Monthly Rent Due Day
-                      </label>
-                      {editCustomDueDay !== "" && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                          Custom Override
-                        </span>
-                      )}
-                    </div>
-                    <select
-                      value={editCustomDueDay}
-                      onChange={(e) => setEditCustomDueDay(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
-                    >
-                      <option value="">
-                        Property Default ({propertySettings?.desiredDueDate || 5}th of every month)
-                      </option>
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
-                        const suffix =
-                          day === 1 || day === 21
-                            ? "st"
-                            : day === 2 || day === 22
-                            ? "nd"
-                            : day === 3 || day === 23
-                            ? "rd"
-                            : "th";
-                        return (
-                          <option key={day} value={String(day)}>
-                            {day}{suffix} of every month (Custom Due Day)
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Defaults to property settings ({propertySettings?.desiredDueDate || 5}th). Select a day if this tenant has an agreed custom salary/payment cycle.
-                    </p>
-                  </div>
-                )}
-
-                {occupantState?.stayType === "Guest" ? (
+              <form onSubmit={handleEditProfileSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 text-xs overscroll-contain">
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
-                      Purpose of Visit (e.g. Exam, Job Interview, Hospital Visit)
+                      Full Name (Typo Correction) *
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. UPSC Exam / Infosys Training"
-                      value={editPurposeOfVisit}
-                      onChange={(e) => setEditPurposeOfVisit(e.target.value)}
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
                   </div>
-                ) : (
-                  <>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Joining Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={editJoiningDate}
+                      onChange={(e) => setEditJoiningDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Monthly Rent (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      value={editRent}
+                      onChange={(e) => setEditRent(Number(e.target.value))}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Security Deposit (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      value={editDeposit}
+                      onChange={(e) => setEditDeposit(Number(e.target.value))}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+
+                  {occupantState?.stayType !== "Guest" && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-gray-700">
+                          Monthly Rent Due Day
+                        </label>
+                        {editCustomDueDay !== "" && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                            Custom Override
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={editCustomDueDay}
+                        onChange={(e) => setEditCustomDueDay(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
+                      >
+                        <option value="">
+                          Property Default ({propertySettings?.desiredDueDate || 5}th of every month)
+                        </option>
+                        {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
+                          const suffix =
+                            day === 1 || day === 21
+                              ? "st"
+                              : day === 2 || day === 22
+                              ? "nd"
+                              : day === 3 || day === 23
+                              ? "rd"
+                              : "th";
+                          return (
+                            <option key={day} value={String(day)}>
+                              {day}{suffix} of every month (Custom Due Day)
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Defaults to property settings ({propertySettings?.desiredDueDate || 5}th). Select a day if this tenant has an agreed custom salary/payment cycle.
+                      </p>
+                    </div>
+                  )}
+
+                  {occupantState?.stayType === "Guest" ? (
                     <div>
                       <label className="block font-bold text-gray-700 mb-1">
-                        Profession / Role
+                        Purpose of Visit (e.g. Exam, Job Interview, Hospital Visit)
                       </label>
                       <input
                         type="text"
-                        placeholder="e.g. Software Engineer, UPSC Aspirant"
-                        value={editOccupation}
-                        onChange={(e) => setEditOccupation(e.target.value)}
+                        placeholder="e.g. UPSC Exam / Infosys Training"
+                        value={editPurposeOfVisit}
+                        onChange={(e) => setEditPurposeOfVisit(e.target.value)}
                         className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
                     </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Profession / Role
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Software Engineer, UPSC Aspirant"
+                          value={editOccupation}
+                          onChange={(e) => setEditOccupation(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block font-bold text-gray-700 mb-1">
-                        Place of Work / College / Office
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Microsoft Hyderabad / IIT Hyderabad"
-                        value={editWorkplace}
-                        onChange={(e) => setEditWorkplace(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                    </div>
-                  </>
-                )}
+                      <div>
+                        <label className="block font-bold text-gray-700 mb-1">
+                          Place of Work / College / Office
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Microsoft Hyderabad / IIT Hyderabad"
+                          value={editWorkplace}
+                          onChange={(e) => setEditWorkplace(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/90 shrink-0 flex items-center justify-end gap-3 rounded-b-3xl">
                   <button
                     type="button"
                     onClick={() => setShowEditProfileModal(false)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50"
+                    className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-100 cursor-pointer transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                    className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md cursor-pointer transition-all active:scale-98"
                   >
                     Save Changes
                   </button>
