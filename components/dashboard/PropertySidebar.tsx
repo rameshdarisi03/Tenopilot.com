@@ -25,7 +25,7 @@ import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModa
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 
 export function PropertySidebar({
-  propertyId = "sunshine-pg",
+  propertyId: propPropertyId,
   mobileOpen = false,
   onMobileClose,
 }: {
@@ -37,6 +37,7 @@ export function PropertySidebar({
   const router = useRouter();
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   const { profile, logout } = useAuth();
+  const propertyId = propPropertyId || profile?.assignedPropertyId || "";
 
   useEffect(() => {
     const unsubscribe = staffStore.subscribe(() => {

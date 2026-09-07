@@ -3,7 +3,7 @@
 import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, ChevronLeft, UserCheck, Edit3, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
-import { Complaint, subscribeToComplaints, INITIAL_COMPLAINTS } from "@/lib/complaintStore";
+import { Complaint, subscribeToComplaints } from "@/lib/complaintStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
@@ -18,7 +18,7 @@ export function PropertyHeader({
   onSearchChange,
   onTabChange,
   onMobileMenuToggle,
-  propertyId = "sunshine-pg",
+  propertyId = "",
   actionElement,
 }: {
   title?: string;
@@ -43,9 +43,7 @@ export function PropertyHeader({
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
-  const [complaints, setComplaints] = useState<Complaint[]>(
-    propertyId === "sunshine-pg" ? INITIAL_COMPLAINTS : []
-  );
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
 
   let savedSessionData: any = null;
   if (typeof window !== "undefined") {
@@ -63,10 +61,12 @@ export function PropertyHeader({
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!propertyId) {
+      setComplaints([]);
+      return;
+    }
     const unsubscribe = subscribeToComplaints(propertyId, (list) => {
-      if (list && list.length > 0) {
-        setComplaints(list);
-      }
+      setComplaints(list || []);
     });
     return () => unsubscribe();
   }, [propertyId]);

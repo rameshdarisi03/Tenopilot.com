@@ -60,7 +60,7 @@ export default function PropertyOverviewPage({
   params: Promise<{ propertyId: string }>;
 }) {
   const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const propertyId = resolvedParams?.propertyId || "";
   const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const [copiedLink, setCopiedLink] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -115,9 +115,15 @@ export default function PropertyOverviewPage({
     setOccupants(occupantStore.getOccupants(propertyId));
     setStructure(propertyStore.getStructure(propertyId));
 
+    if (!propertyId) {
+      setOccupants([]);
+      setStructure([]);
+      setComplaints([]);
+      return;
+    }
     const unsubOcc = occupantStore.subscribe(() => setOccupants(occupantStore.getOccupants(propertyId)));
     const unsubProp = propertyStore.subscribe(() => setStructure(propertyStore.getStructure(propertyId)));
-    const unsubComp = subscribeToComplaints(propertyId, (list) => setComplaints(list));
+    const unsubComp = subscribeToComplaints(propertyId, (list) => setComplaints(list || []));
 
     return () => {
       unsubOcc();

@@ -246,8 +246,14 @@ export default function HomeWorkspacePage() {
     if (role === "receptionist") {
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === email);
-      const targetProperty = match?.assignedPropertyId || profile?.assignedPropertyId || savedSessionData?.propertyId || "sunshine-pg";
-      router.replace(`/p/${targetProperty}/overview`);
+      const targetProperty =
+        (match?.assignedPropertyId && (isMasterAccount || match.assignedPropertyId !== "sunshine-pg") ? match.assignedPropertyId : null) ||
+        (profile?.assignedPropertyId && (isMasterAccount || profile.assignedPropertyId !== "sunshine-pg") ? profile.assignedPropertyId : null) ||
+        (savedSessionData?.assignedPropertyId && (isMasterAccount || savedSessionData.assignedPropertyId !== "sunshine-pg") ? savedSessionData.assignedPropertyId : null) ||
+        (isMasterAccount ? "sunshine-pg" : "");
+      if (targetProperty) {
+        router.replace(`/p/${targetProperty}/overview`);
+      }
       return;
     }
 

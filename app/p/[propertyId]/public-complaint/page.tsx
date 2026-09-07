@@ -117,7 +117,7 @@ export default function PublicTenantComplaintPage({
   params: Promise<{ propertyId: string }>;
 }) {
   const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const propertyId = resolvedParams?.propertyId || "";
 
   // Active Tab: "LOG" | "TRACK"
   const [activeTab, setActiveTab] = useState<"LOG" | "TRACK">("LOG");
@@ -196,9 +196,18 @@ export default function PublicTenantComplaintPage({
       }
     });
 
+    if (!propertyId) {
+      setAllComplaints([]);
+      return () => {
+        unsubscribeSettings();
+        unsubscribeLocal();
+        unsubscribeFirestore();
+      };
+    }
+
     // Real-time complaints listener for tracking
     const unsubscribeComplaints = subscribeToComplaints(propertyId, (list) => {
-      setAllComplaints(list);
+      setAllComplaints(list || []);
     });
 
     return () => {

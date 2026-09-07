@@ -72,8 +72,30 @@ export const INITIAL_COMPLAINTS: Complaint[] = [
   },
 ];
 
-let inMemoryComplaintsStore: Complaint[] = [];
-const storeListeners: Set<(complaints: Complaint[]) => void> = new Set();
+// In-Memory Cloud Firestore Real-time Reactive Cache partitioned strictly by propertyId
+const inMemoryComplaintsByProperty = new Map<string, Complaint[]>();
+const storeListenersByProperty = new Map<string, Set<(complaints: Complaint[]) => void>>();
+
+function getPropertyComplaints(propertyId: string): Complaint[] {
+  return inMemoryComplaintsByProperty.get(propertyId) || [];
+}
+
+function setPropertyComplaints(propertyId: string, complaints: Complaint[]) {
+  inMemoryComplaintsByProperty.set(propertyId, complaints);
+}
+
+function notifyPropertyListeners(propertyId: string, complaints: Complaint[]) {
+  const listeners = storeListenersByProperty.get(propertyId);
+  if (listeners) {
+    listeners.forEach((fn) => {
+      try {
+        fn(complaints);
+      } catch (e) {
+        console.warn(`Error calling complaint listener for property ${propertyId}:`, e);
+      }
+    });
+  }
+}
 
 function loadFromLocalStorage(propertyId: string): Complaint[] | null {
   if (typeof window === "undefined") return null;
@@ -95,8 +117,17 @@ function saveToLocalStorage(propertyId: string, complaints: Complaint[]) {
   }
 }
 
-function notifyStoreListeners(complaints: Complaint[]) {
-  storeListeners.forEach((fn) => fn(complaints));
+/**
+ * Cleanly reset local complaints cache for a property
+ */
+export function clearPropertyComplaintsCache(propertyId: string) {
+  inMemoryComplaintsByProperty.delete(propertyId);
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem(`tenopilot_complaints_${propertyId}`);
+    } catch {}
+  }
+  notifyPropertyListeners(propertyId, []);
 }
 
 /**
@@ -116,18 +147,18 @@ export function subscribeToComplaints(
   propertyId: string,
   onUpdate: (complaints: Complaint[]) => void
 ) {
-  storeListeners.add(onUpdate);
+  if (!storeListenersByProperty.has(propertyId)) {
+    storeListenersByProperty.set(propertyId, new Set());
+  }
+  storeListenersByProperty.get(propertyId)!.add(onUpdate);
 
-  const isMasterDemo = propertyId === "sunshine-pg";
   const localSaved = loadFromLocalStorage(propertyId);
   if (localSaved) {
-    inMemoryComplaintsStore = localSaved;
+    setPropertyComplaints(propertyId, localSaved);
     onUpdate(localSaved);
-  } else if (isMasterDemo) {
-    inMemoryComplaintsStore = [...INITIAL_COMPLAINTS];
-    onUpdate(inMemoryComplaintsStore);
   } else {
-    inMemoryComplaintsStore = [];
+    // Real properties and new accounts strictly start with clean zero complaints
+    setPropertyComplaints(propertyId, []);
     onUpdate([]);
   }
 
@@ -162,36 +193,41 @@ export function subscribeToComplaints(
               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
 
-          inMemoryComplaintsStore = deduplicated;
+          setPropertyComplaints(propertyId, deduplicated);
           saveToLocalStorage(propertyId, deduplicated);
-          notifyStoreListeners(deduplicated);
+          notifyPropertyListeners(propertyId, deduplicated);
         } else {
-          if (isMasterDemo) {
-            INITIAL_COMPLAINTS.forEach((c) => {
-              setDoc(doc(db, "properties", propertyId, "complaints", c.id), sanitizeForFirestore(c)).catch(
-                () => {}
-              );
-            });
-          } else {
-            inMemoryComplaintsStore = [];
-            saveToLocalStorage(propertyId, []);
-            notifyStoreListeners([]);
-          }
+          // Property collection is empty -> strictly 0 complaints
+          setPropertyComplaints(propertyId, []);
+          saveToLocalStorage(propertyId, []);
+          notifyPropertyListeners(propertyId, []);
         }
       },
       (error) => {
-        console.warn("Firestore snapshot listener error, using in-memory:", error);
+        console.warn(`Firestore complaints listener notice for ${propertyId}:`, error);
       }
     );
 
     return () => {
-      storeListeners.delete(onUpdate);
+      const set = storeListenersByProperty.get(propertyId);
+      if (set) {
+        set.delete(onUpdate);
+        if (set.size === 0) {
+          storeListenersByProperty.delete(propertyId);
+        }
+      }
       unsubscribe();
     };
   } catch (err) {
     console.warn("Firestore subscribe error fallback:", err);
     return () => {
-      storeListeners.delete(onUpdate);
+      const set = storeListenersByProperty.get(propertyId);
+      if (set) {
+        set.delete(onUpdate);
+        if (set.size === 0) {
+          storeListenersByProperty.delete(propertyId);
+        }
+      }
     };
   }
 }
@@ -226,12 +262,14 @@ export async function createComplaintInFirestore(
   }
 
   // Deduplicate before appending to local in-memory store
-  inMemoryComplaintsStore = [
+  const currentList = getPropertyComplaints(propertyId);
+  const updatedList = [
     newComplaint,
-    ...inMemoryComplaintsStore.filter((c) => c.id !== newId),
+    ...currentList.filter((c) => c.id !== newId),
   ];
-  saveToLocalStorage(propertyId, inMemoryComplaintsStore);
-  notifyStoreListeners(inMemoryComplaintsStore);
+  setPropertyComplaints(propertyId, updatedList);
+  saveToLocalStorage(propertyId, updatedList);
+  notifyPropertyListeners(propertyId, updatedList);
   
   // Future WhatsApp API Hook Trigger
   sendWhatsAppNotificationStub(newComplaint, "OPEN");
@@ -264,18 +302,21 @@ export async function updateComplaintStatusInFirestore(
     console.warn("Firestore update complaint error, fallback to local store:", error);
   }
 
-  const idx = inMemoryComplaintsStore.findIndex((c) => c.id === complaintId);
+  const currentList = getPropertyComplaints(propertyId);
+  const idx = currentList.findIndex((c) => c.id === complaintId);
   if (idx !== -1) {
-    inMemoryComplaintsStore[idx] = {
-      ...inMemoryComplaintsStore[idx],
+    const updatedList = [...currentList];
+    updatedList[idx] = {
+      ...updatedList[idx],
       ...updates,
     };
 
-    saveToLocalStorage(propertyId, inMemoryComplaintsStore);
-    notifyStoreListeners(inMemoryComplaintsStore);
+    setPropertyComplaints(propertyId, updatedList);
+    saveToLocalStorage(propertyId, updatedList);
+    notifyPropertyListeners(propertyId, updatedList);
 
     // Trigger WhatsApp notification stub
-    sendWhatsAppNotificationStub(inMemoryComplaintsStore[idx], newStatus);
+    sendWhatsAppNotificationStub(updatedList[idx], newStatus);
   }
 
   return true;
@@ -296,11 +337,17 @@ export async function markComplaintAsReadInFirestore(
     console.warn("Firestore mark read error:", error);
   }
 
-  const idx = inMemoryComplaintsStore.findIndex((c) => c.id === complaintId);
+  const currentList = getPropertyComplaints(propertyId);
+  const idx = currentList.findIndex((c) => c.id === complaintId);
   if (idx !== -1) {
-    inMemoryComplaintsStore[idx].isRead = isRead;
-    saveToLocalStorage(propertyId, inMemoryComplaintsStore);
-    notifyStoreListeners(inMemoryComplaintsStore);
+    const updatedList = [...currentList];
+    updatedList[idx] = {
+      ...updatedList[idx],
+      isRead,
+    };
+    setPropertyComplaints(propertyId, updatedList);
+    saveToLocalStorage(propertyId, updatedList);
+    notifyPropertyListeners(propertyId, updatedList);
   }
 
   return true;
@@ -320,9 +367,11 @@ export async function deleteComplaintInFirestore(
     console.warn("Firestore delete complaint error:", error);
   }
 
-  inMemoryComplaintsStore = inMemoryComplaintsStore.filter((c) => c.id !== complaintId);
-  saveToLocalStorage(propertyId, inMemoryComplaintsStore);
-  notifyStoreListeners(inMemoryComplaintsStore);
+  const currentList = getPropertyComplaints(propertyId);
+  const updatedList = currentList.filter((c) => c.id !== complaintId);
+  setPropertyComplaints(propertyId, updatedList);
+  saveToLocalStorage(propertyId, updatedList);
+  notifyPropertyListeners(propertyId, updatedList);
   return true;
 }
 

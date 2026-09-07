@@ -55,7 +55,7 @@ export default function AdminComplaintsPage({
   params: Promise<{ propertyId: string }>;
 }) {
   const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const propertyId = resolvedParams?.propertyId || "";
 
   // Navigation & Layout State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -116,9 +116,14 @@ export default function AdminComplaintsPage({
       setPublicPortalUrl(`${baseDomain}/p/${propertyId}/public-complaint`);
     }
 
+    if (!propertyId) {
+      setComplaints([]);
+      return;
+    }
+
     // Subscribe to Firebase real-time complaints listener
     const unsubscribe = subscribeToComplaints(propertyId, (list) => {
-      setComplaints(list);
+      setComplaints(list || []);
     });
 
     return () => unsubscribe();

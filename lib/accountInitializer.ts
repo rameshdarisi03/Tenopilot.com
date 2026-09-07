@@ -7,6 +7,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore } from "@/constants/mockOccupants";
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
 import { staffStore } from "@/lib/staffStore";
+import { clearPropertyComplaintsCache } from "@/lib/complaintStore";
 
 export interface ProvisionWorkspaceParams {
   propertyId: string;
@@ -54,6 +55,9 @@ export async function initializeCleanProperty(
 
     // 4. Initialize Occupants to 0 tenants []
     occupantStore.updateOccupants([], propertyId);
+
+    // 5. Initialize Complaints to 0 tickets []
+    clearPropertyComplaintsCache(propertyId);
   } catch (e) {
     console.warn(`Property initialization notice for ${propertyId}:`, e);
   }

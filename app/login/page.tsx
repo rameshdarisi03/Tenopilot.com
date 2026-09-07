@@ -487,6 +487,13 @@ export default function LoginPage() {
 
       // 1. LOCAL-FIRST PRE-COMMIT: Update in-memory & localStorage immediately!
       // This guarantees that any real-time snapshot listener sees the exact matching PIN & version.
+      const isMasterTest = targetEmail === "isharapandey01@gmail.com";
+      const defaultDemoProp = isMasterTest ? "sunshine-pg" : "";
+      const cleanAssignedProp =
+        savedSession?.assignedPropertyId && (isMasterTest || savedSession.assignedPropertyId !== "sunshine-pg")
+          ? savedSession.assignedPropertyId
+          : defaultDemoProp;
+
       if (match) {
         staffStore.setSecurityPinInMemory(match.id, finalPin, unifiedSessionVersion);
       } else {
@@ -496,7 +503,7 @@ export default function LoginPage() {
           email: targetEmail,
           phone: "+91 98000 00000",
           role: savedSession?.role || "master_admin",
-          assignedPropertyId: savedSession?.assignedPropertyId || "sunshine-pg",
+          assignedPropertyId: cleanAssignedProp,
           assignedPropertyIds: ["*"],
           propertyName: savedSession?.propertyName || "All Properties",
           status: "Active",
@@ -515,8 +522,9 @@ export default function LoginPage() {
           email: targetEmail,
           name: sanitizeTitleCase(targetEmail.split("@")[0]) || "Master Admin",
           role: "master_admin",
-          assignedPropertyId: "sunshine-pg",
+          assignedPropertyId: cleanAssignedProp,
         }),
+        assignedPropertyId: cleanAssignedProp,
         securityPin: finalPin,
         hasSetPin: true,
       };
@@ -559,7 +567,6 @@ export default function LoginPage() {
       ]);
 
       // 3. Determine Onboarding & Destination with 1.5s timeout
-      const isMasterTest = targetEmail === "isharapandey01@gmail.com";
       let hasCompletedOnboarding = true;
       if (!isMasterTest && role === "master_admin") {
         try {
@@ -583,10 +590,10 @@ export default function LoginPage() {
         }
       }
 
-      const targetProp = updated.assignedPropertyId || "sunshine-pg";
+      const targetProp = updated.assignedPropertyId;
       const targetPath = !hasCompletedOnboarding
         ? "/welcome"
-        : (role === "master_admin" ? "/home" : `/p/${targetProp}/overview`);
+        : (role === "master_admin" ? "/home" : (targetProp ? `/p/${targetProp}/overview` : "/home"));
 
       router.push(targetPath);
       if (typeof window !== "undefined") {
@@ -611,13 +618,16 @@ export default function LoginPage() {
     setError(null);
 
     const targetEmail = (savedSession?.email || email || "admin@gmail.com").trim().toLowerCase();
+    const isMasterTestUser = targetEmail === "isharapandey01@gmail.com";
     
     let isValid = false;
     let cloudFound = false;
     let activeSessionVersion = "";
     let resolvedRole = savedSession?.role || "master_admin";
     let resolvedName = savedSession?.name || "Team Member";
-    let resolvedProp = savedSession?.assignedPropertyId || "sunshine-pg";
+    let resolvedProp = (savedSession?.assignedPropertyId && (isMasterTestUser || savedSession.assignedPropertyId !== "sunshine-pg"))
+      ? savedSession.assignedPropertyId
+      : (isMasterTestUser ? "sunshine-pg" : "");
     let member: StaffMember | undefined = undefined;
 
     // 1. CLOUD-FIRST AUTHORITY: Query Firestore first as the definitive source of truth
@@ -630,7 +640,9 @@ export default function LoginPage() {
         if (data.sessionVersion) activeSessionVersion = data.sessionVersion;
         if (data.name) resolvedName = data.name;
         if (data.role) resolvedRole = data.role;
-        if (data.assignedPropertyId) resolvedProp = data.assignedPropertyId;
+        if (data.assignedPropertyId && (isMasterTestUser || data.assignedPropertyId !== "sunshine-pg")) {
+          resolvedProp = data.assignedPropertyId;
+        }
 
         if (data.securityPin) {
           if (data.securityPin === inputPin) {
@@ -653,7 +665,9 @@ export default function LoginPage() {
             if (uData.sessionVersion) activeSessionVersion = uData.sessionVersion;
             if (uData.displayName) resolvedName = uData.displayName;
             if (uData.role) resolvedRole = uData.role;
-            if (uData.assignedPropertyId) resolvedProp = uData.assignedPropertyId;
+            if (uData.assignedPropertyId && (isMasterTestUser || uData.assignedPropertyId !== "sunshine-pg")) {
+              resolvedProp = uData.assignedPropertyId;
+            }
 
             if (uData.securityPin) {
               if (uData.securityPin === inputPin) {
@@ -674,7 +688,9 @@ export default function LoginPage() {
               if (uData.sessionVersion) activeSessionVersion = uData.sessionVersion;
               if (uData.displayName) resolvedName = uData.displayName;
               if (uData.role) resolvedRole = uData.role;
-              if (uData.assignedPropertyId) resolvedProp = uData.assignedPropertyId;
+              if (uData.assignedPropertyId && (isMasterTestUser || uData.assignedPropertyId !== "sunshine-pg")) {
+                resolvedProp = uData.assignedPropertyId;
+              }
 
               if (uData.securityPin) {
                 if (uData.securityPin === inputPin) {
@@ -698,8 +714,24 @@ export default function LoginPage() {
           member = verification.member;
           if (member?.name) resolvedName = member.name;
           if (member?.role) resolvedRole = member.role;
-          if (member?.assignedPropertyId) resolvedProp = member.assignedPropertyId;
+          if (member?.assignedPropertyId && (isMasterTestUser || member.assignedPropertyId !== "sunshine-pg")) {
+            resolvedProp = member.assignedPropertyId;
+          }
         }
+      }
+
+      // Check owner portfolio fallback if resolvedProp is still unset
+      if (!resolvedProp && !isMasterTestUser) {
+        try {
+          const sanitizedKey = targetEmail.replace(/[^a-z0-9]/g, "_");
+          const portSnap = await getDoc(doc(db, "users", `portfolio_${sanitizedKey}`));
+          if (portSnap.exists()) {
+            const pList = portSnap.data()?.properties;
+            if (Array.isArray(pList) && pList.length > 0 && pList[0]?.id && pList[0]?.id !== "sunshine-pg") {
+              resolvedProp = pList[0].id;
+            }
+          }
+        } catch {}
       }
     } catch (cloudErr) {
       console.warn("Cloud Firestore PIN verification network fallback:", cloudErr);
@@ -767,10 +799,10 @@ export default function LoginPage() {
         } catch {}
       }
 
-      const targetProperty = updatedSession.assignedPropertyId || "sunshine-pg";
+      const targetProperty = updatedSession.assignedPropertyId;
       const targetPath = !hasCompletedOnboarding
         ? "/welcome"
-        : (role === "master_admin" ? "/home" : `/p/${targetProperty}/overview`);
+        : (role === "master_admin" ? "/home" : (targetProperty ? `/p/${targetProperty}/overview` : "/home"));
 
       router.push(targetPath);
       if (typeof window !== "undefined") {

@@ -92,7 +92,12 @@ function ClientActivationContent() {
         setActivatedSuccess(res.invite);
         setLoading(false);
         setTimeout(() => {
-          router.push("/p/sunshine-pg/overview");
+          const targetPropId = res.invite?.id ? `prop-${res.invite.id}` : "";
+          if (targetPropId) {
+            router.push(`/p/${targetPropId}/overview`);
+          } else {
+            router.push("/home");
+          }
         }, 2200);
       } else {
         setError(res.message);
