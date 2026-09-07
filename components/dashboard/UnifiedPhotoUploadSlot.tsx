@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, Upload, Check, Trash2, RefreshCw, FileText, Monitor, Smartphone } from "lucide-react";
+import { Camera, Upload, Check, Trash2, RefreshCw, FileText, Monitor } from "lucide-react";
 import { WebcamCaptureModal } from "./WebcamCaptureModal";
 
 async function compressImageToJpeg(fileOrBase64: File | string, maxDim = 600, quality = 0.82): Promise<string> {
@@ -64,7 +64,6 @@ export function UnifiedPhotoUploadSlot({
   placeholder?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
   const [showChoiceDropdown, setShowChoiceDropdown] = useState(false);
   const [showWebcamModal, setShowWebcamModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -109,12 +108,9 @@ export function UnifiedPhotoUploadSlot({
   };
 
   const handleMainButtonClick = () => {
-    // Reset file input values so re-selecting same file triggers change
+    // Reset file input value so re-selecting same file triggers change
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
-    }
-    if (nativeCameraInputRef.current) {
-      nativeCameraInputRef.current.value = "";
     }
     // Always toggle choice dropdown on both mobile and desktop
     setShowChoiceDropdown((prev) => !prev);
@@ -134,16 +130,6 @@ export function UnifiedPhotoUploadSlot({
         type="file"
         ref={fileInputRef}
         accept={acceptedFormats}
-        onChange={handleFileChange}
-        className="hidden"
-      />
-
-      {/* Hidden File Input for Native Camera App Launcher */}
-      <input
-        type="file"
-        ref={nativeCameraInputRef}
-        accept="image/*"
-        capture={aspectRatio === "headshot" ? "user" : "environment"}
         onChange={handleFileChange}
         className="hidden"
       />
@@ -238,28 +224,7 @@ export function UnifiedPhotoUploadSlot({
             </div>
           </button>
 
-          {/* Option 2: Native Device Camera App (Direct Camera Snap) */}
-          <button
-            type="button"
-            onClick={() => {
-              setShowChoiceDropdown(false);
-              if (nativeCameraInputRef.current) {
-                nativeCameraInputRef.current.value = "";
-              }
-              nativeCameraInputRef.current?.click();
-            }}
-            className="w-full p-2.5 rounded-xl hover:bg-emerald-50 flex items-center gap-3 text-left transition-colors cursor-pointer"
-          >
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0">
-              <Smartphone className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-gray-900 block">📷 Phone Camera App</span>
-              <span className="text-[10px] text-gray-500">Take snapshot directly with phone camera</span>
-            </div>
-          </button>
-
-          {/* Option 3: Choose from Gallery / Files */}
+          {/* Option 2: Choose from Gallery / Files */}
           <button
             type="button"
             onClick={() => {
