@@ -8,6 +8,7 @@ import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
+import { EditProfileModal } from "./EditProfileModal";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -38,8 +39,6 @@ export function PropertyHeader({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [editNameInput, setEditNameInput] = useState(profile?.displayName || "");
-  const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
@@ -469,7 +468,6 @@ export function PropertyHeader({
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    setEditNameInput(displayName);
                     setShowEditProfileModal(true);
                   }}
                   className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-amber-50 text-[#964407] font-bold transition-colors cursor-pointer"
@@ -528,95 +526,12 @@ export function PropertyHeader({
         </>
       )}
 
-      {/* ✏️ EDIT PROFILE MODAL */}
-      {showEditProfileModal && (
-        <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-gray-200 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-[#964407]" /> Edit Profile Details
-              </h3>
-              <button
-                onClick={() => setShowEditProfileModal(false)}
-                className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setIsUpdatingName(true);
-                await updateProfileName(editNameInput);
-                setIsUpdatingName(false);
-                setShowEditProfileModal(false);
-              }}
-              className="space-y-4 text-xs"
-            >
-              {/* Full Name (Editable) */}
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">
-                  Full Name / Username *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editNameInput}
-                  onChange={(e) => setEditNameInput(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#964407] font-semibold text-gray-900"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Updating your name here will instantly update your welcome dashboard greeting and profile cards across the app.
-                </p>
-              </div>
-
-              {/* Email Address (Disabled for now) */}
-              <div>
-                <label className="font-bold text-gray-400 block mb-1">
-                  Email Address (Disabled)
-                </label>
-                <input
-                  type="email"
-                  disabled
-                  value={userEmail}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-400 text-sm cursor-not-allowed font-mono"
-                />
-              </div>
-
-              {/* Mobile Number (Disabled for now) */}
-              <div>
-                <label className="font-bold text-gray-400 block mb-1">
-                  Mobile Number (Disabled)
-                </label>
-                <input
-                  type="tel"
-                  disabled
-                  value="+91 9876543210"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-100 text-gray-400 text-sm cursor-not-allowed font-mono"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowEditProfileModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingName}
-                  className="px-5 py-2.5 rounded-xl bg-[#964407] hover:bg-[#c2652a] text-white font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
-                >
-                  {isUpdatingName ? "Saving..." : "Save Profile"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ✏️ EDIT PROFILE DETAILS MODAL */}
+      <EditProfileModal
+        isOpen={showEditProfileModal}
+        onClose={() => setShowEditProfileModal(false)}
+        propertyId={propertyId}
+      />
     </header>
   );
 }

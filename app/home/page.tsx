@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Upload,
   RefreshCw,
+  Edit3,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -42,6 +43,7 @@ import { staffStore, UserRole } from "@/lib/staffStore";
 import { getMaxAllowedProperties, MULTI_PROPERTY_MONTHLY_PRICE } from "@/lib/subscriptionEngine";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
+import { EditProfileModal } from "@/components/dashboard/EditProfileModal";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
 
@@ -50,6 +52,7 @@ export default function HomeWorkspacePage() {
   const { profile, logout } = useAuth();
   const { config: platformConfig } = usePlatformConfig();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [properties, setProperties] = useState<PortfolioProperty[]>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -493,6 +496,17 @@ export default function HomeWorkspacePage() {
                       {activeRole === "master_admin" ? "MASTER ADMIN 👑" : activeRole === "admin" ? "PROPERTY ADMIN 🏢" : "RECEPTIONIST 🔑"}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      setShowEditProfileModal(true);
+                    }}
+                    className="w-full text-left flex items-center gap-2 px-4 py-2.5 hover:bg-orange-50 text-gray-800 transition-colors cursor-pointer border-b border-[#f8ede3]"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#964407]" />
+                    <span className="font-semibold">Edit Profile Details</span>
+                  </button>
                   <button
                     onClick={() => logout()}
                     className="w-full text-left flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-[#ba1a1a] transition-colors cursor-pointer"
@@ -978,6 +992,12 @@ export default function HomeWorkspacePage() {
           </div>
         </div>
       )}
+
+      {/* ✏️ Edit Profile Details Modal */}
+      <EditProfileModal
+        isOpen={showEditProfileModal}
+        onClose={() => setShowEditProfileModal(false)}
+      />
 
       {/* Footer */}
       <footer className="py-6 border-t border-[#d7c2b9]/40 text-center text-xs text-[#554339]">

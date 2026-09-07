@@ -36,6 +36,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   updateProfileName: (newName: string) => Promise<void>;
+  updateProfileDetails: (details: { displayName?: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -44,6 +45,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   updateProfileName: async () => {},
+  updateProfileDetails: async () => {},
   logout: async () => {},
 });
 
@@ -82,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let savedSessionName = "";
         let savedSessionRole: UserRole | undefined;
         let savedAssignedProp = "";
+        let savedSessionPhone = "";
 
         if (typeof window !== "undefined") {
           const saved = localStorage.getItem("tenopilot_saved_session");
@@ -92,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 savedSessionName = parsed.name || "";
                 savedSessionRole = parsed.role;
                 savedAssignedProp = parsed.assignedPropertyId || "";
+                savedSessionPhone = parsed.phone || "";
               }
             } catch {}
           }
@@ -139,6 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (snap.exists()) {
               const data = snap.data() as UserProfile;
               data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
+              if (!data.phone && savedSessionPhone) {
+                data.phone = savedSessionPhone;
+              }
               const isExplicitStaff = Boolean(staffAccountDoc?.role || staffMatch?.role);
               const finalRole = isExplicitStaff
                 ? (staffAccountDoc?.role || staffMatch?.role || "receptionist")
@@ -244,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 organizationId: "org_estate_01",
                 role: (parsed.role as UserRole) || "master_admin",
                 assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
+                phone: parsed.phone || "",
                 onboardingCompleted: true,
               };
               setProfile(fallbackProf);
@@ -481,13 +489,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user?.email, user?.uid, pathname, router]);
 
-  // Update Profile Name Function
-  const updateProfileName = async (newName: string) => {
-    const cleanName = sanitizeTitleCase(newName);
-    if (!cleanName) return;
+  // Update Profile Details (Name & Phone) Function
+  const updateProfileDetails = async ({
+    displayName,
+    phone,
+  }: {
+    displayName?: string;
+    phone?: string;
+  }) => {
+    const cleanName = displayName !== undefined ? sanitizeTitleCase(displayName) : undefined;
+    const cleanPhone = phone !== undefined ? phone.trim() : undefined;
 
     if (profile) {
-      const updated = { ...profile, displayName: cleanName };
+      const updated: UserProfile = {
+        ...profile,
+        ...(cleanName !== undefined && cleanName !== "" ? { displayName: cleanName } : {}),
+        ...(cleanPhone !== undefined ? { phone: cleanPhone } : {}),
+      };
       setProfile(updated);
 
       // Also sync to local saved session
@@ -496,7 +514,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            parsed.name = cleanName;
+            if (cleanName) parsed.name = cleanName;
+            if (cleanPhone !== undefined) parsed.phone = cleanPhone;
             localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
           } catch {}
         }
@@ -505,12 +524,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         try {
           const userDocRef = doc(db, "users", user.uid);
-          await setDoc(userDocRef, { displayName: cleanName }, { merge: true });
+          const updatePayload: Record<string, any> = {
+            updatedAt: new Date().toISOString(),
+          };
+          if (cleanName) updatePayload.displayName = cleanName;
+          if (cleanPhone !== undefined) updatePayload.phone = cleanPhone;
+          await setDoc(userDocRef, updatePayload, { merge: true });
         } catch (e) {
-          console.warn("Update profile name Firestore error:", e);
+          console.warn("Update profile details Firestore error:", e);
         }
       }
     }
+  };
+
+  // Backward-compatible wrapper
+  const updateProfileName = async (newName: string) => {
+    return updateProfileDetails({ displayName: newName });
   };
 
   // Sign Out / Logout Function
@@ -527,6 +556,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setProfile(null);
     setUser(null);
+    staffStore.setActiveRole("master_admin");
     await signOut(auth);
     router.replace("/login");
   };
@@ -562,7 +592,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, updateProfileName, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, updateProfileName, updateProfileDetails, logout }}>
       {children}
     </AuthContext.Provider>
   );
