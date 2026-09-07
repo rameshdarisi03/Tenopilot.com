@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
-import { parseRawSpreadsheetText, FastTrackParsedRow, normalizeIndianPhoneNumber, normalizeBedCode } from "@/lib/fastTrackHeuristicParser";
+import {
+  parseRawSpreadsheetText,
+  FastTrackParsedRow,
+  normalizeIndianPhoneNumber,
+  normalizeBedCode,
+} from "@/lib/fastTrackHeuristicParser";
+import { getActiveGeminiModels } from "@/lib/geminiModelDiscovery";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +20,8 @@ interface AiScanRequest {
     sharing3: number;
     sharing4: number;
   };
+  customInstructions?: string;
+  existingRows?: FastTrackParsedRow[];
 }
 
 // 📄 Helper: Split large multi-page PDFs into parallel 5-page sub-documents
@@ -66,16 +74,195 @@ async function expandMultiPagePdfs(
 export async function POST(req: NextRequest) {
   try {
     const body: AiScanRequest = await req.json();
-    const { images = [], rawText = "", defaultRentalTiers } = body;
+    const {
+      images = [],
+      rawText = "",
+      defaultRentalTiers,
+      customInstructions = "",
+      existingRows = [],
+    } = body;
 
     const apiKey =
       process.env.GEMINI_API_KEY ||
       process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
       process.env.GOOGLE_API_KEY;
 
-    // If images or PDFs are provided and Gemini API key is configured, invoke Gemini Vision AI
+    // Dynamically retrieve active Gemini models via live Google API (zero code intervention)
+    const modelsToTry = await getActiveGeminiModels(apiKey);
+
+    // =========================================================================
+    // PATH 1: LIVE REFINEMENT OF EXISTING ROSTER VIA AI INSTRUCTIONS
+    // =========================================================================
+    if (existingRows.length > 0 && customInstructions.trim().length > 0 && apiKey) {
+      const BATCH_SIZE = 25;
+      const rowChunks: FastTrackParsedRow[][] = [];
+      for (let i = 0; i < existingRows.length; i += BATCH_SIZE) {
+        rowChunks.push(existingRows.slice(i, i + BATCH_SIZE));
+      }
+
+      async function refineBatch(batch: FastTrackParsedRow[]): Promise<FastTrackParsedRow[]> {
+        const refinePrompt = `
+You are TenoPilot's Enterprise Roster Refinement AI for Indian PG, Co-Living, and Hostel properties.
+The property manager wants to update/refine the following ${batch.length} tenant records according to specific instructions.
+
+==================================================================
+USER REFINEMENT INSTRUCTIONS (TOP PRIORITY):
+==================================================================
+${customInstructions}
+
+==================================================================
+CURRENT TENANT DATA:
+==================================================================
+${JSON.stringify(
+  batch.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    phone: r.phone,
+    roomNumber: r.roomNumber,
+    bedCode: r.bedCode,
+    sharingType: r.sharingType,
+    sharingLabel: r.sharingLabel,
+    rentAmount: r.rentAmount,
+    securityDeposit: r.securityDeposit,
+    joiningDate: r.joiningDate,
+    paymentMode: r.paymentMode,
+    isCurrentMonthRentPaid: r.isCurrentMonthRentPaid,
+    isSecurityDepositPaid: r.isSecurityDepositPaid,
+    priorArrearsAmount: r.priorArrearsAmount,
+    workplace: r.workplace || "",
+    occupation: r.occupation || "",
+    notes: r.rawSource || "",
+  }))
+)}
+
+==================================================================
+RULES:
+==================================================================
+1. Apply the user instructions accurately (e.g. fill missing rents, adjust security deposits, fix dates, set sharing tiers).
+2. Retain each occupant's "id", "fullName", "phone", and "roomNumber" unless explicitly commanded to change them.
+3. If rent was missing or 0 and the user provided a rule (e.g. "3-sharing 6500, 2-sharing 8000"), apply it.
+4. Output ONLY valid JSON matching this schema:
+{
+  "occupants": [
+    {
+      "id": string,
+      "fullName": string,
+      "phone": string,
+      "roomNumber": string,
+      "bedCode": string,
+      "sharingType": number,
+      "sharingLabel": string,
+      "rentAmount": number,
+      "securityDeposit": number,
+      "joiningDate": string,
+      "paymentMode": string,
+      "isCurrentMonthRentPaid": boolean,
+      "isSecurityDepositPaid": boolean,
+      "priorArrearsAmount": number,
+      "workplace": string,
+      "occupation": string,
+      "notes": string
+    }
+  ]
+}
+`;
+
+        for (const model of modelsToTry) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const bodyPayload: any = {
+              contents: [{ parts: [{ text: refinePrompt }] }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+              },
+            };
+
+            if (model.includes("3.7")) {
+              bodyPayload.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+            }
+
+            const geminiRes = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(bodyPayload),
+            });
+
+            if (geminiRes.ok) {
+              const data = await geminiRes.json();
+              const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (rawContent) {
+                const cleanJson = rawContent
+                  .replace(/^```json\s*/i, "")
+                  .replace(/```\s*$/i, "")
+                  .trim();
+                const parsed = JSON.parse(cleanJson);
+                if (Array.isArray(parsed.occupants) && parsed.occupants.length > 0) {
+                  // Map back with original IDs to maintain stability
+                  return parsed.occupants.map((item: any, idx: number) => {
+                    const original = batch[idx] || {};
+                    const phone = normalizeIndianPhoneNumber(item.phone || original.phone);
+                    const warnings: string[] = [];
+                    if (!phone || phone.length !== 10) warnings.push("Invalid or missing 10-digit mobile number");
+                    if (!item.roomNumber && !original.roomNumber) warnings.push("Missing room number assignment");
+
+                    return {
+                      ...original,
+                      id: original.id || item.id || `ft_row_${Date.now()}_${idx}`,
+                      fullName: item.fullName || original.fullName || `Resident ${idx + 1}`,
+                      phone: phone || original.phone || "",
+                      roomNumber: String(item.roomNumber || original.roomNumber || "101").toUpperCase().trim(),
+                      bedCode: item.bedCode || original.bedCode || "Bed A",
+                      sharingType: Number(item.sharingType) || original.sharingType || 2,
+                      sharingLabel: item.sharingLabel || original.sharingLabel || "2-Sharing",
+                      rentAmount: Number(item.rentAmount) ?? original.rentAmount ?? 12000,
+                      securityDeposit: Number(item.securityDeposit) ?? original.securityDeposit ?? 24000,
+                      joiningDate: item.joiningDate || original.joiningDate || new Date().toISOString().split("T")[0],
+                      paymentMode: item.paymentMode || original.paymentMode || "UPI",
+                      isCurrentMonthRentPaid: item.isCurrentMonthRentPaid !== undefined ? Boolean(item.isCurrentMonthRentPaid) : Boolean(original.isCurrentMonthRentPaid),
+                      isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : Boolean(original.isSecurityDepositPaid ?? true),
+                      priorArrearsAmount: Number(item.priorArrearsAmount) ?? original.priorArrearsAmount ?? 0,
+                      workplace: item.workplace || original.workplace || "",
+                      occupation: item.occupation || original.occupation || "",
+                      isValid: warnings.length === 0,
+                      warnings,
+                    };
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(`Refine model ${model} attempt warning:`, err);
+          }
+        }
+        return batch; // Return original on failure
+      }
+
+      // Execute batches in parallel
+      const batchResults = await Promise.allSettled(rowChunks.map((b) => refineBatch(b)));
+      const refinedRows: FastTrackParsedRow[] = [];
+      for (const res of batchResults) {
+        if (res.status === "fulfilled" && Array.isArray(res.value)) {
+          refinedRows.push(...res.value);
+        }
+      }
+
+      const finalRows = refinedRows.length === existingRows.length ? refinedRows : existingRows;
+      return NextResponse.json({
+        success: true,
+        source: "AI_REFINED",
+        rows: finalRows,
+        totalDetected: finalRows.length,
+        validCount: finalRows.filter((r) => r.isValid).length,
+        warningCount: finalRows.filter((r) => !r.isValid).length,
+        confidenceScore: 99,
+      });
+    }
+
+    // =========================================================================
+    // PATH 2: IMAGE / PDF MULTI-BATCH EXTRACTION (GEMINI VISION)
+    // =========================================================================
     if (images.length > 0 && apiKey) {
-      // 📄 Step 1: Expand multi-page PDFs into parallel 5-page sub-chunks
       const expandedImages = await expandMultiPagePdfs(images);
 
       const prompt = `
@@ -92,54 +279,39 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
 - Sharing terms: "Sharing", "Share", "1", "2", "3", "4", "Single", "Double", "Triple", "Quad", "Occupancy".
 - Bed terms: "Bed No", "Bed", "Cot", "Slot", "Upper", "Lower", "Bed A", "Bed 1", "Berth".
 
+${
+  customInstructions.trim()
+    ? `==================================================================
+2. HIGH-PRIORITY MANAGER RUNTIME DIRECTIVES:
 ==================================================================
-2. SEMANTIC REASONING & SYNONYM FLEXIBILITY RULE
-==================================================================
-- The terms above are representative, NOT an exhaustive whitelist.
-- Use visual and semantic reasoning to interpret any colloquial, shorthand, regional, or unlabelled columns.
-- If headers are missing or unclear, deduce field meanings from the data values:
-  * 10 digits starting with 6/7/8/9 -> Phone Number
-  * 4-6 digit monetary values -> Monthly Rent / Deposit
-  * Small integers 1 to 6 -> Sharing Capacity or Bed Slot
-  * Dates with slashes or hyphens -> Joining Date
-  * Alphanumeric codes -> Room Number
+${customInstructions}
+You MUST strictly prioritize and adhere to these directives when resolving missing, ambiguous, or unassigned fields!
+`
+    : ""
+}
 
 ==================================================================
 3. FIELD-BY-FIELD EXTRACTION SPECIFICATIONS
 ==================================================================
-1. "fullName" (string): Full name in Title Case (e.g. "Roshan Kumar", "Mahadeva", "Raj"). Strip stray serial numbers ("1. Roshan" -> "Roshan").
-2. "phone" (string): Clean 10-digit Indian mobile number (e.g. "8182838485"). Strip "+91", "0", spaces, hyphens. If missing, return "".
-3. "roomNumber" (string): Uppercase room/unit code (e.g. "403", "501", "302", "A01", "G01"). Strip words like "Room", "Kholi", "Flat".
-4. "bedCode" (string): 
-   - IF written in the ledger (e.g. "Bed 1", "Cot A", "Upper", "Bed A"), extract EXACTLY as written.
-   - IF omitted/unspecified, leave as "" (our engine will auto-assign Bed A, Bed B per room).
-5. "sharingType" (number):
-   - IF written (e.g. "1", "2", "3", "Single", "Triple"), extract integer (1, 2, 3, 4).
-   - IF omitted, deduce from how many occupants share that room on the page (default 2).
-6. "sharingLabel" (string): e.g. "Single Room", "2-Sharing", "3-Sharing", "4-Sharing".
-7. "joiningDate" (string - YYYY-MM-DD):
-   - ANCHOR DATE HEURISTIC: First scan all dates on the page. In Indian registers, dates are written in DD/MM/YYYY format.
-   - If any date has the first number > 12 (e.g. "21/3/2026"), ALL slash dates on the page MUST be treated as DD/MM/YYYY.
-   - Convert to standard ISO "YYYY-MM-DD" (e.g. "04/12/2025" -> "2025-12-04", "03/2/2026" -> "2026-02-03", "21/3/2026" -> "2026-03-21", "8/4/2025" -> "2025-04-08").
-8. "rentAmount" (number): Plain numeric rent in INR (e.g. 10500, 8500).
-9. "securityDeposit" (number): Plain numeric deposit in INR (e.g. 5000).
+1. "fullName" (string): Full name in Title Case. Strip stray serial numbers.
+2. "phone" (string): Clean 10-digit Indian mobile number. Strip "+91", "0", spaces, hyphens. If missing, return "".
+3. "roomNumber" (string): Uppercase room/unit code (e.g. "403", "501", "A01").
+4. "bedCode" (string): Extract written bed (e.g. "Bed 1", "Bed A"). If omitted, leave as "".
+5. "sharingType" (number): Sharing capacity (1, 2, 3, 4).
+6. "sharingLabel" (string): e.g. "Single Room", "2-Sharing", "3-Sharing".
+7. "joiningDate" (string - YYYY-MM-DD): Dates in Indian registers are DD/MM/YYYY. Normalize to YYYY-MM-DD.
+8. "rentAmount" (number): Plain numeric rent in INR.
+9. "securityDeposit" (number): Plain numeric deposit in INR.
 10. "paymentMode" (string): "UPI", "Cash", or "Bank Transfer" (default "UPI").
-11. "isCurrentMonthRentPaid" (boolean): true if ledger says "Paid", "Cleared", "Done", false if "Due", "Unpaid", "Pending", or omitted (default false).
-12. "priorArrearsAmount" (number): Any previous balance/arrears/pending due written (e.g. 2000, 1500, default 0).
-13. "workplace" (string): Company, Office, Workplace, College, or University name (e.g. "Infosys Electronic City", "Wipro", "Christ University", "TCS"). If omitted, return "".
-14. "occupation" (string): Job title, profession, or role (e.g. "Software Engineer", "Student", "Analyst", "Doctor", "Lead"). If omitted, return "".
-15. "purposeOfVisit" (string): For short-stay guests or visitors: reason for visit (e.g. "Job Interview / Training", "Exam / College Admission", "Medical Visit", "Tourism"). If omitted, return "".
-16. "stayType" (string): "Tenant" (for monthly stays) or "Guest" (for short daily/weekly stays). Default "Tenant".
+11. "isCurrentMonthRentPaid" (boolean): true if marked Paid/Cleared, false if Due/Unpaid/omitted.
+12. "priorArrearsAmount" (number): Unpaid arrears/due (default 0).
+13. "workplace" (string): Company or college name.
+14. "occupation" (string): Job title or profession.
+15. "purposeOfVisit" (string): Reason for visit if short-stay guest.
+16. "stayType" (string): "Tenant" or "Guest".
 
 ==================================================================
-4. STRICT ROW INTEGRITY
-==================================================================
-- Extract ONLY rows that contain actual handwritten or printed tenant entries.
-- Do NOT generate extra blank rows, header rows, or placeholder rows.
-- If the notebook page has 4 written entries, return EXACTLY 4 objects.
-
-==================================================================
-5. OUTPUT JSON SCHEMA ONLY
+OUTPUT JSON SCHEMA ONLY:
 ==================================================================
 {
   "occupants": [
@@ -166,16 +338,10 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
 }
 `;
 
-      const modelsToTry = [
-        "gemini-3.6-flash",
-        "gemini-3.7-flash",
-        "gemini-3.5-flash",
-        "gemini-flash-latest",
-      ];
-
       let lastError: string | null = null;
+      let modelUsedSuccessful: string = modelsToTry[0] || "gemini-3.5-flash";
 
-      // 📦 Smart Multi-Batch Chunking: 1 sub-PDF per worker (or up to 5 photos per worker)
+      // Multi-Batch Chunking: 1 sub-PDF per worker (or up to 5 photos per worker)
       const chunks: { data: string; mimeType: string }[][] = [];
       let currentChunk: { data: string; mimeType: string }[] = [];
 
@@ -207,7 +373,7 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
             img.mimeType === "application/pdf" ||
             img.data.startsWith("data:application/pdf") ||
             (typeof (img as any).name === "string" && (img as any).name.toLowerCase().endsWith(".pdf"));
-          const cleanMime = isPdf ? "application/pdf" : (img.mimeType || "image/jpeg");
+          const cleanMime = isPdf ? "application/pdf" : img.mimeType || "image/jpeg";
 
           parts.push({
             inlineData: {
@@ -228,6 +394,10 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
               },
             };
 
+            if (model.includes("3.7")) {
+              bodyPayload.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+            }
+
             const geminiRes = await fetch(url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -244,6 +414,7 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
                   .trim();
                 const parsed = JSON.parse(cleanJson);
                 if (Array.isArray(parsed.occupants)) {
+                  modelUsedSuccessful = model;
                   return parsed.occupants;
                 }
               }
@@ -275,25 +446,18 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
         const rows: FastTrackParsedRow[] = rawExtractedOccupants.map((item: any, idx: number) => {
           const phone = normalizeIndianPhoneNumber(item.phone);
           const warnings: string[] = [];
-          if (!phone || phone.length !== 10) {
-            warnings.push("Verify 10-digit mobile number");
-          }
-          if (!item.fullName || item.fullName.trim().length === 0) {
-            warnings.push("Missing full name");
-          }
+          if (!phone || phone.length !== 10) warnings.push("Verify 10-digit mobile number");
+          if (!item.fullName || item.fullName.trim().length === 0) warnings.push("Missing full name");
 
           const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
-
-          // Room-scoped bed slot calculation:
           const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
           roomOccupancyMap.set(cleanRoom, currentCountInRoom);
 
-          const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
+          const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26));
           const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
           const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
           const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
-
           const explicitSharing = Number(item.sharingType);
           const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
           const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
@@ -319,14 +483,14 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
             stayType: item.stayType === "Guest" ? "Guest" : "Tenant",
             isValid: warnings.length === 0,
             warnings,
-            rawSource: item.notes || "Extracted via Gemini Vision AI (Multi-Batch)",
+            rawSource: item.notes || "Extracted via Gemini Vision AI",
           };
         });
 
         return NextResponse.json({
           success: true,
           source: "AI_VISION",
-          modelUsed: "gemini-2.0-flash",
+          modelUsed: modelUsedSuccessful,
           rows,
           totalDetected: rows.length,
           validCount: rows.filter((r) => r.isValid).length,
@@ -335,7 +499,6 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
         });
       }
 
-      // If all models failed or returned non-200, return explicit error
       return NextResponse.json(
         {
           success: false,
@@ -346,47 +509,49 @@ Analyze the provided handwritten or printed ledger pages, diary registers, Excel
       );
     }
 
-    // If rawText is provided and Gemini API key is configured, invoke Gemini for Deep Text Parsing
+    // =========================================================================
+    // PATH 3: UNSTRUCTURED RAW TEXT PARSING (PARALLEL CHUNKED GEMINI AI)
+    // =========================================================================
     if (rawText && rawText.trim().length > 0 && apiKey) {
-      const textPrompt = `
+      const rawLines = rawText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      const isLargeRoster = rawLines.length > 30;
+
+      // Parallel chunking helper for large text
+      const textChunks: string[] = [];
+      if (isLargeRoster) {
+        const header = rawLines[0];
+        const dataLines = rawLines.slice(1);
+        const CHUNK_SIZE = 25;
+        for (let i = 0; i < dataLines.length; i += CHUNK_SIZE) {
+          textChunks.push([header, ...dataLines.slice(i, i + CHUNK_SIZE)].join("\n"));
+        }
+      } else {
+        textChunks.push(rawText);
+      }
+
+      async function scanTextChunk(chunkText: string): Promise<any[]> {
+        const textPrompt = `
 You are TenoPilot's Enterprise Spreadsheet & Unstructured Text Ingestion AI for Indian PG (Paying Guest), Co-Living, and Hostel properties.
 Analyze the provided raw spreadsheet text, CSV, TSV, messy copy-pasted table, WhatsApp register, or notes and extract every single tenant and room entry into a structured JSON list.
 
+${
+  customInstructions.trim()
+    ? `==================================================================
+USER RUNTIME CUSTOM DIRECTIVES / INSTRUCTIONS:
 ==================================================================
-1. DOMAIN VOCABULARY & ENTITY MAPPING
-==================================================================
-- Room identifiers: "Room", "Rm", "Kholi", "Flat", "Unit", "R.No", "Suite", "Cabin", "Wing", "403", "501", "302", "A01", "G02".
-- Rent amounts: "Rent", "Tariff", "Monthly", "Bhadha", "Fee", "Amt", "Package", "10,500", "8,500/-", "18000".
-- Deposit amounts: "Security Deposit", "Advance", "Dep", "Caution", "Sec", "Token", "Adv", "5,000", "36000".
-- Date terms: "DOJ", "Joining", "Join Date", "Move In", "Admit", "Admission", "Check-in", "Date of Entry", "01 Aug 2026".
-- Sharing terms: "Sharing", "Share", "1-Sharing", "2-Sharing", "3-Sharing", "4-Sharing", "Single", "Double", "Triple", "Quad", "Occupancy".
-- Bed terms: "Bed No", "Bed", "Cot", "Slot", "Upper", "Lower", "Bed A", "Bed 1", "Berth".
-- Payment Status: "Paid", "Yes", "Cleared", "Done" vs "Due", "No", "Pending", "Unpaid".
-- Prior Arrears / Dues: "Arrears", "Prior Arrears", "Pending Dues", "Old Balance", "Dues", "4000".
-
-==================================================================
-2. SEMANTIC REASONING & EXTRACTION RULES
-==================================================================
-1. "fullName" (string): Full name in Title Case (e.g. "Aarav Sharma"). Strip serial numbers ("1. Aarav" -> "Aarav Sharma").
-2. "phone" (string): Clean 10-digit Indian mobile number (e.g. "9845011001"). Strip "+91", "0", spaces, hyphens.
-3. "roomNumber" (string): Room or unit code (e.g. "101", "102", "A01").
-4. "bedCode" (string): Extract written bed (e.g. "Bed A", "Bed B", "Cot 1"). If omitted, leave as "".
-5. "sharingType" (number): Explicit sharing capacity (1 for single, 2 for double, 3 for triple, 4 for 4-sharing).
-6. "sharingLabel" (string): e.g. "1-Sharing", "2-Sharing", "3-Sharing", "4-Sharing", "Single Room".
-7. "joiningDate" (string - YYYY-MM-DD): Standard ISO format (e.g. "2026-08-01").
-8. "rentAmount" (number): Numeric monthly rent in INR (e.g. 18000).
-9. "securityDeposit" (number): Numeric security deposit in INR (e.g. 36000).
-10. "paymentMode" (string): "UPI", "Cash", or "Bank Transfer" (default "UPI").
-11. "isCurrentMonthRentPaid" (boolean): true if column indicates "Yes", "Paid", "True", "Cleared", false otherwise.
-12. "priorArrearsAmount" (number): Any old unpaid arrears or balance due (e.g. 4000, 2500, default 0).
+${customInstructions}
+You MUST prioritize and strictly apply these user directives when resolving missing, ambiguous, or unassigned fields!
+`
+    : ""
+}
 
 ==================================================================
 RAW TEXT DATA TO PARSE:
 ==================================================================
-${rawText}
+${chunkText}
 
 ==================================================================
-OUTPUT JSON SCHEMA ONLY (No markdown formatting, no commentary):
+OUTPUT JSON SCHEMA ONLY (No markdown, valid JSON):
 ==================================================================
 {
   "occupants": [
@@ -409,117 +574,119 @@ OUTPUT JSON SCHEMA ONLY (No markdown formatting, no commentary):
 }
 `;
 
-      const modelsToTry = [
-        "gemini-2.5-flash",
-        "gemini-3.5-flash",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-      ];
-
-      for (const model of modelsToTry) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          const bodyPayload: any = {
-            contents: [{ parts: [{ text: textPrompt }] }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1,
-            },
-          };
-
-          if (model.includes("3.7")) {
-            bodyPayload.generationConfig.thinkingConfig = {
-              thinkingBudget: 0,
+        for (const model of modelsToTry) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const bodyPayload: any = {
+              contents: [{ parts: [{ text: textPrompt }] }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.1,
+              },
             };
-          }
 
-          const geminiRes = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(bodyPayload),
-          });
+            if (model.includes("3.7")) {
+              bodyPayload.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+            }
 
-          if (geminiRes.ok) {
-            const data = await geminiRes.json();
-            const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (rawContent) {
-              const cleanJson = rawContent
-                .replace(/^```json\s*/i, "")
-                .replace(/```\s*$/i, "")
-                .trim();
-              const parsed = JSON.parse(cleanJson);
+            const geminiRes = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(bodyPayload),
+            });
 
-              if (Array.isArray(parsed.occupants) && parsed.occupants.length > 0) {
-                const roomOccupancyMap = new Map<string, number>();
-
-                const rows: FastTrackParsedRow[] = parsed.occupants.map((item: any, idx: number) => {
-                  const phone = normalizeIndianPhoneNumber(item.phone);
-                  const warnings: string[] = [];
-                  if (!phone || phone.length !== 10) {
-                    warnings.push("Verify 10-digit mobile number");
-                  }
-                  if (!item.fullName || item.fullName.trim().length === 0) {
-                    warnings.push("Missing full name");
-                  }
-
-                  const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
-
-                  // Room-scoped bed slot calculation:
-                  const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
-                  roomOccupancyMap.set(cleanRoom, currentCountInRoom);
-
-                  const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C...
-                  const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
-
-                  const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-                  const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
-
-                  const explicitSharing = Number(item.sharingType);
-                  const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
-                  const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
-
-                  return {
-                    id: `ft_ai_text_${Date.now()}_${idx}`,
-                    fullName: item.fullName || `Resident ${idx + 1}`,
-                    phone: phone || "",
-                    roomNumber: cleanRoom,
-                    bedCode: finalBedCode,
-                    sharingType: sharingCount,
-                    sharingLabel,
-                    rentAmount: rent,
-                    securityDeposit: deposit,
-                    joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
-                    paymentMode: item.paymentMode || "UPI",
-                    isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
-                    isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
-                    priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
-                    isValid: warnings.length === 0,
-                    warnings,
-                    rawSource: item.notes || "Extracted via Gemini AI Text Engine",
-                  };
-                });
-
-                return NextResponse.json({
-                  success: true,
-                  source: "GEMINI_AI_TEXT",
-                  modelUsed: model,
-                  rows,
-                  totalDetected: rows.length,
-                  validCount: rows.filter((r) => r.isValid).length,
-                  warningCount: rows.filter((r) => !r.isValid).length,
-                  confidenceScore: 99,
-                });
+            if (geminiRes.ok) {
+              const data = await geminiRes.json();
+              const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (rawContent) {
+                const cleanJson = rawContent
+                  .replace(/^```json\s*/i, "")
+                  .replace(/```\s*$/i, "")
+                  .trim();
+                const parsed = JSON.parse(cleanJson);
+                if (Array.isArray(parsed.occupants)) {
+                  return parsed.occupants;
+                }
               }
             }
+          } catch (err) {
+            console.warn(`Gemini text model ${model} error:`, err);
           }
-        } catch (err) {
-          console.warn(`Gemini text model ${model} error:`, err);
         }
+        return [];
+      }
+
+      // Execute all text chunks in parallel
+      const chunkPromises = textChunks.map((c) => scanTextChunk(c));
+      const chunkResults = await Promise.allSettled(chunkPromises);
+      const combinedOccupants: any[] = [];
+
+      for (const res of chunkResults) {
+        if (res.status === "fulfilled" && Array.isArray(res.value)) {
+          combinedOccupants.push(...res.value);
+        }
+      }
+
+      if (combinedOccupants.length > 0) {
+        const roomOccupancyMap = new Map<string, number>();
+
+        const rows: FastTrackParsedRow[] = combinedOccupants.map((item: any, idx: number) => {
+          const phone = normalizeIndianPhoneNumber(item.phone);
+          const warnings: string[] = [];
+          if (!phone || phone.length !== 10) warnings.push("Verify 10-digit mobile number");
+          if (!item.fullName || item.fullName.trim().length === 0) warnings.push("Missing full name");
+
+          const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
+          const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
+          roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+
+          const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26));
+          const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
+
+          const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
+          const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
+          const explicitSharing = Number(item.sharingType);
+          const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
+          const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
+
+          return {
+            id: `ft_ai_text_${Date.now()}_${idx}`,
+            fullName: item.fullName || `Resident ${idx + 1}`,
+            phone: phone || "",
+            roomNumber: cleanRoom,
+            bedCode: finalBedCode,
+            sharingType: sharingCount,
+            sharingLabel,
+            rentAmount: rent,
+            securityDeposit: deposit,
+            joiningDate: item.joiningDate || new Date().toISOString().split("T")[0],
+            paymentMode: item.paymentMode || "UPI",
+            isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
+            isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
+            priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
+            isValid: warnings.length === 0,
+            warnings,
+            rawSource: item.notes || "Extracted via Gemini AI Text Engine",
+          };
+        });
+
+        return NextResponse.json({
+          success: true,
+          source: "GEMINI_AI_TEXT",
+          modelUsed: modelsToTry[0],
+          rows,
+          totalDetected: rows.length,
+          validCount: rows.filter((r) => r.isValid).length,
+          warningCount: rows.filter((r) => !r.isValid).length,
+          confidenceScore: 99,
+        });
       }
     }
 
     // Fallback: If raw text is provided without API key or Gemini failed, run Engine A Heuristic Parser
-    const fallbackText = rawText || "Sample Room 101 Rahul Sharma 9876543210 12000\nSample Room 102 Suresh Reddy 9811223344 8500";
+    const fallbackText =
+      rawText ||
+      "Sample Room 101 Rahul Sharma 9876543210 12000\nSample Room 102 Suresh Reddy 9811223344 8500";
     const heuristicResult = parseRawSpreadsheetText(fallbackText, defaultRentalTiers);
 
     return NextResponse.json({

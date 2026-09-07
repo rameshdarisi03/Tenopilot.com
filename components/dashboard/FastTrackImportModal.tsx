@@ -94,6 +94,13 @@ export function FastTrackImportModal({
   const [parsedResult, setParsedResult] = useState<FastTrackParseResult | null>(null);
   const [editableRows, setEditableRows] = useState<FastTrackParsedRow[]>([]);
 
+  // ✨ Runtime AI Guidance & Bulk Refinement State
+  const [customInstructions, setCustomInstructions] = useState<string>("");
+  const [reviewAiPrompt, setReviewAiPrompt] = useState<string>("");
+  const [isRefiningWithAi, setIsRefiningWithAi] = useState<boolean>(false);
+  const [bulkRentInput, setBulkRentInput] = useState<string>("");
+  const [bulkDepositInput, setBulkDepositInput] = useState<string>("");
+
   // Options
   const [autoProvisionBuilding, setAutoProvisionBuilding] = useState<boolean>(true);
   const [importMode, setImportMode] = useState<"MERGE" | "REBUILD">("MERGE");
@@ -431,6 +438,116 @@ export function FastTrackImportModal({
     } finally {
       setIsReScanningWithAi(false);
     }
+  };
+
+  // 🧠 Live AI Refinement & Prompt Handler (Runs in 2-3s via Parallel Workers)
+  const handleRefineRosterWithAi = async (promptOverride?: string) => {
+    const promptToRun = (promptOverride !== undefined ? promptOverride : reviewAiPrompt).trim();
+    if (!promptToRun) {
+      alert("Please type an instruction for AI (e.g. 'Set rent to ₹7,000 for 3-sharing, deposit ₹10,000')");
+      return;
+    }
+
+    setIsRefiningWithAi(true);
+    try {
+      const apiRes = await fetch("/api/fasttrack/ai-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          existingRows: editableRows,
+          customInstructions: promptToRun,
+          propertyId,
+          defaultRentalTiers: settings.rentalTiers,
+        }),
+      });
+
+      if (!apiRes.ok) {
+        const errData = await apiRes.json().catch(() => ({}));
+        throw new Error(errData.details || errData.error || `Server returned ${apiRes.status}`);
+      }
+
+      const apiJson = await apiRes.json();
+      if (apiJson.success && Array.isArray(apiJson.rows) && apiJson.rows.length > 0) {
+        setEditableRows(apiJson.rows);
+        handleSaveDraft(apiJson.rows);
+        setAppendSuccessNotice(`✨ AI Refined ${apiJson.rows.length} occupant(s) based on your custom rule!`);
+        setTimeout(() => setAppendSuccessNotice(null), 4000);
+      } else {
+        throw new Error("Could not apply AI refinement to these rows.");
+      }
+    } catch (err: any) {
+      alert(`AI Refinement Notice: ${err.message || "Failed to refine with AI"}`);
+    } finally {
+      setIsRefiningWithAi(false);
+    }
+  };
+
+  // ⚡ 1-Click Instant Bulk Rent Adjuster
+  const handleApplyBulkRent = (amount: number, forceAll: boolean = false) => {
+    if (isNaN(amount) || amount <= 0) return;
+    setEditableRows((prev) => {
+      const updated = prev.map((r) => {
+        if (forceAll || r.rentAmount <= 0) {
+          return { ...r, rentAmount: amount };
+        }
+        return r;
+      });
+      handleSaveDraft(updated);
+      return updated;
+    });
+    setAppendSuccessNotice(`⚡ Updated rent to ₹${amount.toLocaleString("en-IN")}!`);
+    setTimeout(() => setAppendSuccessNotice(null), 3000);
+  };
+
+  // ⚡ 1-Click Instant Bulk Deposit Adjuster
+  const handleApplyBulkDeposit = (amount: number, forceAll: boolean = false) => {
+    if (isNaN(amount) || amount <= 0) return;
+    setEditableRows((prev) => {
+      const updated = prev.map((r) => {
+        if (forceAll || r.securityDeposit <= 0) {
+          return { ...r, securityDeposit: amount };
+        }
+        return r;
+      });
+      handleSaveDraft(updated);
+      return updated;
+    });
+    setAppendSuccessNotice(`⚡ Updated security deposit to ₹${amount.toLocaleString("en-IN")}!`);
+    setTimeout(() => setAppendSuccessNotice(null), 3000);
+  };
+
+  // ⚡ Set Security Deposit = 1x or 2x Month Rent
+  const handleApplyDepositMultiple = (multiple: number) => {
+    setEditableRows((prev) => {
+      const updated = prev.map((r) => {
+        const rent = r.rentAmount > 0 ? r.rentAmount : (settings?.rentalTiers?.sharing2 || 12000);
+        return { ...r, securityDeposit: rent * multiple };
+      });
+      handleSaveDraft(updated);
+      return updated;
+    });
+    setAppendSuccessNotice(`⚡ Set security deposit to ${multiple} month(s) rent!`);
+    setTimeout(() => setAppendSuccessNotice(null), 3000);
+  };
+
+  // ⚡ Auto-Assign Rent based on Room Sharing Tiers
+  const handleApplySharingTiers = () => {
+    const tiers = settings?.rentalTiers || { sharing1: 15000, sharing2: 12000, sharing3: 9000, sharing4: 7500 };
+    setEditableRows((prev) => {
+      const updated = prev.map((r) => {
+        const sharing = r.sharingType || 2;
+        let rent = tiers.sharing2;
+        if (sharing === 1 && tiers.sharing1) rent = tiers.sharing1;
+        else if (sharing === 2 && tiers.sharing2) rent = tiers.sharing2;
+        else if (sharing === 3 && tiers.sharing3) rent = tiers.sharing3;
+        else if (sharing === 4 && tiers.sharing4) rent = tiers.sharing4;
+        return { ...r, rentAmount: rent };
+      });
+      handleSaveDraft(updated);
+      return updated;
+    });
+    setAppendSuccessNotice(`⚡ Applied PG sharing rent tiers across all rooms!`);
+    setTimeout(() => setAppendSuccessNotice(null), 3000);
   };
 
   // Helper to format ISO date (YYYY-MM-DD) into user's chosen display format
@@ -1012,20 +1129,46 @@ export function FastTrackImportModal({
 
     if (activeTab === "SHEET") {
       setProcessingStatus("Running Fast Pattern Engine...");
-      setProcessingProgress(40);
-      await new Promise((r) => setTimeout(r, 300));
+      setProcessingProgress(50);
+      await new Promise((r) => setTimeout(r, 80));
 
       const res = parseRawSpreadsheetText(pastedText, settings.rentalTiers);
 
-      // If heuristic found 0 warnings and high confidence, go straight to review
-      if (res.success && res.warningCount === 0 && res.confidenceScore >= 80) {
+      // If user provided explicit custom runtime instructions, route through Gemini AI to apply rules
+      if (customInstructions.trim().length > 0) {
+        setProcessingStatus("Applying Custom AI Guidance via Gemini...");
+        setProcessingProgress(75);
+        try {
+          const apiRes = await fetch("/api/fasttrack/ai-scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rawText: pastedText,
+              propertyId,
+              defaultRentalTiers: settings.rentalTiers,
+              customInstructions: customInstructions.trim(),
+            }),
+          });
+          const apiJson = await apiRes.json();
+          if (apiJson.success && apiJson.rows?.length > 0) {
+            applyParsedRows(apiJson.rows, apiJson);
+            return;
+          }
+        } catch (e) {
+          console.warn("AI parse route with custom instructions fallback:", e);
+        }
+      }
+
+      // If heuristic found valid rows, go straight to review immediately (<15ms!)
+      // The review screen is specifically built to display warnings for user inspection.
+      if (res.success && res.rows.length > 0) {
         applyParsedRows(res.rows, res);
         return;
       }
 
-      // If any warnings or ambiguous columns, attempt AI escalation via Gemini
-      setProcessingStatus("Engaging Gemini AI for Deep Unstructured Parsing...");
-      setProcessingProgress(70);
+      // If heuristic found 0 rows (e.g. unstructured chat or unformatted notes), escalate to Gemini AI
+      setProcessingStatus("Analyzing Unstructured Text with Gemini AI...");
+      setProcessingProgress(75);
       try {
         const apiRes = await fetch("/api/fasttrack/ai-scan", {
           method: "POST",
@@ -1034,6 +1177,7 @@ export function FastTrackImportModal({
             rawText: pastedText,
             propertyId,
             defaultRentalTiers: settings.rentalTiers,
+            customInstructions: customInstructions.trim(),
           }),
         });
         const apiJson = await apiRes.json();
@@ -1058,7 +1202,7 @@ export function FastTrackImportModal({
       setProcessingProgress(25);
       await new Promise((r) => setTimeout(r, 200));
 
-      setProcessingStatus("Transmitting ledger images to Gemini 3.7 Flash Vision AI...");
+      setProcessingStatus("Transmitting ledger images to Gemini Vision AI...");
       setProcessingProgress(60);
 
       try {
@@ -1072,6 +1216,7 @@ export function FastTrackImportModal({
             })),
             propertyId,
             defaultRentalTiers: settings.rentalTiers,
+            customInstructions: customInstructions.trim(),
           }),
         });
 
@@ -1490,6 +1635,88 @@ export function FastTrackImportModal({
                 )}
               </div>
             )}
+
+            {/* ✨ AI Guidance & Runtime Rules Box */}
+            <div className="p-4 bg-gradient-to-br from-purple-50/60 via-indigo-50/40 to-amber-50/30 rounded-2xl border border-purple-200/80 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-gray-900">
+                      AI Guidance & Custom Rules <span className="text-gray-400 font-normal text-[11px]">(Optional)</span>
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Provide instructions for missing data, rent/deposit formulas, or specific room conventions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1-Tap Quick Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 mr-1">Quick Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rule = "Default security deposit to 1 month rent if omitted.";
+                    setCustomInstructions((prev) => (prev ? `${prev}\n${rule}` : rule));
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-100/80 hover:bg-purple-200 text-purple-900 text-[11px] font-semibold transition-all border border-purple-200 cursor-pointer shadow-2xs active:scale-98"
+                >
+                  + Deposit = 1 Mo Rent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rule = "Set security deposit to ₹10,000 flat for all occupants.";
+                    setCustomInstructions((prev) => (prev ? `${prev}\n${rule}` : rule));
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-100/80 hover:bg-purple-200 text-purple-900 text-[11px] font-semibold transition-all border border-purple-200 cursor-pointer shadow-2xs active:scale-98"
+                >
+                  + Deposit = ₹10,000 Flat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rule = "If rent is missing, calculate based on room sharing type.";
+                    setCustomInstructions((prev) => (prev ? `${prev}\n${rule}` : rule));
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-100/80 hover:bg-purple-200 text-purple-900 text-[11px] font-semibold transition-all border border-purple-200 cursor-pointer shadow-2xs active:scale-98"
+                >
+                  + Auto-fill Sharing Tiers
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rule = "If joining date is missing, default to 1st of this month.";
+                    setCustomInstructions((prev) => (prev ? `${prev}\n${rule}` : rule));
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-100/80 hover:bg-purple-200 text-purple-900 text-[11px] font-semibold transition-all border border-purple-200 cursor-pointer shadow-2xs active:scale-98"
+                >
+                  + Join Date: 1st of Month
+                </button>
+                {customInstructions && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomInstructions("")}
+                    className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[10px] font-bold transition-all cursor-pointer ml-auto"
+                  >
+                    Clear Rules
+                  </button>
+                )}
+              </div>
+
+              {/* Textarea for custom runtime prompt */}
+              <textarea
+                rows={2}
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                placeholder="e.g. If rent is missing, assign ₹7,000 for 3-sharing and ₹8,500 for 2-sharing. Set all deposits to ₹10,000. Rooms with 'B' are in Block B."
+                className="w-full p-2.5 rounded-xl border border-purple-200 bg-white/95 text-xs text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden font-sans"
+              />
+            </div>
           </div>
         )}
 
@@ -1733,6 +1960,145 @@ export function FastTrackImportModal({
                 </div>
               </div>
             )}
+
+            {/* 🪄 AI Prompt & Instant Bulk Rent / Deposit Refinement Bar */}
+            <div className="p-4 bg-gradient-to-br from-purple-50/60 via-indigo-50/30 to-amber-50/40 rounded-2xl border border-purple-200 shadow-xs space-y-3">
+              {/* Row 1: AI Prompt Refiner */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="flex items-center gap-2 text-purple-900 font-bold text-xs shrink-0">
+                  <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <span>AI Refine Roster:</span>
+                </div>
+
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={reviewAiPrompt}
+                    onChange={(e) => setReviewAiPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isRefiningWithAi) {
+                        e.preventDefault();
+                        handleRefineRosterWithAi();
+                      }
+                    }}
+                    placeholder="Type instruction, e.g. 'Set rent to ₹7,000 for 3-sharing and ₹8,500 for 2-sharing, deposit ₹10,000'..."
+                    className="w-full pl-3 pr-24 py-2 rounded-xl border border-purple-200 bg-white text-xs text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={isRefiningWithAi || !reviewAiPrompt.trim()}
+                    onClick={() => handleRefineRosterWithAi()}
+                    className="absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-98"
+                  >
+                    {isRefiningWithAi ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Refining...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" />
+                        <span>Apply AI</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 2: 1-Click Instant Bulk Fast-Fixes */}
+              <div className="pt-2 border-t border-purple-100 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">⚡ 1-Click Bulk Tools:</span>
+
+                  {/* Bulk Rent Fill */}
+                  <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-gray-200 shadow-2xs">
+                    <span className="text-[11px] text-gray-500 font-semibold">Rent ₹</span>
+                    <input
+                      type="number"
+                      value={bulkRentInput}
+                      onChange={(e) => setBulkRentInput(e.target.value)}
+                      placeholder="e.g. 7500"
+                      className="w-16 text-xs font-bold text-gray-800 outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={!bulkRentInput}
+                      onClick={() => handleApplyBulkRent(Number(bulkRentInput), false)}
+                      className="px-2 py-0.5 rounded-lg bg-orange-100 hover:bg-orange-200 text-[#c2652a] text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40"
+                      title="Fill this rent for all tenants whose rent is missing or zero"
+                    >
+                      Fill Missing
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!bulkRentInput}
+                      onClick={() => handleApplyBulkRent(Number(bulkRentInput), true)}
+                      className="px-1.5 py-0.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-40"
+                      title="Apply this rent to ALL tenants in this roster"
+                    >
+                      All
+                    </button>
+                  </div>
+
+                  {/* Bulk Deposit Fill */}
+                  <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-gray-200 shadow-2xs">
+                    <span className="text-[11px] text-gray-500 font-semibold">Deposit ₹</span>
+                    <input
+                      type="number"
+                      value={bulkDepositInput}
+                      onChange={(e) => setBulkDepositInput(e.target.value)}
+                      placeholder="e.g. 10000"
+                      className="w-16 text-xs font-bold text-gray-800 outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={!bulkDepositInput}
+                      onClick={() => handleApplyBulkDeposit(Number(bulkDepositInput), false)}
+                      className="px-2 py-0.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40"
+                      title="Fill this deposit for all tenants whose deposit is missing or zero"
+                    >
+                      Fill Missing
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!bulkDepositInput}
+                      onClick={() => handleApplyBulkDeposit(Number(bulkDepositInput), true)}
+                      className="px-1.5 py-0.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-40"
+                      title="Apply this deposit to ALL tenants in this roster"
+                    >
+                      All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Instant Deposit Formula & Sharing Rates Chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyDepositMultiple(1)}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-gray-700 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs active:scale-98"
+                  >
+                    Deposit = 1 Mo Rent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyDepositMultiple(2)}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-gray-700 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs active:scale-98"
+                  >
+                    Deposit = 2 Mo Rent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplySharingTiers}
+                    className="px-2.5 py-1 rounded-lg bg-purple-100/70 border border-purple-200 hover:bg-purple-200 text-purple-900 text-[11px] font-bold transition-all cursor-pointer shadow-2xs active:scale-98"
+                  >
+                    Apply PG Sharing Rates
+                  </button>
+                </div>
+              </div>
+            </div>
 
             {/* Ingestion Options Bar & Auto-Fix Banner */}
             <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-gray-700">
