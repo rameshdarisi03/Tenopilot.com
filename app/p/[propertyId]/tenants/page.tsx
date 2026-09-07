@@ -131,10 +131,10 @@ export default function TenantsDirectoryPage({
   const [floorFilter, setFloorFilter] = useState("All Floors");
   const [roomFilter, setRoomFilter] = useState("All Rooms");
 
-  // Interactive Column Sorting state
+  // Interactive Column Sorting state (Default: Room Number Low to High)
   const [sortColumn, setSortColumn] = useState<
     "name" | "dueDate" | "room" | "rent"
-  >("name");
+  >("room");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Mobile Tactile Multi-Select Mode (Long-press activated)
@@ -721,7 +721,22 @@ export default function TenantsDirectoryPage({
       if (sortColumn === "name") {
         comparison = a.name.localeCompare(b.name);
       } else if (sortColumn === "room") {
-        comparison = parseInt(a.roomNumber) - parseInt(b.roomNumber);
+        // Natural alphanumeric sort: 101, 102... 201, A-101, B-101
+        comparison = (a.roomNumber || "").localeCompare(b.roomNumber || "", undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+        // Secondary sort: Bed designation (e.g. Bed A, Bed B)
+        if (comparison === 0) {
+          comparison = (a.bedCode || "").localeCompare(b.bedCode || "", undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+        }
+        // Tertiary sort: Tenant name
+        if (comparison === 0) {
+          comparison = (a.name || "").localeCompare(b.name || "");
+        }
       } else if (sortColumn === "rent") {
         comparison = a.rentAmount - b.rentAmount;
       } else if (sortColumn === "dueDate") {
@@ -941,71 +956,95 @@ export default function TenantsDirectoryPage({
             </div>
           )}
 
-          {/* Operational Metrics Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MagneticGlowCard glowColor="rgba(150, 68, 7, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-orange-50 text-[#964407] p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-[#964407] tracking-wider">
+          {/* Operational Metrics Row - Mobile Optimized (No Cropping) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            {/* 1. Active Members */}
+            <MagneticGlowCard
+              glowColor="rgba(150, 68, 7, 0.15)"
+              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-[#964407] tracking-wider truncate">
                   Active Members
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">
+                <div className="bg-orange-50 text-[#964407] p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                   <AnimatedNumberCounter value={counts.Active + counts.Guests} />
                 </p>
-                <p className="text-xs text-gray-500 font-medium">
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
                   {counts.Active} Tenants • {counts.Guests} Guests
                 </p>
               </div>
             </MagneticGlowCard>
 
-            <MagneticGlowCard glowColor="rgba(16, 185, 129, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-emerald-50 text-emerald-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
+            {/* 2. Collected This Month */}
+            <MagneticGlowCard
+              glowColor="rgba(16, 185, 129, 0.15)"
+              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-emerald-600 tracking-wider truncate">
+                  Collected
+                </p>
+                <div className="bg-emerald-50 text-emerald-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">
-                  Collected This Month
-                </p>
-                <p className="text-xl font-bold font-sans text-gray-900">
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                   <AnimatedNumberCounter value={rentMetrics.sumCollected} prefix="₹" />
                 </p>
-                <p className="text-xs text-gray-500 font-medium">
-                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} /> of Total Expected
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
+                  <AnimatedNumberCounter value={rentMetrics.collectionPct} suffix="%" decimals={1} /> of Expected
                 </p>
               </div>
             </MagneticGlowCard>
 
-            <MagneticGlowCard glowColor="rgba(245, 158, 11, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-amber-50 text-amber-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <Clock className="w-5 h-5" />
+            {/* 3. Rent Pending Due */}
+            <MagneticGlowCard
+              glowColor="rgba(245, 158, 11, 0.15)"
+              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-amber-600 tracking-wider truncate">
+                  Pending Due
+                </p>
+                <div className="bg-amber-50 text-amber-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">
-                  Rent Pending Due
-                </p>
-                <p className="text-xl font-bold font-sans text-gray-900">
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                   <AnimatedNumberCounter value={rentMetrics.dueTodaySum + rentMetrics.dueTomorrowSum + rentMetrics.dueNext2DaysSum} prefix="₹" />
                 </p>
-                <p className="text-xs text-gray-500 font-medium">
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
                   {rentMetrics.dueTodayCount + rentMetrics.dueTomorrowCount + rentMetrics.dueNext2DaysCount} Pending Bills
                 </p>
               </div>
             </MagneticGlowCard>
 
-            <MagneticGlowCard glowColor="rgba(220, 38, 38, 0.15)" className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs flex items-center gap-4">
-              <div className="bg-red-100 text-red-600 p-2.5 h-10 w-10 flex items-center justify-center rounded-lg shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-red-600 tracking-wider">
+            {/* 4. Overdue Rent */}
+            <MagneticGlowCard
+              glowColor="rgba(220, 38, 38, 0.15)"
+              className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+                <p className="text-[10px] sm:text-[11px] uppercase font-bold text-red-600 tracking-wider truncate">
                   Overdue Rent
                 </p>
-                <p className="text-xl font-bold font-sans text-gray-900">
+                <div className="bg-red-100 text-red-600 p-1.5 sm:p-2 h-7 w-7 sm:h-9 sm:w-9 flex items-center justify-center rounded-lg shrink-0">
+                  <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
                   <AnimatedNumberCounter value={rentMetrics.overdueSum} prefix="₹" />
                 </p>
-                <p className="text-xs text-gray-500 font-medium">
+                <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
                   <AnimatedNumberCounter value={rentMetrics.overdueCount} /> Overdue Accounts
                 </p>
               </div>
@@ -1079,7 +1118,109 @@ export default function TenantsDirectoryPage({
             </div>
           )}
 
-                     {/* Desktop Data Table (Continuous Scroll View - No Page Splitting) */}
+          {/* ⇅ Tactile Quick-Sort Filter Chips (Unified for Smartphone & Desktop) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 pb-1 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-700 tracking-wide">
+                {filteredOccupants.length} {filteredOccupants.length === 1 ? "Resident" : "Residents"}
+              </span>
+              <span className="text-[11px] text-gray-400 hidden sm:inline">
+                • Ordered by{" "}
+                {sortColumn === "room"
+                  ? "Room Number"
+                  : sortColumn === "name"
+                  ? "Tenant Name"
+                  : sortColumn === "dueDate"
+                  ? "Payment Due"
+                  : "Rent Amount"}{" "}
+                ({sortDirection === "asc" ? "Ascending" : "Descending"})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+              <span className="text-[11px] font-semibold text-gray-400 mr-0.5 shrink-0 flex items-center gap-1">
+                <ArrowUpDown className="w-3 h-3" /> Sort:
+              </span>
+
+              {/* 🏢 Room Sort Button */}
+              <button
+                type="button"
+                onClick={() => handleHeaderSort("room")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
+                  sortColumn === "room"
+                    ? "bg-[#c2652a] text-white shadow-xs"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                }`}
+                title="Sort by Room Number. Click again to toggle Low/High."
+              >
+                <span>🏢 Room</span>
+                {sortColumn === "room" && (
+                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
+                    {sortDirection === "asc" ? "1→9 ↑" : "9→1 ↓"}
+                  </span>
+                )}
+              </button>
+
+              {/* 🔤 Name Sort Button */}
+              <button
+                type="button"
+                onClick={() => handleHeaderSort("name")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
+                  sortColumn === "name"
+                    ? "bg-[#c2652a] text-white shadow-xs"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                }`}
+                title="Sort Alphabetically by Name. Click again to toggle A-Z/Z-A."
+              >
+                <span>🔤 Name</span>
+                {sortColumn === "name" && (
+                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
+                    {sortDirection === "asc" ? "A→Z ↑" : "Z→A ↓"}
+                  </span>
+                )}
+              </button>
+
+              {/* 📅 Due Date Sort Button */}
+              <button
+                type="button"
+                onClick={() => handleHeaderSort("dueDate")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
+                  sortColumn === "dueDate"
+                    ? "bg-[#c2652a] text-white shadow-xs"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                }`}
+                title="Sort by Payment Due Date. Click again to toggle Earliest/Latest."
+              >
+                <span>📅 Due</span>
+                {sortColumn === "dueDate" && (
+                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
+                    {sortDirection === "asc" ? "Earliest ↑" : "Latest ↓"}
+                  </span>
+                )}
+              </button>
+
+              {/* 💰 Rent Sort Button */}
+              <button
+                type="button"
+                onClick={() => handleHeaderSort("rent")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none active:scale-95 ${
+                  sortColumn === "rent"
+                    ? "bg-[#c2652a] text-white shadow-xs"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                }`}
+                title="Sort by Rent Amount. Click again to toggle Low/High."
+              >
+                <span>💰 Rent</span>
+                {sortColumn === "rent" && (
+                  <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-black tracking-tight">
+                    {sortDirection === "asc" ? "Low→High ↑" : "High→Low ↓"}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Data Table (Continuous Scroll View - No Page Splitting) */}
           <div className="hidden md:block bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs max-h-[75vh] overflow-y-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-2xs">
