@@ -35,7 +35,12 @@ import {
   AlertCircle,
   Download,
 } from "lucide-react";
-import { parseRawSpreadsheetText, FastTrackParsedRow, FastTrackParseResult } from "@/lib/fastTrackHeuristicParser";
+import {
+  parseRawSpreadsheetText,
+  FastTrackParsedRow,
+  FastTrackParseResult,
+  reconcileRoomSharingAndBeds,
+} from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -681,7 +686,7 @@ export function FastTrackImportModal({
     };
 
     setEditableRows((prev) => {
-      const updated = [...prev, newRow];
+      const updated = reconcileRoomSharingAndBeds([...prev, newRow]);
       handleSaveDraft(updated);
       return updated;
     });
@@ -772,7 +777,7 @@ export function FastTrackImportModal({
         };
       });
 
-      const combined = [...editableRows, ...normalizedNewRows];
+      const combined = reconcileRoomSharingAndBeds([...editableRows, ...normalizedNewRows]);
       setEditableRows(combined);
       handleSaveDraft(combined);
 
@@ -1112,8 +1117,9 @@ export function FastTrackImportModal({
 
     const applyParsedRows = (rows: FastTrackParsedRow[], resultMeta: any) => {
       setProcessingProgress(100);
+      const reconciled = reconcileRoomSharingAndBeds(rows);
       setParsedResult(resultMeta);
-      const { conflicts, uniqueIncoming } = detectDuplicates(rows, []);
+      const { conflicts, uniqueIncoming } = detectDuplicates(reconciled, []);
       if (conflicts.length > 0) {
         setDuplicateConflictModal({
           conflicts,
@@ -1122,7 +1128,7 @@ export function FastTrackImportModal({
         });
         setStep("INPUT");
       } else {
-        setEditableRows(rows);
+        setEditableRows(reconciled);
         setStep("REVIEW");
       }
     };
@@ -1254,12 +1260,18 @@ export function FastTrackImportModal({
       row.isValid = warnings.length === 0;
       row.warnings = warnings;
       updated[idx] = row;
+      if (field === "roomNumber") {
+        return reconcileRoomSharingAndBeds(updated);
+      }
       return updated;
     });
   };
 
   const removeRow = (idx: number) => {
-    setEditableRows((prev) => prev.filter((_, i) => i !== idx));
+    setEditableRows((prev) => {
+      const remaining = prev.filter((_, i) => i !== idx);
+      return reconcileRoomSharingAndBeds(remaining);
+    });
   };
 
   // 5. Execute 1-Click Commit
@@ -3033,7 +3045,7 @@ Anil Verma   9812345678   Room 103   12000"
                           };
                         });
 
-                        const combined = [...editableRows, ...normalizedNewRows];
+                        const combined = reconcileRoomSharingAndBeds([...editableRows, ...normalizedNewRows]);
                         setEditableRows(combined);
                         handleSaveDraft(combined);
                         setAppendImages([]);

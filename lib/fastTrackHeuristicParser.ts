@@ -247,15 +247,70 @@ export function parseIndianCurrencyAmount(raw: string | number | undefined, defa
  * Helper to parse sharing capacity (e.g. "Single", "2-Sharing", "Triple", "4", "Double")
  */
 export function parseSharingType(val: string | undefined): { count: number; label: string } {
-  if (!val) return { count: 2, label: "2-Sharing" };
+  if (!val) return { count: 0, label: "" };
   const str = val.trim().toLowerCase();
   if (/single|1\s*-?\s*shar|private|^1$/i.test(str)) return { count: 1, label: "Single Room" };
   if (/double|2\s*-?\s*shar|two|^2$/i.test(str)) return { count: 2, label: "2-Sharing" };
   if (/triple|3\s*-?\s*shar|three|^3$/i.test(str)) return { count: 3, label: "3-Sharing" };
   if (/four|4\s*-?\s*shar|quad|^4$/i.test(str)) return { count: 4, label: "4-Sharing" };
   const num = parseInt(str.replace(/\D/g, ""), 10);
-  if (num >= 1 && num <= 6) return { count: num, label: `${num}-Sharing` };
-  return { count: 2, label: "2-Sharing" };
+  if (num >= 1 && num <= 6) return { count: num, label: num === 1 ? "Single Room" : `${num}-Sharing` };
+  return { count: 0, label: "" };
+}
+
+/**
+ * 🛏️ Intelligently reconciles room-level sharing capacities & bed codes across all rows.
+ * If sharing was not explicitly declared or if multiple tenants are assigned to the same room,
+ * the sharing capacity is deduced from the total tenant count in that room.
+ */
+export function reconcileRoomSharingAndBeds(rows: FastTrackParsedRow[]): FastTrackParsedRow[] {
+  // Step 1: Count total occupants and detect explicit sharing per room
+  const roomOccupantCount = new Map<string, number>();
+  const roomExplicitSharing = new Map<string, number>();
+
+  rows.forEach((r) => {
+    const rm = (r.roomNumber || "").trim().toUpperCase();
+    if (!rm) return;
+    roomOccupantCount.set(rm, (roomOccupantCount.get(rm) || 0) + 1);
+
+    // If an occupant had explicit sharing declared, remember the maximum
+    if (r.sharingType && r.sharingType > 1) {
+      const prev = roomExplicitSharing.get(rm) || 0;
+      if (r.sharingType > prev) {
+        roomExplicitSharing.set(rm, r.sharingType);
+      }
+    }
+  });
+
+  // Step 2: Track sequential bed index per room (Bed A, Bed B, Bed C...)
+  const roomBedTracker = new Map<string, number>();
+
+  return rows.map((r) => {
+    const rm = (r.roomNumber || "").trim().toUpperCase();
+    if (!rm) return r;
+
+    const totalInRoom = roomOccupantCount.get(rm) || 1;
+    const explicitCap = roomExplicitSharing.get(rm);
+
+    // Effective sharing is at least the total number of occupants in that room
+    const finalSharing = Math.max(totalInRoom, explicitCap || totalInRoom);
+    const finalLabel = finalSharing === 1 ? "Single Room" : `${finalSharing}-Sharing`;
+
+    // Bed slot assignment
+    const currentBedIdx = (roomBedTracker.get(rm) || 0) + 1;
+    roomBedTracker.set(rm, currentBedIdx);
+
+    const autoBedLetter = String.fromCharCode(64 + Math.min(currentBedIdx, 26)); // A, B, C...
+    const finalBedCode = normalizeBedCode(r.bedCode, autoBedLetter);
+
+    return {
+      ...r,
+      roomNumber: rm,
+      bedCode: finalBedCode,
+      sharingType: finalSharing,
+      sharingLabel: finalLabel,
+    };
+  });
 }
 
 /**
@@ -665,15 +720,16 @@ export function parseRawSpreadsheetText(
     }
   });
 
-  const validCount = parsedOccupants.filter((r) => r.isValid).length;
-  const warningCount = parsedOccupants.length - validCount;
-  const confidenceScore = parsedOccupants.length > 0 ? Math.round((validCount / parsedOccupants.length) * 100) : 0;
+  const reconciledRows = reconcileRoomSharingAndBeds(parsedOccupants);
+  const validCount = reconciledRows.filter((r) => r.isValid).length;
+  const warningCount = reconciledRows.length - validCount;
+  const confidenceScore = reconciledRows.length > 0 ? Math.round((validCount / reconciledRows.length) * 100) : 0;
 
   return {
-    success: parsedOccupants.length > 0,
+    success: reconciledRows.length > 0,
     source: "FAST_HEURISTIC",
-    rows: parsedOccupants,
-    totalDetected: parsedOccupants.length,
+    rows: reconciledRows,
+    totalDetected: reconciledRows.length,
     validCount,
     warningCount,
     confidenceScore,

@@ -5,6 +5,7 @@ import {
   FastTrackParsedRow,
   normalizeIndianPhoneNumber,
   normalizeBedCode,
+  reconcileRoomSharingAndBeds,
 } from "@/lib/fastTrackHeuristicParser";
 import { getActiveGeminiModels } from "@/lib/geminiModelDiscovery";
 
@@ -141,7 +142,8 @@ RULES:
 1. Apply the user instructions accurately (e.g. fill missing rents, adjust security deposits, fix dates, set sharing tiers).
 2. Retain each occupant's "id", "fullName", "phone", and "roomNumber" unless explicitly commanded to change them.
 3. If rent was missing or 0 and the user provided a rule (e.g. "3-sharing 6500, 2-sharing 8000"), apply it.
-4. Output ONLY valid JSON matching this schema:
+4. CRITICAL ROOM-SHARING INFERENCE RULE: If sharing type is not explicitly specified, calculate it dynamically from the total number of occupants assigned to that roomNumber! If 2 people are in Room 502, sharingType MUST be 2 ("2-Sharing"). If 3 people are in Room 503, sharingType MUST be 3 ("3-Sharing").
+5. Output ONLY valid JSON matching this schema:
 {
   "occupants": [
     {
@@ -247,7 +249,7 @@ RULES:
         }
       }
 
-      const finalRows = refinedRows.length === existingRows.length ? refinedRows : existingRows;
+      const finalRows = reconcileRoomSharingAndBeds(refinedRows.length === existingRows.length ? refinedRows : existingRows);
       return NextResponse.json({
         success: true,
         source: "AI_REFINED",
@@ -297,8 +299,15 @@ You MUST strictly prioritize and adhere to these directives when resolving missi
 2. "phone" (string): Clean 10-digit Indian mobile number. Strip "+91", "0", spaces, hyphens. If missing, return "".
 3. "roomNumber" (string): Uppercase room/unit code (e.g. "403", "501", "A01").
 4. "bedCode" (string): Extract written bed (e.g. "Bed 1", "Bed A"). If omitted, leave as "".
-5. "sharingType" (number): Sharing capacity (1, 2, 3, 4).
-6. "sharingLabel" (string): e.g. "Single Room", "2-Sharing", "3-Sharing".
+5. "sharingType" (number):
+   - IF written in a column (e.g. "1", "2", "3", "Single", "Triple"), extract that integer.
+   - IF NOT explicitly written in a column, DEDUCE INTELLIGENTLY FROM ROOM OCCUPANCY COUNT:
+     Count all occupants in this document sharing the exact same roomNumber!
+     * If 2 occupants share Room 502 -> BOTH must have sharingType: 2, sharingLabel: "2-Sharing"
+     * If 3 occupants share Room 503 -> ALL THREE must have sharingType: 3, sharingLabel: "3-Sharing"
+     * If only 1 occupant is in Room 504 -> sharingType: 1, sharingLabel: "Single Room"
+     NEVER assign sharingType: 1 to multiple people sharing the same room!
+6. "sharingLabel" (string): e.g. "Single Room", "2-Sharing", "3-Sharing", "4-Sharing".
 7. "joiningDate" (string - YYYY-MM-DD): Dates in Indian registers are DD/MM/YYYY. Normalize to YYYY-MM-DD.
 8. "rentAmount" (number): Plain numeric rent in INR.
 9. "securityDeposit" (number): Plain numeric deposit in INR.
@@ -487,14 +496,16 @@ OUTPUT JSON SCHEMA ONLY:
           };
         });
 
+        const finalRows = reconcileRoomSharingAndBeds(rows);
+
         return NextResponse.json({
           success: true,
           source: "AI_VISION",
           modelUsed: modelUsedSuccessful,
-          rows,
-          totalDetected: rows.length,
-          validCount: rows.filter((r) => r.isValid).length,
-          warningCount: rows.filter((r) => !r.isValid).length,
+          rows: finalRows,
+          totalDetected: finalRows.length,
+          validCount: finalRows.filter((r) => r.isValid).length,
+          warningCount: finalRows.filter((r) => !r.isValid).length,
           confidenceScore: 98,
         });
       }
@@ -533,6 +544,16 @@ OUTPUT JSON SCHEMA ONLY:
         const textPrompt = `
 You are TenoPilot's Enterprise Spreadsheet & Unstructured Text Ingestion AI for Indian PG (Paying Guest), Co-Living, and Hostel properties.
 Analyze the provided raw spreadsheet text, CSV, TSV, messy copy-pasted table, WhatsApp register, or notes and extract every single tenant and room entry into a structured JSON list.
+
+==================================================================
+CRITICAL ROOM-SHARING & BED INFERENCE RULES:
+==================================================================
+- If "sharingType" or sharing column is NOT explicitly stated:
+  You MUST deduce it from the number of occupants who share that room:
+  * If Room 502 has 2 occupants listed -> BOTH must have sharingType: 2, sharingLabel: "2-Sharing", bedCode: "Bed A" / "Bed B"
+  * If Room 503 has 3 occupants listed -> ALL THREE must have sharingType: 3, sharingLabel: "3-Sharing", bedCode: "Bed A" / "Bed B" / "Bed C"
+  * If only 1 occupant is in Room 504 -> sharingType: 1, sharingLabel: "Single Room", bedCode: "Bed A"
+  NEVER mark 1-Sharing for multiple tenants sharing the same room!
 
 ${
   customInstructions.trim()
@@ -670,14 +691,16 @@ OUTPUT JSON SCHEMA ONLY (No markdown, valid JSON):
           };
         });
 
+        const finalRows = reconcileRoomSharingAndBeds(rows);
+
         return NextResponse.json({
           success: true,
           source: "GEMINI_AI_TEXT",
           modelUsed: modelsToTry[0],
-          rows,
-          totalDetected: rows.length,
-          validCount: rows.filter((r) => r.isValid).length,
-          warningCount: rows.filter((r) => !r.isValid).length,
+          rows: finalRows,
+          totalDetected: finalRows.length,
+          validCount: finalRows.filter((r) => r.isValid).length,
+          warningCount: finalRows.filter((r) => !r.isValid).length,
           confidenceScore: 99,
         });
       }
