@@ -23,7 +23,6 @@ import {
 } from "@/lib/subscriptionEngine";
 import { usePlatformConfig } from "@/lib/platformConfig";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
-import { QRCodeSVG } from "qrcode.react";
 import { AnimatedNumberCounter } from "@/components/motion/AnimatedNumberCounter";
 import { GlidingTabs, TabOption } from "@/components/motion/GlidingTabs";
 import { MagneticGlowCard } from "@/components/motion/MagneticGlowCard";
@@ -2511,13 +2510,10 @@ Scroll vertically to browse all residents without pagination limits
                         </div>
                       ) : (
                         <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-4">
-                          <div className="w-24 h-24 bg-white p-1 rounded-xl border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center overflow-hidden">
-                            <QRCodeSVG
-                              value={`upi://pay?pa=${activeCard.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&cu=INR`}
-                              size={80}
-                              fgColor="#201a17"
-                              bgColor="#ffffff"
-                            />
+                          <div className="w-20 h-20 bg-orange-50 rounded-2xl border border-orange-200/80 shrink-0 flex flex-col items-center justify-center text-[#c2652a] shadow-2xs">
+                            <CreditCard className="w-8 h-8 text-[#c2652a] mb-1" />
+                            <span className="font-extrabold text-[9px] tracking-wider uppercase text-orange-950">UPI ID</span>
+                            <span className="text-[8px] text-orange-800 font-semibold">Direct Pay</span>
                           </div>
 
                           <div className="space-y-1 flex-1 min-w-0 text-center sm:text-left">

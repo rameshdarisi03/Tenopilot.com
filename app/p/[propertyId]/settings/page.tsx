@@ -27,7 +27,6 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import {
   propertySettingsStore,
   PropertySettingsData,
@@ -375,7 +374,7 @@ export default function PropertySettingsPage({
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <QrCode className="w-4 h-4" /> Payment QR Profiles & Accounts
+              <CreditCard className="w-4 h-4" /> Payment Profiles & Accounts
             </button>
 
             <button
@@ -582,10 +581,10 @@ export default function PropertySettingsPage({
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-2.5">
                       <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
-                        <QrCode className="w-5 h-5" />
+                        <CreditCard className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-sm text-gray-900">Pre-Configured UPI Payment Profiles & Bank Accounts</h3>
+                        <h3 className="font-bold text-sm text-gray-900">Pre-Configured Payment Profiles & Bank Accounts</h3>
                         <p className="text-[11px] text-gray-500">Manage business bank accounts and UPI VPA IDs saved in Firebase Firestore</p>
                       </div>
                     </div>
@@ -595,12 +594,12 @@ export default function PropertySettingsPage({
                     </span>
                   </div>
 
-                  {/* Info notice explaining why UPI ID is used instead of image uploads */}
+                  {/* Info notice explaining direct UPI ID reminders */}
                   <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 leading-relaxed">
                     <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Why Direct UPI IDs instead of Uploaded Image QRs? </span>
-                      <span>Payment apps (PhonePe, GPay, Paytm) restrict scanned QR codes uploaded from image galleries to a ₹2,000 transaction limit per NPCI guidelines. By configuring clean UPI VPA IDs, TenoPilot generates live vector QR codes allowing tenants to pay their full rent amounts (₹5,000 – ₹50,000+) without any restrictions.</span>
+                      <span className="font-bold">Direct UPI ID Reminders: </span>
+                      <span>Tenants receive reminders with your exact UPI VPA ID and direct app payment links. UPI apps restrict scanned gallery QR images to ₹2,000, but direct UPI ID transfers allow tenants to pay their full rent (₹5,000 – ₹50,000+) without any restrictions.</span>
                     </div>
                   </div>
 
@@ -649,7 +648,7 @@ export default function PropertySettingsPage({
                   {(settings.qrProfiles || DEFAULT_QR_PROFILES).length === 0 ? (
                     <div className="p-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-300 text-center space-y-2">
                       <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#c2652a] flex items-center justify-center mx-auto">
-                        <QrCode className="w-6 h-6" />
+                        <CreditCard className="w-6 h-6" />
                       </div>
                       <h4 className="font-bold text-sm text-gray-900">No Payment Profiles Configured Yet</h4>
                       <p className="text-xs text-gray-500 max-w-md mx-auto">
@@ -664,13 +663,8 @@ export default function PropertySettingsPage({
                           className="p-4 rounded-2xl border border-gray-200 bg-white shadow-2xs flex items-center justify-between gap-4"
                         >
                           <div className="flex items-center gap-3.5 min-w-0">
-                            <div className="w-16 h-16 bg-white p-1 rounded-xl border border-gray-200 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
-                              <QRCodeSVG
-                                value={qr.upiId === "CASH_PAYMENT" ? "CASH_PAYMENT" : `upi://pay?pa=${qr.upiId}&pn=${encodeURIComponent(settings.propertyName || "TenoPilot PG")}&cu=INR`}
-                                size={56}
-                                fgColor="#201a17"
-                                bgColor="#ffffff"
-                              />
+                            <div className="w-12 h-12 rounded-xl bg-orange-50 border border-orange-200/80 text-[#c2652a] shrink-0 flex items-center justify-center font-bold shadow-2xs">
+                              <CreditCard className="w-5 h-5" />
                             </div>
 
                             <div className="min-w-0 space-y-0.5">
