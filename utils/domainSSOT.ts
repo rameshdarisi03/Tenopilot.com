@@ -352,7 +352,7 @@ export function resolveOccupantPaymentDueDate(
   settings?: any
 ): string {
   if (!occupant) return "—";
-  const desiredDueDay = settings?.desiredDueDate || occupant.dueDay || 5;
+  const desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant?.dueDay ?? 5;
   const now = new Date();
   
   const dayPadded = String(desiredDueDay).padStart(2, "0");
@@ -396,7 +396,7 @@ export function calculateOccupantFinancialStatement(
   const isGuest = occupant.stayType === "Guest";
   const history = occupant.paymentHistory || [];
 
-  const desiredDueDay = settings?.desiredDueDate || occupant.dueDay || 5;
+  const desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant.dueDay ?? 5;
   const graceDays = settings?.gracePeriodDays ?? 5;
   const now = new Date();
   const currentDay = now.getDate();

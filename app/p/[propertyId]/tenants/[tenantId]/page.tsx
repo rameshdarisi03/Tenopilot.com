@@ -19,6 +19,7 @@ import {
   calculateProRataRent,
   calculateOccupantFinancialStatement,
   formatIsoToDisplayDate,
+  resolveOccupantPaymentDueDate,
   getRoomTariff,
 } from "@/utils/domainSSOT";
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
@@ -339,6 +340,11 @@ export default function IndividualTenantProfilePage({
   const [editEmail, setEditEmail] = useState<string>(occupantState?.email || "");
   const [editJoiningDate, setEditJoiningDate] = useState<string>(
     toDateInputValue(occupantState?.joiningDate)
+  );
+  const [editCustomDueDay, setEditCustomDueDay] = useState<string>(
+    occupantState?.customDueDay !== undefined && occupantState?.customDueDay !== null
+      ? String(occupantState.customDueDay)
+      : ""
   );
   const [editRent, setEditRent] = useState<number>(occupantState?.rentAmount || 0);
   const [editDeposit, setEditDeposit] = useState<number>(occupantState?.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState?.rentAmount ? occupantState.rentAmount * 2 : 0));
@@ -1268,6 +1274,11 @@ export default function IndividualTenantProfilePage({
     setEditPhone(occupantState.phone);
     setEditEmail(occupantState.email);
     setEditJoiningDate(toDateInputValue(occupantState.joiningDate));
+    setEditCustomDueDay(
+      occupantState.customDueDay !== undefined && occupantState.customDueDay !== null
+        ? String(occupantState.customDueDay)
+        : ""
+    );
     setEditRent(occupantState.rentAmount);
     setEditDeposit(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
     setEditOccupation(occupantState.occupation || "");
@@ -1276,12 +1287,18 @@ export default function IndividualTenantProfilePage({
     setShowEditProfileModal(true);
   };
 
-  // Edit Profile Submit Handler (Updates Name, Phone, Email, Joining Date, Rent, Deposit, Occupation, Workplace, Purpose across state)
+  // Edit Profile Submit Handler (Updates Name, Phone, Email, Joining Date, Due Date, Rent, Deposit, Occupation, Workplace, Purpose across state)
   const handleEditProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!occupantState) return;
 
     const formattedJoiningDate = formatIsoToDisplayDate(editJoiningDate) || editJoiningDate || occupantState.joiningDate;
+    const parsedCustomDueDay = editCustomDueDay !== "" ? Number(editCustomDueDay) : undefined;
+    const effectiveDueDay = parsedCustomDueDay ?? propertySettings?.desiredDueDate ?? occupantState.dueDay ?? 5;
+    const updatedDueDate = resolveOccupantPaymentDueDate(
+      { ...occupantState, customDueDay: parsedCustomDueDay, dueDay: effectiveDueDay },
+      propertySettings
+    );
 
     const updated: Occupant = {
       ...occupantState,
@@ -1289,6 +1306,9 @@ export default function IndividualTenantProfilePage({
       phone: editPhone.trim(),
       email: editEmail.trim(),
       joiningDate: formattedJoiningDate,
+      dueDay: effectiveDueDay,
+      customDueDay: parsedCustomDueDay,
+      dueDate: updatedDueDate,
       rentAmount: editRent,
       securityDeposit: editDeposit,
       occupation: editOccupation.trim() || undefined,
@@ -1858,11 +1878,12 @@ export default function IndividualTenantProfilePage({
             {/* Next Due Date */}
             {(() => {
               const now = new Date();
-              const dueDay = occupantState.dueDay || 5;
+              const dueDay = occupantState.customDueDay ?? propertySettings?.desiredDueDate ?? occupantState.dueDay ?? 5;
               const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
               const nextMonthStr = `${String(dueDay).padStart(2, "0")} ${nextMonth.toLocaleString("default", { month: "short", year: "numeric" })}`;
+              const currentCycleDueDateStr = resolveOccupantPaymentDueDate(occupantState, propertySettings);
 
-              let displayDueDate = occupantState.dueDate;
+              let displayDueDate = currentCycleDueDateStr || occupantState.dueDate;
               let dueSubtext = "NEXT RENT CYCLE";
               let subtextColor = "text-emerald-700";
 
@@ -1888,7 +1909,7 @@ export default function IndividualTenantProfilePage({
                   }
                 } else {
                   // Current month rent is due/overdue
-                  displayDueDate = occupantState.dueDate;
+                  displayDueDate = currentCycleDueDateStr || occupantState.dueDate;
                   dueSubtext = `RENT DUE (₹${topStmt.remainingRentDue.toLocaleString("en-IN")}) 🔴`;
                   subtextColor = "text-red-600";
                 }
@@ -1896,8 +1917,15 @@ export default function IndividualTenantProfilePage({
 
               return (
                 <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-                  <div className="p-2 bg-orange-50 w-fit rounded-lg mb-2 text-[#c2652a]">
-                    <Calendar className="w-5 h-5" />
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-orange-50 w-fit rounded-lg text-[#c2652a]">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    {occupantState.customDueDay !== undefined && occupantState.customDueDay !== null && (
+                      <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                        Custom Day
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
                     Next Due Date
@@ -3741,6 +3769,48 @@ export default function IndividualTenantProfilePage({
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>
+
+                {occupantState?.stayType !== "Guest" && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-gray-700">
+                        Monthly Rent Due Day
+                      </label>
+                      {editCustomDueDay !== "" && (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          Custom Override
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      value={editCustomDueDay}
+                      onChange={(e) => setEditCustomDueDay(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
+                    >
+                      <option value="">
+                        Property Default ({propertySettings?.desiredDueDate || 5}th of every month)
+                      </option>
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
+                        const suffix =
+                          day === 1 || day === 21
+                            ? "st"
+                            : day === 2 || day === 22
+                            ? "nd"
+                            : day === 3 || day === 23
+                            ? "rd"
+                            : "th";
+                        return (
+                          <option key={day} value={String(day)}>
+                            {day}{suffix} of every month (Custom Due Day)
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Defaults to property settings ({propertySettings?.desiredDueDate || 5}th). Select a day if this tenant has an agreed custom salary/payment cycle.
+                    </p>
+                  </div>
+                )}
 
                 {occupantState?.stayType === "Guest" ? (
                   <div>

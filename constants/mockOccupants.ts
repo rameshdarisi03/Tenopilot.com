@@ -29,6 +29,7 @@ export interface Occupant {
   lastPaidDate: string; // Reference baseline date (e.g., "01 Jul 2026")
   dueDate: string; // Target billing date (e.g., "01 Aug 2026")
   dueDay: number; // Day of the month (1-28)
+  customDueDay?: number; // Optional per-tenant override (1-28). If undefined, uses property global desiredDueDate
   daysRemainingText: string; // e.g., "Due in 2 Days", "DUE TODAY", "5 DAYS OVERDUE", "—"
   daysDiff: number; // Positive = future due, 0 = today, Negative = overdue
   vacatingDate?: string;

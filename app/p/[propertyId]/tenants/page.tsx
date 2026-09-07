@@ -760,7 +760,9 @@ export default function TenantsDirectoryPage({
       } else if (sortColumn === "rent") {
         comparison = a.rentAmount - b.rentAmount;
       } else if (sortColumn === "dueDate") {
-        comparison = a.dueDay - b.dueDay;
+        const dayA = a.customDueDay ?? a.dueDay ?? currentSettings.desiredDueDate ?? 5;
+        const dayB = b.customDueDay ?? b.dueDay ?? currentSettings.desiredDueDate ?? 5;
+        comparison = dayA - dayB;
       }
 
       return sortDirection === "asc" ? comparison : -comparison;

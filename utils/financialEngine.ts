@@ -101,14 +101,15 @@ export function calculateRentAmountDue(
   const dueMonth = now.getMonth();
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  const dueDayFormatted = settings.desiredDueDate < 10 ? `0${settings.desiredDueDate}` : `${settings.desiredDueDate}`;
+  const effectiveDueDay = occupant.customDueDay ?? settings.desiredDueDate ?? occupant.dueDay ?? 5;
+  const dueDayFormatted = effectiveDueDay < 10 ? `0${effectiveDueDay}` : `${effectiveDueDay}`;
   const nextDueDateStr = `${dueDayFormatted} ${monthNames[dueMonth]} ${dueYear}`;
 
   return {
     dueAmount: baseMonthlyRent,
     dueDateStr: occupant.dueDate || nextDueDateStr,
     isProRataFirstMonth: false,
-    breakdownText: `Fixed Monthly Rent (Due on ${settings.desiredDueDate}th)`,
+    breakdownText: `Fixed Monthly Rent (Due on ${effectiveDueDay}th)`,
   };
 }
 
