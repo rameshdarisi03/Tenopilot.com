@@ -69,6 +69,7 @@ import {
   RefreshCw,
   Mail,
   Lock,
+  Check,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -2354,275 +2355,236 @@ Scroll vertically to browse all residents without pagination limits
         {/* RENT REMINDER PAYMENT QR CODE & WHATSAPP BROADCAST MODAL */}
         {showRentReminderQRModal && (
           <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
             onClick={() => setShowRentReminderQRModal(false)}
           >
             <div
-              className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-xl w-full p-6 sm:p-8 space-y-5 animate-in zoom-in-95 text-xs max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-t-3xl sm:rounded-3xl border-t sm:border border-gray-100 shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-3.5 sm:space-y-4 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-xs max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                    <CreditCard className="w-5 h-5" />
+              {/* Mobile Drag Handle */}
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto sm:hidden mb-1 shrink-0" />
+
+              {/* Clean Responsive Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Send Rent Reminders & Payment Info
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900 leading-tight truncate">
+                      Send Rent Reminders
                     </h3>
-                    <p className="text-[11px] text-gray-500 font-medium">
-                      {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected for Batch Notification
+                    <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                      {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected for Batch Dispatch
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowWhatsAppWalletModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-bold text-[11px] cursor-pointer shadow-2xs transition-all"
+                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-bold text-[10px] sm:text-[11px] cursor-pointer shadow-2xs transition-all"
                     title="Click to recharge credits or view delivery history"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
                     <span>{whatsappCredits} Credits</span>
-                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-200/70 px-1.5 py-0.2 rounded-md">+ Add</span>
+                    <span className="text-[9px] text-emerald-700 font-extrabold bg-emerald-200/70 px-1 py-0.2 rounded">+ Add</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowRentReminderQRModal(false)}
-                    className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                    className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    aria-label="Close"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Step 1: Payment Method Card Selector (UPI Profiles & Pay by Cash) */}
-              <div className="space-y-3 p-4 bg-orange-50/40 rounded-2xl border border-orange-200/60">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
-                    <CreditCard className="w-4 h-4 text-[#c2652a]" />
-                    <span>1. Select Payment Method (UPI Profile or Pay by Cash)</span>
-                  </h4>
+              {/* Step 1: Payment Method Selector (Compact Choice Cards) */}
+              {(() => {
+                const reminderCards = getReminderPaymentCards();
+                const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+                const isCash = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
 
-                  {(() => {
-                    const reminderCards = getReminderPaymentCards();
-                    return reminderCards.length > 0 ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActiveQrIndex((prev) =>
-                              prev > 0 ? prev - 1 : reminderCards.length - 1
-                            )
-                          }
-                          className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
-                          title="Previous Payment Option"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-[10px] font-bold text-gray-600 px-1 font-mono">
-                          {activeQrIndex + 1} / {reminderCards.length}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActiveQrIndex((prev) =>
-                              prev < reminderCards.length - 1 ? prev + 1 : 0
-                            )
-                          }
-                          className="p-1 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer shadow-2xs"
-                          title="Next Payment Option"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
+                return (
+                  <div className="space-y-2 p-3 sm:p-3.5 bg-orange-50/40 rounded-2xl border border-orange-200/60">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-[#c2652a]" />
+                        <span>1. Payment Receiving Account</span>
+                      </h4>
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {reminderCards.length} option{reminderCards.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
 
-                {/* Quick Selection Cards Pills & Active Preview Box */}
-                {(() => {
-                  const reminderCards = getReminderPaymentCards();
-                  const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
-                  const isCash = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                      {reminderCards.map((card, idx) => {
+                        const isSelected = idx === activeQrIndex;
+                        const isCardCash = card.upiId === "CASH_PAYMENT" || card.accountType === "CASH_DESK";
 
-                  return (
-                    <div className="space-y-3">
-                      {/* Card Selection Tabs */}
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                        {reminderCards.map((card, idx) => {
-                          const isSelected = idx === activeQrIndex;
-                          const isCardCash = card.upiId === "CASH_PAYMENT" || card.accountType === "CASH_DESK";
-                          return (
-                            <button
-                              key={card.id || idx}
-                              type="button"
-                              onClick={() => setActiveQrIndex(idx)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 border cursor-pointer ${
+                        return (
+                          <button
+                            key={card.id || idx}
+                            type="button"
+                            onClick={() => setActiveQrIndex(idx)}
+                            className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
+                              isSelected
+                                ? isCardCash
+                                  ? "bg-amber-50/90 border-amber-300 ring-1.5 ring-amber-400/50 shadow-xs"
+                                  : "bg-orange-50/90 border-orange-300 ring-1.5 ring-[#c2652a]/50 shadow-xs"
+                                : "bg-white border-gray-200 hover:bg-gray-50/80 hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                  isCardCash
+                                    ? isSelected ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-800"
+                                    : isSelected ? "bg-[#c2652a] text-white" : "bg-orange-100 text-[#c2652a]"
+                                }`}
+                              >
+                                {isCardCash ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-xs text-gray-900 truncate">{card.name}</span>
+                                  {card.isDefault && (
+                                    <span className="bg-orange-100 text-[#c2652a] text-[8px] px-1.5 py-0.2 rounded font-bold uppercase">
+                                      Default
+                                    </span>
+                                  )}
+                                  {isCardCash && (
+                                    <span className="bg-amber-100 text-amber-800 text-[8px] px-1.5 py-0.2 rounded font-bold uppercase">
+                                      Cash
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                                  {isCardCash ? (
+                                    <span>PG Reception • In-person cash handover</span>
+                                  ) : (
+                                    <span>
+                                      {card.bankLabel ? `${card.bankLabel} • ` : ""}UPI: <strong className="font-mono text-gray-700">{card.upiId}</strong>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${
                                 isSelected
                                   ? isCardCash
-                                    ? "bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/40"
-                                    : "bg-[#c2652a] text-white border-[#a5521e] shadow-xs ring-2 ring-orange-400/40"
-                                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                                    ? "border-amber-500 bg-amber-500 text-white"
+                                    : "border-[#c2652a] bg-[#c2652a] text-white"
+                                  : "border-gray-300 bg-white"
                               }`}
                             >
-                              {isCardCash ? (
-                                <>
-                                  <Banknote className="w-3.5 h-3.5" />
-                                  <span>💵 Pay by Cash</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CreditCard className="w-3.5 h-3.5" />
-                                  <span>💳 {card.name}</span>
-                                </>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Active Card Preview Box */}
-                      {isCash ? (
-                        <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50/50 via-orange-50/20 to-white shadow-xs flex flex-col sm:flex-row items-center gap-4">
-                          <div className="w-24 h-24 bg-amber-100 rounded-2xl border border-amber-200 shrink-0 flex flex-col items-center justify-center text-amber-800 shadow-2xs">
-                            <Banknote className="w-9 h-9 text-amber-600 mb-1" />
-                            <span className="font-extrabold text-[10px] tracking-wider uppercase text-amber-900">PAY BY CASH</span>
-                            <span className="text-[8px] text-amber-700 font-semibold">Front Counter</span>
-                          </div>
-
-                          <div className="space-y-1 flex-1 min-w-0 text-center sm:text-left">
-                            <div className="flex items-center justify-center sm:justify-start gap-2">
-                              <span className="font-bold text-sm text-gray-900">{activeCard.name}</span>
-                              <span className="bg-amber-100 text-amber-800 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
-                                In-Person Cash
-                              </span>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                             </div>
-                            <span className="text-xs text-gray-600 block">🏢 Desk: <strong>{activeCard.bankLabel}</strong></span>
-                            <span className="text-xs font-mono text-amber-800 font-bold block bg-amber-100/70 px-2.5 py-1 rounded-lg border border-amber-200/80 inline-block">
-                              💵 Cash Handover at PG Reception
-                            </span>
-                            <p className="text-[10px] text-gray-500">
-                              Reminders will instruct tenants to pay rent in cash directly at the PG reception counter and collect their official receipt.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-4">
-                          <div className="w-20 h-20 bg-orange-50 rounded-2xl border border-orange-200/80 shrink-0 flex flex-col items-center justify-center text-[#c2652a] shadow-2xs">
-                            <CreditCard className="w-8 h-8 text-[#c2652a] mb-1" />
-                            <span className="font-extrabold text-[9px] tracking-wider uppercase text-orange-950">UPI ID</span>
-                            <span className="text-[8px] text-orange-800 font-semibold">Direct Pay</span>
-                          </div>
-
-                          <div className="space-y-1 flex-1 min-w-0 text-center sm:text-left">
-                            <div className="flex items-center justify-center sm:justify-start gap-2">
-                              <span className="font-bold text-sm text-gray-900">{activeCard.name}</span>
-                              {activeCard.isDefault && (
-                                <span className="bg-orange-100 text-[#c2652a] text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
-                                  Default
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-500 block">🏦 Bank: <strong>{activeCard.bankLabel}</strong></span>
-                            <span className="text-xs font-mono text-[#c2652a] font-bold block bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/50 inline-block">
-                              💳 Pay to UPI ID: {activeCard.upiId}
-                            </span>
-                            <p className="text-[10px] text-gray-400">
-                              Reminders will instruct tenants to pay directly to UPI ID: <strong className="text-gray-700">{activeCard.upiId}</strong>.
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                          </button>
+                        );
+                      })}
                     </div>
-                  );
-                })()}
-              </div>
 
-              {/* Step 2: Choose Delivery Channel (WhatsApp, Brevo Email, or Both) */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
+                    <div className="px-2.5 py-1.5 rounded-lg bg-white/90 border border-orange-100/80 text-[10px] text-gray-600 flex items-center gap-1.5">
+                      <span className="shrink-0">{isCash ? "💵" : "📲"}</span>
+                      <p className="truncate">
+                        {isCash
+                          ? "Reminders will instruct tenants to pay cash at PG reception."
+                          : `Reminders will include UPI: ${activeCard?.upiId || ""} with direct pay link.`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Step 2: Choose Delivery Channel (WhatsApp, Email, or Both) */}
+              <div className="p-3 sm:p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
-                    <Zap className="w-4 h-4 text-amber-500" />
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
                     <span>2. Select Dispatch Channel</span>
                   </h4>
-                  <span className="text-[10px] text-gray-500 font-medium">Powered by TenoPilot Cloud</span>
+                  <span className="text-[10px] text-gray-400 font-medium">TenoPilot Cloud</span>
                 </div>
 
                 {!sub.isPro && (
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 border border-amber-200/80 flex items-center justify-between gap-3 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
-                        <Lock className="w-3.5 h-3.5" />
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 border border-amber-200/80 flex items-center justify-between gap-2 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-6 h-6 rounded-md bg-amber-500 text-white flex items-center justify-center shrink-0">
+                        <Lock className="w-3 h-3" />
                       </div>
-                      <div>
-                        <p className="font-bold text-amber-950 flex items-center gap-1.5 text-[11px]">
-                          <span>Automated Reminders are Pro-Exclusive</span>
-                          <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[9px] font-black uppercase">Pro Only</span>
+                      <div className="min-w-0">
+                        <p className="font-bold text-amber-950 text-[11px] truncate">
+                          Automated Reminders (Pro Only)
                         </p>
-                        <p className="text-[10px] text-amber-800">
-                          Upgrade to Pro to send automated batch reminders. You can also use the free <strong>Manual wa.me</strong> links below!
+                        <p className="text-[10px] text-amber-800 truncate">
+                          Upgrade to Pro or use free manual wa.me links below
                         </p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowProReminderPaywall(true)}
-                      className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-[10px] rounded-lg shadow-xs hover:opacity-95 transition-all shrink-0 cursor-pointer"
+                      className="px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-[10px] rounded-lg shadow-xs hover:opacity-95 transition-all shrink-0 cursor-pointer"
                     >
-                      Upgrade ₹999
+                      ₹999/mo
                     </button>
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <button
                     type="button"
                     onClick={() => setReminderChannel("WHATSAPP")}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                    className={`p-2 rounded-xl border flex flex-col items-center gap-0.5 font-bold text-xs cursor-pointer transition-all ${
                       reminderChannel === "WHATSAPP"
                         ? "bg-emerald-600 text-white border-emerald-700 shadow-sm"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
                     }`}
                   >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>WhatsApp</span>
-                    <span className={`text-[9px] ${reminderChannel === "WHATSAPP" ? "text-emerald-100" : "text-gray-400"}`}>
-                      1 Credit / msg
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">WhatsApp</span>
+                    <span className={`text-[9px] font-medium ${reminderChannel === "WHATSAPP" ? "text-emerald-100" : "text-gray-400"}`}>
+                      1 Credit
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setReminderChannel("EMAIL")}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                    className={`p-2 rounded-xl border flex flex-col items-center gap-0.5 font-bold text-xs cursor-pointer transition-all ${
                       reminderChannel === "EMAIL"
                         ? "bg-blue-600 text-white border-blue-700 shadow-sm"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
                     }`}
                   >
-                    <Mail className="w-4 h-4" />
-                    <span>Email</span>
-                    <span className={`text-[9px] ${reminderChannel === "EMAIL" ? "text-blue-100" : "text-gray-400"}`}>
-                      Zero Credits
+                    <Mail className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Email</span>
+                    <span className={`text-[9px] font-medium ${reminderChannel === "EMAIL" ? "text-blue-100" : "text-gray-400"}`}>
+                      Free
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setReminderChannel("BOTH")}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                    className={`p-2 rounded-xl border flex flex-col items-center gap-0.5 font-bold text-xs cursor-pointer transition-all ${
                       reminderChannel === "BOTH"
-                        ? "bg-gradient-to-r from-emerald-600 to-blue-600 text-white border-blue-700 shadow-sm ring-2 ring-blue-400/40"
+                        ? "bg-gradient-to-r from-emerald-600 to-blue-600 text-white border-blue-700 shadow-sm ring-1.5 ring-blue-400/40"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
                     }`}
                   >
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Both (2x Reach)</span>
-                    <span className={`text-[9px] ${reminderChannel === "BOTH" ? "text-white/90" : "text-emerald-600 font-extrabold"}`}>
-                      Recommended
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span className="text-[11px]">Both</span>
+                    <span className={`text-[9px] font-medium ${reminderChannel === "BOTH" ? "text-white/90" : "text-emerald-600 font-extrabold"}`}>
+                      2x Reach
                     </span>
                   </button>
                 </div>
@@ -2632,18 +2594,18 @@ Scroll vertically to browse all residents without pagination limits
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-gray-900 text-xs">
-                    3. Selected Tenants ({selectedIds.length}) & Recipients:
+                    3. Selected Recipients ({selectedIds.length}):
                   </h4>
-                  <span className="text-[10px] text-gray-500 font-medium">
+                  <span className="text-[10px] text-gray-400 font-medium">
                     {reminderChannel === "BOTH"
-                      ? "Dispatches WhatsApp text & Official Email invoice"
+                      ? "WhatsApp + Email Invoice"
                       : reminderChannel === "WHATSAPP"
-                      ? "Dispatches verified WhatsApp cloud message"
-                      : "Dispatches official transactional email invoice"}
+                      ? "WhatsApp Message"
+                      : "Email Invoice"}
                   </span>
                 </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-36 sm:max-h-44 overflow-y-auto pr-1">
                   {(() => {
                     const reminderCards = getReminderPaymentCards();
                     const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
@@ -2673,19 +2635,19 @@ Scroll vertically to browse all residents without pagination limits
                         return (
                           <div
                             key={occ.id}
-                            className="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs"
+                            className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between gap-2 text-xs"
                           >
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-900">{occ.name}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-gray-900 truncate">{occ.name}</span>
                                 {occ.email && (
-                                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono">
+                                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[140px]">
                                     ✉️ {occ.email}
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[10px] text-gray-500 block mt-0.5">
-                                Room {occ.roomNumber} ({occ.bedCode}) • Rent: ₹${occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
+                              <span className="text-[10px] text-gray-500 block truncate mt-0.5">
+                                Room {occ.roomNumber} ({occ.bedCode}) • ₹{occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
                               </span>
                             </div>
 
@@ -2693,11 +2655,12 @@ Scroll vertically to browse all residents without pagination limits
                               href={waUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="px-2.5 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-[10px] flex items-center gap-1 shadow-2xs"
+                              className="px-2.5 py-1 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-[10px] flex items-center gap-1 shadow-2xs shrink-0"
                               title="Manual wa.me fallback"
                             >
                               <MessageSquare className="w-3 h-3 text-emerald-600" />
-                              <span>Manual wa.me</span>
+                              <span className="hidden sm:inline">Manual</span>
+                              <span>wa.me</span>
                             </a>
                           </div>
                         );
@@ -2707,11 +2670,11 @@ Scroll vertically to browse all residents without pagination limits
               </div>
 
               {/* Bottom Action Footer with Dynamic Multi-Channel Dispatch */}
-              <div className="flex flex-col sm:flex-row gap-2.5 pt-3 border-t border-gray-100">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2.5 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowRentReminderQRModal(false)}
-                  className="py-2.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
+                  className="py-2.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer text-center"
                 >
                   Close
                 </button>
@@ -2720,17 +2683,17 @@ Scroll vertically to browse all residents without pagination limits
                   <button
                     type="button"
                     onClick={() => setShowProReminderPaywall(true)}
-                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    className="flex-1 py-2.5 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
                   >
                     <Lock className="w-4 h-4" />
-                    <span>🔒 Unlock Automated Reminders — Upgrade to Pro (₹999/mo)</span>
+                    <span>Upgrade to Pro to Dispatch (₹999/mo)</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     disabled={isSendingCloudWhatsApp || selectedIds.length === 0}
                     onClick={handleSendCloudWhatsAppReminders}
-                    className={`flex-1 py-3 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    className={`flex-1 py-2.5 sm:py-3 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
                       reminderChannel === "BOTH"
                         ? "bg-gradient-to-r from-emerald-600 via-teal-700 to-blue-700 hover:from-emerald-700 hover:to-blue-800"
                         : reminderChannel === "WHATSAPP"
@@ -2752,10 +2715,10 @@ Scroll vertically to browse all residents without pagination limits
                         <Zap className="w-4 h-4 fill-current text-yellow-300" />
                         <span>
                           {reminderChannel === "BOTH"
-                            ? `1-Tap Multi-Channel Dispatch (WhatsApp + Email to ${selectedIds.length})`
+                            ? `Dispatch (WhatsApp + Email to ${selectedIds.length})`
                             : reminderChannel === "WHATSAPP"
-                            ? `1-Tap WhatsApp Cloud Dispatch (Send to ${selectedIds.length})`
-                            : `1-Tap Email Dispatch (Send to ${selectedIds.length})`}
+                            ? `WhatsApp Cloud Dispatch (${selectedIds.length})`
+                            : `Email Dispatch (${selectedIds.length})`}
                         </span>
                       </>
                     )}
