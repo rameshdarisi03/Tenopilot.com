@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { provisionNewPropertyWorkspace } from "@/lib/accountInitializer";
 import { syncUserSecurityPinToCloud, sanitizeTitleCase } from "@/lib/authService";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
@@ -180,6 +180,11 @@ function WelcomeOnboardingContent() {
         },
         { merge: true }
       );
+
+      // 3b. Clean up any purged account tombstone on fresh workspace initialization
+      try {
+        await deleteDoc(doc(db, "purged_accounts", ownerEmail));
+      } catch {}
 
       // 4. Update local session state
       if (typeof window !== "undefined") {

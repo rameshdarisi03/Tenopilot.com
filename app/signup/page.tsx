@@ -22,6 +22,7 @@ import {
   loginWithGoogle,
   registerWithEmailPassword,
   sendUserEmailVerification,
+  sendPasswordReset,
   getCleanAuthErrorMessage,
 } from "@/lib/authService";
 import { auth } from "@/lib/firebase";
@@ -43,6 +44,7 @@ function SignUpPageContent() {
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const [purgedActivationNotice, setPurgedActivationNotice] = useState<string | null>(null);
 
   // 🔄 Smart Visibility & Polling Listener: Detects email verification cleanly without IndexedDB collisions
   useEffect(() => {
@@ -119,9 +121,19 @@ function SignUpPageContent() {
     }
   };
 
+  const handleResendPurgedReset = async (targetEmail: string) => {
+    try {
+      await sendPasswordReset(targetEmail);
+      setPurgedActivationNotice(`✓ Fresh activation link sent to ${targetEmail}. Please check your inbox, set your new password, and sign in below!`);
+    } catch (e: any) {
+      setError(e?.message || "Failed to resend activation link.");
+    }
+  };
+
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setPurgedActivationNotice(null);
 
     const cleanEmail = email.trim().toLowerCase();
 
@@ -166,7 +178,12 @@ function SignUpPageContent() {
         });
       }, 1000);
     } catch (err: any) {
-      setError(getCleanAuthErrorMessage(err));
+      if (err?.code === "auth/purged-account-activation-sent" || err?.message?.includes("previously purged account")) {
+        setPurgedActivationNotice(err.message);
+        setError(null);
+      } else {
+        setError(getCleanAuthErrorMessage(err));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -454,12 +471,34 @@ function SignUpPageContent() {
 
               {/* Express Sign-Up Form */}
               <form onSubmit={handleEmailSignUp} className="space-y-3.5 text-xs">
-                {error && (
+                {purgedActivationNotice ? (
+                  <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-left">
+                    <div className="flex items-start gap-2 text-amber-900 font-semibold text-xs leading-relaxed">
+                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>{purgedActivationNotice}</span>
+                    </div>
+                    <div className="pt-1 flex items-center gap-2">
+                      <Link
+                        href={`/login?email=${encodeURIComponent(email)}`}
+                        className="px-3 py-1.5 bg-[#c2652a] text-white rounded-lg font-bold text-[11px] hover:bg-[#b85b20] transition-colors"
+                      >
+                        Sign In & Claim Property →
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleResendPurgedReset(email)}
+                        className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 rounded-lg font-bold text-[11px] hover:bg-amber-100 transition-colors cursor-pointer"
+                      >
+                        Resend Link
+                      </button>
+                    </div>
+                  </div>
+                ) : error ? (
                   <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800 font-semibold">
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
-                )}
+                ) : null}
 
                 {/* Email Address */}
                 <div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { doc, getDoc, getDocs, collection, deleteDoc, setDoc } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { deleteUserFromFirebaseAuth } from "@/lib/firebaseAdminAuth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -205,12 +206,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 8. Delete user from Firebase Authentication if service account is configured
+    let authUserDeleted = false;
+    try {
+      const authDelRes = await deleteUserFromFirebaseAuth(userId, cleanEmail);
+      if (authDelRes.success) {
+        authUserDeleted = true;
+      } else {
+        console.log("Firebase Auth purge notice:", authDelRes.message);
+      }
+    } catch (authErr) {
+      console.warn("Auth user deletion warning:", authErr);
+    }
+
     return NextResponse.json({
       success: true,
-      message: `🎉 Deep Purge Complete: Removed ${deletedDocsCount} Firestore documents and ${deletedPhotosCount} Storage photos for ${cleanEmail}. Zero footprints left behind.`,
+      message: `🎉 Deep Purge Complete: Removed ${deletedDocsCount} Firestore documents and ${deletedPhotosCount} Storage photos for ${cleanEmail}.${authUserDeleted ? " Firebase Auth user record eradicated." : ""} Zero footprints left behind.`,
       purgedCounts: {
         firestoreDocs: deletedDocsCount,
         storagePhotos: deletedPhotosCount,
+        firebaseAuthUser: authUserDeleted,
       },
     });
   } catch (err: any) {

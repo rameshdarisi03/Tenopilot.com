@@ -73,6 +73,9 @@ export function getCleanAuthErrorMessage(err: any): string {
   if (msg.includes("pending Founder VIP Pass") || msg.includes("VIP Pass waiting") || msg.includes("/activate")) {
     return msg;
   }
+  if (code === "auth/purged-account-activation-sent" || msg.includes("previously purged account") || msg.includes("password activation link")) {
+    return msg;
+  }
   if (msg.includes("removed or purged")) {
     return "This account has been removed or purged. Please click Sign Up below to create a new property.";
   }
@@ -158,29 +161,38 @@ export async function checkAccountRegistrationStatus(email: string): Promise<Acc
   if (!cleanEmail) return { exists: false };
 
   try {
-    // 0. Check if account was explicitly purged by founder
-    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
-    if (purgedDoc.exists()) {
-      return { exists: false, isPurged: true };
-    }
-
     // 1. Check in staff_accounts collection
     const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
-    if (staffDoc.exists()) return { exists: true, isStaff: true };
+    if (staffDoc.exists()) {
+      deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+      return { exists: true, isStaff: true };
+    }
 
     // 2. Check in users collection by email field
     const q = query(collection(db, "users"), where("email", "==", cleanEmail));
     const snap = await getDocs(q);
-    if (!snap.empty) return { exists: true };
+    if (!snap.empty) {
+      deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+      return { exists: true };
+    }
 
     // 3. Check in founder_clients collection
     const fcDoc = await getDoc(doc(db, "founder_clients", cleanEmail));
-    if (fcDoc.exists()) return { exists: true };
+    if (fcDoc.exists()) {
+      deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+      return { exists: true };
+    }
 
     // 4. Check in local staff store
     const allStaff = staffStore.getAllGlobalStaff();
     if (allStaff.some((s) => s.email.toLowerCase() === cleanEmail)) {
       return { exists: true, isStaff: true };
+    }
+
+    // 5. Check if account was explicitly purged by founder and has NO active records
+    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
+    if (purgedDoc.exists()) {
+      return { exists: false, isPurged: true };
     }
 
     // 5. Check if they have a pending Founder VIP Invite
@@ -317,6 +329,11 @@ export async function loginWithGoogle(
 
     await setDoc(userDocRef, profile, { merge: true });
 
+    // Clean up any purged tombstone for this email
+    try {
+      await deleteDoc(doc(db, "purged_accounts", email));
+    } catch {}
+
     return { user, profile, alreadyExists: false };
   } catch (error: any) {
     console.error("Google Auth Error:", error);
@@ -415,6 +432,22 @@ export async function registerWithEmailPassword(
           const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, pass);
           user = signInRes.user;
         } catch (signInErr: any) {
+          // Password did not match existing Firebase Auth record!
+          // Check if this is an orphaned or previously purged account (i.e. has tombstone OR no active doc in users)
+          const regStatus = await checkAccountRegistrationStatus(cleanEmail);
+          if (regStatus.isPurged || !regStatus.exists) {
+            try {
+              await sendPasswordResetEmail(auth, cleanEmail);
+            } catch (resetErr) {
+              console.warn("Notice sending password reset for purged account:", resetErr);
+            }
+            const err: any = new Error(
+              `This email belonged to a previously purged account. We've sent a 1-click password activation link to ${cleanEmail}. Please check your inbox, set your new password, and sign in below!`
+            );
+            err.code = "auth/purged-account-activation-sent";
+            throw err;
+          }
+
           throw new Error("An account with this email address already exists. Please sign in on the Login page with your password.");
         }
       } else {

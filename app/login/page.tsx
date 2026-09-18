@@ -39,7 +39,7 @@ import { staffStore, StaffMember } from "@/lib/staffStore";
 import { founderStore } from "@/constants/founderStore";
 import { portfolioStore } from "@/constants/portfolioStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -338,14 +338,49 @@ export default function LoginPage() {
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === cleanEmail);
 
-      // 🛡️ STRICT CLOUD VERIFICATION: Reject purged accounts that have credentials in Auth but zero docs in Firestore
+      // 🛡️ RE-SYNC / SELF-HEAL PURGED OR ORPHANED ACCOUNTS:
+      // If user successfully authenticated with Firebase Auth credentials but has no Firestore document, auto-heal!
       if (!userData && !staffData && !match && !isMasterTest) {
-        try { await signOut(auth); } catch {}
+        const targetUid = auth.currentUser?.uid || `user-${Date.now()}`;
+        const nowIso = new Date().toISOString();
+        const trialExpiryIso = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+
+        // 1. Clear any stale tombstone in purged_accounts
+        try {
+          await deleteDoc(doc(db, "purged_accounts", cleanEmail));
+        } catch {}
+
+        // 2. Provision clean initial profile
+        const freshProfile: any = {
+          uid: targetUid,
+          email: cleanEmail,
+          displayName: auth.currentUser?.displayName ? sanitizeTitleCase(auth.currentUser.displayName) : "Property Owner",
+          organizationId: `org_${targetUid}`,
+          role: "master_admin",
+          assignedPropertyId: "",
+          isNewUser: true,
+          onboardingCompleted: false,
+          hasSetPin: false,
+          createdAt: nowIso,
+          planExpiresAt: trialExpiryIso,
+          plan: "10_DAY_TRIAL",
+          subscriptionStatus: "TRIAL",
+        };
+
+        await setDoc(doc(db, "users", targetUid), freshProfile, { merge: true });
+        userData = freshProfile;
+
+        // 3. Clear stale local cached state
         localStorage.removeItem("tenopilot_saved_session");
         localStorage.removeItem("tenopilot_portfolio_properties");
         portfolioStore.clear();
-        setSavedSession(null);
-        throw new Error("This account has been removed or purged. Please click Sign Up below to create a new property.");
+
+        // 4. Unlock session and redirect straight to onboarding wizard
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("tenopilot_session_unlocked", "true");
+        }
+        router.push("/welcome");
+        return;
       }
 
       const hasUserSetPin =
