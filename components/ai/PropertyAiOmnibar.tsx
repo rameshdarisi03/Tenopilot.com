@@ -46,16 +46,16 @@ export function PropertyAiOmnibar({ propertyId }: { propertyId?: string }) {
   }, [openCopilot]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-1.5">
+    <div className="w-full max-w-2xl mx-auto">
       <div
         onClick={() => openCopilot()}
-        className="group relative flex items-center justify-between w-full h-11 px-3.5 sm:px-4 rounded-2xl bg-white/90 hover:bg-white border border-[#c2652a]/25 hover:border-[#c2652a]/60 shadow-xs hover:shadow-md transition-all duration-300 cursor-pointer backdrop-blur-md"
+        className="group relative flex items-center justify-between w-full h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-white/95 hover:bg-white border border-[#c2652a]/25 hover:border-[#c2652a]/60 shadow-xs hover:shadow-md transition-all duration-300 cursor-pointer backdrop-blur-md"
       >
         {/* Ambient Shimmer Sheen */}
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#c2652a]/5 via-amber-500/10 to-[#964407]/5 opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none" />
+        <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#c2652a]/5 via-amber-500/10 to-[#964407]/5 opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
         {/* Left: Sparkle Badge & Rotating Text */}
-        <div className="relative flex items-center gap-2.5 min-w-0 flex-1">
+        <div className="relative flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#c2652a] to-[#964407] flex items-center justify-center shrink-0 shadow-xs shadow-[#c2652a]/30 group-hover:scale-105 transition-transform">
             <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
           </div>

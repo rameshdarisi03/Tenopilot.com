@@ -10,7 +10,6 @@ import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { EditProfileModal } from "./EditProfileModal";
 import { PropertyAiOmnibar } from "@/components/ai/PropertyAiOmnibar";
-import { useAiCopilotStore } from "@/lib/aiCopilotStore";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -36,7 +35,6 @@ export function PropertyHeader({
   actionElement?: React.ReactNode;
 }) {
   const { profile, updateProfileName, logout } = useAuth();
-  const { openCopilot } = useAiCopilotStore();
   const sub = evaluateSubscription(profile);
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -107,7 +105,8 @@ export function PropertyHeader({
     : openComplaints.length + overdueOccupants.length + pendingKycOccupants.length;
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-3 sm:px-4 md:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4 transition-all">
+    <div className="sticky top-0 z-30 bg-white border-b border-gray-200 transition-all">
+      <header className="px-3 sm:px-4 md:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
       {/* 📱 Mobile Full-Width Expanded Search Overlay */}
       {isMobileSearchExpanded && showSearch ? (
         <div className="flex items-center gap-2 w-full animate-in fade-in slide-in-from-top-2 duration-150">
@@ -222,19 +221,8 @@ export function PropertyHeader({
             <PropertyAiOmnibar propertyId={propertyId} />
           </div>
 
-          {/* Right: Actions, Mobile AI Sparkle, Mobile Search Trigger, Notification Bell & Avatar */}
+          {/* Right: Actions, Mobile Search Trigger, Notification Bell & Avatar */}
           <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
-            {/* 📱 Mobile AI Copilot Trigger */}
-            <button
-              type="button"
-              onClick={() => openCopilot("", false)}
-              className="md:hidden p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#c2652a] border border-amber-200 active:scale-95 transition-transform cursor-pointer flex items-center justify-center shadow-xs"
-              aria-label="Open AI Copilot"
-              title="Ask TenoPilot AI Copilot"
-            >
-              <Sparkles className="w-4 h-4 animate-pulse" />
-            </button>
-
             {/* 📱 Mobile Search Icon Trigger Button */}
             {showSearch && (
               <button
@@ -544,6 +532,14 @@ export function PropertyHeader({
       </div>
         </>
       )}
+      </header>
+
+      {/* 📱 Mobile AI Search Bar (Directly below header) */}
+      {!isMobileSearchExpanded && (
+        <div className="md:hidden border-t border-amber-100/70 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/40 px-3 py-1.5 shadow-2xs">
+          <PropertyAiOmnibar propertyId={propertyId} />
+        </div>
+      )}
 
       {/* ✏️ EDIT PROFILE DETAILS MODAL */}
       <EditProfileModal
@@ -551,6 +547,6 @@ export function PropertyHeader({
         onClose={() => setShowEditProfileModal(false)}
         propertyId={propertyId}
       />
-    </header>
+    </div>
   );
 }
