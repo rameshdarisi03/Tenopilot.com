@@ -12,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Globe,
   RotateCcw,
   User,
@@ -385,7 +386,7 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                   Live DB
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500">Ask via Voice or Text in 6 Languages</p>
+              <p className="text-[11px] text-gray-500">Ask via Voice or Text in 7 Languages</p>
             </div>
           </div>
 
@@ -518,44 +519,76 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                             </span>
                           </div>
 
-                          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                            {msg.actionPayload.map((tenant: any, i: number) => (
-                              <div
-                                key={i}
-                                className="p-2.5 rounded-xl bg-gray-50 border border-gray-200/80 flex items-center justify-between gap-2"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <div className="font-bold text-gray-900 text-xs truncate">
-                                    {tenant.name}
-                                  </div>
-                                  <div className="text-[11px] text-gray-500">
-                                    Room {tenant.room} • Due:{" "}
-                                    <span className="font-bold text-rose-600">
-                                      ₹{Number(tenant.dueAmount || 0).toLocaleString("en-IN")}
-                                    </span>
-                                  </div>
-                                </div>
+                          <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                            {msg.actionPayload.map((tenant: any, i: number) => {
+                              const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                              const tenantId =
+                                tenant.occupantId ||
+                                tenant.id ||
+                                rawOccupants.find(
+                                  (o) => o.name?.toLowerCase().trim() === tenant.name?.toLowerCase().trim()
+                                )?.id;
 
-                                {/* 1-Tap WhatsApp Reminder */}
-                                {tenant.phone ? (
-                                  <a
-                                    href={constructWhatsAppRentReminder(
-                                      tenant.name,
-                                      tenant.room,
-                                      tenant.dueAmount,
-                                      tenant.phone
-                                    )}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors shrink-0"
-                                  >
-                                    <span>💬 WhatsApp</span>
-                                  </a>
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">No phone</span>
-                                )}
-                              </div>
-                            ))}
+                              return (
+                                <div
+                                  key={i}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-amber-50/40 border border-gray-200/90 hover:border-amber-300 flex items-center justify-between gap-2 shadow-xs transition-colors"
+                                >
+                                  {/* Clickable Profile Info */}
+                                  {tenantId ? (
+                                    <Link
+                                      href={`/p/${propertyId}/tenants/${tenantId}`}
+                                      onClick={() => closeCopilot()}
+                                      className="min-w-0 flex-1 group cursor-pointer"
+                                      title="Open Tenant Profile"
+                                    >
+                                      <div className="font-bold text-gray-900 text-xs truncate group-hover:text-[#c2652a] flex items-center gap-1">
+                                        <User className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                        <span className="truncate">{tenant.name}</span>
+                                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#c2652a] group-hover:translate-x-0.5 transition-transform shrink-0" />
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">
+                                        Room {tenant.room} • Due:{" "}
+                                        <span className="font-bold text-rose-600">
+                                          ₹{Number(tenant.dueAmount || 0).toLocaleString("en-IN")}
+                                        </span>
+                                      </div>
+                                    </Link>
+                                  ) : (
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-gray-900 text-xs truncate">
+                                        {tenant.name}
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">
+                                        Room {tenant.room} • Due:{" "}
+                                        <span className="font-bold text-rose-600">
+                                          ₹{Number(tenant.dueAmount || 0).toLocaleString("en-IN")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* 1-Tap WhatsApp Reminder */}
+                                  {tenant.phone ? (
+                                    <a
+                                      href={constructWhatsAppRentReminder(
+                                        tenant.name,
+                                        tenant.room,
+                                        tenant.dueAmount,
+                                        tenant.phone
+                                      )}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors shrink-0"
+                                    >
+                                      <span>💬 WhatsApp</span>
+                                    </a>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400">No phone</span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )
@@ -570,18 +603,29 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                         </div>
                       ) : (
                         <div className="space-y-1.5">
-                          <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                            Vacant Rooms Available ({msg.actionPayload.length})
+                          <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200 flex items-center justify-between">
+                            <span>Vacant Rooms Available ({msg.actionPayload.length})</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tap to view map →</span>
                           </div>
-                          <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
+                          <div className="grid grid-cols-2 gap-1.5 max-h-56 overflow-y-auto">
                             {msg.actionPayload.map((r: any, i: number) => (
-                              <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-left">
-                                <div className="font-bold text-gray-900 text-xs">Room {r.roomNumber}</div>
-                                <div className="text-[10px] text-emerald-600 font-semibold">
+                              <Link
+                                key={i}
+                                href={`/p/${propertyId}/property-map`}
+                                onClick={() => closeCopilot()}
+                                className="p-2.5 rounded-xl bg-white hover:bg-emerald-50/50 border border-gray-200/90 hover:border-emerald-300 text-left transition-all group cursor-pointer shadow-xs active:scale-[0.98]"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-gray-900 text-xs group-hover:text-emerald-800">
+                                    Room {r.roomNumber}
+                                  </span>
+                                  <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
                                   {r.vacantBeds} Bed(s) Vacant
                                 </div>
                                 {r.floor && <div className="text-[9px] text-gray-400">{r.floor}</div>}
-                              </div>
+                              </Link>
                             ))}
                           </div>
                         </div>
@@ -601,24 +645,35 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                             <span>Open Complaints ({msg.actionPayload.length})</span>
                             <Link
                               href={`/p/${propertyId}/complaints`}
+                              onClick={() => closeCopilot()}
                               className="text-[10px] text-rose-700 underline font-bold"
                             >
                               View All →
                             </Link>
                           </div>
-                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                          <div className="space-y-1.5 max-h-52 overflow-y-auto">
                             {msg.actionPayload.map((c: any, i: number) => (
-                              <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200">
+                              <Link
+                                key={i}
+                                href={`/p/${propertyId}/complaints`}
+                                onClick={() => closeCopilot()}
+                                className="p-2.5 rounded-xl bg-white hover:bg-rose-50/40 border border-gray-200/90 hover:border-rose-300 block transition-all group cursor-pointer shadow-xs active:scale-[0.99]"
+                              >
                                 <div className="flex items-center justify-between">
-                                  <span className="font-bold text-gray-900 text-xs truncate">
+                                  <span className="font-bold text-gray-900 text-xs truncate group-hover:text-rose-800">
                                     {c.title || c.category}
                                   </span>
-                                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold shrink-0">
                                     {c.category}
                                   </span>
                                 </div>
-                                <div className="text-[10px] text-gray-500 mt-0.5">Room {c.roomNumber}</div>
-                              </div>
+                                <div className="flex items-center justify-between text-[10px] text-gray-500 mt-1">
+                                  <span>Room {c.roomNumber}</span>
+                                  <span className="text-rose-700 font-bold flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                                    Open ticket →
+                                  </span>
+                                </div>
+                              </Link>
                             ))}
                           </div>
                         </div>
@@ -635,14 +690,28 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                           </span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-amber-200/60">
-                          <div>
-                            <span className="text-gray-500">Past Vacated:</span>{" "}
-                            <span className="font-bold">{msg.actionPayload.exitsCount || 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Currently on Notice:</span>{" "}
-                            <span className="font-bold">{msg.actionPayload.onNoticeCount || 0}</span>
-                          </div>
+                          <Link
+                            href={`/p/${propertyId}/tenants`}
+                            onClick={() => closeCopilot()}
+                            className="p-2 rounded-lg bg-white/70 hover:bg-white border border-amber-200/60 transition-colors block group cursor-pointer"
+                          >
+                            <span className="text-gray-500 text-[10px] block">Past Vacated</span>
+                            <span className="font-bold text-gray-900 flex items-center justify-between">
+                              <span>{msg.actionPayload.exitsCount || 0}</span>
+                              <ChevronRight className="w-3 h-3 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+                          </Link>
+                          <Link
+                            href={`/p/${propertyId}/tenants`}
+                            onClick={() => closeCopilot()}
+                            className="p-2 rounded-lg bg-white/70 hover:bg-white border border-amber-200/60 transition-colors block group cursor-pointer"
+                          >
+                            <span className="text-gray-500 text-[10px] block">On Notice (Leaving)</span>
+                            <span className="font-bold text-amber-700 flex items-center justify-between">
+                              <span>{msg.actionPayload.onNoticeCount || 0}</span>
+                              <ChevronRight className="w-3 h-3 text-amber-600 group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+                          </Link>
                         </div>
                       </div>
                     )}
@@ -656,16 +725,52 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                         </div>
                       ) : (
                         <div className="space-y-1.5">
-                          <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                            Recent Check-Ins ({msg.actionPayload.length})
+                          <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200 flex items-center justify-between">
+                            <span>Recent Check-Ins ({msg.actionPayload.length})</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tap to view profile →</span>
                           </div>
                           <div className="space-y-1">
-                            {msg.actionPayload.map((chk: any, i: number) => (
-                              <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200 flex justify-between">
-                                <span className="font-bold text-gray-900">{chk.name}</span>
-                                <span className="text-gray-500">Room {chk.room}</span>
-                              </div>
-                            ))}
+                            {msg.actionPayload.map((chk: any, i: number) => {
+                              const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                              const tenantId =
+                                chk.occupantId ||
+                                chk.id ||
+                                rawOccupants.find(
+                                  (o) => o.name?.toLowerCase().trim() === chk.name?.toLowerCase().trim()
+                                )?.id;
+
+                              return tenantId ? (
+                                <Link
+                                  key={i}
+                                  href={`/p/${propertyId}/tenants/${tenantId}`}
+                                  onClick={() => closeCopilot()}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-emerald-50/60 border border-gray-200/90 hover:border-emerald-300 flex items-center justify-between gap-2 transition-all group cursor-pointer shadow-xs active:scale-[0.99]"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-gray-900 text-xs truncate group-hover:text-emerald-800 flex items-center gap-1.5">
+                                      <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span className="truncate">{chk.name}</span>
+                                    </div>
+                                    <div className="text-[11px] text-gray-500 mt-0.5">
+                                      Room {chk.room || chk.roomNumber}
+                                      {chk.joiningDate ? ` • Joined: ${chk.joiningDate}` : ""}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-emerald-700 text-xs font-bold shrink-0">
+                                    <span className="text-[11px]">Profile</span>
+                                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                  </div>
+                                </Link>
+                              ) : (
+                                <div
+                                  key={i}
+                                  className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center"
+                                >
+                                  <div className="font-bold text-gray-900 text-xs">{chk.name}</div>
+                                  <div className="text-gray-500 text-xs">Room {chk.room || chk.roomNumber}</div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )
@@ -683,16 +788,25 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                         {Array.isArray(msg.actionPayload.categories) && msg.actionPayload.categories.length > 0 && (
                           <div className="space-y-1 pt-1 border-t border-blue-200/60 max-h-36 overflow-y-auto">
                             {msg.actionPayload.categories.map((cat: any, i: number) => (
-                              <div key={i} className="flex justify-between text-[11px]">
-                                <span className="text-gray-600 font-medium">{cat.category}</span>
-                                <span className="font-bold text-gray-900">₹{Number(cat.amount || 0).toLocaleString("en-IN")}</span>
-                              </div>
+                              <Link
+                                key={i}
+                                href={`/p/${propertyId}/financial-hub`}
+                                onClick={() => closeCopilot()}
+                                className="flex justify-between text-[11px] p-1.5 rounded-md hover:bg-blue-100/60 transition-colors group cursor-pointer"
+                              >
+                                <span className="text-gray-700 font-medium group-hover:text-blue-900">{cat.category}</span>
+                                <span className="font-bold text-gray-900 flex items-center gap-0.5">
+                                  <span>₹{Number(cat.amount || 0).toLocaleString("en-IN")}</span>
+                                  <ChevronRight className="w-3 h-3 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
+                                </span>
+                              </Link>
                             ))}
                           </div>
                         )}
                         <div className="pt-1 border-t border-blue-200/50 flex justify-end">
                           <Link
                             href={`/p/${propertyId}/financial-hub`}
+                            onClick={() => closeCopilot()}
                             className="text-[10px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1"
                           >
                             <span>Open Financial Hub</span>

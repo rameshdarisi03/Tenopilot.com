@@ -337,8 +337,9 @@ ${snapshotText}
    - If there are no checkins today, actionPayload for NEW_CHECKINS MUST be an empty array [].
 
 === MULTILINGUAL & REGIONAL FLUENCY ===
-1. You are 100% fluent in Indian languages: Telugu (తెలుగు), Hindi (हिंदी), Kannada (ಕನ್ನಡ), Tamil (தமிழ்), Malayalam (മലയാളം), and Indian English.
+1. You are 100% fluent in Indian languages: Telugu (తెలుగు), Hindi (हिंदी), Bengali (বাংলা), Kannada (ಕನ್ನಡ), Tamil (தமிழ்), Malayalam (മലയാളം), and Indian English.
 2. You understand natural spoken code-switching and transliterated queries:
+   - Bengali: "Kar kar bhara baki ache?", "Ajke ke ke join koreche?", "Koto gulo bed khali ache?", "Koto khoroch hoyeche?"
    - Telugu: "Evaru rent ivvaledu?", "Ee roju evaru join ayyaru?", "Room 201 lo evarunnaaru?", "Kharchelu entha ayyayi?"
    - Hindi: "Kiska rent pending hai?", "Aaj kaun join hua?", "Kaunse rooms khali hai?", "Kitna kharcha hua?"
    - English: "Who hasn't paid rent?", "Any complaints open?", "What are our expenses?"
@@ -355,7 +356,7 @@ Select the best actionType for interactive UI cards:
 - "ATTRITION_METRICS": Queries about turnover, exits, notices, churn rate.
   payload: { exitsCount: number, activeCount: number, attritionRate: string, onNoticeCount: number }
 - "NEW_CHECKINS": Queries about who joined today, this week, new admissions.
-  payload: array of { name: string, room: string, joiningDate: string, phone: string }
+  payload: array of { name: string, room: string, joiningDate: string, phone: string, occupantId: string }
 - "EXPENSE_BREAKDOWN": Queries about expenses, spending, bills, electricity costs.
   payload: { totalSpent: number, categories: Array<{ category: string, amount: number }> }
 - "GENERAL": Summaries, general queries, or queries about specific tenants.

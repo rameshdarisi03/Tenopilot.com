@@ -29,6 +29,12 @@ export const INDIAN_LANGUAGES: SpeechLanguageOption[] = [
     samplePlaceholder: "पूछें: 'किस-किस का किराया बाकी है?'",
   },
   {
+    code: "bn-IN",
+    label: "Bengali",
+    nativeLabel: "বাংলা",
+    samplePlaceholder: "জিজ্ঞেস করুন: 'কার কার ভাড়া বাকি আছে?'",
+  },
+  {
     code: "kn-IN",
     label: "Kannada",
     nativeLabel: "ಕನ್ನಡ",

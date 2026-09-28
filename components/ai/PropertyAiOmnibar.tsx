@@ -8,6 +8,7 @@ const ROTATING_PROMPTS = [
   "Ask AI: Who has not paid rent this month?",
   "Ask AI: Ee roju evaru join ayyaru? (తెలుగు)",
   "Ask AI: Kiski rent pending hai? (हिंदी)",
+  "Ask AI: কার কার ভাড়া বাকি আছে? (বাংলা)",
   "Ask AI: Vacant beds on 2nd floor?",
   "Ask AI: Any open plumbing or Wi-Fi complaints?",
   "Ask AI: Room attrition rate this month?",
