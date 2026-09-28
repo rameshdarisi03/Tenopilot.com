@@ -15,8 +15,11 @@ interface CachedModelRegistry {
 let memoryCache: CachedModelRegistry | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-// Known deprecated models or non-generateContent models to black-list
+// Known deprecated models or non-Gemini models to black-list
 const DEPRECATED_OR_UNSUPPORTED = new Set([
+  "gemma-4-26b-a4b-it",
+  "gemma-2-27b-it",
+  "gemma-2-9b-it",
   "gemini-2.5-flash", // 404 deprecated
   "gemini-2.5-flash-lite", // 404
   "gemini-2.5-pro", // 404
@@ -28,18 +31,16 @@ const DEPRECATED_OR_UNSUPPORTED = new Set([
   "chat-bison-001",
 ]);
 
-// Preference ranking weight helper
+// Preference ranking weight helper (Exclusively Gemini Flash)
 function getModelPriorityWeight(name: string): number {
-  // Check explicit version preferences - prioritized by proven latency & availability
+  if (name.toLowerCase().includes("gemma")) return 0; // Strictly banned
   if (name === "gemini-3.6-flash") return 100; // FASTEST (1.8-2.4s) & 100% available
   if (name.includes("3.6-flash")) return 95;
   if (name.includes("3.1-flash-lite")) return 90;
-  if (name.includes("gemma-4-26b")) return 88;
   if (name.includes("3-flash-preview")) return 85;
   if (name.includes("3.7-flash")) return 80;
   if (name === "gemini-flash-latest") return 70;
   if (name.includes("flash")) return 50;
-  if (name.includes("pro")) return 30;
   return 10;
 }
 
@@ -66,12 +67,13 @@ export async function getActiveGeminiModels(apiKey?: string): Promise<string[]> 
     return memoryCache.models;
   }
 
-  // 3. Fallback baseline if API call fails
+  // 3. Fallback baseline if API call fails (Exclusively Gemini Flash)
   const baselineFallbacks = [
     "gemini-3.6-flash",
     "gemini-3.1-flash-lite",
-    "gemma-4-26b-a4b-it",
+    "gemini-3-flash-preview",
     "gemini-3.7-flash",
+    "gemini-flash-latest",
   ];
 
   if (!key) {
@@ -112,7 +114,11 @@ export async function getActiveGeminiModels(apiKey?: string): Promise<string[]> 
           continue;
         }
 
-        // We want fast general-purpose text/vision models (especially flash family)
+        // Must strictly be an official Gemini Flash model (Strictly reject Gemma, Pro, etc.)
+        if (!shortName.startsWith("gemini-") || !shortName.includes("flash") || shortName.toLowerCase().includes("gemma")) {
+          continue;
+        }
+
         candidateNames.push(shortName);
       }
 

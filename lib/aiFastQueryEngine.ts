@@ -106,7 +106,7 @@ export function tryFastClientQuery(
   // 2. UNPAID RENT / DEFAULTERS
   // =========================================================================
   const unpaidRentRegex =
-    /(unpaid|not paid|due|pending|defaulter|who owes|baki|baaki|ivvaledu|kattaledu|bhara).*rent|rent.*(unpaid|not paid|due|pending|defaulter|baki|baaki|ivvaledu|kattaledu|kiska|bhara)|kiska rent|kar.*bhara|bhara.*baki/i;
+    /(unpaid|not paid|didn't pay|hasn't paid|has not paid|have not paid|who owes|defaulter|pending due|due balance|arrears|baki|baaki|ivvaledu|kattaledu|bhara.*baki|kar.*bhara|kiska.*pending)/i;
 
   if (unpaidRentRegex.test(query)) {
     let answerText = "";

@@ -199,36 +199,51 @@ export async function POST(req: NextRequest) {
 
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
+        const payload: any = {
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: systemPrompt },
+                { text: `USER QUESTION: "${question}"` },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.1, // Strict factual determinism
+            maxOutputTokens: 512,
+            thinkingConfig: {
+              thinkingBudget: 0, // Disable thinking latency
+            },
+          },
+        };
+
+        let res = await fetch(url, {
           method: "POST",
           signal: controller.signal,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: systemPrompt },
-                  { text: `USER QUESTION: "${question}"` },
-                ],
-              },
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1, // Strict factual determinism
-              maxOutputTokens: 512,
-              thinkingConfig: {
-                thinkingBudget: 0, // Disable thinking latency (eliminates 2-5s reasoning stall)
-              },
-            },
-          }),
+          body: JSON.stringify(payload),
         });
 
         clearTimeout(timeoutId);
 
         if (!res.ok) {
           const errDetail = await res.text();
-          throw new Error(`Model ${model} returned ${res.status}: ${errDetail}`);
+          if (errDetail.includes("Thinking budget is not supported")) {
+            // Instantly retry without thinkingConfig
+            delete payload.generationConfig.thinkingConfig;
+            res = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          }
+
+          if (!res.ok) {
+            const finalErr = await res.text();
+            throw new Error(`Model ${model} returned ${res.status}: ${finalErr}`);
+          }
         }
 
         const resJson = await res.json();
