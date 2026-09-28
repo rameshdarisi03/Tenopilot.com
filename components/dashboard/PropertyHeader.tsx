@@ -9,6 +9,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { EditProfileModal } from "./EditProfileModal";
+import { PropertyAiOmnibar } from "@/components/ai/PropertyAiOmnibar";
+import { useAiCopilotStore } from "@/lib/aiCopilotStore";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -34,6 +36,7 @@ export function PropertyHeader({
   actionElement?: React.ReactNode;
 }) {
   const { profile, updateProfileName, logout } = useAuth();
+  const { openCopilot } = useAiCopilotStore();
   const sub = evaluateSubscription(profile);
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -214,8 +217,24 @@ export function PropertyHeader({
             )}
           </div>
 
-          {/* Right: Actions, Mobile Search Trigger, Notification Bell & Avatar */}
+          {/* Center: AI Copilot Omnibar (Desktop / Tablet) */}
+          <div className="flex-1 max-w-sm lg:max-w-md hidden md:block mx-1">
+            <PropertyAiOmnibar propertyId={propertyId} />
+          </div>
+
+          {/* Right: Actions, Mobile AI Sparkle, Mobile Search Trigger, Notification Bell & Avatar */}
           <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+            {/* 📱 Mobile AI Copilot Trigger */}
+            <button
+              type="button"
+              onClick={() => openCopilot("", false)}
+              className="md:hidden p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#c2652a] border border-amber-200 active:scale-95 transition-transform cursor-pointer flex items-center justify-center shadow-xs"
+              aria-label="Open AI Copilot"
+              title="Ask TenoPilot AI Copilot"
+            >
+              <Sparkles className="w-4 h-4 animate-pulse" />
+            </button>
+
             {/* 📱 Mobile Search Icon Trigger Button */}
             {showSearch && (
               <button

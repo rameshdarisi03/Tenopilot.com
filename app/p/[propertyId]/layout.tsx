@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ImpersonationBanner } from "@/components/founder/ImpersonationBanner";
 import { SubscriptionGraceBanner } from "@/components/dashboard/SubscriptionGraceBanner";
+import { PropertyAiLayoutWrapper } from "@/components/ai/PropertyAiLayoutWrapper";
 
 export default function PropertyLayout({
   children,
@@ -16,6 +17,9 @@ export default function PropertyLayout({
         <SubscriptionGraceBanner />
       </Suspense>
       <div className="flex-1 flex flex-col">{children}</div>
+      <Suspense fallback={null}>
+        <PropertyAiLayoutWrapper />
+      </Suspense>
     </div>
   );
 }
