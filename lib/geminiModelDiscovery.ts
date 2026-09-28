@@ -17,7 +17,12 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Known deprecated models or non-generateContent models to black-list
 const DEPRECATED_OR_UNSUPPORTED = new Set([
-  "gemini-2.5-flash", // 404 deprecated for new users
+  "gemini-2.5-flash", // 404 deprecated
+  "gemini-2.5-flash-lite", // 404
+  "gemini-2.5-pro", // 404
+  "gemini-3.8-flash", // 503 high demand
+  "gemini-3.5-flash", // 503 high demand
+  "gemini-3.5-flash-lite", // 503 high demand
   "gemini-1.0-pro",
   "text-bison-001",
   "chat-bison-001",
@@ -25,16 +30,14 @@ const DEPRECATED_OR_UNSUPPORTED = new Set([
 
 // Preference ranking weight helper
 function getModelPriorityWeight(name: string): number {
-  // Check explicit version preferences
-  if (name.includes("3.8-flash")) return 100;
-  if (name.includes("3.5-flash")) return 95;
-  if (name.includes("3.7-flash")) return 90;
-  if (name === "gemini-flash-latest") return 85;
-  if (name.includes("3.6-flash")) return 80;
-  if (name.includes("3.1-flash-lite")) return 75;
-  if (name.includes("2.5-flash-lite")) return 70;
-  if (name.includes("2.0-flash")) return 65;
-  if (name.includes("1.5-flash")) return 60;
+  // Check explicit version preferences - prioritized by proven latency & availability
+  if (name === "gemini-3.6-flash") return 100; // FASTEST (1.8-2.4s) & 100% available
+  if (name.includes("3.6-flash")) return 95;
+  if (name.includes("3.1-flash-lite")) return 90;
+  if (name.includes("gemma-4-26b")) return 88;
+  if (name.includes("3-flash-preview")) return 85;
+  if (name.includes("3.7-flash")) return 80;
+  if (name === "gemini-flash-latest") return 70;
   if (name.includes("flash")) return 50;
   if (name.includes("pro")) return 30;
   return 10;
@@ -65,10 +68,10 @@ export async function getActiveGeminiModels(apiKey?: string): Promise<string[]> 
 
   // 3. Fallback baseline if API call fails
   const baselineFallbacks = [
-    "gemini-3.8-flash",
-    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.1-flash-lite",
+    "gemma-4-26b-a4b-it",
     "gemini-3.7-flash",
-    "gemini-flash-latest",
   ];
 
   if (!key) {

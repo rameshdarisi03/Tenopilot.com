@@ -33,6 +33,7 @@ import { getPropertyComplaints, subscribeToComplaints } from "@/lib/complaintSto
 import { expenseStore } from "@/constants/expenseStore";
 import { isMockOccupantId } from "@/lib/firestoreService";
 import { CopilotPropertySnapshot, CopilotApiResponse } from "@/lib/aiCopilotPrompt";
+import { tryFastClientQuery } from "@/lib/aiFastQueryEngine";
 
 interface ChatMessage {
   id: string;
@@ -284,6 +285,24 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
     try {
       const snapshot = assembleLiveSnapshot();
 
+      // ⚡ TIER 1: Ultra-fast sub-50ms instant resolution for common queries
+      const fastResult = tryFastClientQuery(textToSend, snapshot, selectedLanguage);
+      if (fastResult) {
+        const aiMsg: ChatMessage = {
+          id: `msg-${Date.now()}-ai`,
+          sender: "ai",
+          text: fastResult.answer,
+          actionType: fastResult.actionType,
+          actionPayload: fastResult.actionPayload,
+          suggestedChips: fastResult.suggestedChips,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        setIsLoading(false);
+        return; // Complete in < 50ms with zero server delay!
+      }
+
+      // 🧠 TIER 2: Deep reasoning via optimized Gemini Flash waterfall
       const res = await fetch("/api/ai/copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

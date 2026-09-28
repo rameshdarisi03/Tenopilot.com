@@ -194,10 +194,14 @@ export async function POST(req: NextRequest) {
     let lastError: any = null;
 
     for (const model of modelsToTry) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // Strict 4s cap prevents 25s stalls
+
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const res = await fetch(url, {
           method: "POST",
+          signal: controller.signal,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [
@@ -211,11 +215,16 @@ export async function POST(req: NextRequest) {
             ],
             generationConfig: {
               responseMimeType: "application/json",
-              temperature: 0.1, // Strict factual determinism - prevents hallucinations
-              maxOutputTokens: 1024,
+              temperature: 0.1, // Strict factual determinism
+              maxOutputTokens: 512,
+              thinkingConfig: {
+                thinkingBudget: 0, // Disable thinking latency (eliminates 2-5s reasoning stall)
+              },
             },
           }),
         });
+
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
           const errDetail = await res.text();
@@ -229,8 +238,9 @@ export async function POST(req: NextRequest) {
           break; // Successfully received response
         }
       } catch (err: any) {
+        clearTimeout(timeoutId);
         lastError = err;
-        console.warn(`Gemini model ${model} attempt failed:`, err?.message || err);
+        console.warn(`Gemini model ${model} attempt failed:`, err?.name === "AbortError" ? "Timeout after 4000ms" : err?.message || err);
       }
     }
 
