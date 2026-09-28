@@ -29,6 +29,9 @@ import { useVoiceRecognition, INDIAN_LANGUAGES } from "@/hooks/useVoiceRecogniti
 import { occupantStore } from "@/constants/mockOccupants";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { propertyStore } from "@/constants/propertyLayoutStore";
+import { getPropertyComplaints, subscribeToComplaints } from "@/lib/complaintStore";
+import { expenseStore } from "@/constants/expenseStore";
+import { isMockOccupantId } from "@/lib/firestoreService";
 import { CopilotPropertySnapshot, CopilotApiResponse } from "@/lib/aiCopilotPrompt";
 
 interface ChatMessage {
@@ -43,8 +46,9 @@ interface ChatMessage {
 
 const STARTER_PROMPTS = [
   { icon: "⚡", label: "Unpaid Rent", prompt: "Who has not paid rent this month?" },
-  { icon: "👥", label: "Joined Recently", prompt: "Who joined this week or recently?" },
+  { icon: "👥", label: "Joined Today", prompt: "Who joined today or recently?" },
   { icon: "⚠️", label: "Open Complaints", prompt: "What are the most common complaints?" },
+  { icon: "💳", label: "Monthly Expenses", prompt: "How much did we spend on expenses this month?" },
   { icon: "📊", label: "Room Attrition", prompt: "What is our room attrition and turnover rate?" },
   { icon: "🛏️", label: "Vacant Beds", prompt: "Which rooms have vacant beds right now?" },
 ];
@@ -117,60 +121,95 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
     }
   }, [isListening, transcript]);
 
-  // Assemble real-time property snapshot from client stores
+  // Real-time synchronization for complaints & expenses
+  useEffect(() => {
+    if (!propertyId) return;
+    expenseStore.initPropertyFirebase(propertyId);
+    propertyStore.initFirebaseListener(propertyId);
+    const unsubComplaints = subscribeToComplaints(propertyId, () => {});
+    return () => {
+      unsubComplaints();
+    };
+  }, [propertyId]);
+
+  // Assemble real-time property snapshot strictly from genuine client SSOT stores
   const assembleLiveSnapshot = (): CopilotPropertySnapshot => {
-    const occupants = occupantStore.getOccupants(propertyId) || [];
+    const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+    // Strictly isolate genuine tenants from legacy mock/demo templates
+    const genuineOccupants = rawOccupants.filter((o) => !isMockOccupantId(o.id));
+    const occupants = genuineOccupants.length > 0 ? genuineOccupants : rawOccupants;
+
     const settings = propertySettingsStore.getSettings(propertyId);
     const floors = propertyStore.getStructure(propertyId) || [];
+    const complaints = getPropertyComplaints(propertyId) || [];
+    const expenses = expenseStore.getExpenses(propertyId) || [];
 
-    // Calculate layout metrics
+    // Calculate real physical layout metrics
     let totalBeds = 0;
     let occupiedBeds = 0;
+    let totalBedsConfigured = false;
     const vacantRooms: Array<{
       roomNumber: string;
       floorName?: string;
       sharingType: number;
       vacantBedsCount: number;
+      vacantBedCodes?: string[];
     }> = [];
 
-    floors.forEach((floor) => {
-      (floor.rooms || []).forEach((room) => {
-        const beds = room.beds || [];
-        totalBeds += beds.length;
-        const occBeds = beds.filter((b) => b.status === "Occupied").length;
-        occupiedBeds += occBeds;
-        const vacBeds = beds.filter((b) => b.status === "Available").length;
-        if (vacBeds > 0) {
-          vacantRooms.push({
-            roomNumber: room.roomNumber,
-            floorName: floor.floorName,
-            sharingType: room.sharingType || beds.length,
-            vacantBedsCount: vacBeds,
-          });
-        }
+    if (floors && floors.length > 0) {
+      totalBedsConfigured = true;
+      floors.forEach((floor) => {
+        (floor.rooms || []).forEach((room) => {
+          const beds = room.beds || [];
+          totalBeds += beds.length;
+          const occBeds = beds.filter((b) => b.status === "Occupied").length;
+          occupiedBeds += occBeds;
+          const vacBeds = beds.filter((b) => b.status === "Available" || !b.status);
+          if (vacBeds.length > 0) {
+            vacantRooms.push({
+              roomNumber: room.roomNumber,
+              floorName: floor.floorName,
+              sharingType: room.sharingType || beds.length,
+              vacantBedsCount: vacBeds.length,
+              vacantBedCodes: vacBeds.map((b) => b.bedCode || b.id).filter(Boolean),
+            });
+          }
+        });
       });
-    });
+    }
 
     const activeOccupants = occupants.filter(
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
     );
-    if (totalBeds === 0) {
-      totalBeds = Math.max(activeOccupants.length + 5, 20);
+
+    // If layout is unconfigured, truthfully reflect active occupants rather than guessing numbers
+    if (!totalBedsConfigured) {
+      totalBeds = activeOccupants.length;
       occupiedBeds = activeOccupants.length;
     }
+
     const vacantBeds = Math.max(0, totalBeds - occupiedBeds);
     const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
-    // Financials
+    // Real financial calculation
     const totalExpectedRent = activeOccupants.reduce((acc, cur) => acc + (cur.rentAmount || 0), 0);
-    const defaulters = activeOccupants.filter((o) => o.paymentStatus !== "Paid");
-    const totalPendingDues = defaulters.reduce((acc, cur) => acc + (cur.rentAmount || 0), 0);
+    const defaulters = activeOccupants.filter((o) => {
+      const isUnpaid = o.paymentStatus !== "Paid";
+      const hasDues = (o.rentAmount || 0) > 0 || (o.arrearsBalance || 0) > 0;
+      return isUnpaid && hasDues;
+    });
+    const totalPendingDues = defaulters.reduce(
+      (acc, cur) => acc + (cur.rentAmount || 0) + (cur.arrearsBalance || 0),
+      0
+    );
 
     return {
       propertyId,
       propertyName: settings?.propertyName || "My PG Property",
       city: settings?.propertyAddress || "India",
+      currentDateAnchor: new Date().toISOString().split("T")[0],
       totalBeds,
+      totalBedsConfigured,
       occupiedBeds,
       vacantBeds,
       occupancyRatePercentage: occupancyRate,
@@ -186,8 +225,35 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
         joiningDate: o.joiningDate,
         vacatingDate: o.vacatingDate,
         daysRemainingText: o.daysRemainingText,
+        depositAmount: (o as any).depositAmount || o.securityDeposit || 0,
+        arrearsBalance: o.arrearsBalance || 0,
+        emergencyContact:
+          typeof o.emergencyContact === "object" && o.emergencyContact
+            ? `${(o.emergencyContact as any).name || ""} (${(o.emergencyContact as any).relation || ""}: ${(o.emergencyContact as any).phone || ""})`
+            : typeof o.emergencyContact === "string"
+            ? o.emergencyContact
+            : (o as any).guardianPhone || "",
       })),
-      complaints: [],
+      complaints: complaints.map((c) => ({
+        id: c.id,
+        complaintNumber: c.complaintNumber || c.id,
+        tenantName: c.tenantName || "Tenant",
+        tenantPhone: c.tenantPhone || "",
+        roomNumber: c.roomNumber || "",
+        category: c.category || "General",
+        title: c.title || "",
+        status: c.status || "OPEN",
+        createdAt: c.createdAt || new Date().toISOString(),
+        description: c.description || "",
+      })),
+      expenses: expenses.map((e) => ({
+        id: e.id,
+        category: e.category || "General",
+        amount: Number(e.amount) || 0,
+        date: e.date || e.createdAt || "",
+        paidFrom: e.paidFrom || "Business Account",
+        notes: e.notes || "",
+      })),
       financials: {
         totalExpectedRent,
         totalCollectedRent: Math.max(0, totalExpectedRent - totalPendingDues),
@@ -416,107 +482,128 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                     
                     {/* A. UNPAID TENANTS CARD */}
                     {msg.actionType === "UNPAID_TENANTS" && Array.isArray(msg.actionPayload) && (
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between">
-                          <span>Pending Defaulters ({msg.actionPayload.length})</span>
-                          <span>
-                            Total: ₹
-                            {msg.actionPayload
-                              .reduce((a: number, c: any) => a + (Number(c.dueAmount) || 0), 0)
-                              .toLocaleString("en-IN")}
-                          </span>
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                          <span>✅</span>
+                          <span>All active tenants have cleared their rent. Zero dues pending!</span>
                         </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between">
+                            <span>Pending Defaulters ({msg.actionPayload.length})</span>
+                            <span>
+                              Total: ₹
+                              {msg.actionPayload
+                                .reduce((a: number, c: any) => a + (Number(c.dueAmount) || 0), 0)
+                                .toLocaleString("en-IN")}
+                            </span>
+                          </div>
 
-                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                          {msg.actionPayload.map((tenant: any, i: number) => (
-                            <div
-                              key={i}
-                              className="p-2.5 rounded-xl bg-gray-50 border border-gray-200/80 flex items-center justify-between gap-2"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="font-bold text-gray-900 text-xs truncate">
-                                  {tenant.name}
+                          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                            {msg.actionPayload.map((tenant: any, i: number) => (
+                              <div
+                                key={i}
+                                className="p-2.5 rounded-xl bg-gray-50 border border-gray-200/80 flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold text-gray-900 text-xs truncate">
+                                    {tenant.name}
+                                  </div>
+                                  <div className="text-[11px] text-gray-500">
+                                    Room {tenant.room} • Due:{" "}
+                                    <span className="font-bold text-rose-600">
+                                      ₹{Number(tenant.dueAmount || 0).toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="text-[11px] text-gray-500">
-                                  Room {tenant.room} • Due:{" "}
-                                  <span className="font-bold text-rose-600">
-                                    ₹{Number(tenant.dueAmount || 0).toLocaleString("en-IN")}
-                                  </span>
-                                </div>
+
+                                {/* 1-Tap WhatsApp Reminder */}
+                                {tenant.phone ? (
+                                  <a
+                                    href={constructWhatsAppRentReminder(
+                                      tenant.name,
+                                      tenant.room,
+                                      tenant.dueAmount,
+                                      tenant.phone
+                                    )}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors shrink-0"
+                                  >
+                                    <span>💬 WhatsApp</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] text-gray-400">No phone</span>
+                                )}
                               </div>
-
-                              {/* 1-Tap WhatsApp Reminder */}
-                              {tenant.phone ? (
-                                <a
-                                  href={constructWhatsAppRentReminder(
-                                    tenant.name,
-                                    tenant.room,
-                                    tenant.dueAmount,
-                                    tenant.phone
-                                  )}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors shrink-0"
-                                >
-                                  <span>💬 WhatsApp</span>
-                                </a>
-                              ) : (
-                                <span className="text-[10px] text-gray-400">No phone</span>
-                              )}
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )
                     )}
 
                     {/* B. VACANT ROOMS CARD */}
                     {msg.actionType === "VACANT_ROOMS" && Array.isArray(msg.actionPayload) && (
-                      <div className="space-y-1.5">
-                        <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                          Vacant Rooms Available ({msg.actionPayload.length})
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                          <span>✅</span>
+                          <span>Zero vacancies. All configured rooms and beds are 100% occupied!</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
-                          {msg.actionPayload.map((r: any, i: number) => (
-                            <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-left">
-                              <div className="font-bold text-gray-900 text-xs">Room {r.roomNumber}</div>
-                              <div className="text-[10px] text-emerald-600 font-semibold">
-                                {r.vacantBeds} Bed(s) Vacant
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                            Vacant Rooms Available ({msg.actionPayload.length})
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto">
+                            {msg.actionPayload.map((r: any, i: number) => (
+                              <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-left">
+                                <div className="font-bold text-gray-900 text-xs">Room {r.roomNumber}</div>
+                                <div className="text-[10px] text-emerald-600 font-semibold">
+                                  {r.vacantBeds} Bed(s) Vacant
+                                </div>
+                                {r.floor && <div className="text-[9px] text-gray-400">{r.floor}</div>}
                               </div>
-                              {r.floor && <div className="text-[9px] text-gray-400">{r.floor}</div>}
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )
                     )}
 
                     {/* C. OPEN COMPLAINTS CARD */}
                     {msg.actionType === "OPEN_COMPLAINTS" && Array.isArray(msg.actionPayload) && (
-                      <div className="space-y-1.5">
-                        <div className="text-[11px] font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center justify-between">
-                          <span>Open Complaints ({msg.actionPayload.length})</span>
-                          <Link
-                            href={`/p/${propertyId}/complaints`}
-                            className="text-[10px] text-rose-700 underline font-bold"
-                          >
-                            View All →
-                          </Link>
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                          <span>✅</span>
+                          <span>Zero open complaints. All maintenance is up to date!</span>
                         </div>
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
-                          {msg.actionPayload.map((c: any, i: number) => (
-                            <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-gray-900 text-xs truncate">
-                                  {c.title || c.category}
-                                </span>
-                                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
-                                  {c.category}
-                                </span>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center justify-between">
+                            <span>Open Complaints ({msg.actionPayload.length})</span>
+                            <Link
+                              href={`/p/${propertyId}/complaints`}
+                              className="text-[10px] text-rose-700 underline font-bold"
+                            >
+                              View All →
+                            </Link>
+                          </div>
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {msg.actionPayload.map((c: any, i: number) => (
+                              <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-gray-900 text-xs truncate">
+                                    {c.title || c.category}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                                    {c.category}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-gray-500 mt-0.5">Room {c.roomNumber}</div>
                               </div>
-                              <div className="text-[10px] text-gray-500 mt-0.5">Room {c.roomNumber}</div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )
                     )}
 
                     {/* D. ATTRITION METRICS CARD */}
@@ -543,17 +630,55 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
 
                     {/* E. NEW CHECKINS CARD */}
                     {msg.actionType === "NEW_CHECKINS" && Array.isArray(msg.actionPayload) && (
-                      <div className="space-y-1.5">
-                        <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                          Recent Check-Ins ({msg.actionPayload.length})
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium flex items-center gap-2">
+                          <span>ℹ️</span>
+                          <span>No new tenants checked in today.</span>
                         </div>
-                        <div className="space-y-1">
-                          {msg.actionPayload.map((chk: any, i: number) => (
-                            <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200 flex justify-between">
-                              <span className="font-bold text-gray-900">{chk.name}</span>
-                              <span className="text-gray-500">Room {chk.room}</span>
-                            </div>
-                          ))}
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                            Recent Check-Ins ({msg.actionPayload.length})
+                          </div>
+                          <div className="space-y-1">
+                            {msg.actionPayload.map((chk: any, i: number) => (
+                              <div key={i} className="p-2 rounded-lg bg-gray-50 border border-gray-200 flex justify-between">
+                                <span className="font-bold text-gray-900">{chk.name}</span>
+                                <span className="text-gray-500">Room {chk.room}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* F. EXPENSE BREAKDOWN CARD */}
+                    {msg.actionType === "EXPENSE_BREAKDOWN" && msg.actionPayload && (
+                      <div className="p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 space-y-2 text-gray-800">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-blue-950">Monthly Expenses Spent</span>
+                          <span className="text-base font-extrabold text-blue-700">
+                            ₹{Number(msg.actionPayload.totalSpent || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        {Array.isArray(msg.actionPayload.categories) && msg.actionPayload.categories.length > 0 && (
+                          <div className="space-y-1 pt-1 border-t border-blue-200/60 max-h-36 overflow-y-auto">
+                            {msg.actionPayload.categories.map((cat: any, i: number) => (
+                              <div key={i} className="flex justify-between text-[11px]">
+                                <span className="text-gray-600 font-medium">{cat.category}</span>
+                                <span className="font-bold text-gray-900">₹{Number(cat.amount || 0).toLocaleString("en-IN")}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="pt-1 border-t border-blue-200/50 flex justify-end">
+                          <Link
+                            href={`/p/${propertyId}/financial-hub`}
+                            className="text-[10px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1"
+                          >
+                            <span>Open Financial Hub</span>
+                            <span>→</span>
+                          </Link>
                         </div>
                       </div>
                     )}

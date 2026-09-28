@@ -76,8 +76,15 @@ export const INITIAL_COMPLAINTS: Complaint[] = [
 const inMemoryComplaintsByProperty = new Map<string, Complaint[]>();
 const storeListenersByProperty = new Map<string, Set<(complaints: Complaint[]) => void>>();
 
-function getPropertyComplaints(propertyId: string): Complaint[] {
-  return inMemoryComplaintsByProperty.get(propertyId) || [];
+export function getPropertyComplaints(propertyId: string): Complaint[] {
+  const inMem = inMemoryComplaintsByProperty.get(propertyId);
+  if (inMem && inMem.length > 0) return inMem;
+  const local = loadFromLocalStorage(propertyId);
+  if (local && local.length > 0) {
+    inMemoryComplaintsByProperty.set(propertyId, local);
+    return local;
+  }
+  return inMem || [];
 }
 
 function setPropertyComplaints(propertyId: string, complaints: Complaint[]) {

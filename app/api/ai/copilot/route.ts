@@ -8,6 +8,7 @@ import {
 } from "@/lib/aiCopilotPrompt";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { isMockOccupantId } from "@/lib/firestoreService";
 
 export const dynamic = "force-dynamic";
 
@@ -35,36 +36,106 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Resolve or Assemble Property Snapshot
+    // 1. Resolve or Assemble 100% Real Property Snapshot
     let snapshot: CopilotPropertySnapshot;
 
-    if (liveSnapshot && typeof liveSnapshot === "object" && liveSnapshot.occupants) {
-      snapshot = liveSnapshot;
+    if (liveSnapshot && typeof liveSnapshot === "object" && Array.isArray(liveSnapshot.occupants)) {
+      snapshot = {
+        ...liveSnapshot,
+        currentDateAnchor: liveSnapshot.currentDateAnchor || new Date().toISOString().split("T")[0],
+      };
     } else {
-      // Server-side fallback: fetch live docs from Cloud Firestore
+      // Server-side fallback: fetch live docs directly from Cloud Firestore SSOT
       const occupantsSnap = await getDocs(collection(db, "properties", propertyId, "occupants"));
-      const occupants: any[] = occupantsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const rawOccupants: any[] = occupantsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // If property has genuine onboarded occupants, exclude legacy demo/mock IDs
+      const genuineOccupants = rawOccupants.filter((o) => !isMockOccupantId(o.id));
+      const occupants = genuineOccupants.length > 0 ? genuineOccupants : rawOccupants;
 
       const complaintsSnap = await getDocs(collection(db, "properties", propertyId, "complaints"));
       const complaints: any[] = complaintsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+      let expenses: any[] = [];
+      try {
+        const expensesSnap = await getDocs(collection(db, "properties", propertyId, "expenses"));
+        expenses = expensesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.warn("Failed to fetch expenses for property:", e);
+      }
+
       let propName = "My PG Property";
+      let propAddress = "";
       try {
         const propDoc = await getDoc(doc(db, "properties", propertyId));
         if (propDoc.exists()) {
-          propName = propDoc.data()?.name || propDoc.data()?.propertyName || propName;
+          const data = propDoc.data();
+          propName = data?.name || data?.propertyName || propName;
+          propAddress = data?.address || data?.city || "";
         }
       } catch {}
 
-      const totalBeds = occupants.length + 10;
-      const occupiedBeds = occupants.filter((o) => o.lifecycleStatus === "Active").length;
+      // Fetch Real Physical Bed Structure from properties/{propertyId}/layout/structure
+      let totalBeds = 0;
+      let occupiedBeds = 0;
+      let totalBedsConfigured = false;
+      const vacantRooms: Array<{
+        roomNumber: string;
+        floorName?: string;
+        sharingType: number;
+        vacantBedsCount: number;
+        vacantBedCodes?: string[];
+      }> = [];
+
+      try {
+        const structureDoc = await getDoc(doc(db, "properties", propertyId, "layout", "structure"));
+        if (structureDoc.exists()) {
+          const floors = (structureDoc.data()?.floors || []) as any[];
+          if (Array.isArray(floors) && floors.length > 0) {
+            totalBedsConfigured = true;
+            floors.forEach((floor) => {
+              (floor.rooms || []).forEach((room: any) => {
+                const beds = room.beds || [];
+                totalBeds += beds.length;
+                const occBeds = beds.filter((b: any) => b.status === "Occupied").length;
+                occupiedBeds += occBeds;
+                const vacBeds = beds.filter((b: any) => b.status === "Available" || !b.status);
+                if (vacBeds.length > 0) {
+                  vacantRooms.push({
+                    roomNumber: room.roomNumber,
+                    floorName: floor.floorName,
+                    sharingType: room.sharingType || beds.length,
+                    vacantBedsCount: vacBeds.length,
+                    vacantBedCodes: vacBeds.map((b: any) => b.bedCode || b.id).filter(Boolean),
+                  });
+                }
+              });
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to read property layout for AI copilot:", err);
+      }
+
+      const activeOccupants = occupants.filter(
+        (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+      );
+
+      if (!totalBedsConfigured) {
+        totalBeds = activeOccupants.length;
+        occupiedBeds = activeOccupants.length;
+      }
+
       const vacantBeds = Math.max(0, totalBeds - occupiedBeds);
       const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
       snapshot = {
         propertyId,
         propertyName: propName,
+        city: propAddress,
+        currentDateAnchor: new Date().toISOString().split("T")[0],
         totalBeds,
+        totalBedsConfigured,
         occupiedBeds,
         vacantBeds,
         occupancyRatePercentage: occupancyRate,
@@ -80,25 +151,44 @@ export async function POST(req: NextRequest) {
           joiningDate: o.joiningDate || "",
           vacatingDate: o.vacatingDate || "",
           daysRemainingText: o.daysRemainingText || "",
+          depositAmount: Number(o.depositAmount) || 0,
+          arrearsBalance: Number(o.arrearsBalance) || 0,
+          emergencyContact:
+            typeof o.emergencyContact === "object" && o.emergencyContact
+              ? `${(o.emergencyContact as any).name || ""} (${(o.emergencyContact as any).relation || ""}: ${(o.emergencyContact as any).phone || ""})`
+              : typeof o.emergencyContact === "string"
+              ? o.emergencyContact
+              : o.guardianPhone || "",
         })),
         complaints: complaints.map((c) => ({
           id: c.id,
           complaintNumber: c.complaintNumber || c.id,
           tenantName: c.tenantName || "Tenant",
+          tenantPhone: c.tenantPhone || "",
           roomNumber: c.roomNumber || "",
           category: c.category || "General",
           title: c.title || "",
           status: c.status || "OPEN",
           createdAt: c.createdAt || new Date().toISOString(),
+          description: c.description || "",
         })),
+        expenses: expenses.map((e) => ({
+          id: e.id,
+          category: e.category || "General",
+          amount: Number(e.amount) || 0,
+          date: e.date || e.createdAt || "",
+          paidFrom: e.paidFrom || "Business Account",
+          notes: e.notes || "",
+        })),
+        vacantRooms,
       };
     }
 
-    // 2. Serialize ledger into token-dense grounded snapshot
+    // 2. Serialize ledger into token-dense, zero-hallucination grounded digest
     const snapshotText = serializePropertySnapshotForAI(snapshot);
     const systemPrompt = buildCopilotSystemPrompt(snapshotText, language);
 
-    // 3. Query Gemini with dynamic waterfall ranking
+    // 3. Query Gemini with dynamic waterfall ranking & deterministic temperature
     const modelsToTry = await getActiveGeminiModels(apiKey);
     let rawResponseText = "";
     let lastError: any = null;
@@ -121,7 +211,7 @@ export async function POST(req: NextRequest) {
             ],
             generationConfig: {
               responseMimeType: "application/json",
-              temperature: 0.2,
+              temperature: 0.1, // Strict factual determinism - prevents hallucinations
               maxOutputTokens: 1024,
             },
           }),
@@ -136,7 +226,7 @@ export async function POST(req: NextRequest) {
         const candidate = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
         if (candidate) {
           rawResponseText = candidate;
-          break; // Successfully obtained response!
+          break; // Successfully received response
         }
       } catch (err: any) {
         lastError = err;
