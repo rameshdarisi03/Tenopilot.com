@@ -59,9 +59,28 @@ export function tryFastClientQuery(
   // 1. VACANT BEDS / ROOM AVAILABILITY
   // =========================================================================
   const vacantBedRegex =
-    /(vacant|empty|khali|khaali|kali|available|free|how many).*bed|bed.*(vacant|empty|khali|khaali|kali|available|free)|rooms? (available|vacant|empty|status)|bedlu|koto.*bed/i;
+    /(vacant|empty|khali|khaali|kali|available|free|how many).*bed|bed.*(vacant|empty|khali|khaali|kali|available|free)|rooms? (available|vacant|empty|status)|bedlu|koto.*bed|ఖాళీ|బెడ్|బెడ్లు|ఎన్ని.*బెడ్|షేరింగ్|రెండు.*షేరింగ్|టూ.*షేరింగ్|खाली|बेड|कितने.*बेड|शेयरिंग|খালি|বেড|কয়টি.*বেড/i;
 
   if (vacantBedRegex.test(query)) {
+    // Check if user specifically requested a sharing type (e.g. 1-sharing, 2-sharing, 3-sharing)
+    const isTwoSharing = /(2|two|టూ|రెండు|दो|২).*sharing|sharing.*(2|two)|టూ.*షేరింగ్|రెండు.*షేరింగ్|2.*షేరింగ్|दो.*शेयरिंग|২.*শেয়ারিং/i.test(query);
+    const isThreeSharing = /(3|three|త్రీ|మూడు|तीन|৩).*sharing|sharing.*(3|three)|త్రీ.*షేరింగ్|3.*షేరింగ్|तीन.*शेयरिंग|৩.*শেয়ারিং/i.test(query);
+    const isSingleSharing = /(1|single|one|ఒక|సింగిల్|एक|১).*sharing|sharing.*(1|single)|సింగిల్|single.*room/i.test(query);
+
+    let targetSharing: number | null = null;
+    let sharingLabel = "";
+    if (isTwoSharing) { targetSharing = 2; sharingLabel = "2-Sharing"; }
+    else if (isThreeSharing) { targetSharing = 3; sharingLabel = "3-Sharing"; }
+    else if (isSingleSharing) { targetSharing = 1; sharingLabel = "Single / 1-Sharing"; }
+
+    const roomsToDisplay = targetSharing 
+      ? vacantRooms.filter((r) => r.sharingType === targetSharing)
+      : vacantRooms;
+
+    const vacantBedsCount = targetSharing
+      ? roomsToDisplay.reduce((sum, r) => sum + r.vacantBedsCount, 0)
+      : snapshot.vacantBeds;
+
     let answerText = "";
     if (snapshot.totalBedsConfigured === false && snapshot.totalBeds === 0) {
       answerText = isBengali
@@ -71,8 +90,16 @@ export function tryFastClientQuery(
         : isHindi
         ? `आपकी प्रॉपर्टी मैप में कमरों और बेड्स का लेआउट अभी कॉन्फ़िगर नहीं किया गया है। वर्तमान में ${activeOccupants.length} किरायेदार रह रहे हैं।`
         : `Physical rooms and beds have not yet been mapped in Property Map. Currently hosting ${activeOccupants.length} active tenants.`;
-    } else if (snapshot.vacantBeds === 0) {
-      answerText = isBengali
+    } else if (vacantBedsCount === 0) {
+      answerText = targetSharing
+        ? isBengali
+          ? `বর্তমানে কোনো ${sharingLabel} বেড খালি নেই।`
+          : isTelugu
+          ? `ప్రస్తుతం ${sharingLabel} గదులలో ఖాళీ బెడ్లు ఏమీ లేవు.`
+          : isHindi
+          ? `वर्तमान में कोई ${sharingLabel} खाली बेड उपलब्ध नहीं है।`
+          : `There are currently 0 vacant beds in ${sharingLabel} rooms.`
+        : isBengali
         ? `বর্তমানে কোনো খালি বেড নেই! সব রুম ১০০% পূর্ণ রয়েছে।`
         : isTelugu
         ? `ప్రస్తుతం ఖాళీ బెడ్లు ఏమీ లేవు! అన్ని గదులు 100% ఆక్యుపై అయ్యాయి.`
@@ -80,7 +107,15 @@ export function tryFastClientQuery(
         ? `वर्तमान में कोई खाली बेड नहीं है! सभी कमरे 100% भरे हुए हैं।`
         : `All rooms are currently 100% occupied. There are 0 vacant beds.`;
     } else {
-      answerText = isBengali
+      answerText = targetSharing
+        ? isBengali
+          ? `আপনার PG-তে বর্তমানে ${sharingLabel}-এ ${vacantBedsCount} টি খালি বেড ${roomsToDisplay.length} টি রুমে উপলব্ধ রয়েছে।`
+          : isTelugu
+          ? `మీ PG లో ప్రస్తుతం ${sharingLabel} గదులలో ${vacantBedsCount} ఖాళీ బెడ్లు ${roomsToDisplay.length} గదులలో అందుబాటులో ఉన్నాయి.`
+          : isHindi
+          ? `आपकी प्रॉपर्टी में अभी ${sharingLabel} के ${vacantBedsCount} खाली बेड्स ${roomsToDisplay.length} कमरों में उपलब्ध हैं।`
+          : `You have ${vacantBedsCount} vacant beds available across ${roomsToDisplay.length} rooms in ${sharingLabel}.`
+        : isBengali
         ? `আপনার PG-তে বর্তমানে ${snapshot.vacantBeds} টি খালি বেড ${vacantRooms.length} টি রুমে উপলব্ধ রয়েছে। মোট অকুপেন্সি হার ${snapshot.occupancyRatePercentage}%।`
         : isTelugu
         ? `మీ PG లో ప్రస్తుతం ${snapshot.vacantBeds} ఖాళీ బెడ్లు ${vacantRooms.length} గదులలో అందుబాటులో ఉన్నాయి. మొత్తం ఆక్యుపెన్సీ రేటు ${snapshot.occupancyRatePercentage}%.`
@@ -92,7 +127,7 @@ export function tryFastClientQuery(
     return {
       answer: answerText,
       actionType: "VACANT_ROOMS",
-      actionPayload: vacantRooms.map((r) => ({
+      actionPayload: roomsToDisplay.map((r) => ({
         roomNumber: r.roomNumber,
         floor: r.floorName,
         vacantBeds: r.vacantBedsCount,

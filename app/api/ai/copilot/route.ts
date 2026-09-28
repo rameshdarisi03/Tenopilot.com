@@ -229,20 +229,34 @@ export async function POST(req: NextRequest) {
         clearTimeout(timeoutId);
 
         if (!res.ok) {
-          const errDetail = await res.text();
+          let errDetail = "";
+          try {
+            errDetail = await res.text();
+          } catch {
+            errDetail = res.statusText || String(res.status);
+          }
+
           if (errDetail.includes("Thinking budget is not supported")) {
             // Instantly retry without thinkingConfig
             delete payload.generationConfig.thinkingConfig;
-            res = await fetch(url, {
+            const retryRes = await fetch(url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
             });
-          }
-
-          if (!res.ok) {
-            const finalErr = await res.text();
-            throw new Error(`Model ${model} returned ${res.status}: ${finalErr}`);
+            if (retryRes.ok) {
+              res = retryRes;
+            } else {
+              let retryErr = "";
+              try {
+                retryErr = await retryRes.text();
+              } catch {
+                retryErr = retryRes.statusText;
+              }
+              throw new Error(`Model ${model} returned ${retryRes.status}: ${retryErr}`);
+            }
+          } else {
+            throw new Error(`Model ${model} returned ${res.status}: ${errDetail}`);
           }
         }
 

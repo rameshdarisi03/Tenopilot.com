@@ -34,13 +34,14 @@ const DEPRECATED_OR_UNSUPPORTED = new Set([
 // Preference ranking weight helper (Exclusively Gemini Flash)
 function getModelPriorityWeight(name: string): number {
   if (name.toLowerCase().includes("gemma")) return 0; // Strictly banned
-  if (name === "gemini-3.6-flash") return 100; // FASTEST (1.8-2.4s) & 100% available
-  if (name.includes("3.6-flash")) return 95;
-  if (name.includes("3.1-flash-lite")) return 90;
-  if (name.includes("3-flash-preview")) return 85;
-  if (name.includes("3.7-flash")) return 80;
-  if (name === "gemini-flash-latest") return 70;
-  if (name.includes("flash")) return 50;
+  if (name === "gemini-3.6-flash") return 100; // FASTEST (1.3s) & 100% available
+  if (name === "gemini-3-flash-preview") return 95; // Proven 200 OK
+  if (name.includes("3.6-flash")) return 90;
+  if (name.includes("3-flash")) return 85;
+  if (name.includes("3.7-flash")) return 75;
+  if (name.includes("3.1-flash-lite")) return 60; // Occasionally 503 high demand
+  if (name === "gemini-flash-latest") return 50;
+  if (name.includes("flash")) return 40;
   return 10;
 }
 
@@ -70,9 +71,9 @@ export async function getActiveGeminiModels(apiKey?: string): Promise<string[]> 
   // 3. Fallback baseline if API call fails (Exclusively Gemini Flash)
   const baselineFallbacks = [
     "gemini-3.6-flash",
-    "gemini-3.1-flash-lite",
     "gemini-3-flash-preview",
     "gemini-3.7-flash",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
   ];
 
