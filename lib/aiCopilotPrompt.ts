@@ -9,6 +9,7 @@ export interface CopilotCompactOccupant {
   phone: string;
   roomNumber: string;
   bedCode?: string;
+  stayType?: "Tenant" | "Guest";
   rentAmount: number;
   paymentStatus: "Paid" | "Due" | "Overdue";
   lifecycleStatus: "Active" | "Booked" | "Notice" | "Past";
@@ -20,6 +21,9 @@ export interface CopilotCompactOccupant {
   arrearsBalance?: number;
   fatherName?: string;
   emergencyContact?: string;
+  kycVerified?: boolean;
+  aadhaarNumber?: string;
+  hasKycDocs?: boolean;
 }
 
 export interface CopilotCompactComplaint {
@@ -77,16 +81,18 @@ export interface CopilotPropertySnapshot {
 export interface CopilotApiResponse {
   answer: string;
   actionType?:
+    | "NOTICE_TENANTS"
     | "UNPAID_TENANTS"
+    | "PAID_TENANTS"
     | "VACANT_ROOMS"
     | "OPEN_COMPLAINTS"
     | "ATTRITION_METRICS"
     | "NEW_CHECKINS"
-    | "EXPENSE_BREAKDOWN"
-    | "PAID_TENANTS"
-    | "NOTICE_TENANTS"
     | "TENANT_LOOKUP"
     | "PROPERTY_SUMMARY"
+    | "EXPENSE_BREAKDOWN"
+    | "KYC_PENDING"
+    | "GUEST_LIST"
     | "GENERAL";
   actionPayload?: any;
   suggestedChips?: string[];
@@ -301,10 +307,35 @@ export function serializePropertySnapshotForAI(snapshot: CopilotPropertySnapshot
     });
   }
 
+  // KYC & Resident Verification Breakdown
+  const kycVerifiedList = activeOccupants.filter((o) => o.kycVerified === true);
+  const kycPendingList = activeOccupants.filter((o) => !o.kycVerified);
+  const guestList = activeOccupants.filter((o) => o.stayType === "Guest");
+  const tenantList = activeOccupants.filter((o) => o.stayType !== "Guest");
+
+  lines.push(`\n=== RESIDENT VERIFICATION & STAY BREAKDOWN ===`);
+  lines.push(`- Total Active Residents: ${activeOccupants.length}`);
+  lines.push(`- Long-Term Tenants: ${tenantList.length}`);
+  lines.push(`- Short-Term Guests: ${guestList.length}`);
+  lines.push(`- KYC Verified: ${kycVerifiedList.length}`);
+  lines.push(`- KYC Pending (Missing Aadhaar/Docs): ${kycPendingList.length}`);
+  if (kycPendingList.length > 0) {
+    lines.push(`[KYC PENDING RESIDENTS - ACTION REQUIRED]:`);
+    kycPendingList.forEach((k) => {
+      lines.push(`  * ${k.name} | StayType: ${k.stayType || "Tenant"} | Rm ${k.roomNumber}${k.bedCode ? ` (${k.bedCode})` : ""} | Ph: ${k.phone} | KYC: PENDING`);
+    });
+  }
+  if (guestList.length > 0) {
+    lines.push(`[SHORT-TERM GUESTS DIRECTORY]:`);
+    guestList.forEach((g) => {
+      lines.push(`  * ${g.name} | Rm ${g.roomNumber}${g.bedCode ? ` (${g.bedCode})` : ""} | Ph: ${g.phone} | Joined: ${g.joiningDate || "N/A"} | Leaving: ${g.vacatingDate || "Open"}`);
+    });
+  }
+
   lines.push(`\n=== COMPLETE ACTIVE OCCUPANT DIRECTORY (${activeOccupants.length} TENANTS) ===`);
   activeOccupants.slice(0, 60).forEach((o) => {
     lines.push(
-      `- ${o.name} | Rm ${o.roomNumber}${o.bedCode ? ` (${o.bedCode})` : ""} | Ph: ${o.phone} | Rent: ₹${o.rentAmount} (${o.paymentStatus}) | Joined: ${o.joiningDate || "N/A"}${o.emergencyContact ? ` | Emergency: ${o.emergencyContact}` : ""}`
+      `- ${o.name} | Rm ${o.roomNumber}${o.bedCode ? ` (${o.bedCode})` : ""} | Ph: ${o.phone} | [${o.stayType || "Tenant"}] | KYC: ${o.kycVerified ? "VERIFIED" : "PENDING"} | Rent: ₹${o.rentAmount} (${o.paymentStatus}) | Joined: ${o.joiningDate || "N/A"}${o.emergencyContact ? ` | Emergency: ${o.emergencyContact}` : ""}`
     );
   });
 
@@ -340,6 +371,10 @@ ${snapshotText}
    - The "actionPayload" MUST contain ONLY entities that exist in the ledger. If there are 0 unpaid tenants, actionPayload for UNPAID_TENANTS MUST be an empty array [].
    - If there are no checkins today, actionPayload for NEW_CHECKINS MUST be an empty array [].
 
+=== STAY TYPE & KYC RULES ===
+1. SHORT-TERM RESIDENTS ARE GUESTS: In this PG system, short-term residents are classified as "Guests" (daily/weekly stay), while long-term residents are classified as "Tenants" (monthly stay). Both reside in rooms and beds. If asked about guests or short-term stays, refer to residents with StayType: Guest.
+2. KYC PENDING RESIDENTS: Residents with KYC: PENDING have not completed Aadhaar or government ID document verification. When asked about KYC pending, missing Aadhaar, or unverified residents, refer to the KYC PENDING RESIDENTS list.
+
 === MULTILINGUAL & REGIONAL FLUENCY ===
 1. You are 100% fluent in Indian languages: Telugu (తెలుగు), Hindi (हिंदी), Bengali (বাংলা), Kannada (ಕನ್ನಡ), Tamil (தமிழ்), Malayalam (മലയാളം), and Indian English.
 2. You understand natural spoken code-switching and transliterated queries:
@@ -365,6 +400,10 @@ Select the best actionType for interactive UI cards:
   payload: { exitsCount: number, activeCount: number, attritionRate: string, onNoticeCount: number }
 - "NEW_CHECKINS": Queries about who joined today, this week, new admissions.
   payload: array of { name: string, room: string, joiningDate: string, phone: string, occupantId: string }
+- "KYC_PENDING": Queries about pending KYC, missing Aadhaar, unverified tenants or guests.
+  payload: array of { name: string, room: string, stayType: string, phone: string, occupantId: string, kycVerified: boolean }
+- "GUEST_LIST": Queries about short-term tenants, daily guests, temporary residents.
+  payload: array of { name: string, room: string, phone: string, occupantId: string, joiningDate?: string, vacatingDate?: string }
 - "TENANT_LOOKUP": Specific tenant search or room lookup.
   payload: { name: string, roomNumber: string, bedCode?: string, rentAmount: number, dueAmount: number, paymentStatus: string, phone?: string, occupantId?: string }
 - "PROPERTY_SUMMARY": Overall property KPI overview, occupancy health.
@@ -377,7 +416,7 @@ Select the best actionType for interactive UI cards:
 Return ONLY a valid raw JSON object (without markdown code fences, backticks, or any text outside the JSON):
 {
   "answer": "Accurate, grounded answer in the user's language using exact ledger figures.",
-  "actionType": "NOTICE_TENANTS" | "UNPAID_TENANTS" | "PAID_TENANTS" | "VACANT_ROOMS" | "OPEN_COMPLAINTS" | "ATTRITION_METRICS" | "NEW_CHECKINS" | "TENANT_LOOKUP" | "PROPERTY_SUMMARY" | "EXPENSE_BREAKDOWN" | "GENERAL",
+  "actionType": "NOTICE_TENANTS" | "UNPAID_TENANTS" | "PAID_TENANTS" | "VACANT_ROOMS" | "OPEN_COMPLAINTS" | "ATTRITION_METRICS" | "NEW_CHECKINS" | "KYC_PENDING" | "GUEST_LIST" | "TENANT_LOOKUP" | "PROPERTY_SUMMARY" | "EXPENSE_BREAKDOWN" | "GENERAL",
   "actionPayload": [ ... ] or { ... },
   "suggestedChips": [ "Follow-up question 1", "Follow-up question 2", "Follow-up question 3" ]
 }

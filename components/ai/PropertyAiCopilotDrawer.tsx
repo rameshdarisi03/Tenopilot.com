@@ -219,6 +219,7 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
         id: o.id,
         name: o.name,
         phone: o.phone,
+        stayType: o.stayType || "Tenant",
         roomNumber: o.roomNumber,
         bedCode: o.bedCode,
         rentAmount: o.rentAmount || 0,
@@ -229,6 +230,9 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
         daysRemainingText: o.daysRemainingText,
         depositAmount: (o as any).depositAmount || o.securityDeposit || 0,
         arrearsBalance: o.arrearsBalance || 0,
+        kycVerified: Boolean(o.kycVerified),
+        aadhaarNumber: o.aadhaarNumber || "",
+        hasKycDocs: Boolean(o.kycDocs?.aadhaarFrontUrl || o.kycDocs?.aadhaarPdfUrl),
         emergencyContact:
           typeof o.emergencyContact === "object" && o.emergencyContact
             ? `${(o.emergencyContact as any).name || ""} (${(o.emergencyContact as any).relation || ""}: ${(o.emergencyContact as any).phone || ""})`
@@ -1092,6 +1096,169 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                           </Link>
                         </div>
                       </div>
+                    )}
+
+                    {/* K. KYC PENDING ACTION CARD */}
+                    {msg.actionType === "KYC_PENDING" && Array.isArray(msg.actionPayload) && (
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                          <span>✅</span>
+                          <span>100% KYC Verified! All active tenants and guests have submitted documents.</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-rose-900 bg-rose-50 p-2 rounded-lg border border-rose-200 flex items-center justify-between">
+                            <span>KYC Pending ({msg.actionPayload.length})</span>
+                            <span className="text-[10px] text-rose-700 font-semibold">Missing Aadhaar / ID</span>
+                          </div>
+
+                          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                            {msg.actionPayload.map((resident: any, i: number) => {
+                              const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                              const tenantId =
+                                resident.occupantId ||
+                                resident.id ||
+                                rawOccupants.find(
+                                  (o) => o.name?.toLowerCase().trim() === resident.name?.toLowerCase().trim()
+                                )?.id;
+
+                              const isGuest = resident.stayType === "Guest";
+
+                              return (
+                                <div
+                                  key={i}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-rose-50/40 border border-gray-200/90 hover:border-rose-300 flex items-center justify-between gap-2 shadow-xs transition-colors"
+                                >
+                                  {tenantId ? (
+                                    <Link
+                                      href={`/p/${propertyId}/tenants/${tenantId}`}
+                                      onClick={() => closeCopilot()}
+                                      className="min-w-0 flex-1 group cursor-pointer"
+                                      title="Open Profile to upload/verify KYC"
+                                    >
+                                      <div className="font-bold text-gray-900 text-xs truncate group-hover:text-rose-700 flex items-center gap-1.5">
+                                        <User className={`w-3.5 h-3.5 shrink-0 ${isGuest ? "text-purple-600" : "text-amber-700"}`} />
+                                        <span className="truncate">{resident.name}</span>
+                                        <span
+                                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                                            isGuest
+                                              ? "bg-purple-100 text-purple-800"
+                                              : "bg-blue-100 text-blue-800"
+                                          }`}
+                                        >
+                                          {isGuest ? "Guest" : "Tenant"}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                        <span>Room {resident.room}</span>
+                                        <span>•</span>
+                                        <span className="font-bold text-rose-600">KYC Pending</span>
+                                      </div>
+                                    </Link>
+                                  ) : (
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-gray-900 text-xs truncate">{resident.name}</div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">Room {resident.room} • {isGuest ? "Guest" : "Tenant"}</div>
+                                    </div>
+                                  )}
+
+                                  {resident.phone ? (
+                                    <a
+                                      href={`https://wa.me/${resident.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                                        `Hi ${resident.name}, please complete your KYC and submit your Aadhaar card for your stay at ${propertySettingsStore.getSettings(propertyId)?.propertyName || "our property"}.`
+                                      )}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors shrink-0"
+                                      title="Send WhatsApp KYC reminder"
+                                    >
+                                      <span>💬 Request KYC</span>
+                                    </a>
+                                  ) : tenantId ? (
+                                    <Link
+                                      href={`/p/${propertyId}/tenants/${tenantId}`}
+                                      onClick={() => closeCopilot()}
+                                      className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-[11px] flex items-center gap-0.5 shrink-0"
+                                    >
+                                      <span>Profile</span>
+                                      <ChevronRight className="w-3 h-3" />
+                                    </Link>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* L. GUEST LIST ACTION CARD (Short-term tenants) */}
+                    {msg.actionType === "GUEST_LIST" && Array.isArray(msg.actionPayload) && (
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium flex items-center gap-2">
+                          <span>ℹ️</span>
+                          <span>No short-term guests are currently staying at the property.</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-purple-900 bg-purple-50 p-2 rounded-lg border border-purple-200 flex items-center justify-between">
+                            <span>Short-Term Guests ({msg.actionPayload.length})</span>
+                            <span className="text-[10px] text-purple-700 font-semibold">Daily / Weekly Stays</span>
+                          </div>
+
+                          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                            {msg.actionPayload.map((guest: any, i: number) => {
+                              const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                              const tenantId =
+                                guest.occupantId ||
+                                guest.id ||
+                                rawOccupants.find(
+                                  (o) => o.name?.toLowerCase().trim() === guest.name?.toLowerCase().trim()
+                                )?.id;
+
+                              return tenantId ? (
+                                <Link
+                                  key={i}
+                                  href={`/p/${propertyId}/tenants/${tenantId}`}
+                                  onClick={() => closeCopilot()}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-purple-50/60 border border-gray-200/90 hover:border-purple-300 flex items-center justify-between gap-2 shadow-xs transition-all group cursor-pointer active:scale-[0.99] block"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-gray-900 text-xs truncate group-hover:text-purple-800 flex items-center gap-1.5">
+                                      <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                      <span className="truncate">{guest.name}</span>
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[9px] shrink-0">
+                                        Guest
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                                      <span>Room {guest.room}</span>
+                                      {guest.vacatingDate && (
+                                        <>
+                                          <span>•</span>
+                                          <span>Checkout: <strong className="text-gray-800">{guest.vacatingDate}</strong></span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-purple-700 text-xs font-bold shrink-0">
+                                    <span className="text-[11px]">Profile</span>
+                                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                  </div>
+                                </Link>
+                              ) : (
+                                <div
+                                  key={i}
+                                  className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center"
+                                >
+                                  <div className="font-bold text-gray-900 text-xs">{guest.name}</div>
+                                  <div className="text-gray-500 text-xs">Room {guest.room} • Guest</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )
                     )}
 
                   </div>

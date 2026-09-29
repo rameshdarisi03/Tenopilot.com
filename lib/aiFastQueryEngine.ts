@@ -98,6 +98,13 @@ export function tryFastClientQuery(
     );
   });
 
+  // KYC and Resident Types (Tenants vs Guests)
+  const allActiveGuests = activeOccupants.filter((o) => o.stayType === "Guest");
+  const allActiveTenants = activeOccupants.filter((o) => o.stayType !== "Guest");
+  const kycPendingOccupants = activeOccupants.filter((o) => !o.kycVerified);
+  const kycPendingTenants = allActiveTenants.filter((o) => !o.kycVerified);
+  const kycPendingGuests = allActiveGuests.filter((o) => !o.kycVerified);
+
   // Complaints
   const allComplaints = snapshot.complaints || [];
   const openComplaints = allComplaints.filter(
@@ -499,7 +506,109 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 7. COMPLAINTS / MAINTENANCE (Wi-Fi, Plumbing, AC, Food)
+  // 8. KYC PENDING RESIDENTS (TENANTS & GUESTS) & AADHAAR AUDIT
+  // e.g. "kyc pending tenants", "guests kyc", "who has pending kyc", "aadhaar not given"
+  // =========================================================================
+  const kycRegex =
+    /(kyc|aadhaar|aadhar|id proof|id card|document|verification|unverified|pending kyc|missing kyc|ఆధార్|కేవైసీ|आधार|केवाईसी|আধার|কেওয়াইসি)/i;
+
+  if (kycRegex.test(query)) {
+    const isGuestsOnly = /(guest|short-?term)/i.test(query) && !/(tenant|monthly)/i.test(query);
+    const isTenantsOnly = /(tenant|monthly|long-?term)/i.test(query) && !/(guest|short-?term)/i.test(query);
+
+    let targetKycList = kycPendingOccupants;
+    let labelCategory = "residents";
+    if (isGuestsOnly) {
+      targetKycList = kycPendingGuests;
+      labelCategory = "short-term guests";
+    } else if (isTenantsOnly) {
+      targetKycList = kycPendingTenants;
+      labelCategory = "monthly tenants";
+    }
+
+    let answerText = "";
+    if (targetKycList.length === 0) {
+      answerText = isBengali
+        ? `দারুণ! সব ${labelCategory}-র কেওয়াইসি (আধার) যাচাইকরণ সম্পূর্ণ হয়েছে। কোনো পেন্ডিং নেই (০)।`
+        : isTelugu
+        ? `అద్భుతం! అందరు ${labelCategory} కేవైసీ (ఆధార్) ధృవీకరణ పూర్తయింది. పెండింగ్‌లో ఎవరూ లేరు (0).`
+        : isHindi
+        ? `शानदार! सभी ${labelCategory} का केवाईसी (आधार) सत्यापन पूर्ण हो चुका है। कोई लंबित नहीं है (0)।`
+        : `100% KYC verified! All ${labelCategory} have completed their government ID/Aadhaar verification.`;
+    } else {
+      const breakdownText = isGuestsOnly || isTenantsOnly
+        ? ""
+        : ` (${kycPendingTenants.length} tenants, ${kycPendingGuests.length} guests)`;
+
+      answerText = isBengali
+        ? `মোট ${targetKycList.length} জন ${labelCategory}-র কেওয়াইসি/আধার পেন্ডিং রয়েছে${breakdownText}।`
+        : isTelugu
+        ? `మొత్తం ${targetKycList.length} మంది ${labelCategory} కేవైసీ/ఆధార్ డాక్యుమెంట్లు పెండింగ్‌లో ఉన్నాయి${breakdownText}.`
+        : isHindi
+        ? `कुल ${targetKycList.length} ${labelCategory} का केवाईसी/आधार दस्तावेज लंबित है${breakdownText}।`
+        : `There are ${targetKycList.length} ${labelCategory} with pending KYC / Aadhaar verification${breakdownText}.`;
+    }
+
+    return {
+      answer: answerText,
+      actionType: "KYC_PENDING",
+      actionPayload: targetKycList.map((k) => ({
+        name: k.name,
+        room: k.roomNumber,
+        stayType: k.stayType || "Tenant",
+        phone: k.phone,
+        occupantId: k.id,
+        kycVerified: false,
+      })),
+      suggestedChips: ["Who owes rent?", "Vacant beds?", "Short-term guests?"],
+    };
+  }
+
+  // =========================================================================
+  // 9. SHORT-TERM GUESTS DIRECTORY
+  // e.g. "how many guests", "short term tenants", "daily guests", "guest list"
+  // =========================================================================
+  const guestQueryRegex =
+    /(guest[s]?|short-?term|daily stay|temporary resident|visitor|గెస్ట్|గెస్టులు|గేస్ట్|గేస్టులు|गेस्ट|अतिथि|স্বল্পমেয়াদী|অতিথি)/i;
+
+  if (guestQueryRegex.test(query)) {
+    let answerText = "";
+    if (allActiveGuests.length === 0) {
+      answerText = isBengali
+        ? `বর্তমানে কোনো স্বল্পমেয়াদী অতিথি (Guests) এই প্রপার্টিতে নেই। সবাই মাসিক ভাড়াটিয়া।`
+        : isTelugu
+        ? `ప్రస్తుతం షార్ట్-టర్మ్ గెస్టులు (Guests) ఎవరూ లేరు. ప్రస్తుతం ఉన్నవారంతా నెలవారీ అద్దెదారులు.`
+        : isHindi
+        ? `वर्तमान में कोई शॉर्ट-टर्म गेस्ट (अतिथि) इस प्रॉपर्टी में नहीं हैं। सभी मासिक किरायेदार हैं।`
+        : `There are currently 0 short-term guests staying at the property. All active residents are long-term monthly tenants.`;
+    } else {
+      answerText = isBengali
+        ? `বর্তমানে ${allActiveGuests.length} জন স্বল্পমেয়াদী অতিথি (Guests) অবস্থান করছেন।`
+        : isTelugu
+        ? `ప్రస్తుతం ${allActiveGuests.length} మంది షార్ట్-టర్మ్ గెస్టులు (Guests) బస చేస్తున్నారు.`
+        : isHindi
+        ? `वर्तमान में ${allActiveGuests.length} शॉर्ट-टर्म गेस्ट्स (अतिथि) ठहरे हुए हैं।`
+        : `There are currently ${allActiveGuests.length} short-term guest(s) residing at the property.`;
+    }
+
+    return {
+      answer: answerText,
+      actionType: "GUEST_LIST",
+      actionPayload: allActiveGuests.map((g) => ({
+        name: g.name,
+        room: g.roomNumber,
+        phone: g.phone,
+        stayType: "Guest",
+        joiningDate: g.joiningDate,
+        vacatingDate: g.vacatingDate,
+        occupantId: g.id,
+      })),
+      suggestedChips: ["KYC pending list?", "Who owes rent?", "Vacant beds?"],
+    };
+  }
+
+  // =========================================================================
+  // 10. COMPLAINTS / MAINTENANCE (Wi-Fi, Plumbing, AC, Food)
   // =========================================================================
   const complaintRegex =
     /(complain[a-z]*|issue|repair|plumb[a-z]*|leak[a-z]*|wi-?fi|internet|clean[a-z]*|maintenance|problem|samasyalu|shikayat|ovinog|somossa|geyser|ac.*not.*working)/i;
