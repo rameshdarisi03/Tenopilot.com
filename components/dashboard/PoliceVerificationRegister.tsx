@@ -43,6 +43,7 @@ export function PoliceVerificationRegister({ propertyId }: PoliceVerificationReg
   const [endDateFilter, setEndDateFilter] = useState<string>("");
   const [roomFilter, setRoomFilter] = useState<string>("ALL");
   const [dpdpSweepFeedback, setDpdpSweepFeedback] = useState<string | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Selected Log for Official Verification Form Modal / Print
   const [selectedLog, setSelectedLog] = useState<ComplianceLogEntry | null>(null);
@@ -310,116 +311,219 @@ export function PoliceVerificationRegister({ propertyId }: PoliceVerificationReg
       </div>
 
       {/* Advanced Multi-Filter Search Card */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
+      <div className="bg-white rounded-2xl border border-gray-200 p-3.5 sm:p-4 md:p-5 shadow-xs space-y-3">
+        {/* Top Search & Filter Toggle Row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {/* Text Search Input (Name, Phone, Aadhaar) */}
-          <div className="md:col-span-4 relative">
+          <div className="relative flex-1">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
             <input
               type="text"
-              placeholder="Search Name, Phone (10 digits), Aadhaar, Purpose..."
+              placeholder="Search Name, Phone, Aadhaar, Room..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-blue-600"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-blue-600"
             />
           </div>
 
-          {/* Stay Type Filter */}
-          <div className="md:col-span-2">
-            <select
-              value={stayTypeFilter}
-              onChange={(e) => setStayTypeFilter(e.target.value as any)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-800 bg-white focus:ring-1 focus:ring-blue-600"
-            >
-              <option value="ALL">All Stay Types</option>
-              <option value="Guest">Short-Term Guests (🟣)</option>
-              <option value="Tenant">Long-Term Tenants (🏢)</option>
-            </select>
-          </div>
-
-          {/* Exit Category Filter */}
-          <div className="md:col-span-2">
-            <select
-              value={exitCategoryFilter}
-              onChange={(e) => setExitCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-800 bg-white focus:ring-1 focus:ring-blue-600"
-            >
-              <option value="ALL">All Exit Reasons</option>
-              <option value="EMERGENCY">⚡ Emergency Exits</option>
-              <option value="STANDARD">🟢 Standard Departures</option>
-              <option value="NOTICE">🚪 Notice Completed</option>
-            </select>
-          </div>
-
-          {/* Room Filter */}
-          <div className="md:col-span-2">
-            <select
-              value={roomFilter}
-              onChange={(e) => setRoomFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-800 bg-white focus:ring-1 focus:ring-blue-600"
-            >
-              <option value="ALL">All Rooms</option>
-              {uniqueRooms.map((rm) => (
-                <option key={rm} value={rm}>
-                  Room {rm}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Reset Filters */}
-          <div className="md:col-span-2 flex items-center justify-end">
-            {(searchQuery || stayTypeFilter !== "ALL" || exitCategoryFilter !== "ALL" || roomFilter !== "ALL" || startDateFilter || endDateFilter) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setStayTypeFilter("ALL");
-                  setExitCategoryFilter("ALL");
-                  setRoomFilter("ALL");
-                  setStartDateFilter("");
-                  setEndDateFilter("");
-                }}
-                className="text-xs text-rose-600 hover:text-rose-800 font-bold cursor-pointer underline"
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
+          {/* Mobile Filter Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className="md:hidden py-2.5 px-3.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-between cursor-pointer active:scale-95"
+          >
+            <span className="flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>Filters & Date Range</span>
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono font-bold">
+              {showMobileFilters ? "Hide ▲" : "Show ▼"}
+            </span>
+          </button>
         </div>
 
-        {/* Date Range Sub-Bar */}
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 text-xs text-gray-600 font-medium">
-          <span className="flex items-center gap-1 font-bold text-gray-700">
-            <Calendar className="w-3.5 h-3.5 text-blue-600" /> Filter by Stay Date Range:
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">From:</span>
-            <input
-              type="date"
-              value={startDateFilter}
-              onChange={(e) => setStartDateFilter(e.target.value)}
-              className="px-2.5 py-1 rounded-lg border border-gray-300 text-xs font-bold text-gray-800"
-            />
+        {/* Collapsible Dropdowns & Date Range (always visible on md+) */}
+        <div className={`space-y-3 ${showMobileFilters ? "block" : "hidden md:block"}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2.5 text-xs pt-1">
+            {/* Stay Type Filter */}
+            <div className="md:col-span-3">
+              <label className="block md:hidden text-[11px] font-bold text-gray-600 mb-1">Stay Type</label>
+              <select
+                value={stayTypeFilter}
+                onChange={(e) => setStayTypeFilter(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-800 bg-white focus:ring-1 focus:ring-blue-600"
+              >
+                <option value="ALL">All Stay Types</option>
+                <option value="Guest">Short-Term Guests (🟣)</option>
+                <option value="Tenant">Long-Term Tenants (🏢)</option>
+              </select>
+            </div>
+
+            {/* Exit Category Filter */}
+            <div className="md:col-span-3">
+              <label className="block md:hidden text-[11px] font-bold text-gray-600 mb-1">Exit Reason</label>
+              <select
+                value={exitCategoryFilter}
+                onChange={(e) => setExitCategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-800 bg-white focus:ring-1 focus:ring-blue-600"
+              >
+                <option value="ALL">All Exit Reasons</option>
+                <option value="EMERGENCY">⚡ Emergency Exits</option>
+                <option value="STANDARD">🟢 Standard Departures</option>
+                <option value="NOTICE">🚪 Notice Completed</option>
+              </select>
+            </div>
+
+            {/* Room Filter */}
+            <div className="md:col-span-3">
+              <label className="block md:hidden text-[11px] font-bold text-gray-600 mb-1">Room</label>
+              <select
+                value={roomFilter}
+                onChange={(e) => setRoomFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-gray-800 bg-white focus:ring-1 focus:ring-blue-600"
+              >
+                <option value="ALL">All Rooms</option>
+                {uniqueRooms.map((rm) => (
+                  <option key={rm} value={rm}>
+                    Room {rm}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reset Filters */}
+            <div className="md:col-span-3 flex items-center justify-end">
+              {(searchQuery || stayTypeFilter !== "ALL" || exitCategoryFilter !== "ALL" || roomFilter !== "ALL" || startDateFilter || endDateFilter) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStayTypeFilter("ALL");
+                    setExitCategoryFilter("ALL");
+                    setRoomFilter("ALL");
+                    setStartDateFilter("");
+                    setEndDateFilter("");
+                  }}
+                  className="w-full md:w-auto text-xs text-rose-600 hover:text-rose-800 font-bold cursor-pointer underline py-1 text-center"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">To:</span>
-            <input
-              type="date"
-              value={endDateFilter}
-              onChange={(e) => setEndDateFilter(e.target.value)}
-              className="px-2.5 py-1 rounded-lg border border-gray-300 text-xs font-bold text-gray-800"
-            />
+
+          {/* Date Range Sub-Bar */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-gray-100 text-xs text-gray-600 font-medium">
+            <span className="flex items-center gap-1 font-bold text-gray-700">
+              <Calendar className="w-3.5 h-3.5 text-blue-600" /> Stay Dates:
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400">From:</span>
+              <input
+                type="date"
+                value={startDateFilter}
+                onChange={(e) => setStartDateFilter(e.target.value)}
+                className="px-2 py-1 rounded-lg border border-gray-300 text-xs font-bold text-gray-800"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400">To:</span>
+              <input
+                type="date"
+                value={endDateFilter}
+                onChange={(e) => setEndDateFilter(e.target.value)}
+                className="px-2 py-1 rounded-lg border border-gray-300 text-xs font-bold text-gray-800"
+              />
+            </div>
+            <span className="text-[10px] text-gray-400 ml-auto font-mono">
+              {filteredLogs.length} of {logs.length} records
+            </span>
           </div>
-          <span className="text-[10px] text-gray-400 ml-auto">
-            Showing <strong>{filteredLogs.length}</strong> of {logs.length} records
-          </span>
         </div>
       </div>
 
-      {/* Main Records Table */}
+      {/* Main Records Container */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* 📱 Mobile Card View (md:hidden) */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filteredLogs.length > 0 ? (
+            filteredLogs.map((entry) => {
+              const isEmergency = entry.exitCategory === "Emergency Early Departure";
+              return (
+                <div key={entry.id} className="p-4 space-y-3 bg-white">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0">
+                        {entry.name.charAt(0) || "R"}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-gray-900 block truncate text-sm">{entry.name}</span>
+                        <a
+                          href={`tel:${entry.phone}`}
+                          className="text-xs font-mono text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
+                        >
+                          <Phone className="w-3 h-3 text-blue-500" /> {entry.phone}
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-xs text-gray-900 px-2 py-1 rounded-lg bg-gray-100 block">
+                        Room {entry.roomNumber} • {entry.bedCode}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-500 block mt-0.5">
+                        {entry.stayType === "Guest" ? "🟣 Guest" : "🏢 Tenant"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] p-2.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Masked Govt ID</span>
+                      <span className="font-mono font-bold text-gray-800 flex items-center gap-1 mt-0.5">
+                        <Lock className="w-3 h-3 text-blue-600" /> {entry.aadhaarNumber}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Stay Duration</span>
+                      <span className="font-bold text-gray-800 mt-0.5 block">
+                        {entry.totalDaysStayed} Day(s) Stayed
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 text-xs pt-0.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isEmergency
+                        ? "bg-rose-100 text-rose-900 border border-rose-200"
+                        : "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                    }`}>
+                      {entry.exitCategory}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedLog(entry);
+                        setShowVerificationModal(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> View Form
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-8 text-center text-gray-400 text-xs">
+              No resident records found matching your filter.
+            </div>
+          )}
+        </div>
+
+        {/* 💻 Desktop Records Table (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-extrabold uppercase text-[10px] tracking-wider">

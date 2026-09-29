@@ -65,6 +65,10 @@ export default function PropertySettingsPage({
   const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "WHATSAPP" | "POLICE_REGISTER">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Mobile UX states for minimal, one-handed navigation
+  const [showAddQrMobile, setShowAddQrMobile] = useState(false);
+  const [selectedMobileTemplate, setSelectedMobileTemplate] = useState<"REMINDER" | "RECEIPT" | "KYC">("REMINDER");
+
   // WhatsApp Wallet State in Settings
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
@@ -479,7 +483,7 @@ export default function PropertySettingsPage({
             {activeTab === "PARTNERS" && (
               <div className="space-y-6 animate-in fade-in">
                 {/* 1. Partner Ownership & Settlement Ratios */}
-                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                     <div className="flex items-start sm:items-center gap-2.5 min-w-0">
                       <div className="p-2 sm:p-2.5 rounded-xl bg-purple-100 text-purple-700 shrink-0">
@@ -490,28 +494,47 @@ export default function PropertySettingsPage({
                           Partner Ownership & Profit Sharing Ratios
                         </h3>
                         <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
-                          Configure partner equity percentages to calculate profit distribution on Financial Hub
+                          Configure equity percentages to distribute net profits on Financial Hub
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-1 sm:pt-0 shrink-0">
-                      <span className={`text-xs font-extrabold px-3 py-1 rounded-full font-mono shrink-0 ${
-                        partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100
-                          ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
-                          : "bg-red-100 text-red-900 border border-red-200"
-                      }`}>
-                        Total Ownership: {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%
-                        {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100 ? " 🟢" : " 🔴"}
-                      </span>
-
                       <button
                         type="button"
                         onClick={handleAddPartner}
-                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs flex items-center gap-1 border border-purple-200 cursor-pointer active:scale-95 transition-all shrink-0"
+                        className="px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs flex items-center gap-1.5 border border-purple-200 cursor-pointer active:scale-95 transition-all shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add Partner
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Visual Equity Pool Allocation Meter */}
+                  <div className="p-3 bg-gray-50/80 rounded-xl border border-gray-200 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-gray-600">Total Allocated Equity:</span>
+                      <span className={`font-mono text-xs ${
+                        partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100
+                          ? "text-emerald-700 font-black"
+                          : "text-amber-700 font-black"
+                      }`}>
+                        {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}% / 100%
+                        {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100 ? " 🟢 (Balanced)" : " ⚠️ (Must equal 100%)"}
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden flex gap-0.5">
+                      {partners.map((p) => (
+                        <div
+                          key={p.id}
+                          style={{
+                            width: `${Math.max(0, Math.min(100, p.ownershipPercentage || 0))}%`,
+                            backgroundColor: p.color || "#964407",
+                          }}
+                          className="h-full transition-all duration-300 rounded-full"
+                          title={`${p.name}: ${p.ownershipPercentage}%`}
+                        />
+                      ))}
                     </div>
                   </div>
 
@@ -603,14 +626,30 @@ export default function PropertySettingsPage({
                           <div className="flex items-center gap-1.5">
                             <label className="text-xs font-bold text-gray-600">Ownership:</label>
                             <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePartnerShare(partner.id, Math.max(0, (partner.ownershipPercentage || 0) - 5))}
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                                title="Decrease 5%"
+                              >
+                                -
+                              </button>
                               <input
                                 type="number"
                                 min="0"
                                 max="100"
                                 value={partner.ownershipPercentage}
                                 onChange={(e) => handleUpdatePartnerShare(partner.id, Number(e.target.value))}
-                                className="w-16 px-2.5 py-1.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-right text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                                className="w-12 sm:w-14 px-1 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs text-center text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                               />
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePartnerShare(partner.id, Math.min(100, (partner.ownershipPercentage || 0) + 5))}
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                                title="Increase 5%"
+                              >
+                                +
+                              </button>
                               <span className="font-mono font-bold text-gray-700 text-xs">%</span>
                             </div>
                           </div>
@@ -688,75 +727,95 @@ export default function PropertySettingsPage({
 
                   {/* Add New Unified Payment Account Input Card */}
                   <div className="p-3.5 sm:p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900 flex items-center gap-1.5">
-                        <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Account
-                      </h4>
-                      <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          Tag Under Partner / Entity *
-                        </label>
-                        <select
-                          value={newQrPartnerId}
-                          onChange={(e) => setNewQrPartnerId(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        >
-                          <option value="BUSINESS">🏢 Main Business (Common Pool)</option>
-                          <option value="PETTY_CASH">💵 Petty Cash Desk (Reception Drawer)</option>
-                          {partners.length > 0 && (
-                            <optgroup label="👤 Tag Under Partner">
-                              {partners.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  👤 {p.name} ({p.ownershipPercentage}%)
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          Bank / Account Label *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder={newQrPartnerId === "PETTY_CASH" ? "Reception Cash Drawer" : "e.g. HDFC Bank, ICICI Bank"}
-                          value={newQrBank}
-                          onChange={(e) => setNewQrBank(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                          UPI ID {newQrPartnerId === "PETTY_CASH" ? "(N/A for Cash)" : "(Optional for Bank Transfer)"}
-                        </label>
-                        <input
-                          type="text"
-                          disabled={newQrPartnerId === "PETTY_CASH"}
-                          placeholder={newQrPartnerId === "PETTY_CASH" ? "N/A — Cash Counter" : "e.g. name@okhdfcbank"}
-                          value={newQrPartnerId === "PETTY_CASH" ? "" : newQrUpi}
-                          onChange={(e) => setNewQrUpi(e.target.value)}
-                          className={`w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a] ${
-                            newQrPartnerId === "PETTY_CASH" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
-                          }`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end pt-1">
+                    <div className="flex items-center justify-between">
                       <button
                         type="button"
-                        onClick={handleAddQrProfile}
-                        className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                        onClick={() => setShowAddQrMobile(!showAddQrMobile)}
+                        className="sm:hidden w-full py-2.5 px-4 rounded-xl border border-[#c2652a]/40 bg-white text-[#c2652a] font-bold text-xs flex items-center justify-between shadow-2xs cursor-pointer active:scale-95"
                       >
-                        <Plus className="w-4 h-4" /> Save Account Profile
+                        <span className="flex items-center gap-1.5">
+                          <Plus className="w-4 h-4" /> Add Payment Account / UPI
+                        </span>
+                        <span className="text-[10px] bg-orange-100 text-[#c2652a] px-2 py-0.5 rounded-full font-bold">
+                          {showAddQrMobile ? "Close ▲" : "New ▼"}
+                        </span>
                       </button>
+
+                      <div className="hidden sm:flex sm:items-center sm:justify-between w-full">
+                        <h4 className="font-bold text-xs sm:text-sm text-gray-900 flex items-center gap-1.5">
+                          <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Account
+                        </h4>
+                        <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
+                      </div>
+                    </div>
+
+                    <div className={`space-y-3 ${showAddQrMobile ? "block" : "hidden sm:block"}`}>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            Tag Under Partner / Entity *
+                          </label>
+                          <select
+                            value={newQrPartnerId}
+                            onChange={(e) => setNewQrPartnerId(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          >
+                            <option value="BUSINESS">🏢 Main Business (Common Pool)</option>
+                            <option value="PETTY_CASH">💵 Petty Cash Desk (Reception Drawer)</option>
+                            {partners.length > 0 && (
+                              <optgroup label="👤 Tag Under Partner">
+                                {partners.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    👤 {p.name} ({p.ownershipPercentage}%)
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            Bank / Account Label *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={newQrPartnerId === "PETTY_CASH" ? "Reception Cash Drawer" : "e.g. HDFC Bank, ICICI Bank"}
+                            value={newQrBank}
+                            onChange={(e) => setNewQrBank(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            UPI ID {newQrPartnerId === "PETTY_CASH" ? "(N/A for Cash)" : "(Optional for Bank Transfer)"}
+                          </label>
+                          <input
+                            type="text"
+                            disabled={newQrPartnerId === "PETTY_CASH"}
+                            placeholder={newQrPartnerId === "PETTY_CASH" ? "N/A — Cash Counter" : "e.g. name@okhdfcbank"}
+                            value={newQrPartnerId === "PETTY_CASH" ? "" : newQrUpi}
+                            onChange={(e) => setNewQrUpi(e.target.value)}
+                            className={`w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a] ${
+                              newQrPartnerId === "PETTY_CASH" ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleAddQrProfile();
+                            setShowAddQrMobile(false);
+                          }}
+                          className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                        >
+                          <Plus className="w-4 h-4" /> Save Account Profile
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -866,22 +925,53 @@ export default function PropertySettingsPage({
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">
                       Select Billing Cycle Mode *
                     </label>
-                    <select
-                      value={settings.billingCycleDates}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          billingCycleDates: e.target.value as any,
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    >
-                      <option value="1st to End of Month">1st to End of Month (Standard Calendar Month)</option>
-                      <option value="Anniversary Date">Anniversary Date (Joining Date to Joining Date)</option>
-                    </select>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Indian PG standard preference: 1st of month to month-end.
-                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            billingCycleDates: "1st to End of Month",
+                          })
+                        }
+                        className={`p-3 rounded-xl border text-left font-bold text-xs transition-all cursor-pointer flex items-center justify-between ${
+                          settings.billingCycleDates === "1st to End of Month"
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block">📅 1st to Month-End</span>
+                          <span className="text-[10px] text-gray-400 font-normal">Standard Calendar Month</span>
+                        </div>
+                        {settings.billingCycleDates === "1st to End of Month" && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            billingCycleDates: "Anniversary Date",
+                          })
+                        }
+                        className={`p-3 rounded-xl border text-left font-bold text-xs transition-all cursor-pointer flex items-center justify-between ${
+                          settings.billingCycleDates === "Anniversary Date"
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block">🗓️ Anniversary Date</span>
+                          <span className="text-[10px] text-gray-400 font-normal">Join Date to Join Date</span>
+                        </div>
+                        {settings.billingCycleDates === "Anniversary Date" && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -898,10 +988,25 @@ export default function PropertySettingsPage({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      Target Due Day of Month *
-                    </label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-gray-700">Target Due Day *</label>
+                      <span className="text-[11px] font-bold text-[#c2652a]">Due on {settings.desiredDueDate}th</span>
+                    </div>
+
+                    {/* Stepper + Input */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            desiredDueDate: Math.max(1, settings.desiredDueDate - 1),
+                          })
+                        }
+                        className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                      >
+                        -
+                      </button>
                       <input
                         type="number"
                         min={1}
@@ -914,13 +1019,40 @@ export default function PropertySettingsPage({
                             desiredDueDate: Number(e.target.value),
                           })
                         }
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-300 font-mono font-bold text-sm text-center text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            desiredDueDate: Math.min(28, settings.desiredDueDate + 1),
+                          })
+                        }
+                        className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                      >
+                        +
+                      </button>
                       <span className="font-bold text-xs text-gray-600 shrink-0">th of Month</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Set to 5 for 5th of every month (PG owner preference).
-                    </p>
+
+                    {/* Quick One-Tap Thumb Chips */}
+                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                      {[1, 5, 10, 15].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setSettings({ ...settings, desiredDueDate: d })}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                            settings.desiredDueDate === d
+                              ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                              : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          {d}th {d === 5 ? "★ (Popular)" : ""}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -932,35 +1064,82 @@ export default function PropertySettingsPage({
                     </div>
                     <div>
                       <h3 className="font-bold text-sm sm:text-base text-gray-900">Overdue Grace Period</h3>
-                      <p className="text-[11px] text-gray-500">Days after due date before marking OVERDUE 🔴</p>
+                      <p className="text-[11px] text-gray-500">Days before marking delinquent 🔴</p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      Grace Period (Days) *
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={15}
-                      required
-                      value={settings.gracePeriodDays}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          gracePeriodDays: Number(e.target.value),
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Set to 5 days. If due date is 5th and grace period is 5 days, rent marks overdue after 10th.
-                    </p>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-gray-700">Grace Days *</label>
+                      <span className="text-[11px] font-bold text-amber-700">
+                        {settings.gracePeriodDays === 0 ? "Immediate Overdue" : `+${settings.gracePeriodDays} Days Grace`}
+                      </span>
+                    </div>
+
+                    {/* Stepper + Input */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            gracePeriodDays: Math.max(0, settings.gracePeriodDays - 1),
+                          })
+                        }
+                        className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={15}
+                        required
+                        value={settings.gracePeriodDays}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            gracePeriodDays: Number(e.target.value),
+                          })
+                        }
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-300 font-mono font-bold text-sm text-center text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            gracePeriodDays: Math.min(15, settings.gracePeriodDays + 1),
+                          })
+                        }
+                        className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                      >
+                        +
+                      </button>
+                      <span className="font-bold text-xs text-gray-600 shrink-0">Days</span>
+                    </div>
+
+                    {/* Quick One-Tap Thumb Chips */}
+                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                      {[0, 3, 5, 7].map((days) => (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => setSettings({ ...settings, gracePeriodDays: days })}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                            settings.gracePeriodDays === days
+                              ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                              : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          {days === 0 ? "0 Days" : `${days} Days`} {days === 5 ? "★" : ""}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Global Monthly Rental Tiers */}
+                {/* Global Monthly Rental Tiers (Compact 2x2 Grid) */}
                 <div className="md:col-span-2 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                     <div className="p-2 sm:p-2.5 rounded-xl bg-purple-50 text-purple-600 shrink-0">
@@ -968,15 +1147,15 @@ export default function PropertySettingsPage({
                     </div>
                     <div>
                       <h3 className="font-bold text-sm sm:text-base text-gray-900">Room Sharing Monthly Rental Tiers</h3>
-                      <p className="text-[11px] text-gray-500">Default monthly rent tariffs per bed sharing type (Auto-fills in onboarding & room transfers)</p>
+                      <p className="text-[11px] text-gray-500">Default rent per bed (Auto-fills onboarding & transfers)</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
-                      <label className="block text-[11px] font-bold text-gray-700">1-Sharing (Single Private)</label>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 pt-1">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                      <label className="block text-[11px] font-bold text-gray-700 truncate">1-Sharing (Single)</label>
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <span className="absolute left-2.5 top-2 text-gray-400 font-bold text-xs">₹</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -992,16 +1171,16 @@ export default function PropertySettingsPage({
                               },
                             });
                           }}
-                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
-                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ mo per bed</span>
                     </div>
 
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
-                      <label className="block text-[11px] font-bold text-gray-700">2-Sharing (Double)</label>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                      <label className="block text-[11px] font-bold text-gray-700 truncate">2-Sharing (Double)</label>
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <span className="absolute left-2.5 top-2 text-gray-400 font-bold text-xs">₹</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1017,16 +1196,16 @@ export default function PropertySettingsPage({
                               },
                             });
                           }}
-                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
-                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ mo per bed</span>
                     </div>
 
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
-                      <label className="block text-[11px] font-bold text-gray-700">3-Sharing (Triple)</label>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                      <label className="block text-[11px] font-bold text-gray-700 truncate">3-Sharing (Triple)</label>
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <span className="absolute left-2.5 top-2 text-gray-400 font-bold text-xs">₹</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1042,16 +1221,16 @@ export default function PropertySettingsPage({
                               },
                             });
                           }}
-                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
-                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ mo per bed</span>
                     </div>
 
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5">
-                      <label className="block text-[11px] font-bold text-gray-700">4-Sharing (Four)</label>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                      <label className="block text-[11px] font-bold text-gray-700 truncate">4-Sharing (Four)</label>
                       <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                        <span className="absolute left-2.5 top-2 text-gray-400 font-bold text-xs">₹</span>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1067,10 +1246,10 @@ export default function PropertySettingsPage({
                               },
                             });
                           }}
-                          className="w-full pl-7 pr-3 py-2 rounded-lg border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                          className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
                       </div>
-                      <span className="text-[9px] text-gray-400 font-bold block">/ month per bed</span>
+                      <span className="text-[9px] text-gray-400 font-bold block">/ mo per bed</span>
                     </div>
                   </div>
                 </div>
@@ -1260,56 +1439,112 @@ export default function PropertySettingsPage({
               </div>
 
               {/* 2. Message Templates Preview */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                    <MessageSquare className="w-4 h-4" />
-                    <span>Rent Payment Reminders</span>
-                  </div>
-                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
-                    👋 <strong>Hello Rahul</strong>,<br /><br />
-                    Friendly rent reminder for <strong>{settings.propertyName || "TenoPilot PG"}</strong>:<br />
-                    🏠 Room 204 (Bed A)<br />
-                    💰 Amount: ₹8,500<br />
-                    📅 Due: 5th of this month<br /><br />
-                    💳 Pay via UPI ID: {settings.upiPaymentId || "manager@upi"}
-                  </div>
-                  <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Auto-dispatched on 1-tap bulk reminder
-                  </span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-gray-700">Automated WhatsApp Templates Preview</h4>
+                  <span className="text-[10px] text-gray-400">Meta-approved utility templates</span>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3">
-                  <div className="flex items-center gap-2 text-purple-700 font-bold">
-                    <CreditCard className="w-4 h-4" />
-                    <span>Payment Confirmation</span>
-                  </div>
-                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
-                    ✅ <strong>Payment Received</strong><br /><br />
-                    We have received your rent payment of <strong>₹8,500</strong> for {settings.propertyName || "TenoPilot PG"}.<br /><br />
-                    🧾 Receipt: REC-948271<br />
-                    🏠 Room: 204<br /><br />
-                    Thank you for being a valued resident!
-                  </div>
-                  <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Sent when recording tenant payment
-                  </span>
+                {/* Mobile Segmented Switcher */}
+                <div className="md:hidden flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMobileTemplate("REMINDER")}
+                    className={`flex-1 py-2 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer text-center ${
+                      selectedMobileTemplate === "REMINDER"
+                        ? "bg-white text-emerald-800 shadow-xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    1. Reminders
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMobileTemplate("RECEIPT")}
+                    className={`flex-1 py-2 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer text-center ${
+                      selectedMobileTemplate === "RECEIPT"
+                        ? "bg-white text-purple-800 shadow-xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    2. Receipts
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMobileTemplate("KYC")}
+                    className={`flex-1 py-2 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer text-center ${
+                      selectedMobileTemplate === "KYC"
+                        ? "bg-white text-blue-800 shadow-xs"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    3. Digital KYC
+                  </button>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3">
-                  <div className="flex items-center gap-2 text-blue-700 font-bold">
-                    <Sparkles className="w-4 h-4" />
-                    <span>Digital KYC & Check-In</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div
+                    className={`bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3 ${
+                      selectedMobileTemplate === "REMINDER" ? "block" : "hidden md:block"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Rent Payment Reminders</span>
+                    </div>
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
+                      👋 <strong>Hello Rahul</strong>,<br /><br />
+                      Friendly rent reminder for <strong>{settings.propertyName || "TenoPilot PG"}</strong>:<br />
+                      🏠 Room 204 (Bed A)<br />
+                      💰 Amount: ₹8,500<br />
+                      📅 Due: 5th of this month<br /><br />
+                      💳 Pay via UPI ID: {settings.upiPaymentId || "manager@upi"}
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Auto-dispatched on 1-tap bulk reminder
+                    </span>
                   </div>
-                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
-                    🏢 <strong>Welcome to {settings.propertyName || "TenoPilot PG"}!</strong><br /><br />
-                    Please complete your digital KYC and sign the digital tenant agreement:<br /><br />
-                    🔗 tenopilot.com/self-onboard/...<br /><br />
-                    Upload Aadhaar & complete check-in.
+
+                  <div
+                    className={`bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3 ${
+                      selectedMobileTemplate === "RECEIPT" ? "block" : "hidden md:block"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-purple-700 font-bold">
+                      <CreditCard className="w-4 h-4" />
+                      <span>Payment Confirmation</span>
+                    </div>
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
+                      ✅ <strong>Payment Received</strong><br /><br />
+                      We have received your rent payment of <strong>₹8,500</strong> for {settings.propertyName || "TenoPilot PG"}.<br /><br />
+                      🧾 Receipt: REC-948271<br />
+                      🏠 Room: 204<br /><br />
+                      Thank you for being a valued resident!
+                    </div>
+                    <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Sent when recording tenant payment
+                    </span>
                   </div>
-                  <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Sent on tenant booking / invitation
-                  </span>
+
+                  <div
+                    className={`bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3 ${
+                      selectedMobileTemplate === "KYC" ? "block" : "hidden md:block"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-blue-700 font-bold">
+                      <Sparkles className="w-4 h-4" />
+                      <span>Digital KYC & Check-In</span>
+                    </div>
+                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
+                      🏢 <strong>Welcome to {settings.propertyName || "TenoPilot PG"}!</strong><br /><br />
+                      Please complete your digital KYC and sign the digital tenant agreement:<br /><br />
+                      🔗 tenopilot.com/self-onboard/...<br /><br />
+                      Upload Aadhaar & complete check-in.
+                    </div>
+                    <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Sent on tenant booking / invitation
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1393,6 +1628,54 @@ export default function PropertySettingsPage({
               triggerToast(`🎉 Recharged! Available WhatsApp Credits: ${newCredits}`);
             }}
           />
+
+          {/* 📱 Sticky Bottom Action Bar for Smart Phones (One-Handed Thumb Reach) */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 flex items-center gap-2.5 shadow-2xl">
+            <button
+              type="button"
+              onClick={handleResetDefaults}
+              className="px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all bg-white shrink-0 cursor-pointer"
+              title="Reset defaults"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-gray-500" />
+              <span>Reset</span>
+            </button>
+
+            {activeTab === "PARTNERS" ? (
+              <button
+                type="button"
+                onClick={handleSavePartnerSettings}
+                className="flex-1 py-2.5 rounded-xl bg-[#c2652a] active:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Partner Ratios</span>
+              </button>
+            ) : activeTab === "WHATSAPP" ? (
+              <button
+                type="button"
+                onClick={() => setShowWhatsAppWalletModal(true)}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              >
+                <Zap className="w-4 h-4 fill-current text-emerald-300" />
+                <span>Recharge ({whatsappCredits} Credits)</span>
+              </button>
+            ) : activeTab === "POLICE_REGISTER" ? (
+              <div className="flex-1 text-center py-2 px-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 font-bold text-xs flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <span>Police DPDP Compliant</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={isSaving}
+                className="flex-1 py-2.5 rounded-xl bg-[#c2652a] active:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSaving ? "Saving..." : "Save Settings"}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
