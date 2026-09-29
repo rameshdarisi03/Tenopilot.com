@@ -83,6 +83,10 @@ export interface CopilotApiResponse {
     | "ATTRITION_METRICS"
     | "NEW_CHECKINS"
     | "EXPENSE_BREAKDOWN"
+    | "PAID_TENANTS"
+    | "NOTICE_TENANTS"
+    | "TENANT_LOOKUP"
+    | "PROPERTY_SUMMARY"
     | "GENERAL";
   actionPayload?: any;
   suggestedChips?: string[];

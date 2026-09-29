@@ -1,8 +1,11 @@
 /**
  * ⚡ TenoPilot Fast Intent Query Engine
- * Provides instant (< 50ms) zero-latency client-side answers for high-frequency
- * operational PG questions (vacant beds, unpaid rent, joiners, complaints, expenses)
- * without waiting for cloud network roundtrips or LLM reasoning.
+ * Provides instant (< 20ms) zero-latency client-side answers for high-frequency
+ * operational PG questions (vacant beds, unpaid rent, joiners, complaints, expenses,
+ * notice periods, tenant lookups, and property health) without waiting for cloud network
+ * roundtrips or consuming AI API credits.
+ * 
+ * Supports: English, Telugu (తెలుగు + Tanglish), Hindi (हिंदी + Hinglish), Bengali (বাংলা + Benglish).
  */
 
 import { CopilotPropertySnapshot, CopilotApiResponse } from "./aiCopilotPrompt";
@@ -16,15 +19,25 @@ export function tryFastClientQuery(
 
   const query = rawQuery.toLowerCase().trim();
   const lang = (preferredLanguage || "en-IN").toLowerCase();
-  const isTelugu = lang.startsWith("te");
-  const isHindi = lang.startsWith("hi");
-  const isBengali = lang.startsWith("bn");
+  
+  // Detect language from preference OR direct unicode script detection
+  const hasTeluguScript = /[\u0C00-\u0C7F]/.test(rawQuery);
+  const hasHindiScript = /[\u0900-\u097F]/.test(rawQuery);
+  const hasBengaliScript = /[\u0980-\u09FF]/.test(rawQuery);
 
-  // Pre-computed data extraction
+  const isTelugu = lang.startsWith("te") || hasTeluguScript;
+  const isHindi = lang.startsWith("hi") || hasHindiScript;
+  const isBengali = lang.startsWith("bn") || hasBengaliScript;
+
+  // =========================================================================
+  // PRE-COMPUTED LIVE LEDGER DATA EXTRACTION
+  // =========================================================================
   const todayStr = snapshot.currentDateAnchor || new Date().toISOString().split("T")[0];
   const activeOccupants = (snapshot.occupants || []).filter(
     (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
   );
+  
+  // Rent and Collections
   const defaulters = activeOccupants.filter((o) => {
     const isUnpaid = o.paymentStatus !== "Paid";
     const hasDues = (o.rentAmount || 0) > 0 || (o.arrearsBalance || 0) > 0;
@@ -34,17 +47,40 @@ export function tryFastClientQuery(
     (acc, cur) => acc + (cur.rentAmount || 0) + (cur.arrearsBalance || 0),
     0
   );
+  const paidOccupants = activeOccupants.filter((o) => o.paymentStatus === "Paid");
+  const totalCollected = paidOccupants.reduce((acc, cur) => acc + (cur.rentAmount || 0), 0);
+  const totalExpectedRent = activeOccupants.reduce((acc, cur) => acc + (cur.rentAmount || 0), 0);
 
+  // Check-ins & Dates
   const checkinsToday = activeOccupants.filter((o) => {
     if (!o.joiningDate) return false;
     return o.joiningDate.slice(0, 10) === todayStr;
   });
 
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+  const checkinsThisWeek = activeOccupants.filter((o) => {
+    if (!o.joiningDate) return false;
+    return o.joiningDate.slice(0, 10) >= sevenDaysAgoStr;
+  });
+
+  // Notice Period & Vacating
+  const noticeOccupants = activeOccupants.filter(
+    (o) => o.lifecycleStatus === "Notice" || !!o.vacatingDate
+  );
+  const totalRefundableDeposit = noticeOccupants.reduce(
+    (acc, cur) => acc + (cur.depositAmount || 0),
+    0
+  );
+
+  // Complaints
   const allComplaints = snapshot.complaints || [];
   const openComplaints = allComplaints.filter(
     (c) => c.status === "OPEN" || c.status === "IN_PROGRESS"
   );
 
+  // Expenses
   const allExpenses = snapshot.expenses || [];
   const currentMonthPrefix = todayStr.slice(0, 7);
   const thisMonthExpenses = allExpenses.filter((e) => {
@@ -56,22 +92,94 @@ export function tryFastClientQuery(
   const vacantRooms = snapshot.vacantRooms || [];
 
   // =========================================================================
-  // 1. VACANT BEDS / ROOM AVAILABILITY
+  // 1. SPECIFIC INDIVIDUAL TENANT SEARCH / ROOM LOOKUP
+  // e.g. "where is Rahul", "Ramesh room number", "phone of Pooja", "Suresh details"
+  // =========================================================================
+  const tenantSearchRegex = /(where is|room (of|for|number of)|phone (of|number of)|details (of|for)|who is|akkada unnadu|ekkada|kahan hai|kothay ache)\s+([a-zA-Z0-9\s]+)/i;
+  const directNameMatch = query.match(tenantSearchRegex);
+  const searchCandidate = directNameMatch ? directNameMatch[directNameMatch.length - 1].trim() : null;
+
+  if (searchCandidate && searchCandidate.length > 2) {
+    const foundTenant = activeOccupants.find((o) =>
+      o.name.toLowerCase().includes(searchCandidate)
+    );
+
+    if (foundTenant) {
+      const isPaid = foundTenant.paymentStatus === "Paid";
+      const dueAmt = (foundTenant.rentAmount || 0) + (foundTenant.arrearsBalance || 0);
+
+      const answerText = isBengali
+        ? `${foundTenant.name} রুম ${foundTenant.roomNumber}-এ থাকেন (বেড ${foundTenant.bedCode || "N/A"})। বর্তমান স্ট্যাটাস: ${foundTenant.lifecycleStatus}। ভাড়া: ₹${foundTenant.rentAmount} (${foundTenant.paymentStatus})।`
+        : isTelugu
+        ? `${foundTenant.name} రూమ్ ${foundTenant.roomNumber} లో ఉంటున్నారు (బెడ్ ${foundTenant.bedCode || "N/A"}). ప్రస్తుత స్థితి: ${foundTenant.lifecycleStatus}. అద్దె: ₹${foundTenant.rentAmount} (${foundTenant.paymentStatus}).`
+        : isHindi
+        ? `${foundTenant.name} रूम ${foundTenant.roomNumber} में रहते हैं (बेड ${foundTenant.bedCode || "N/A"}). वर्तमान स्थिति: ${foundTenant.lifecycleStatus}. किराया: ₹${foundTenant.rentAmount} (${foundTenant.paymentStatus}).`
+        : `${foundTenant.name} is residing in Room ${foundTenant.roomNumber} (Bed ${foundTenant.bedCode || "N/A"}). Status: ${foundTenant.lifecycleStatus}. Rent: ₹${foundTenant.rentAmount} (${foundTenant.paymentStatus}).`;
+
+      return {
+        answer: answerText,
+        actionType: "TENANT_LOOKUP",
+        actionPayload: {
+          name: foundTenant.name,
+          roomNumber: foundTenant.roomNumber,
+          bedCode: foundTenant.bedCode,
+          rentAmount: foundTenant.rentAmount,
+          dueAmount: isPaid ? 0 : dueAmt,
+          paymentStatus: foundTenant.paymentStatus,
+          phone: foundTenant.phone,
+          occupantId: foundTenant.id,
+          emergencyContact: foundTenant.emergencyContact,
+        },
+        suggestedChips: ["Who owes rent?", "Vacant beds?", "Open complaints?"],
+      };
+    }
+  }
+
+  // =========================================================================
+  // 2. VACANT BEDS / ROOM AVAILABILITY / OCCUPANCY
   // =========================================================================
   const vacantBedRegex =
-    /(vacant|empty|khali|khaali|kali|available|free|how many).*bed|bed.*(vacant|empty|khali|khaali|kali|available|free)|rooms? (available|vacant|empty|status)|bedlu|koto.*bed|ఖాళీ|బెడ్|బెడ్లు|ఎన్ని.*బెడ్|షేరింగ్|రెండు.*షేరింగ్|టూ.*షేరింగ్|खाली|बेड|कितने.*बेड|शेयरिंग|খালি|বেড|কয়টি.*বেড/i;
+    /(vacan[a-z]*|empty|kha?ali|kali|avai?l[a-z]*|free|how many).*bed|bed.*(vacan[a-z]*|empty|kha?ali|kali|avai?l[a-z]*|free)|rooms? (avai?l[a-z]*|vacan[a-z]*|empty|status)|bedlu|koto.*bed|occupan[a-z]*|kha?ali.*room|room.*kha?ali|ఖాళీ|బెడ్|బెడ్లు|ఎన్ని.*బెడ్|షేరింగ్|ఆక్యుపెన్సీ|రెండు.*షేరింగ్|టూ.*షేరింగ్|खाली|बेड|कितने.*बेड|शेयरिंग|ऑक्यूपेंसी|খালি|বেড|কয়টি.*বেড/i;
 
   if (vacantBedRegex.test(query)) {
-    // Check if user specifically requested a sharing type (e.g. 1-sharing, 2-sharing, 3-sharing)
+    // Check if user specifically asked for overall occupancy rate
+    if (/(occupancy|occupancy rate|percentage|how full|aakyupe|aakyu|ऑक्यूपेंसी|ఆక్యుపెన్సీ)/i.test(query)) {
+      const answerText = isBengali
+        ? `আপনার মোট বেড সংখ্যা ${snapshot.totalBeds}, এর মধ্যে ${snapshot.occupiedBeds} টি পূর্ণ। বর্তমান অকুপেন্সি হার ${snapshot.occupancyRatePercentage}% (${snapshot.vacantBeds} টি বেড খালি রয়েছে)।`
+        : isTelugu
+        ? `మీ మొత్తం బెడ్లు ${snapshot.totalBeds}, అందులో ${snapshot.occupiedBeds} బెడ్లు నిండాయి. ప్రస్తుత ఆక్యుపెన్సీ రేటు ${snapshot.occupancyRatePercentage}% (${snapshot.vacantBeds} ఖాళీ బెడ్లు ఉన్నాయి).`
+        : isHindi
+        ? `आपकी कुल बेड्स ${snapshot.totalBeds} हैं, जिनमें से ${snapshot.occupiedBeds} भरी हुई हैं। वर्तमान ऑक्यूपेंसी दर ${snapshot.occupancyRatePercentage}% है (${snapshot.vacantBeds} बेड्स खाली हैं)।`
+        : `Property occupancy is currently ${snapshot.occupancyRatePercentage}%. ${snapshot.occupiedBeds} out of ${snapshot.totalBeds} beds are occupied with ${snapshot.vacantBeds} beds available.`;
+
+      return {
+        answer: answerText,
+        actionType: "PROPERTY_SUMMARY",
+        actionPayload: {
+          totalBeds: snapshot.totalBeds,
+          occupiedBeds: snapshot.occupiedBeds,
+          vacantBeds: snapshot.vacantBeds,
+          occupancyRate: snapshot.occupancyRatePercentage,
+          totalPendingDues: totalDues,
+          totalExpenses,
+          openComplaints: openComplaints.length,
+        },
+        suggestedChips: ["Who owes rent?", "Joined today?", "Open complaints?"],
+      };
+    }
+
+    // Check specific sharing type (1-sharing, 2-sharing, 3-sharing, 4-sharing)
+    const isSingleSharing = /(1|single|one|ఒక|సింగిల్|एक|১).*sharing|sharing.*(1|single)|సింగిల్|single.*room/i.test(query);
     const isTwoSharing = /(2|two|టూ|రెండు|दो|২).*sharing|sharing.*(2|two)|టూ.*షేరింగ్|రెండు.*షేరింగ్|2.*షేరింగ్|दो.*शेयरिंग|২.*শেয়ারিং/i.test(query);
     const isThreeSharing = /(3|three|త్రీ|మూడు|तीन|৩).*sharing|sharing.*(3|three)|త్రీ.*షేరింగ్|3.*షేరింగ్|तीन.*शेयरिंग|৩.*শেয়ারিং/i.test(query);
-    const isSingleSharing = /(1|single|one|ఒక|సింగిల్|एक|১).*sharing|sharing.*(1|single)|సింగిల్|single.*room/i.test(query);
+    const isFourSharing = /(4|four|నాలుగు|four|चार|৪).*sharing|sharing.*(4|four)|4.*షేరింగ్/i.test(query);
 
     let targetSharing: number | null = null;
     let sharingLabel = "";
-    if (isTwoSharing) { targetSharing = 2; sharingLabel = "2-Sharing"; }
+    if (isSingleSharing) { targetSharing = 1; sharingLabel = "Single / 1-Sharing"; }
+    else if (isTwoSharing) { targetSharing = 2; sharingLabel = "2-Sharing"; }
     else if (isThreeSharing) { targetSharing = 3; sharingLabel = "3-Sharing"; }
-    else if (isSingleSharing) { targetSharing = 1; sharingLabel = "Single / 1-Sharing"; }
+    else if (isFourSharing) { targetSharing = 4; sharingLabel = "4-Sharing"; }
 
     const roomsToDisplay = targetSharing 
       ? vacantRooms.filter((r) => r.sharingType === targetSharing)
@@ -138,12 +246,63 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 2. UNPAID RENT / DEFAULTERS
+  // 3. PAID RENT / TOTAL COLLECTION SO FAR THIS MONTH
+  // e.g. "who paid", "paid rent", "total collected", "collection this month"
+  // =========================================================================
+  const paidRentRegex =
+    /(who (has )?paid|cleared rent|paid tenants?|total collect[a-z]*|how much collect[a-z]*|rent collect[a-z]*|collection this month|collection kitna|rent vachindi|kattaru evaru|evaru kattaru|kisne diya|diyeche ke|koto taka utheche)/i;
+
+  if (paidRentRegex.test(query)) {
+    const collectionPercentage = totalExpectedRent > 0
+      ? Math.round((totalCollected / totalExpectedRent) * 100)
+      : 0;
+
+    let answerText = "";
+    if (paidOccupants.length === 0) {
+      answerText = isBengali
+        ? `এই মাসে এখনও কোনো ভাড়া আদায় হয়নি (₹০ / ₹${totalExpectedRent.toLocaleString("en-IN")})।`
+        : isTelugu
+        ? `ఈ నెల ఇంకా అద్దె వసూలు ప్రారంభం కాలేదు (₹0 / ₹${totalExpectedRent.toLocaleString("en-IN")}).`
+        : isHindi
+        ? `इस महीने अभी तक कोई किराया जमा नहीं हुआ है (₹0 / ₹${totalExpectedRent.toLocaleString("en-IN")})।`
+        : `No rent payments recorded yet this month (₹0 collected out of ₹${totalExpectedRent.toLocaleString("en-IN")}).`;
+    } else {
+      answerText = isBengali
+        ? `এই মাসে মোট ${paidOccupants.length} জন ভাড়া পরিশোধ করেছেন। মোট আদায় ₹${totalCollected.toLocaleString("en-IN")} (${collectionPercentage}% আদায় হয়েছে)।`
+        : isTelugu
+        ? `ఈ నెల మొత్తం ${paidOccupants.length} మంది అద్దె చెల్లించారు. మొత్తం వసూలు ₹${totalCollected.toLocaleString("en-IN")} (${collectionPercentage}% కలెక్ట్ అయ్యింది).`
+        : isHindi
+        ? `इस महीने कुल ${paidOccupants.length} किरायेदारों ने किराया चुकाया है। कुल वसूली ₹${totalCollected.toLocaleString("en-IN")} (${collectionPercentage}%) हुई है।`
+        : `${paidOccupants.length} tenant(s) have cleared rent this month, totaling ₹${totalCollected.toLocaleString("en-IN")} collected (${collectionPercentage}% of expected revenue).`;
+    }
+
+    return {
+      answer: answerText,
+      actionType: "PAID_TENANTS",
+      actionPayload: paidOccupants.map((p) => ({
+        name: p.name,
+        room: p.roomNumber,
+        rentAmount: p.rentAmount,
+        phone: p.phone,
+        occupantId: p.id,
+      })),
+      suggestedChips: ["Who owes rent?", "Vacant beds?", "Monthly expenses?"],
+    };
+  }
+
+  // =========================================================================
+  // 4. UNPAID RENT / DEFAULTERS / PENDING DUES
   // =========================================================================
   const unpaidRentRegex =
-    /(unpaid|not paid|didn't pay|hasn't paid|has not paid|have not paid|who owes|defaulter|pending due|due balance|arrears|baki|baaki|ivvaledu|kattaledu|bhara.*baki|kar.*bhara|kiska.*pending)/i;
+    /(unpaid|not paid|didn't pay|hasn't paid|has not paid|have not paid|who owes|defaulter|pending due|due balance|arrears|baki|baaki|ivvaledu|kattaledu|bhara.*baki|kar.*bhara|kiska.*pending|rent due)/i;
 
   if (unpaidRentRegex.test(query)) {
+    // Check if looking for high dues (> 5000 or > 10000)
+    const isHighDues = /(high|highest|heavy|more than|ekkuva|jyada|beshi)/i.test(query);
+    const targetDefaulters = isHighDues
+      ? defaulters.filter((d) => ((d.rentAmount || 0) + (d.arrearsBalance || 0)) >= 5000)
+      : defaulters;
+
     let answerText = "";
     if (defaulters.length === 0) {
       answerText = isBengali
@@ -155,18 +314,18 @@ export function tryFastClientQuery(
         : `All active tenants have fully cleared their rent! Zero dues pending.`;
     } else {
       answerText = isBengali
-        ? `মোট ${defaulters.length} জনের ভাড়া বাকি রয়েছে, মোট বকেয়া ₹${totalDues.toLocaleString("en-IN")}।`
+        ? `মোট ${targetDefaulters.length} জনের ভাড়া বাকি রয়েছে, মোট বকেয়া ₹${totalDues.toLocaleString("en-IN")}।`
         : isTelugu
-        ? `మొత్తం ${defaulters.length} మంది అద్దె చెల్లించాల్సి ఉంది. మొత్తం పెండింగ్ బకాయిలు ₹${totalDues.toLocaleString("en-IN")}.`
+        ? `మొత్తం ${targetDefaulters.length} మంది అద్దె చెల్లించాల్సి ఉంది. మొత్తం పెండింగ్ బకాయిలు ₹${totalDues.toLocaleString("en-IN")}.`
         : isHindi
-        ? `कुल ${defaulters.length} किरायेदारों का किराया बाकी है, कुल बकाया ₹${totalDues.toLocaleString("en-IN")} है।`
-        : `There are ${defaulters.length} tenants with unpaid rent totaling ₹${totalDues.toLocaleString("en-IN")}.`;
+        ? `कुल ${targetDefaulters.length} किरायेदारों का किराया बाकी है, कुल बकाया ₹${totalDues.toLocaleString("en-IN")} है।`
+        : `There are ${targetDefaulters.length} tenants with unpaid rent totaling ₹${totalDues.toLocaleString("en-IN")}.`;
     }
 
     return {
       answer: answerText,
       actionType: "UNPAID_TENANTS",
-      actionPayload: defaulters.map((d) => ({
+      actionPayload: targetDefaulters.map((d) => ({
         name: d.name,
         room: d.roomNumber,
         dueAmount: (d.rentAmount || 0) + (d.arrearsBalance || 0),
@@ -178,35 +337,81 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 3. CHECK-INS TODAY / JOINED TODAY
+  // 5. NOTICE PERIOD / VACATING / LEAVING TENANTS
+  // e.g. "who is vacating", "leaving this month", "notice period", "leaving soon"
   // =========================================================================
-  const checkinTodayRegex =
-    /(join.*today|joined today|today.*join|ee roju.*join|aaj.*join|ajke.*join|check.*in.*today|today.*check.*in|admissions today|who joined)/i;
+  const noticeRegex =
+    /(vacat[a-z]*|leaving|leave this month|notice period|on notice|khali chesthunnaru|khali chestaru|chod rahe hai|chale gaye|basa charche|going to leave)/i;
 
-  if (checkinTodayRegex.test(query)) {
+  if (noticeRegex.test(query)) {
     let answerText = "";
-    if (checkinsToday.length === 0) {
+    if (noticeOccupants.length === 0) {
       answerText = isBengali
-        ? `আজ (${todayStr}) কোনো নতুন ভাড়াটিয়া যোগ দেননি।`
+        ? `বর্তমানে কোনো ভাড়াটিয়া নোটিশ পিরিয়ডে নেই। কেউ খালি করছেন না।`
         : isTelugu
-        ? `ఈ రోజు (${todayStr}) కొత్త అద్దెదారులు ఎవరూ చేరలేదు.`
+        ? `ప్రస్తుతం ఎవరూ నోటీస్ పీరియడ్‌లో లేరు. గదులు ఖాళీ చేసే వారు ఎవరూ లేరు.`
         : isHindi
-        ? `आज (${todayStr}) कोई नया किरायेदार नहीं जुड़ा है।`
-        : `No new tenants checked in today (${todayStr}).`;
+        ? `वर्तमान में कोई किरायेदार नोटिस पर नहीं है। कोई कमरा खाली नहीं हो रहा है।`
+        : `No tenants are currently on vacating notice. All active stays are continuing.`;
     } else {
       answerText = isBengali
-        ? `আজ (${todayStr}) ${checkinsToday.length} জন নতুন ভাড়াটিয়া যোগ দিয়েছেন।`
+        ? `বর্তমানে ${noticeOccupants.length} জন নোটিশে রয়েছেন। মোট ফেরতযোগ্য সিকিউরিটি ডিপোজিট ₹${totalRefundableDeposit.toLocaleString("en-IN")}।`
         : isTelugu
-        ? `ఈ రోజు (${todayStr}) ${checkinsToday.length} మంది కొత్త అద్దెదారులు చేరారు.`
+        ? `ప్రస్తుతం ${noticeOccupants.length} మంది నోటీసు పీరియడ్‌లో ఉన్నారు. రీఫండ్ చేయాల్సిన మొత్తం సెక్యూరిటీ డిపాజిట్ ₹${totalRefundableDeposit.toLocaleString("en-IN")}.`
         : isHindi
-        ? `आज (${todayStr}) ${checkinsToday.length} नए किरायेदार जुड़े हैं।`
-        : `${checkinsToday.length} new tenant(s) checked in today (${todayStr}).`;
+        ? `वर्तमान में ${noticeOccupants.length} किरायेदार नोटिस पर हैं। वापस की जाने वाली कुल सिक्योरिटी राशि ₹${totalRefundableDeposit.toLocaleString("en-IN")} है।`
+        : `${noticeOccupants.length} tenant(s) are currently on vacating notice. Total refundable security deposits: ₹${totalRefundableDeposit.toLocaleString("en-IN")}.`;
+    }
+
+    return {
+      answer: answerText,
+      actionType: "NOTICE_TENANTS",
+      actionPayload: noticeOccupants.map((n) => ({
+        name: n.name,
+        room: n.roomNumber,
+        vacatingDate: n.vacatingDate,
+        depositAmount: n.depositAmount,
+        phone: n.phone,
+        occupantId: n.id,
+      })),
+      suggestedChips: ["Who owes rent?", "Vacant beds?", "Monthly expenses?"],
+    };
+  }
+
+  // =========================================================================
+  // 6. CHECK-INS TODAY / JOINED THIS WEEK / NEW ADMISSIONS
+  // =========================================================================
+  const checkinRegex =
+    /(join[a-z]*|check.*in|admissions?|new tenant|kotha tenant|naye kirayedar|notun bhara)/i;
+
+  if (checkinRegex.test(query)) {
+    const isThisWeek = /(week|vaaram|saptaah|shoptaho|past 7 days)/i.test(query);
+    const targetCheckins = isThisWeek ? checkinsThisWeek : checkinsToday;
+    const timeframeText = isThisWeek ? "this week" : "today";
+
+    let answerText = "";
+    if (targetCheckins.length === 0) {
+      answerText = isBengali
+        ? `${isThisWeek ? "এই সপ্তাহে" : "আজ"} কোনো নতুন ভাড়াটিয়া যোগ দেননি।`
+        : isTelugu
+        ? `${isThisWeek ? "ఈ వారం" : "ఈ రోజు"} కొత్త అద్దెదారులు ఎవరూ చేరలేదు.`
+        : isHindi
+        ? `${isThisWeek ? "इस सप्ताह" : "आज"} कोई नया किरायेदार नहीं जुड़ा है।`
+        : `No new tenants checked in ${timeframeText}.`;
+    } else {
+      answerText = isBengali
+        ? `${isThisWeek ? "এই সপ্তাহে" : "আজ"} ${targetCheckins.length} জন নতুন ভাড়াটিয়া যোগ দিয়েছেন।`
+        : isTelugu
+        ? `${isThisWeek ? "ఈ వారం" : "ఈ రోజు"} ${targetCheckins.length} మంది కొత్త అద్దెదారులు చేరారు.`
+        : isHindi
+        ? `${isThisWeek ? "इस सप्ताह" : "आज"} ${targetCheckins.length} नए किरायेदार जुड़े हैं।`
+        : `${targetCheckins.length} new tenant(s) checked in ${timeframeText}.`;
     }
 
     return {
       answer: answerText,
       actionType: "NEW_CHECKINS",
-      actionPayload: checkinsToday.map((c) => ({
+      actionPayload: targetCheckins.map((c) => ({
         name: c.name,
         room: c.roomNumber,
         joiningDate: c.joiningDate,
@@ -218,15 +423,41 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 4. COMPLAINTS / MAINTENANCE
+  // 7. COMPLAINTS / MAINTENANCE (Wi-Fi, Plumbing, AC, Food)
   // =========================================================================
   const complaintRegex =
-    /(complaint|issue|repair|plumbing|leakage|wifi|clean|maintenance|problem|samasyalu|shikayat|ovinog|somossa)/i;
+    /(complain[a-z]*|issue|repair|plumb[a-z]*|leak[a-z]*|wi-?fi|internet|clean[a-z]*|maintenance|problem|samasyalu|shikayat|ovinog|somossa|geyser|ac.*not.*working)/i;
 
   if (complaintRegex.test(query)) {
+    // Specific category filters
+    const isWifi = /(wi-?fi|internet|network|router)/i.test(query);
+    const isPlumbing = /(plumb|leak|tap|water|washroom|toilet|bathroom)/i.test(query);
+    const isAC = /(ac|air conditioner|cooling|geyser|current|power|light)/i.test(query);
+
+    let filteredTickets = openComplaints;
+    let categoryName = "";
+    if (isWifi) {
+      filteredTickets = openComplaints.filter((c) => c.category?.toLowerCase().includes("wifi") || c.title?.toLowerCase().includes("wifi"));
+      categoryName = "Wi-Fi";
+    } else if (isPlumbing) {
+      filteredTickets = openComplaints.filter((c) => c.category?.toLowerCase().includes("plumb") || c.title?.toLowerCase().includes("water") || c.title?.toLowerCase().includes("leak"));
+      categoryName = "Plumbing / Water";
+    } else if (isAC) {
+      filteredTickets = openComplaints.filter((c) => c.category?.toLowerCase().includes("ac") || c.category?.toLowerCase().includes("elec") || c.title?.toLowerCase().includes("ac"));
+      categoryName = "AC / Electrical";
+    }
+
     let answerText = "";
-    if (openComplaints.length === 0) {
-      answerText = isBengali
+    if (filteredTickets.length === 0) {
+      answerText = categoryName
+        ? isBengali
+          ? `বর্তমানে কোনো ${categoryName} সংক্রান্ত অভিযোগ নেই!`
+          : isTelugu
+          ? `ప్రస్తుతం ${categoryName} సంబంధిత సమస్యలు ఏమీ లేవు!`
+          : isHindi
+          ? `वर्तमान में कोई ${categoryName} संबंधी शिकायत नहीं है!`
+          : `There are currently 0 open ${categoryName} complaints registered.`
+        : isBengali
         ? `বর্তমানে কোনো খোলা অভিযোগ নেই! সব সমস্যা সমাধান করা হয়েছে।`
         : isTelugu
         ? `ప్రస్తుతం ఓపెన్ ఫిర్యాదులు ఏమీ లేవు! అన్ని నిర్వహణ సమస్యలు పరిష్కరించబడ్డాయి.`
@@ -234,7 +465,15 @@ export function tryFastClientQuery(
         ? `वर्तमान में कोई खुली शिकायत नहीं है! सभी समस्याएं हल हो चुकी हैं।`
         : `There are currently 0 open complaints registered. All maintenance is up to date!`;
     } else {
-      answerText = isBengali
+      answerText = categoryName
+        ? isBengali
+          ? `বর্তমানে ${categoryName}-এ ${filteredTickets.length} টি অভিযোগ সমাধানের অপেক্ষায় রয়েছে।`
+          : isTelugu
+          ? `ప్రస్తుతం ${categoryName} విభాగంలో ${filteredTickets.length} ఓపెన్ ఫిర్యాదులు పరిష్కారం కోసం ఉన్నాయి.`
+          : isHindi
+          ? `वर्तमान में ${categoryName} में ${filteredTickets.length} खुली शिकायतें दर्ज हैं।`
+          : `There are ${filteredTickets.length} open ${categoryName} ticket(s) currently registered.`
+        : isBengali
         ? `বর্তমানে ${openComplaints.length} টি অভিযোগ সমাধানের অপেক্ষায় রয়েছে।`
         : isTelugu
         ? `ప్రస్తుతం ${openComplaints.length} ఓపెన్ ఫిర్యాదులు పరిష్కారం కోసం ఎదురుచూస్తున్నాయి.`
@@ -246,7 +485,7 @@ export function tryFastClientQuery(
     return {
       answer: answerText,
       actionType: "OPEN_COMPLAINTS",
-      actionPayload: openComplaints.map((c) => ({
+      actionPayload: filteredTickets.map((c) => ({
         id: c.id,
         roomNumber: c.roomNumber,
         category: c.category,
@@ -258,11 +497,14 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 5. MONTHLY EXPENSES
+  // 8. MONTHLY EXPENSES, BILLS & NET CASH FLOW
   // =========================================================================
-  const expenseRegex = /(expense|spending|spent|kharcha|kharchelu|bills|cost this month|khoroch)/i;
+  const expenseRegex = /(expense|spending|spent|kharcha|kharchelu|bills?|cost this month|khoroch|electricity bill|current bill|bijli)/i;
 
   if (expenseRegex.test(query)) {
+    const isElectricity = /(electricity|current bill|power bill|bijli|eb bill)/i.test(query);
+    const isFood = /(food|mess|grocery|groceries|kirana|vegetables|sabji)/i.test(query);
+
     const expenseCatCounts: Record<string, number> = {};
     thisMonthExpenses.forEach((e) => {
       const cat = e.category || "General";
@@ -275,7 +517,27 @@ export function tryFastClientQuery(
     }));
 
     let answerText = "";
-    if (thisMonthExpenses.length === 0) {
+    if (isElectricity) {
+      const ebAmount = thisMonthExpenses
+        .filter((e) => e.category?.toLowerCase().includes("elec") || e.category?.toLowerCase().includes("current") || e.notes?.toLowerCase().includes("bill"))
+        .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+      answerText = isTelugu
+        ? `ఈ నెల నమోదైన విద్యుత్ / కరెంట్ బిల్లు మొత్తం: ₹${ebAmount.toLocaleString("en-IN")}.`
+        : isHindi
+        ? `इस महीने का दर्ज किया गया बिजली बिल: ₹${ebAmount.toLocaleString("en-IN")}.`
+        : `Recorded electricity/power bills for this month: ₹${ebAmount.toLocaleString("en-IN")}.`;
+    } else if (isFood) {
+      const foodAmount = thisMonthExpenses
+        .filter((e) => e.category?.toLowerCase().includes("food") || e.category?.toLowerCase().includes("mess") || e.category?.toLowerCase().includes("grocery"))
+        .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+      answerText = isTelugu
+        ? `ఈ నెల భోజనం / కిరాణా సరుకుల ఖర్చు: ₹${foodAmount.toLocaleString("en-IN")}.`
+        : isHindi
+        ? `इस महीने का भोजन / राशन खर्च: ₹${foodAmount.toLocaleString("en-IN")}.`
+        : `Recorded food/mess grocery expenses for this month: ₹${foodAmount.toLocaleString("en-IN")}.`;
+    } else if (thisMonthExpenses.length === 0) {
       answerText = isBengali
         ? `এই মাসের জন্য কোনো খরচের হিসাব নথিবদ্ধ নেই।`
         : isTelugu
@@ -305,13 +567,44 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 6. ATTRITION / TURNOVER
+  // 9. OVERALL PROPERTY SUMMARY / DASHBOARD KPI / HEALTH
+  // e.g. "summary", "property status", "overview", "kpi", "dashboard", "health"
   // =========================================================================
-  const attritionRegex = /(attrition|turnover|churn|how many left|leaving|vacating notice)/i;
+  const summaryRegex =
+    /(summary|overview|property status|dashboard|kpi|snapshot|health|motam status|mottham summary|kaisa chal raha|sob miliye)/i;
+
+  if (summaryRegex.test(query)) {
+    const answerText = isBengali
+      ? `প্রপার্টি সারসংক্ষেপ: অকুপেন্সি ${snapshot.occupancyRatePercentage}% (${snapshot.vacantBeds} টি খালি বেড)। বকেয়া ভাড়া ₹${totalDues.toLocaleString("en-IN")}, এই মাসে খরচ ₹${totalExpenses.toLocaleString("en-IN")} এবং ${openComplaints.length} টি খোলা অভিযোগ রয়েছে।`
+      : isTelugu
+      ? `ప్రాపర్టీ సారాంశం: ఆక్యుపెన్సీ ${snapshot.occupancyRatePercentage}% (${snapshot.vacantBeds} ఖాళీ బెడ్లు ఉన్నాయి). బకాయిలు ₹${totalDues.toLocaleString("en-IN")}, ఈ నెల ఖర్చులు ₹${totalExpenses.toLocaleString("en-IN")}, మరియు ${openComplaints.length} ఓపెన్ ఫిర్యాదులు ఉన్నాయి.`
+      : isHindi
+      ? `प्रॉपर्टी सारांश: ऑक्यूपेंसी ${snapshot.occupancyRatePercentage}% (${snapshot.vacantBeds} खाली बेड्स). कुल बकाया ₹${totalDues.toLocaleString("en-IN")}, इस महीने का खर्च ₹${totalExpenses.toLocaleString("en-IN")} और ${openComplaints.length} खुली शिकायतें हैं।`
+      : `Property Overview: Occupancy is ${snapshot.occupancyRatePercentage}% with ${snapshot.vacantBeds} vacant beds. Pending dues stand at ₹${totalDues.toLocaleString("en-IN")}, monthly expenses at ₹${totalExpenses.toLocaleString("en-IN")}, and ${openComplaints.length} complaints open.`;
+
+    return {
+      answer: answerText,
+      actionType: "PROPERTY_SUMMARY",
+      actionPayload: {
+        totalBeds: snapshot.totalBeds,
+        occupiedBeds: snapshot.occupiedBeds,
+        vacantBeds: snapshot.vacantBeds,
+        occupancyRate: snapshot.occupancyRatePercentage,
+        totalPendingDues: totalDues,
+        totalExpenses,
+        openComplaints: openComplaints.length,
+      },
+      suggestedChips: ["Who owes rent?", "Vacant beds?", "Monthly expenses?"],
+    };
+  }
+
+  // =========================================================================
+  // 10. ATTRITION / TURNOVER METRICS
+  // =========================================================================
+  const attritionRegex = /(attrition|turnover|churn|how many left|past tenants)/i;
 
   if (attritionRegex.test(query)) {
     const pastOccupants = (snapshot.occupants || []).filter((o) => o.lifecycleStatus === "Past");
-    const noticeOccupants = activeOccupants.filter((o) => o.lifecycleStatus === "Notice");
     const totalExits = pastOccupants.length;
     const attritionRate =
       activeOccupants.length > 0
@@ -339,6 +632,7 @@ export function tryFastClientQuery(
     };
   }
 
-  // If query requires deeper AI understanding / reasoning, return null to delegate to Gemini
+  // If query is not a deterministic operational query (e.g. creative notice drafting, business advice, complex reasoning),
+  // return null to gracefully delegate to Gemini Flash.
   return null;
 }

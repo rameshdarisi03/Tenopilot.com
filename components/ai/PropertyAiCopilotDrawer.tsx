@@ -816,6 +816,275 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                       </div>
                     )}
 
+                    {/* G. PAID TENANTS CARD */}
+                    {msg.actionType === "PAID_TENANTS" && Array.isArray(msg.actionPayload) && (
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium flex items-center gap-2">
+                          <span>ℹ️</span>
+                          <span>No rent payments have been recorded for this month yet.</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-emerald-900 bg-emerald-50 p-2 rounded-lg border border-emerald-200 flex items-center justify-between">
+                            <span>Cleared Rent ({msg.actionPayload.length})</span>
+                            <span>
+                              Total: ₹
+                              {msg.actionPayload
+                                .reduce((a: number, c: any) => a + (Number(c.rentAmount) || 0), 0)
+                                .toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                            {msg.actionPayload.map((tenant: any, i: number) => {
+                              const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                              const tenantId =
+                                tenant.occupantId ||
+                                tenant.id ||
+                                rawOccupants.find(
+                                  (o) => o.name?.toLowerCase().trim() === tenant.name?.toLowerCase().trim()
+                                )?.id;
+
+                              return (
+                                <div
+                                  key={i}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-emerald-50/40 border border-gray-200/90 hover:border-emerald-300 flex items-center justify-between gap-2 shadow-xs transition-colors"
+                                >
+                                  {tenantId ? (
+                                    <Link
+                                      href={`/p/${propertyId}/tenants/${tenantId}`}
+                                      onClick={() => closeCopilot()}
+                                      className="min-w-0 flex-1 group cursor-pointer"
+                                    >
+                                      <div className="font-bold text-gray-900 text-xs truncate group-hover:text-emerald-800 flex items-center gap-1">
+                                        <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span className="truncate">{tenant.name}</span>
+                                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">
+                                        Room {tenant.room} • Rent:{" "}
+                                        <span className="font-bold text-emerald-600">
+                                          ₹{Number(tenant.rentAmount || 0).toLocaleString("en-IN")}
+                                        </span>
+                                      </div>
+                                    </Link>
+                                  ) : (
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-gray-900 text-xs truncate">{tenant.name}</div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">
+                                        Room {tenant.room} • ₹{Number(tenant.rentAmount || 0).toLocaleString("en-IN")}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] shrink-0">
+                                    Paid ✅
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* H. NOTICE / VACATING TENANTS CARD */}
+                    {msg.actionType === "NOTICE_TENANTS" && Array.isArray(msg.actionPayload) && (
+                      msg.actionPayload.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium flex items-center gap-2">
+                          <span>✅</span>
+                          <span>No tenants are currently on vacating notice.</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between">
+                            <span>Vacating Notice ({msg.actionPayload.length})</span>
+                            <span className="text-[10px] text-amber-800 font-semibold">Security Refund</span>
+                          </div>
+
+                          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                            {msg.actionPayload.map((tenant: any, i: number) => {
+                              const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                              const tenantId =
+                                tenant.occupantId ||
+                                tenant.id ||
+                                rawOccupants.find(
+                                  (o) => o.name?.toLowerCase().trim() === tenant.name?.toLowerCase().trim()
+                                )?.id;
+
+                              return (
+                                <div
+                                  key={i}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-amber-50/40 border border-gray-200/90 hover:border-amber-300 flex items-center justify-between gap-2 shadow-xs transition-colors"
+                                >
+                                  {tenantId ? (
+                                    <Link
+                                      href={`/p/${propertyId}/tenants/${tenantId}`}
+                                      onClick={() => closeCopilot()}
+                                      className="min-w-0 flex-1 group cursor-pointer"
+                                    >
+                                      <div className="font-bold text-gray-900 text-xs truncate group-hover:text-amber-800 flex items-center gap-1">
+                                        <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                        <span className="truncate">{tenant.name}</span>
+                                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-amber-700 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">
+                                        Room {tenant.room} • Leaves:{" "}
+                                        <span className="font-semibold text-gray-700">{tenant.vacatingDate || "Soon"}</span>
+                                        {tenant.depositAmount ? ` • Deposit: ₹${Number(tenant.depositAmount).toLocaleString("en-IN")}` : ""}
+                                      </div>
+                                    </Link>
+                                  ) : (
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-gray-900 text-xs truncate">{tenant.name}</div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5">Room {tenant.room}</div>
+                                    </div>
+                                  )}
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] shrink-0">
+                                    Notice
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* I. TENANT LOOKUP CARD */}
+                    {msg.actionType === "TENANT_LOOKUP" && msg.actionPayload && (
+                      <div className="p-3 rounded-xl bg-white border border-gray-200 shadow-xs space-y-2">
+                        {(() => {
+                          const t = msg.actionPayload;
+                          const rawOccupants = occupantStore.getOccupants(propertyId) || [];
+                          const tenantId =
+                            t.occupantId ||
+                            t.id ||
+                            rawOccupants.find((o) => o.name?.toLowerCase().trim() === t.name?.toLowerCase().trim())?.id;
+
+                          return (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-xs">
+                                    {t.name ? t.name[0].toUpperCase() : "T"}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-gray-900 text-xs">{t.name}</div>
+                                    <div className="text-[10px] text-gray-500">
+                                      Room {t.roomNumber} {t.bedCode ? `• Bed ${t.bedCode}` : ""}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    t.paymentStatus === "Paid"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-rose-100 text-rose-800"
+                                  }`}
+                                >
+                                  {t.paymentStatus || "Due"}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-gray-100 text-[11px]">
+                                <div className="p-1.5 rounded-lg bg-gray-50">
+                                  <span className="text-[10px] text-gray-400 block">Monthly Rent</span>
+                                  <span className="font-bold text-gray-900">₹{Number(t.rentAmount || 0).toLocaleString("en-IN")}</span>
+                                </div>
+                                <div className="p-1.5 rounded-lg bg-gray-50">
+                                  <span className="text-[10px] text-gray-400 block">Pending Due</span>
+                                  <span className={`font-bold ${Number(t.dueAmount || 0) > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                                    ₹{Number(t.dueAmount || 0).toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1 gap-2">
+                                {tenantId && (
+                                  <Link
+                                    href={`/p/${propertyId}/tenants/${tenantId}`}
+                                    onClick={() => closeCopilot()}
+                                    className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-[11px] flex items-center gap-1 transition-colors"
+                                  >
+                                    <span>Profile</span>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </Link>
+                                )}
+                                {t.phone && (
+                                  <a
+                                    href={`https://wa.me/${t.phone.replace(/[^0-9]/g, "")}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors ml-auto"
+                                  >
+                                    <span>💬 Chat</span>
+                                  </a>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* J. PROPERTY SUMMARY KPI CARD */}
+                    {msg.actionType === "PROPERTY_SUMMARY" && msg.actionPayload && (
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/70 border border-amber-200/80 space-y-2 text-gray-800 shadow-xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-amber-100">
+                          <span className="font-extrabold text-xs text-amber-950">Property Snapshot</span>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                            {msg.actionPayload.occupancyRate || 0}% Occupied
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                          <Link
+                            href={`/p/${propertyId}/property-map`}
+                            onClick={() => closeCopilot()}
+                            className="p-2 rounded-lg bg-white border border-amber-200/60 hover:border-amber-400 transition-colors block cursor-pointer"
+                          >
+                            <span className="text-gray-400 text-[10px] block">Vacant Beds</span>
+                            <span className="font-extrabold text-emerald-600 text-sm">
+                              {msg.actionPayload.vacantBeds || 0} / {msg.actionPayload.totalBeds || 0}
+                            </span>
+                          </Link>
+
+                          <Link
+                            href={`/p/${propertyId}/tenants`}
+                            onClick={() => closeCopilot()}
+                            className="p-2 rounded-lg bg-white border border-amber-200/60 hover:border-amber-400 transition-colors block cursor-pointer"
+                          >
+                            <span className="text-gray-400 text-[10px] block">Pending Dues</span>
+                            <span className="font-extrabold text-rose-600 text-sm">
+                              ₹{Number(msg.actionPayload.totalPendingDues || 0).toLocaleString("en-IN")}
+                            </span>
+                          </Link>
+
+                          <Link
+                            href={`/p/${propertyId}/financial-hub`}
+                            onClick={() => closeCopilot()}
+                            className="p-2 rounded-lg bg-white border border-amber-200/60 hover:border-amber-400 transition-colors block cursor-pointer"
+                          >
+                            <span className="text-gray-400 text-[10px] block">Monthly Expenses</span>
+                            <span className="font-extrabold text-blue-600 text-sm">
+                              ₹{Number(msg.actionPayload.totalExpenses || 0).toLocaleString("en-IN")}
+                            </span>
+                          </Link>
+
+                          <Link
+                            href={`/p/${propertyId}/complaints`}
+                            onClick={() => closeCopilot()}
+                            className="p-2 rounded-lg bg-white border border-amber-200/60 hover:border-amber-400 transition-colors block cursor-pointer"
+                          >
+                            <span className="text-gray-400 text-[10px] block">Open Complaints</span>
+                            <span className="font-extrabold text-amber-700 text-sm">
+                              {msg.actionPayload.openComplaints || 0}
+                            </span>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 )}
 
