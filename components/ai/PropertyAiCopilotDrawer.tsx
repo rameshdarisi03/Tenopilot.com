@@ -898,7 +898,7 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                         <div className="space-y-1.5">
                           <div className="text-[11px] font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between">
                             <span>Vacating Notice ({msg.actionPayload.length})</span>
-                            <span className="text-[10px] text-amber-800 font-semibold">Security Refund</span>
+                            <span className="text-[10px] text-amber-800 font-semibold">Tap card to view profile →</span>
                           </div>
 
                           <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
@@ -911,37 +911,46 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                                   (o) => o.name?.toLowerCase().trim() === tenant.name?.toLowerCase().trim()
                                 )?.id;
 
-                              return (
+                              return tenantId ? (
+                                <Link
+                                  key={i}
+                                  href={`/p/${propertyId}/tenants/${tenantId}`}
+                                  onClick={() => closeCopilot()}
+                                  className="p-2.5 rounded-xl bg-white hover:bg-amber-50/60 border border-gray-200/90 hover:border-amber-400 flex items-center justify-between gap-2 shadow-xs transition-all group cursor-pointer active:scale-[0.99]"
+                                  title="Open Tenant Profile"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-gray-900 text-xs truncate group-hover:text-[#c2652a] flex items-center gap-1.5">
+                                      <User className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                      <span className="truncate">{tenant.name}</span>
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[9px] shrink-0">
+                                        Notice
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                                      <span>Room {tenant.room}</span>
+                                      <span>•</span>
+                                      <span>Leaves: <strong className="text-gray-800">{tenant.vacatingDate || "Soon"}</strong></span>
+                                      {tenant.depositAmount ? (
+                                        <>
+                                          <span>•</span>
+                                          <span>Deposit: <strong className="text-emerald-700">₹{Number(tenant.depositAmount).toLocaleString("en-IN")}</strong></span>
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-amber-700 text-xs font-bold shrink-0">
+                                    <span className="text-[11px]">Profile</span>
+                                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                  </div>
+                                </Link>
+                              ) : (
                                 <div
                                   key={i}
-                                  className="p-2.5 rounded-xl bg-white hover:bg-amber-50/40 border border-gray-200/90 hover:border-amber-300 flex items-center justify-between gap-2 shadow-xs transition-colors"
+                                  className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 flex justify-between items-center"
                                 >
-                                  {tenantId ? (
-                                    <Link
-                                      href={`/p/${propertyId}/tenants/${tenantId}`}
-                                      onClick={() => closeCopilot()}
-                                      className="min-w-0 flex-1 group cursor-pointer"
-                                    >
-                                      <div className="font-bold text-gray-900 text-xs truncate group-hover:text-amber-800 flex items-center gap-1">
-                                        <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                        <span className="truncate">{tenant.name}</span>
-                                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-amber-700 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                                      </div>
-                                      <div className="text-[11px] text-gray-500 mt-0.5">
-                                        Room {tenant.room} • Leaves:{" "}
-                                        <span className="font-semibold text-gray-700">{tenant.vacatingDate || "Soon"}</span>
-                                        {tenant.depositAmount ? ` • Deposit: ₹${Number(tenant.depositAmount).toLocaleString("en-IN")}` : ""}
-                                      </div>
-                                    </Link>
-                                  ) : (
-                                    <div className="min-w-0 flex-1">
-                                      <div className="font-bold text-gray-900 text-xs truncate">{tenant.name}</div>
-                                      <div className="text-[11px] text-gray-500 mt-0.5">Room {tenant.room}</div>
-                                    </div>
-                                  )}
-                                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] shrink-0">
-                                    Notice
-                                  </span>
+                                  <div className="font-bold text-gray-900 text-xs">{tenant.name}</div>
+                                  <div className="text-gray-500 text-xs">Room {tenant.room} • {tenant.vacatingDate || "Notice"}</div>
                                 </div>
                               );
                             })}

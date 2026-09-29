@@ -10,6 +10,22 @@
 
 import { CopilotPropertySnapshot, CopilotApiResponse } from "./aiCopilotPrompt";
 
+function isSameDateAsToday(dateStr?: string, todayStr?: string): boolean {
+  if (!dateStr || !todayStr) return false;
+  const clean = dateStr.trim();
+  if (clean.slice(0, 10) === todayStr) return true;
+  const d1 = new Date(clean);
+  const d2 = new Date(todayStr);
+  if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  }
+  return false;
+}
+
 export function tryFastClientQuery(
   rawQuery: string,
   snapshot: CopilotPropertySnapshot,
@@ -54,7 +70,7 @@ export function tryFastClientQuery(
   // Check-ins & Dates
   const checkinsToday = activeOccupants.filter((o) => {
     if (!o.joiningDate) return false;
-    return o.joiningDate.slice(0, 10) === todayStr;
+    return isSameDateAsToday(o.joiningDate, todayStr);
   });
 
   const sevenDaysAgo = new Date();
@@ -73,6 +89,14 @@ export function tryFastClientQuery(
     (acc, cur) => acc + (cur.depositAmount || 0),
     0
   );
+
+  // Check-outs today
+  const checkoutsToday = activeOccupants.filter((o) => {
+    return (
+      isSameDateAsToday(o.vacatingDate, todayStr) ||
+      isSameDateAsToday((o as any).guestCheckoutDate, todayStr)
+    );
+  });
 
   // Complaints
   const allComplaints = snapshot.complaints || [];
@@ -337,11 +361,62 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 5. NOTICE PERIOD / VACATING / LEAVING TENANTS
-  // e.g. "who is vacating", "leaving this month", "notice period", "leaving soon"
+  // 5. CHECK-OUTS TODAY / WHO IS CHECKING OUT TODAY / VACATING TODAY
+  // =========================================================================
+  const checkoutTodayRegex =
+    /(check-?out.*today|today.*check-?out|who.*checking out|who.*check-?out|checking out today|leaving today|vacat.*today|ee roju.*khali|aaj.*check-?out|ajke.*check-?out|who.*leaving today|who.*vacating today)/i;
+
+  if (checkoutTodayRegex.test(query)) {
+    let answerText = "";
+    if (checkoutsToday.length === 0) {
+      const noticeNote = noticeOccupants.length > 0
+        ? isBengali
+          ? ` তবে বর্তমানে ${noticeOccupants.length} জন নোটিশ পিরিয়ডে আছেন যারা শীঘ্রই খালি করবেন।`
+          : isTelugu
+          ? ` అయితే ప్రస్తుతం ${noticeOccupants.length} మంది అద్దెదారులు నోటీసు పీరియడ్‌లో ఉన్నారు.`
+          : isHindi
+          ? ` हालाँकि, वर्तमान में ${noticeOccupants.length} किरायेदार नोटिस पर हैं।`
+          : ` However, ${noticeOccupants.length} tenant(s) are currently on notice period scheduled to vacate soon.`
+        : "";
+
+      answerText = isBengali
+        ? `আজ (${todayStr}) কোনো ভাড়াটিয়ার চেক-আউট নেই।${noticeNote}`
+        : isTelugu
+        ? `ఈ రోజు (${todayStr}) చెక్-అవుట్ లేదా రూమ్ ఖాళీ చేసే వారు ఎవరూ లేరు.${noticeNote}`
+        : isHindi
+        ? `आज (${todayStr}) कोई किरायेदार चेक-आउट नहीं कर रहा है।${noticeNote}`
+        : `No tenants are scheduled to check out today (${todayStr}).${noticeNote}`;
+    } else {
+      answerText = isBengali
+        ? `আজ (${todayStr}) ${checkoutsToday.length} জন ভাড়াটিয়া চেক-আউট করছেন।`
+        : isTelugu
+        ? `ఈ రోజు (${todayStr}) ${checkoutsToday.length} మంది అద్దెదారులు చెక్-అవుట్ / ఖాళీ చేస్తున్నారు.`
+        : isHindi
+        ? `आज (${todayStr}) ${checkoutsToday.length} किरायेदार चेक-आउट कर रहे हैं।`
+        : `${checkoutsToday.length} tenant(s) are scheduled to check out today (${todayStr}).`;
+    }
+
+    return {
+      answer: answerText,
+      actionType: "NOTICE_TENANTS",
+      actionPayload: (checkoutsToday.length > 0 ? checkoutsToday : noticeOccupants).map((n) => ({
+        name: n.name,
+        room: n.roomNumber,
+        vacatingDate: n.vacatingDate || "Today",
+        depositAmount: n.depositAmount,
+        phone: n.phone,
+        occupantId: n.id,
+      })),
+      suggestedChips: ["Who all are on notice?", "Who owes rent?", "Vacant beds?"],
+    };
+  }
+
+  // =========================================================================
+  // 6. NOTICE PERIOD / WHO ALL ARE ON NOTICE / VACATING LIST
+  // e.g. "who all are on notice", "who is on notice", "notice period", "who served notice"
   // =========================================================================
   const noticeRegex =
-    /(vacat[a-z]*|leaving|leave this month|notice period|on notice|khali chesthunnaru|khali chestaru|chod rahe hai|chale gaye|basa charche|going to leave)/i;
+    /(notice|who.*on notice|who all are on notice|serving notice|served notice|gave notice|giving notice|vacat[a-z]*|leaving|leave this month|move-?out|khali chesthunnaru|khali chestaru|chod rahe hai|chale gaye|basa charche|going to leave)/i;
 
   if (noticeRegex.test(query)) {
     let answerText = "";
@@ -357,10 +432,10 @@ export function tryFastClientQuery(
       answerText = isBengali
         ? `বর্তমানে ${noticeOccupants.length} জন নোটিশে রয়েছেন। মোট ফেরতযোগ্য সিকিউরিটি ডিপোজিট ₹${totalRefundableDeposit.toLocaleString("en-IN")}।`
         : isTelugu
-        ? `ప్రస్తుతం ${noticeOccupants.length} మంది నోటీసు పీరియడ్‌లో ఉన్నారు. రీఫండ్ చేయాల్సిన మొత్తం సెక్యూరిటీ డిపాజిట్ ₹${totalRefundableDeposit.toLocaleString("en-IN")}.`
+        ? `ప్రస్తుతం ${noticeOccupants.length} మంది అద్దెదారులు నోటీసు పీరియడ్‌లో ఉన్నారు. రీఫండ్ చేయాల్సిన మొత్తం సెక్యూరిటీ డిపాజిట్ ₹${totalRefundableDeposit.toLocaleString("en-IN")}.`
         : isHindi
         ? `वर्तमान में ${noticeOccupants.length} किरायेदार नोटिस पर हैं। वापस की जाने वाली कुल सिक्योरिटी राशि ₹${totalRefundableDeposit.toLocaleString("en-IN")} है।`
-        : `${noticeOccupants.length} tenant(s) are currently on vacating notice. Total refundable security deposits: ₹${totalRefundableDeposit.toLocaleString("en-IN")}.`;
+        : `There are ${noticeOccupants.length} tenant(s) currently on vacating notice. Total refundable security deposits: ₹${totalRefundableDeposit.toLocaleString("en-IN")}.`;
     }
 
     return {
@@ -369,7 +444,7 @@ export function tryFastClientQuery(
       actionPayload: noticeOccupants.map((n) => ({
         name: n.name,
         room: n.roomNumber,
-        vacatingDate: n.vacatingDate,
+        vacatingDate: n.vacatingDate || "Notice Active",
         depositAmount: n.depositAmount,
         phone: n.phone,
         occupantId: n.id,
@@ -379,12 +454,13 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
-  // 6. CHECK-INS TODAY / JOINED THIS WEEK / NEW ADMISSIONS
+  // 7. CHECK-INS TODAY / JOINED THIS WEEK / NEW ADMISSIONS
   // =========================================================================
+  const isCheckOutQuery = /(check-?out|checking out|checkout|vacat|leaving|khali)/i.test(query);
   const checkinRegex =
-    /(join[a-z]*|check.*in|admissions?|new tenant|kotha tenant|naye kirayedar|notun bhara)/i;
+    /(join[a-z]*|\bcheck-?in(s|ing)?\b|checked in|admissions?|new tenant|kotha tenant|naye kirayedar|notun bhara|who joined|who checked in)/i;
 
-  if (checkinRegex.test(query)) {
+  if (!isCheckOutQuery && checkinRegex.test(query)) {
     const isThisWeek = /(week|vaaram|saptaah|shoptaho|past 7 days)/i.test(query);
     const targetCheckins = isThisWeek ? checkinsThisWeek : checkinsToday;
     const timeframeText = isThisWeek ? "this week" : "today";
@@ -601,7 +677,7 @@ export function tryFastClientQuery(
   // =========================================================================
   // 10. ATTRITION / TURNOVER METRICS
   // =========================================================================
-  const attritionRegex = /(attrition|turnover|churn|how many left|past tenants)/i;
+  const attritionRegex = /(attrition rate|turnover rate|churn rate|what is (our )?attrition|what is (our )?turnover|past tenants)/i;
 
   if (attritionRegex.test(query)) {
     const pastOccupants = (snapshot.occupants || []).filter((o) => o.lifecycleStatus === "Past");

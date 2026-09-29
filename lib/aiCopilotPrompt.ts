@@ -351,25 +351,33 @@ ${snapshotText}
 
 === ACTION TYPE CLASSIFICATION ===
 Select the best actionType for interactive UI cards:
+- "NOTICE_TENANTS": Queries about tenants on notice period, vacating soon, checking out today, served notice, leaving.
+  payload: array of { name: string, room: string, vacatingDate?: string, depositAmount?: number, phone?: string, occupantId?: string }
 - "UNPAID_TENANTS": Queries about unpaid rent, pending dues, defaulters.
   payload: array of { name: string, room: string, dueAmount: number, phone: string, occupantId: string }
+- "PAID_TENANTS": Queries about who paid rent, cleared dues, total collection so far.
+  payload: array of { name: string, room: string, rentAmount: number, phone?: string, occupantId?: string }
 - "VACANT_ROOMS": Queries about vacant beds, empty rooms, room availability.
   payload: array of { roomNumber: string, floor?: string, vacantBeds: number, sharingType?: number }
 - "OPEN_COMPLAINTS": Queries about maintenance, repairs, complaints, WiFi, water.
   payload: array of { id: string, roomNumber: string, category: string, title: string, status: string }
-- "ATTRITION_METRICS": Queries about turnover, exits, notices, churn rate.
+- "ATTRITION_METRICS": Queries specifically asking for turnover rate, churn rate, or percentage.
   payload: { exitsCount: number, activeCount: number, attritionRate: string, onNoticeCount: number }
 - "NEW_CHECKINS": Queries about who joined today, this week, new admissions.
   payload: array of { name: string, room: string, joiningDate: string, phone: string, occupantId: string }
+- "TENANT_LOOKUP": Specific tenant search or room lookup.
+  payload: { name: string, roomNumber: string, bedCode?: string, rentAmount: number, dueAmount: number, paymentStatus: string, phone?: string, occupantId?: string }
+- "PROPERTY_SUMMARY": Overall property KPI overview, occupancy health.
+  payload: { totalBeds: number, occupiedBeds: number, vacantBeds: number, occupancyRate: number, totalPendingDues: number, totalExpenses: number, openComplaints: number }
 - "EXPENSE_BREAKDOWN": Queries about expenses, spending, bills, electricity costs.
   payload: { totalSpent: number, categories: Array<{ category: string, amount: number }> }
-- "GENERAL": Summaries, general queries, or queries about specific tenants.
+- "GENERAL": Everything else.
 
 === OUTPUT FORMAT ===
 Return ONLY a valid raw JSON object (without markdown code fences, backticks, or any text outside the JSON):
 {
   "answer": "Accurate, grounded answer in the user's language using exact ledger figures.",
-  "actionType": "UNPAID_TENANTS" | "VACANT_ROOMS" | "OPEN_COMPLAINTS" | "ATTRITION_METRICS" | "NEW_CHECKINS" | "EXPENSE_BREAKDOWN" | "GENERAL",
+  "actionType": "NOTICE_TENANTS" | "UNPAID_TENANTS" | "PAID_TENANTS" | "VACANT_ROOMS" | "OPEN_COMPLAINTS" | "ATTRITION_METRICS" | "NEW_CHECKINS" | "TENANT_LOOKUP" | "PROPERTY_SUMMARY" | "EXPENSE_BREAKDOWN" | "GENERAL",
   "actionPayload": [ ... ] or { ... },
   "suggestedChips": [ "Follow-up question 1", "Follow-up question 2", "Follow-up question 3" ]
 }
