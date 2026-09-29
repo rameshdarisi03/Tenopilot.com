@@ -182,6 +182,33 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+      } else if (payload.type === "ONBOARDING_INVITE") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_welcome_onboarding",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: pName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: checkinDate },
+                ],
+              },
+            ],
+          },
+        };
       } else {
         requestBody = {
           messaging_product: "whatsapp",
