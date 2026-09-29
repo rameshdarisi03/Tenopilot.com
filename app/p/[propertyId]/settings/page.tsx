@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
+import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import {
@@ -26,6 +27,10 @@ import {
   Sparkles,
   CheckCircle2,
   Clock,
+  Camera,
+  Upload,
+  ArrowUpRight,
+  Wallet,
 } from "lucide-react";
 import {
   propertySettingsStore,
@@ -232,6 +237,27 @@ export default function PropertySettingsPage({
 
   const handleUpdatePartnerName = (id: string, name: string) => {
     const updated = partners.map((p) => (p.id === id ? { ...p, name } : p));
+    setPartners(updated);
+  };
+
+  const handlePartnerAvatarUpload = (id: string, file: File) => {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Please upload an image smaller than 2 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const updated = partners.map((p) => (p.id === id ? { ...p, avatarUrl: result } : p));
+      setPartners(updated);
+      triggerToast("Partner logo uploaded! Click 'Save' to persist changes.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePartnerAvatar = (id: string) => {
+    const updated = partners.map((p) => (p.id === id ? { ...p, avatarUrl: undefined } : p));
     setPartners(updated);
   };
 
@@ -482,37 +508,96 @@ export default function PropertySettingsPage({
                     {partners.map((partner) => (
                       <div
                         key={partner.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-200 bg-[#fcfcfc]"
+                        className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 p-3.5 rounded-xl border border-gray-200 bg-[#fcfcfc] hover:border-gray-300 transition-colors"
                       >
-                        <div className="flex items-center gap-3 flex-1">
-                          <span
-                            className="w-7 h-7 rounded-full text-white font-bold flex items-center justify-center text-xs shrink-0"
-                            style={{ backgroundColor: partner.color || "#964407" }}
-                          >
-                            {partner.name.charAt(0)}
-                          </span>
-                          <input
-                            type="text"
-                            value={partner.name}
-                            onChange={(e) => handleUpdatePartnerName(partner.id, e.target.value)}
-                            className="font-bold text-xs text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 focus:ring-1 focus:ring-[#c2652a] max-w-[200px]"
-                            placeholder="Partner Name"
-                          />
+                        <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                          {/* Partner Avatar / Logo Upload */}
+                          <div className="relative group shrink-0">
+                            {partner.avatarUrl ? (
+                              <div className="relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={partner.avatarUrl}
+                                  alt={partner.name}
+                                  className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePartnerAvatar(partner.id)}
+                                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center text-[10px] shadow-xs cursor-pointer"
+                                  title="Remove Logo"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor={`avatar-upload-${partner.id}`}
+                                className="w-10 h-10 rounded-full text-white font-bold flex items-center justify-center text-xs shadow-xs cursor-pointer relative overflow-hidden group/btn"
+                                style={{ backgroundColor: partner.color || "#964407" }}
+                                title="Click to upload partner logo/avatar"
+                              >
+                                <span>{partner.name.charAt(0) || "P"}</span>
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/btn:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Camera className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              </label>
+                            )}
+                            <input
+                              type="file"
+                              id={`avatar-upload-${partner.id}`}
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePartnerAvatarUpload(partner.id, file);
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={partner.name}
+                              onChange={(e) => handleUpdatePartnerName(partner.id, e.target.value)}
+                              className="font-bold text-xs text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 focus:ring-1 focus:ring-[#c2652a] w-full max-w-[220px]"
+                              placeholder="Partner Name"
+                            />
+                            <div className="flex items-center gap-2">
+                              <label
+                                htmlFor={`avatar-upload-${partner.id}`}
+                                className="text-[10px] text-gray-500 hover:text-[#c2652a] font-medium flex items-center gap-1 cursor-pointer"
+                              >
+                                <Camera className="w-3 h-3" />
+                                {partner.avatarUrl ? "Change Logo" : "Upload Logo"}
+                              </label>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center flex-wrap gap-3">
                           <div className="flex items-center gap-1.5">
-                            <label className="text-[11px] font-bold text-gray-500">Ownership Share:</label>
+                            <label className="text-[11px] font-bold text-gray-500">Ownership:</label>
                             <input
                               type="number"
                               min="0"
                               max="100"
                               value={partner.ownershipPercentage}
                               onChange={(e) => handleUpdatePartnerShare(partner.id, Number(e.target.value))}
-                              className="w-20 px-3 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs text-right text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                              className="w-16 px-2.5 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs text-right text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                             />
-                            <span className="font-mono font-bold text-gray-700">%</span>
+                            <span className="font-mono font-bold text-gray-700 text-xs">%</span>
                           </div>
+
+                          <Link
+                            href={`/p/${propertyId}/financial-hub?tab=Partner%20Settlement&partnerId=${partner.id}`}
+                            className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-[#c2652a] text-[#c2652a] hover:bg-orange-50 text-[11px] font-bold flex items-center gap-1 transition-all"
+                            title="View Inflow & Outflow Cashflow Ledger"
+                          >
+                            <Wallet className="w-3.5 h-3.5" />
+                            <span>Ledger</span>
+                            <ArrowUpRight className="w-3 h-3 text-gray-400" />
+                          </Link>
 
                           <button
                             type="button"

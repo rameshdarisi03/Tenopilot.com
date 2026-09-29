@@ -11,6 +11,8 @@ export interface PartnerConfig {
   color: string;
   accountType: string;
   phone?: string;
+  avatarUrl?: string;
+  upiId?: string;
 }
 
 export interface ExpenseCategoryConfig {

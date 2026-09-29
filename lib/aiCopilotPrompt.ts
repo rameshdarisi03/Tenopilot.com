@@ -93,6 +93,7 @@ export interface CopilotApiResponse {
     | "EXPENSE_BREAKDOWN"
     | "KYC_PENDING"
     | "GUEST_LIST"
+    | "PARTNER_CASHFLOW"
     | "GENERAL";
   actionPayload?: any;
   suggestedChips?: string[];

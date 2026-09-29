@@ -24,6 +24,8 @@ import {
   PhoneCall,
   Clock,
   Layers,
+  Users,
+  Wallet,
 } from "lucide-react";
 import { useAiCopilotStore } from "@/lib/aiCopilotStore";
 import { useVoiceRecognition, INDIAN_LANGUAGES } from "@/hooks/useVoiceRecognition";
@@ -1259,6 +1261,35 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                           </div>
                         </div>
                       )
+                    )}
+
+                    {msg.actionType === "PARTNER_CASHFLOW" && (
+                      <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 shadow-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-[#c2652a] text-white flex items-center justify-center">
+                              <Users className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-xs text-amber-950">
+                                Partner Cashflow & Equity Hub
+                              </h4>
+                              <p className="text-[10px] text-amber-800">
+                                Dual-ledger breakdown of inflows (Paid To) & outflows (Paid From)
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Link
+                          href={`/p/${propertyId}/financial-hub?tab=Partner%20Settlement`}
+                          onClick={() => closeCopilot()}
+                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#964407] text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-[0.99] block text-center"
+                        >
+                          <Wallet className="w-3.5 h-3.5 inline mr-1" />
+                          Open Partner Cashflow Ledger →
+                        </Link>
+                      </div>
                     )}
 
                   </div>

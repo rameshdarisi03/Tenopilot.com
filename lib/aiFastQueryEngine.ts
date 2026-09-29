@@ -752,6 +752,31 @@ export function tryFastClientQuery(
   }
 
   // =========================================================================
+  // 8.5 PARTNER CASHFLOW, SETTLEMENT & PROFIT SHARE
+  // e.g. "partner", "settlement", "partner cash flow", "how much did suresh collect", "inflow outflow"
+  // =========================================================================
+  const partnerRegex = /(partner|settlement|profit share|equity share|paid to|paid from|inflow|outflow|patner|hisab|hisaab)/i;
+  if (partnerRegex.test(query)) {
+    const answerText = isTelugu
+      ? `పార్టనర్ క్యాష్‌ఫ్లో మరియు సెటిల్‌మెంట్ డ్యాష్‌బోర్డ్‌లో ప్రతి పార్టనర్ ఖాతాలోకి వచ్చిన అద్దె (Paid To) మరియు వారి చేతినుండి చేసిన ఖర్చులు (Paid From) వివరాలు సిద్ధంగా ఉన్నాయి.`
+      : isHindi
+      ? `पार्टनर कैशफ्लो और सेटलमेंट लेजर में प्रत्येक पार्टनर के खाते में आए किराए (Paid To) और जेब से किए गए खर्चों (Paid From) का पूरा विवरण उपलब्ध है।`
+      : isBengali
+      ? `পার্টনার ক্যাশফ্লো এবং সেটেলমেন্ট লেজারে প্রতিটি অংশীদারের ইন-ফ্লো (Paid To) এবং আউট-ফ্লো (Paid From) এর সম্পূর্ণ হিসাব রয়েছে।`
+      : `Partner Cashflow & Settlement Hub tracks live rent inflows (Paid To) and out-of-pocket expenses (Paid From) per partner with automatic equity reconciliation.`;
+
+    return {
+      answer: answerText,
+      actionType: "PARTNER_CASHFLOW",
+      actionPayload: {
+        propertyId: snapshot.propertyId,
+        url: `/p/${snapshot.propertyId}/financial-hub?tab=Partner%20Settlement`,
+      },
+      suggestedChips: ["Monthly expenses?", "Unpaid rent?", "Property overview?"],
+    };
+  }
+
+  // =========================================================================
   // 9. OVERALL PROPERTY SUMMARY / DASHBOARD KPI / HEALTH
   // e.g. "summary", "property status", "overview", "kpi", "dashboard", "health"
   // =========================================================================

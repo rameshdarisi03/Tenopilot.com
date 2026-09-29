@@ -35,6 +35,10 @@ import {
   Pencil,
   Clock,
   Edit3,
+  Share2,
+  MessageSquare,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 import {
   partnerStore,
@@ -124,6 +128,24 @@ export default function FinancialHubPage({
     return new Date().toISOString().split("T")[0];
   });
   const [showCustomDateModal, setShowCustomDateModal] = useState<boolean>(false);
+
+  // Partner Ledger Drilldown State
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
+  const [partnerLedgerSubFilter, setPartnerLedgerSubFilter] = useState<"ALL" | "INFLOW" | "OUTFLOW">("ALL");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const tabParam = searchParams.get("tab");
+      const partnerParam = searchParams.get("partnerId");
+      if (tabParam === "Partner Settlement" || tabParam === "Settlement") {
+        setActiveTab("Partner Settlement");
+      }
+      if (partnerParam) {
+        setSelectedPartnerId(partnerParam);
+      }
+    }
+  }, []);
 
   // Helper: Resolve active start and end date bounds based on timeline filter
   const resolveActiveDateBounds = () => {
@@ -279,6 +301,19 @@ export default function FinancialHubPage({
     let occupiedCount = 0;
     const partnerRentCollections: Record<string, number> = {};
     const accountCollections: Record<string, number> = {};
+    const partnerInflowItems: Record<string, Array<{
+      id: string;
+      occupantId: string;
+      tenantName: string;
+      roomNumber: string;
+      bedNumber?: string;
+      amount: number;
+      date: string;
+      method: string;
+      paidTo: string;
+      receiptNo: string;
+      isDeposit: boolean;
+    }>> = {};
 
     const paymentAccountsList = partnerStore.getPaymentAccounts(propertyId);
     const partnersList = partnerStore.getPartners(propertyId);
@@ -349,11 +384,26 @@ export default function FinancialHubPage({
             }
           }
 
-          if (resolvedPartnerName) {
-            partnerRentCollections[resolvedPartnerName] = (partnerRentCollections[resolvedPartnerName] || 0) + pm.amount;
-          } else {
-            partnerRentCollections[targetAccount] = (partnerRentCollections[targetAccount] || 0) + pm.amount;
+          const partnerKey = resolvedPartnerName || targetAccount;
+          partnerRentCollections[partnerKey] = (partnerRentCollections[partnerKey] || 0) + pm.amount;
+          if (!partnerInflowItems[partnerKey]) {
+            partnerInflowItems[partnerKey] = [];
           }
+          partnerInflowItems[partnerKey].push({
+            id: `${occ.id}-${pm.receiptNo || pm.date}-${pm.amount}-${Math.random().toString(36).substring(2, 6)}`,
+            occupantId: occ.id,
+            tenantName: occ.name,
+            roomNumber: occ.roomNumber,
+            bedNumber: occ.bedCode,
+            amount: pm.amount,
+            date: pm.date,
+            method: pm.mode || "UPI",
+            paidTo: targetAccount,
+            receiptNo: pm.receiptNo || "REC-N/A",
+            isDeposit:
+              (pm.month || "").toLowerCase().includes("deposit") ||
+              (pm.receiptNo || "").toLowerCase().includes("dep"),
+          });
 
           const isDeposit =
             (pm.month || "").toLowerCase().includes("deposit") ||
@@ -462,6 +512,7 @@ export default function FinancialHubPage({
       occupants,
       partnerRentCollections,
       accountCollections,
+      partnerInflowItems,
     };
   };
 
@@ -530,6 +581,156 @@ export default function FinancialHubPage({
       unsubCompliance();
     };
   }, [propertyId, selectedTimelineFilter, customStartDate, customEndDate]);
+
+  // Resolve itemized outflows per partner from expenses in active date bounds
+  const partnerOutflowItems = (() => {
+    const { startDate, endDate } = resolveActiveDateBounds();
+    const records = expenseStore.getExpenses(propertyId, startDate, endDate);
+    const paymentAccountsList = partnerStore.getPaymentAccounts(propertyId);
+    const partnersList = partnerStore.getPartners(propertyId);
+    const accountToPartner = new Map<string, string>();
+    paymentAccountsList.forEach((acc) => {
+      if (acc.partnerName && acc.type === "Partner Account") {
+        accountToPartner.set(acc.name.toLowerCase().trim(), acc.partnerName);
+      }
+    });
+
+    const items: Record<
+      string,
+      Array<{
+        id: string;
+        date: string;
+        title: string;
+        category: string;
+        amount: number;
+        paidFrom: string;
+        paidTo?: string;
+        paymentMode?: string;
+        receiptUrl?: string;
+        notes?: string;
+      }>
+    > = {};
+
+    records.forEach((e) => {
+      const pFrom = (e.paidFrom || "").trim();
+      const pFromLower = pFrom.toLowerCase();
+      if (
+        pFromLower.includes("business account") ||
+        pFromLower.includes("main business") ||
+        pFromLower.includes("petty cash") ||
+        pFromLower.includes("cash desk")
+      ) {
+        return;
+      }
+
+      let matchedName: string | null = null;
+      if (accountToPartner.has(pFromLower)) {
+        matchedName = accountToPartner.get(pFromLower)!;
+      } else {
+        const found = partnersList.find((p) => {
+          const pNameLower = p.name.toLowerCase().trim();
+          return (
+            pFromLower === pNameLower ||
+            pFromLower.startsWith(pNameLower) ||
+            pFromLower.includes(`(${pNameLower})`)
+          );
+        });
+        if (found) matchedName = found.name;
+        else matchedName = pFrom;
+      }
+
+      if (matchedName) {
+        if (!items[matchedName]) items[matchedName] = [];
+        items[matchedName].push({
+          id: e.id,
+          date: e.date,
+          title: e.vendorName || e.notes || e.category,
+          category: e.category,
+          amount: e.amount,
+          paidFrom: e.paidFrom,
+          paymentMode: e.paymentMethod || "Direct",
+          receiptUrl: e.receiptUrl,
+          notes: e.notes,
+        });
+      }
+    });
+
+    return items;
+  })();
+
+  const sendPartnerWhatsAppSummary = (partner: PartnerConfig) => {
+    const rentCollected = revenueMetrics.partnerRentCollections?.[partner.name] || 0;
+    const actualPaid = partnerContributions[partner.name] || 0;
+    const netCashInHand = rentCollected - actualPaid;
+    const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
+    const profitShare = Math.round((totalNetProfit * (partner.ownershipPercentage || 0)) / 100);
+    const netSettlement = profitShare - netCashInHand;
+    const { label } = resolveActiveDateBounds();
+
+    const msg = `*TenoPilot Partner Cashflow Statement*\n` +
+      `👤 *Partner:* ${partner.name} (${partner.ownershipPercentage}% Equity)\n` +
+      `📅 *Period:* ${label}\n` +
+      `🏢 *Property:* ${propertySettings.propertyName || "Property"}\n\n` +
+      `🟢 *Rent Inflows (Collected):* ₹${rentCollected.toLocaleString("en-IN")}\n` +
+      `🔴 *Expenses Paid Out-of-Pocket:* ₹${actualPaid.toLocaleString("en-IN")}\n` +
+      `⚖️ *Net Cash in Hand:* ₹${netCashInHand.toLocaleString("en-IN")}\n` +
+      `🎯 *Entitled Profit Share:* ₹${profitShare.toLocaleString("en-IN")}\n` +
+      `--------------------------------\n` +
+      (netSettlement >= 0
+        ? `🟢 *Final Balance:* Common Pool owes *₹${netSettlement.toLocaleString("en-IN")}* to ${partner.name}`
+        : `🔴 *Final Balance:* ${partner.name} must transfer *₹${Math.abs(netSettlement).toLocaleString("en-IN")}* into Common Pool / Co-partners`) +
+      `\n\n_Generated via TenoPilot Financial OS_`;
+
+    const encoded = encodeURIComponent(msg);
+    const url = partner.phone ? `https://wa.me/${partner.phone.replace(/[^0-9]/g, "")}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    window.open(url, "_blank");
+  };
+
+  const exportPartnerLedgerToCSV = (partner: PartnerConfig) => {
+    const inflows = revenueMetrics.partnerInflowItems?.[partner.name] || [];
+    const outflows = partnerOutflowItems[partner.name] || [];
+    const rentCollected = revenueMetrics.partnerRentCollections?.[partner.name] || 0;
+    const actualPaid = partnerContributions[partner.name] || 0;
+    const netCashInHand = rentCollected - actualPaid;
+    const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
+    const profitShare = Math.round((totalNetProfit * (partner.ownershipPercentage || 0)) / 100);
+    const netSettlement = profitShare - netCashInHand;
+    const { label, startDate, endDate } = resolveActiveDateBounds();
+
+    const rows: string[] = [
+      `"TENOPILOT PARTNER CASHFLOW STATEMENT"`,
+      `"Partner Name:","${partner.name}"`,
+      `"Equity Share:","${partner.ownershipPercentage}%"`,
+      `"Period:","${label}"`,
+      `"Date Range:","${startDate} to ${endDate}"`,
+      `"Property:","${propertySettings.propertyName || "Property"}"`,
+      ``,
+      `"SUMMARY METRICS"`,
+      `"Total Inflow (Rent Collected):","INR ${rentCollected}"`,
+      `"Total Outflow (Expenses Paid):","INR ${actualPaid}"`,
+      `"Net Cash in Partner Hand:","INR ${netCashInHand}"`,
+      `"Property Total Net Profit:","INR ${totalNetProfit}"`,
+      `"Partner Profit Share Entitlement:","INR ${profitShare}"`,
+      `"Net Settlement Balance:","INR ${netSettlement}" (${netSettlement >= 0 ? "Receivable from Pool" : "Payable into Pool"})`,
+      ``,
+      `"--- SECTION 1: CASH INFLOWS (RENT COLLECTED) ---"`,
+      `"Date","Tenant Name","Room","Bed","Amount (INR)","Payment Mode","Receipt No"`,
+      ...inflows.map((i) => `"${i.date}","${i.tenantName}","${i.roomNumber}","${i.bedNumber || "N/A"}","${i.amount}","${i.method}","${i.receiptNo}"`),
+      ``,
+      `"--- SECTION 2: CASH OUTFLOWS (EXPENSES PAID OUT-OF-POCKET) ---"`,
+      `"Date","Category","Title / Vendor","Amount (INR)","Payment Mode","Notes"`,
+      ...outflows.map((o) => `"${o.date}","${o.category}","${o.title}","${o.amount}","${o.paymentMode || "Direct"}","${(o.notes || "").replace(/"/g, '""')}"`),
+    ];
+
+    const csvContent = "data:text/csv;charset=utf-8," + rows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `TenoPilot-${partner.name.replace(/\s+/g, "_")}-Statement-${startDate}-to-${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Toast, Inline Category & Modal States
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -2209,230 +2410,807 @@ export default function FinancialHubPage({
             </div>
           )}
 
-          {/* TAB 3: PARTNER SETTLEMENT (OUR ACTIVE FULL VIEW) */}
+          {/* TAB 3: PARTNER SETTLEMENT & CASHFLOW HUB */}
           {activeTab === "Partner Settlement" && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* Main Content Left (Stat Cards, Settlement Overview, Recent Expenses) */}
+              {/* Main Content Left (Partner Switcher, Stat Cards, Settlement Overview / Partner Detail Ledger) */}
               <div className="lg:col-span-8 space-y-8">
-              {/* Financial Summary Stat Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Stat Card 1 */}
-                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      Gross Revenue Collected
-                    </span>
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                      <Wallet className="w-4 h-4" />
+                {/* 1. PARTNER AVATAR & LOGO SWITCHER BAR */}
+                <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-gray-100 pb-3">
+                    <div>
+                      <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-[#c2652a]" />
+                        Partner Cashflow & Ledger Switcher
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Audit real-time inflows (Paid To) and outflows (Paid From) per partner
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                        📅 {resolveActiveDateBounds().label}
+                      </span>
                     </div>
                   </div>
-                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                    ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
-                  </p>
-                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
-                    Live Real-Time SSOT
-                  </p>
-                </div>
 
-                {/* Stat Card 2 */}
-                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      Total Expenses
-                    </span>
-                    <div className="w-7 h-7 rounded-lg bg-orange-100 text-[#c2652a] flex items-center justify-center">
-                      <ReceiptRupeeIcon className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                    ₹{totalSpent.toLocaleString("en-IN")}
-                  </p>
-                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
-                    Firebase Live
-                  </p>
-                </div>
+                  <div className="flex items-center gap-3 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+                    {/* Option 0: All Partners (Overview) */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPartnerId(null)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all text-left shrink-0 cursor-pointer ${
+                        selectedPartnerId === null
+                          ? "bg-[#c2652a]/10 border-[#c2652a] text-[#c2652a] shadow-xs ring-2 ring-[#c2652a]/20"
+                          : "bg-gray-50/70 hover:bg-gray-100 border-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#c2652a] to-[#964407] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs">All Partners (Overview)</div>
+                        <div className="text-[10px] text-gray-500 font-medium">
+                          Net: ₹{Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent).toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    </button>
 
-                {/* Stat Card 3 */}
-                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      Net Profit
-                    </span>
-                    <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                    ₹{Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent).toLocaleString("en-IN")}
-                  </p>
-                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
-                    Calculated Yield
-                  </p>
-                </div>
+                    {/* Individual Partners */}
+                    {partners.map((p) => {
+                      const rentCollected = revenueMetrics.partnerRentCollections?.[p.name] || 0;
+                      const actualPaid = partnerContributions[p.name] || 0;
+                      const isSelected = selectedPartnerId === p.id;
+                      const netCashInHand = rentCollected - actualPaid;
+                      const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
+                      const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
+                      const netSettlement = profitShare - netCashInHand;
 
-                {/* Stat Card 4 */}
-                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      Profit Margin
-                    </span>
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                      <Building2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
-                    {revenueMetrics.totalGrossRevenue > 0
-                      ? (((revenueMetrics.totalGrossRevenue - totalSpent) / revenueMetrics.totalGrossRevenue) * 100).toFixed(1)
-                      : "0.0"}%
-                  </p>
-                  <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
-                    Live Ratio
-                  </p>
-                </div>
-              </div>
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setSelectedPartnerId(p.id)}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all text-left shrink-0 cursor-pointer ${
+                            isSelected
+                              ? "bg-white border-[#c2652a] text-gray-900 shadow-sm ring-2 ring-[#c2652a]/30"
+                              : "bg-white hover:bg-gray-50/80 border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}
+                        >
+                          <div className="relative shrink-0">
+                            {p.avatarUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={p.avatarUrl}
+                                alt={p.name}
+                                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs"
+                              />
+                            ) : (
+                              <div
+                                className="w-10 h-10 rounded-full text-white font-bold flex items-center justify-center text-xs shadow-xs"
+                                style={{ backgroundColor: p.color || "#c2652a" }}
+                              >
+                                {p.name.charAt(0)}
+                              </div>
+                            )}
+                            <span
+                              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                                netSettlement > 0 ? "bg-emerald-500" : netSettlement < 0 ? "bg-rose-500" : "bg-gray-400"
+                              }`}
+                              title={netSettlement > 0 ? "Receivable" : netSettlement < 0 ? "Payable" : "Settled"}
+                            />
+                          </div>
 
-              {/* Partner Settlement Overview Table Section */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-gray-100 pb-4">
-                  <div>
-                    <h3 className="font-serif font-bold text-xl text-gray-900">
-                      Partner Settlement Overview
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Net profit allocation matrix & partner reimbursement tracking
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto scrollbar-thin pb-2 -mx-2 sm:mx-0">
-                  {partners.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-gray-500">
-                      No partner equity profiles configured yet. Configure partner profit sharing in Property Settings.
-                    </div>
-                  ) : (
-                    <table className="w-full min-w-[820px] text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
-                          <th className="py-3 px-3 font-bold">Partner</th>
-                          <th className="py-3 px-3 font-bold text-center">Equity %</th>
-                          <th className="py-3 px-3 font-bold">Rent Collected (Personal A/c)</th>
-                          <th className="py-3 px-3 font-bold">Paid Out-Of-Pocket</th>
-                          <th className="py-3 px-3 font-bold">Net Cash in Hand</th>
-                          <th className="py-3 px-3 font-bold">Profit Share</th>
-                          <th className="py-3 px-3 font-bold">Net Settlement</th>
-                          <th className="py-3 px-3 font-bold text-right">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {partners.map((p) => {
-                          const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
-                          const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
-                          const rentCollected = revenueMetrics.partnerRentCollections?.[p.name] || 0;
-                          const actualPaid = partnerContributions[p.name] || 0;
-                          const netCashInHand = rentCollected - actualPaid;
-                          const netSettlement = profitShare - netCashInHand;
-
-                          return (
-                            <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
-                              <td className="py-4 px-3 font-bold flex items-center gap-2.5 text-gray-900 whitespace-nowrap">
-                                <span
-                                  className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs"
-                                  style={{ backgroundColor: p.color || "#c2652a" }}
-                                >
-                                  {p.name.charAt(0)}
-                                </span>
-                                <div>
-                                  <div>{p.name}</div>
-                                  <div className="text-[10px] text-gray-400 font-normal">{p.accountType || "Partner"}</div>
-                                </div>
-                              </td>
-                              <td className="py-4 px-3 text-gray-500 font-sans font-bold tabular-nums text-center whitespace-nowrap">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-xs text-gray-900">{p.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 font-mono font-bold text-gray-600">
                                 {p.ownershipPercentage}%
-                              </td>
-                              <td className="py-4 px-3 text-gray-900 font-sans font-semibold tabular-nums whitespace-nowrap">
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-gray-500 flex items-center gap-2 mt-0.5">
+                              <span className="text-emerald-700 font-bold">In: ₹{rentCollected.toLocaleString("en-IN")}</span>
+                              <span>•</span>
+                              <span className="text-rose-700 font-bold">Out: ₹{actualPaid.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. CONDITIONAL VIEW: ALL PARTNERS OVERVIEW vs INDIVIDUAL PARTNER DRILLDOWN */}
+                {selectedPartnerId === null ? (
+                  <>
+                    {/* Financial Summary Stat Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Stat Card 1 */}
+                      <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                            Gross Revenue Collected
+                          </span>
+                          <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                            <Wallet className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
+                          ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
+                        </p>
+                        <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                          Live Real-Time SSOT
+                        </p>
+                      </div>
+
+                      {/* Stat Card 2 */}
+                      <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                            Total Expenses
+                          </span>
+                          <div className="w-7 h-7 rounded-lg bg-orange-100 text-[#c2652a] flex items-center justify-center">
+                            <ReceiptRupeeIcon className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
+                          ₹{totalSpent.toLocaleString("en-IN")}
+                        </p>
+                        <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                          Firebase Live
+                        </p>
+                      </div>
+
+                      {/* Stat Card 3 */}
+                      <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                            Net Profit
+                          </span>
+                          <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                            <TrendingUp className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
+                          ₹{Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent).toLocaleString("en-IN")}
+                        </p>
+                        <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                          Calculated Yield
+                        </p>
+                      </div>
+
+                      {/* Stat Card 4 */}
+                      <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                            Profit Margin
+                          </span>
+                          <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <p className="font-sans font-bold text-2xl text-gray-900 tracking-tight tabular-nums">
+                          {revenueMetrics.totalGrossRevenue > 0
+                            ? (((revenueMetrics.totalGrossRevenue - totalSpent) / revenueMetrics.totalGrossRevenue) * 100).toFixed(1)
+                            : "0.0"}%
+                        </p>
+                        <p className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-1">
+                          Live Ratio
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Partner Settlement Overview Table Section */}
+                    <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-gray-100 pb-4">
+                        <div>
+                          <h3 className="font-serif font-bold text-xl text-gray-900">
+                            Partner Settlement Overview
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Net profit allocation matrix & partner reimbursement tracking
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto scrollbar-thin pb-2 -mx-2 sm:mx-0">
+                        {partners.length === 0 ? (
+                          <div className="py-12 text-center text-xs text-gray-500">
+                            No partner equity profiles configured yet. Configure partner profit sharing in Property Settings.
+                          </div>
+                        ) : (
+                          <table className="w-full min-w-[860px] text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
+                                <th className="py-3 px-3 font-bold">Partner</th>
+                                <th className="py-3 px-3 font-bold text-center">Equity %</th>
+                                <th className="py-3 px-3 font-bold">Rent Collected</th>
+                                <th className="py-3 px-3 font-bold">Paid Out-Of-Pocket</th>
+                                <th className="py-3 px-3 font-bold">Net Cash in Hand</th>
+                                <th className="py-3 px-3 font-bold">Profit Share</th>
+                                <th className="py-3 px-3 font-bold">Net Settlement</th>
+                                <th className="py-3 px-3 font-bold text-center">Status</th>
+                                <th className="py-3 px-3 font-bold text-right">Audit</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {partners.map((p) => {
+                                const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
+                                const profitShare = Math.round((totalNetProfit * (p.ownershipPercentage || 0)) / 100);
+                                const rentCollected = revenueMetrics.partnerRentCollections?.[p.name] || 0;
+                                const actualPaid = partnerContributions[p.name] || 0;
+                                const netCashInHand = rentCollected - actualPaid;
+                                const netSettlement = profitShare - netCashInHand;
+
+                                return (
+                                  <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                                    <td className="py-4 px-3 font-bold flex items-center gap-2.5 text-gray-900 whitespace-nowrap">
+                                      {p.avatarUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={p.avatarUrl}
+                                          alt={p.name}
+                                          className="w-7 h-7 rounded-full object-cover border border-gray-200 shadow-2xs shrink-0"
+                                        />
+                                      ) : (
+                                        <span
+                                          className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs"
+                                          style={{ backgroundColor: p.color || "#c2652a" }}
+                                        >
+                                          {p.name.charAt(0)}
+                                        </span>
+                                      )}
+                                      <div>
+                                        <div>{p.name}</div>
+                                        <div className="text-[10px] text-gray-400 font-normal">{p.accountType || "Partner"}</div>
+                                      </div>
+                                    </td>
+                                    <td className="py-4 px-3 text-gray-500 font-sans font-bold tabular-nums text-center whitespace-nowrap">
+                                      {p.ownershipPercentage}%
+                                    </td>
+                                    <td className="py-4 px-3 text-gray-900 font-sans font-semibold tabular-nums whitespace-nowrap">
+                                      ₹{rentCollected.toLocaleString("en-IN")}
+                                    </td>
+                                    <td className="py-4 px-3 text-gray-700 font-sans font-semibold tabular-nums whitespace-nowrap">
+                                      ₹{actualPaid.toLocaleString("en-IN")}
+                                    </td>
+                                    <td className="py-4 px-3 whitespace-nowrap">
+                                      <span className={`font-mono font-bold text-xs ${
+                                        netCashInHand > 0
+                                          ? "text-amber-800"
+                                          : netCashInHand < 0
+                                          ? "text-purple-800"
+                                          : "text-gray-500"
+                                      }`}>
+                                        {netCashInHand >= 0 ? `+₹${netCashInHand.toLocaleString("en-IN")}` : `-₹${Math.abs(netCashInHand).toLocaleString("en-IN")}`}
+                                      </span>
+                                      <span className="block text-[9px] text-gray-400">
+                                        {netCashInHand > 0 ? "Holding PG Cash" : netCashInHand < 0 ? "Excess Spent" : "Balanced"}
+                                      </span>
+                                    </td>
+                                    <td className="py-4 px-3 font-sans font-bold text-gray-900 tabular-nums whitespace-nowrap">
+                                      ₹{profitShare.toLocaleString("en-IN")}
+                                    </td>
+                                    <td className={`py-4 px-3 font-sans font-bold tabular-nums whitespace-nowrap ${
+                                      netSettlement > 0 ? "text-[#059669]" : netSettlement < 0 ? "text-red-600" : "text-gray-600"
+                                    }`}>
+                                      {netSettlement > 0
+                                        ? `+₹${netSettlement.toLocaleString("en-IN")}`
+                                        : netSettlement < 0
+                                        ? `-₹${Math.abs(netSettlement).toLocaleString("en-IN")}`
+                                        : "₹0"}
+                                    </td>
+                                    <td className="py-4 px-3 text-center whitespace-nowrap">
+                                      <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                        netSettlement > 0
+                                          ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                                          : netSettlement < 0
+                                          ? "bg-red-100 text-red-900 border border-red-200"
+                                          : "bg-gray-100 text-gray-700 border border-gray-200"
+                                      }`}>
+                                        {netSettlement > 0 ? "Receivable 🟢" : netSettlement < 0 ? "Payable 🔴" : "Settled ⚪"}
+                                      </span>
+                                    </td>
+                                    <td className="py-4 px-3 text-right whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedPartnerId(p.id)}
+                                        className="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-[#c2652a] text-[#c2652a] hover:text-white font-bold text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                        title="View full Inflow & Outflow statement for this partner"
+                                      >
+                                        Ledger <ArrowUpRight className="w-3 h-3" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+
+                      <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
+                        <span className="text-sm shrink-0">💡</span>
+                        <span>
+                          <strong>Partner Dual-Ledger Equation:</strong> Final Settlement = Profit Share − (Rent Collected into Personal Account − Out-Of-Pocket Expenses). Partners holding excess collected rent pay into the pool; partners with pending profit share or out-of-pocket expenses receive from the pool.
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* 3. INDIVIDUAL PARTNER DRILLDOWN VIEW */
+                  (() => {
+                    const activePartner = partners.find((p) => p.id === selectedPartnerId) || partners[0];
+                    const partnerInflows = revenueMetrics.partnerInflowItems?.[activePartner.name] || [];
+                    const partnerOutflows = partnerOutflowItems[activePartner.name] || [];
+                    const rentCollected = revenueMetrics.partnerRentCollections?.[activePartner.name] || 0;
+                    const actualPaid = partnerContributions[activePartner.name] || 0;
+                    const netCashInHand = rentCollected - actualPaid;
+                    const totalNetProfit = Math.max(0, revenueMetrics.totalGrossRevenue - totalSpent);
+                    const profitShare = Math.round((totalNetProfit * (activePartner.ownershipPercentage || 0)) / 100);
+                    const netSettlement = profitShare - netCashInHand;
+
+                    return (
+                      <div className="space-y-6">
+                        {/* Partner Spotlight Header Card */}
+                        <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-7 shadow-xs">
+                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-5">
+                            <div className="flex items-center gap-4">
+                              {activePartner.avatarUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={activePartner.avatarUrl}
+                                  alt={activePartner.name}
+                                  className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md shrink-0"
+                                />
+                              ) : (
+                                <div
+                                  className="w-14 h-14 rounded-2xl text-white font-bold flex items-center justify-center text-xl shadow-md shrink-0"
+                                  style={{ backgroundColor: activePartner.color || "#c2652a" }}
+                                >
+                                  {activePartner.name.charAt(0)}
+                                </div>
+                              )}
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-serif font-bold text-2xl text-gray-900">
+                                    {activePartner.name}
+                                  </h3>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-orange-100 text-[#c2652a] font-mono font-bold text-xs">
+                                    {activePartner.ownershipPercentage}% Equity Share
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                  <span>{activePartner.accountType || "Partner Personal Account"}</span>
+                                  {activePartner.phone && <span>• 📞 {activePartner.phone}</span>}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center flex-wrap gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => sendPartnerWhatsAppSummary(activePartner)}
+                                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                                title="Share formatted summary to Partner's WhatsApp"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" /> WhatsApp Summary
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => exportPartnerLedgerToCSV(activePartner)}
+                                className="px-3.5 py-2 rounded-xl border border-gray-200 hover:border-gray-300 bg-white text-gray-700 font-bold text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                                title="Export detailed dual-ledger to CSV"
+                              >
+                                <Download className="w-3.5 h-3.5" /> Export CSV
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPartnerId(null)}
+                                className="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-all cursor-pointer"
+                              >
+                                ✕ All Partners
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 3 Focused Metric Cards for this Partner */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-5">
+                            {/* Card 1: Inflow */}
+                            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                                  Rent Inflow (Paid To)
+                                </span>
+                                <span className="text-xs">🟢</span>
+                              </div>
+                              <p className="font-sans font-bold text-2xl text-emerald-950 tabular-nums">
                                 ₹{rentCollected.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-4 px-3 text-gray-700 font-sans font-semibold tabular-nums whitespace-nowrap">
+                              </p>
+                              <p className="text-[11px] text-emerald-800 font-medium mt-1">
+                                {partnerInflows.length} payment receipts received
+                              </p>
+                            </div>
+
+                            {/* Card 2: Outflow */}
+                            <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800">
+                                  Expenses (Paid From)
+                                </span>
+                                <span className="text-xs">🔴</span>
+                              </div>
+                              <p className="font-sans font-bold text-2xl text-rose-950 tabular-nums">
                                 ₹{actualPaid.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-4 px-3 whitespace-nowrap">
-                                <span className={`font-mono font-bold text-xs ${
-                                  netCashInHand > 0
-                                    ? "text-amber-800"
-                                    : netCashInHand < 0
-                                    ? "text-purple-800"
-                                    : "text-gray-500"
-                                }`}>
-                                  {netCashInHand >= 0 ? `+₹${netCashInHand.toLocaleString("en-IN")}` : `-₹${Math.abs(netCashInHand).toLocaleString("en-IN")}`}
+                              </p>
+                              <p className="text-[11px] text-rose-800 font-medium mt-1">
+                                {partnerOutflows.length} out-of-pocket bills paid
+                              </p>
+                            </div>
+
+                            {/* Card 3: Net Cash in Hand */}
+                            <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/80">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800">
+                                  Net Cash in Hand
                                 </span>
-                                <span className="block text-[9px] text-gray-400">
-                                  {netCashInHand > 0 ? "Holding PG Cash" : netCashInHand < 0 ? "Excess Spent" : "Balanced"}
-                                </span>
-                              </td>
-                              <td className="py-4 px-3 font-sans font-bold text-gray-900 tabular-nums whitespace-nowrap">
-                                ₹{profitShare.toLocaleString("en-IN")}
-                              </td>
-                              <td className={`py-4 px-3 font-sans font-bold tabular-nums whitespace-nowrap ${
-                                netSettlement > 0 ? "text-[#059669]" : netSettlement < 0 ? "text-red-600" : "text-gray-600"
-                              }`}>
+                                <span className="text-xs">⚖️</span>
+                              </div>
+                              <p className="font-sans font-bold text-2xl text-purple-950 tabular-nums">
+                                ₹{netCashInHand.toLocaleString("en-IN")}
+                              </p>
+                              <p className="text-[11px] text-purple-800 font-medium mt-1">
+                                {netCashInHand > 0 ? "Holding PG Operating Cash" : netCashInHand < 0 ? "Excess Out-of-Pocket Spent" : "Cash Position Balanced"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Parity & Settlement Guidance Banner */}
+                          <div className={`mt-5 p-4 rounded-2xl border flex flex-col sm:flex-row justify-between sm:items-center gap-3 ${
+                            netSettlement > 0
+                              ? "bg-emerald-50/90 border-emerald-200 text-emerald-950"
+                              : netSettlement < 0
+                              ? "bg-rose-50/90 border-rose-200 text-rose-950"
+                              : "bg-gray-50 border-gray-200 text-gray-900"
+                          }`}>
+                            <div className="space-y-1">
+                              <div className="text-xs font-bold flex items-center gap-2">
+                                <span>🎯 Profit Share Entitlement ({activePartner.ownershipPercentage}% of ₹{totalNetProfit.toLocaleString("en-IN")}):</span>
+                                <span className="font-mono font-bold text-sm">₹{profitShare.toLocaleString("en-IN")}</span>
+                              </div>
+                              <p className="text-[11px] opacity-90 leading-relaxed">
+                                {netSettlement > 0 ? (
+                                  <>
+                                    👉 <strong>Pool Settlement:</strong> {activePartner.name} spent out-of-pocket and holds less cash than their entitled profit. The common pool / co-partners must transfer <strong>₹{netSettlement.toLocaleString("en-IN")}</strong> to {activePartner.name}.
+                                  </>
+                                ) : netSettlement < 0 ? (
+                                  <>
+                                    👉 <strong>Pool Settlement:</strong> {activePartner.name} collected <strong>₹{rentCollected.toLocaleString("en-IN")}</strong> into their personal account and holds excess cash beyond their profit entitlement. {activePartner.name} must transfer <strong>₹{Math.abs(netSettlement).toLocaleString("en-IN")}</strong> into the common pool or co-partners to balance equity.
+                                  </>
+                                ) : (
+                                  <>
+                                    👉 <strong>Equitable Parity:</strong> Cash in hand matches the profit entitlement perfectly. No transfer needed.
+                                  </>
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <span className="text-[10px] font-bold uppercase tracking-wider opacity-75 block">
+                                Net Position
+                              </span>
+                              <span className="font-mono font-bold text-xl tabular-nums">
                                 {netSettlement > 0
                                   ? `+₹${netSettlement.toLocaleString("en-IN")}`
                                   : netSettlement < 0
                                   ? `-₹${Math.abs(netSettlement).toLocaleString("en-IN")}`
                                   : "₹0"}
-                              </td>
-                              <td className="py-4 px-3 text-right whitespace-nowrap">
-                                <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  netSettlement > 0
-                                    ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
-                                    : netSettlement < 0
-                                    ? "bg-red-100 text-red-900 border border-red-200"
-                                    : "bg-gray-100 text-gray-700 border border-gray-200"
-                                }`}>
-                                  {netSettlement > 0 ? "Receivable 🟢" : netSettlement < 0 ? "Payable 🔴" : "Settled ⚪"}
+                              </span>
+                              <span className="block text-[10px] font-bold mt-0.5">
+                                {netSettlement > 0 ? "Receivable 🟢" : netSettlement < 0 ? "Payable 🔴" : "Settled ⚪"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sub-Filter Tabs */}
+                        <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                          <button
+                            type="button"
+                            onClick={() => setPartnerLedgerSubFilter("ALL")}
+                            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                              partnerLedgerSubFilter === "ALL"
+                                ? "bg-[#c2652a] text-white shadow-xs"
+                                : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                            }`}
+                          >
+                            All Transactions ({partnerInflows.length + partnerOutflows.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPartnerLedgerSubFilter("INFLOW")}
+                            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                              partnerLedgerSubFilter === "INFLOW"
+                                ? "bg-emerald-700 text-white shadow-xs"
+                                : "bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200"
+                            }`}
+                          >
+                            🟢 Rent Inflows ({partnerInflows.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPartnerLedgerSubFilter("OUTFLOW")}
+                            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                              partnerLedgerSubFilter === "OUTFLOW"
+                                ? "bg-rose-700 text-white shadow-xs"
+                                : "bg-white text-rose-800 hover:bg-rose-50 border border-rose-200"
+                            }`}
+                          >
+                            🔴 Out-of-Pocket Outflows ({partnerOutflows.length})
+                          </button>
+                        </div>
+
+                        {/* Dual-Ledger Content */}
+                        {partnerLedgerSubFilter === "ALL" && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                            {/* Inflow Column */}
+                            <div className="bg-white rounded-3xl border border-emerald-200 p-5 shadow-xs space-y-3">
+                              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                                <h4 className="font-serif font-bold text-base text-emerald-950 flex items-center gap-2">
+                                  <span>🟢 Cash Inflows (Rent Receipts)</span>
+                                </h4>
+                                <span className="font-mono font-bold text-sm text-emerald-700">
+                                  +₹{rentCollected.toLocaleString("en-IN")}
                                 </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                              </div>
 
-                <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
-                  <span className="text-sm shrink-0">💡</span>
-                  <span>
-                    <strong>Partner Dual-Ledger Equation:</strong> Final Settlement = Profit Share − (Rent Collected into Personal Account − Out-Of-Pocket Expenses). Partners holding excess collected rent pay into the pool; partners with pending profit share or out-of-pocket expenses receive from the pool.
-                  </span>
+                              {partnerInflows.length === 0 ? (
+                                <p className="text-xs text-gray-500 py-6 text-center">
+                                  No rent collections logged into {activePartner.name}&apos;s account in this period.
+                                </p>
+                              ) : (
+                                <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+                                  {partnerInflows.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="p-3 rounded-xl border border-gray-100 hover:border-emerald-200 bg-[#fbfdfb] flex justify-between items-center text-xs transition-colors"
+                                    >
+                                      <div>
+                                        <Link
+                                          href={`/p/${propertyId}/tenants/${item.occupantId}`}
+                                          className="font-bold text-gray-900 hover:text-[#c2652a] hover:underline"
+                                        >
+                                          {item.tenantName}
+                                        </Link>
+                                        <div className="text-[10px] text-gray-500">
+                                          Room {item.roomNumber} {item.bedNumber ? `• Bed ${item.bedNumber}` : ""} • {item.date}
+                                        </div>
+                                        <div className="text-[9px] text-gray-400 font-mono">
+                                          {item.receiptNo} • {item.method}
+                                        </div>
+                                      </div>
+                                      <span className="font-mono font-bold text-emerald-700 text-sm">
+                                        +₹{item.amount.toLocaleString("en-IN")}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Outflow Column */}
+                            <div className="bg-white rounded-3xl border border-rose-200 p-5 shadow-xs space-y-3">
+                              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                                <h4 className="font-serif font-bold text-base text-rose-950 flex items-center gap-2">
+                                  <span>🔴 Cash Outflows (Expenses Paid)</span>
+                                </h4>
+                                <span className="font-mono font-bold text-sm text-rose-700">
+                                  -₹{actualPaid.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+
+                              {partnerOutflows.length === 0 ? (
+                                <p className="text-xs text-gray-500 py-6 text-center">
+                                  No out-of-pocket expenses logged from {activePartner.name} in this period.
+                                </p>
+                              ) : (
+                                <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+                                  {partnerOutflows.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="p-3 rounded-xl border border-gray-100 hover:border-rose-200 bg-[#fdfbfb] flex justify-between items-center text-xs transition-colors"
+                                    >
+                                      <div>
+                                        <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                                          <RenderDynamicCategoryIcon iconName={item.category} className="w-3.5 h-3.5 text-[#c2652a]" />
+                                          {item.title}
+                                        </div>
+                                        <div className="text-[10px] text-gray-500">
+                                          {item.category} • {item.date}
+                                        </div>
+                                        {item.notes && (
+                                          <div className="text-[9px] text-gray-400 italic">
+                                            {item.notes}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="font-mono font-bold text-rose-700 text-sm block">
+                                          -₹{item.amount.toLocaleString("en-IN")}
+                                        </span>
+                                        {item.receiptUrl && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const expRecord = expenseList.find((e) => e.id === item.id);
+                                              if (expRecord) setActiveReceiptModal(expRecord);
+                                            }}
+                                            className="text-[9px] text-[#c2652a] hover:underline font-bold cursor-pointer"
+                                          >
+                                            View Receipt 📄
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {partnerLedgerSubFilter === "INFLOW" && (
+                          <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                              <h4 className="font-serif font-bold text-lg text-emerald-950">
+                                Rent Inflow Receipts ({activePartner.name})
+                              </h4>
+                              <span className="font-mono font-bold text-emerald-700 text-base">
+                                Total: ₹{rentCollected.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+
+                            {partnerInflows.length === 0 ? (
+                              <p className="text-xs text-gray-500 py-8 text-center">
+                                No rent collections found for {activePartner.name} in this date range.
+                              </p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                  <thead>
+                                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
+                                      <th className="py-2.5 px-3">Date</th>
+                                      <th className="py-2.5 px-3">Resident</th>
+                                      <th className="py-2.5 px-3">Room / Bed</th>
+                                      <th className="py-2.5 px-3">Mode</th>
+                                      <th className="py-2.5 px-3">Receipt No</th>
+                                      <th className="py-2.5 px-3 text-right">Amount</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {partnerInflows.map((item) => (
+                                      <tr key={item.id} className="hover:bg-gray-50/70">
+                                        <td className="py-3 px-3 text-gray-500 font-mono text-[11px]">{item.date}</td>
+                                        <td className="py-3 px-3 font-bold text-gray-900">
+                                          <Link
+                                            href={`/p/${propertyId}/tenants/${item.occupantId}`}
+                                            className="hover:text-[#c2652a] hover:underline"
+                                          >
+                                            {item.tenantName}
+                                          </Link>
+                                        </td>
+                                        <td className="py-3 px-3 text-gray-600">
+                                          Room {item.roomNumber} {item.bedNumber ? `(Bed ${item.bedNumber})` : ""}
+                                        </td>
+                                        <td className="py-3 px-3 text-gray-600">{item.method}</td>
+                                        <td className="py-3 px-3 font-mono text-gray-500 text-[11px]">{item.receiptNo}</td>
+                                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 text-sm">
+                                          +₹{item.amount.toLocaleString("en-IN")}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {partnerLedgerSubFilter === "OUTFLOW" && (
+                          <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                              <h4 className="font-serif font-bold text-lg text-rose-950">
+                                Out-of-Pocket Operational Expenses ({activePartner.name})
+                              </h4>
+                              <span className="font-mono font-bold text-rose-700 text-base">
+                                Total: ₹{actualPaid.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+
+                            {partnerOutflows.length === 0 ? (
+                              <p className="text-xs text-gray-500 py-8 text-center">
+                                No expenses paid out-of-pocket by {activePartner.name} in this date range.
+                              </p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                  <thead>
+                                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
+                                      <th className="py-2.5 px-3">Date</th>
+                                      <th className="py-2.5 px-3">Expense Title / Vendor</th>
+                                      <th className="py-2.5 px-3">Category</th>
+                                      <th className="py-2.5 px-3">Notes</th>
+                                      <th className="py-2.5 px-3 text-center">Receipt</th>
+                                      <th className="py-2.5 px-3 text-right">Amount</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {partnerOutflows.map((item) => (
+                                      <tr key={item.id} className="hover:bg-gray-50/70">
+                                        <td className="py-3 px-3 text-gray-500 font-mono text-[11px]">{item.date}</td>
+                                        <td className="py-3 px-3 font-bold text-gray-900">{item.title}</td>
+                                        <td className="py-3 px-3 text-gray-600 flex items-center gap-1.5">
+                                          <RenderDynamicCategoryIcon iconName={item.category} className="w-3.5 h-3.5 text-[#c2652a]" />
+                                          {item.category}
+                                        </td>
+                                        <td className="py-3 px-3 text-gray-500 text-[11px] italic">{item.notes || "—"}</td>
+                                        <td className="py-3 px-3 text-center">
+                                          {item.receiptUrl ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const expRecord = expenseList.find((e) => e.id === item.id);
+                                                if (expRecord) setActiveReceiptModal(expRecord);
+                                              }}
+                                              className="p-1 rounded bg-orange-50 text-[#c2652a] hover:bg-orange-100 font-bold text-[10px] cursor-pointer"
+                                            >
+                                              View
+                                            </button>
+                                          ) : (
+                                            <span className="text-gray-400 text-[10px]">—</span>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3 text-right font-mono font-bold text-rose-700 text-sm">
+                                          -₹{item.amount.toLocaleString("en-IN")}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
+                )}
+
+                {/* Quick Expense Hub Reference Banner */}
+                <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-orange-50 text-[#c2652a]">
+                      <ReceiptRupeeIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-base text-gray-900">
+                        Operational Expenses Ledger & Receipts
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        View, log, filter, and audit detailed building operational costs in the Central Expenses Hub.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("Expenses")}
+                    className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Open Expenses Hub →
+                  </button>
                 </div>
               </div>
-
-              {/* Quick Expense Hub Reference Banner */}
-              <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-orange-50 text-[#c2652a]">
-                    <ReceiptRupeeIcon className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-serif font-bold text-base text-gray-900">
-                      Operational Expenses Ledger & Receipts
-                    </h4>
-                    <p className="text-xs text-gray-500">
-                      View, log, filter, and audit detailed building operational costs in the Central Expenses Hub.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("Expenses")}
-                  className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
-                >
-                  Open Expenses Hub →
-                </button>
-              </div>
-            </div>
 
             {/* Right Slide-Over Record Expense Drawer & Partner Settings Card */}
             <div className="lg:col-span-4 space-y-6">
@@ -2471,17 +3249,42 @@ export default function FinancialHubPage({
 
                 <div className="space-y-3 text-xs">
                   {partners.map((p) => (
-                    <div key={p.id} className="flex justify-between items-center">
-                      <span className="flex items-center gap-2 font-bold text-gray-900">
-                        <span
-                          className="w-5 h-5 rounded-full text-white flex items-center justify-center text-[9px] font-bold"
-                          style={{ backgroundColor: p.color || "#c2652a" }}
+                    <div
+                      key={p.id}
+                      className="flex justify-between items-center p-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPartnerId(p.id)}
+                        className="flex items-center gap-2 font-bold text-gray-900 hover:text-[#c2652a] text-left cursor-pointer"
+                      >
+                        {p.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.avatarUrl}
+                            alt={p.name}
+                            className="w-6 h-6 rounded-full object-cover border border-gray-200 shadow-2xs shrink-0"
+                          />
+                        ) : (
+                          <span
+                            className="w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: p.color || "#c2652a" }}
+                          >
+                            {p.name.charAt(0)}
+                          </span>
+                        )}
+                        <span>{p.name}</span>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="font-sans font-bold text-gray-500 tabular-nums">{p.ownershipPercentage}%</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPartnerId(p.id)}
+                          className="text-[10px] font-bold text-[#c2652a] hover:underline cursor-pointer"
                         >
-                          {p.name.charAt(0)}
-                        </span>
-                        {p.name}
-                      </span>
-                      <span className="font-sans font-bold text-gray-500 tabular-nums">{p.ownershipPercentage}%</span>
+                          Audit →
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
