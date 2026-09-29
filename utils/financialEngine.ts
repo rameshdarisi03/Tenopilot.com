@@ -95,13 +95,20 @@ export function calculateRentAmountDue(
     };
   }
 
-  // Determine current month's due date (5th of current month)
+  const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
+  // Determine current month's due date
   const now = new Date();
   const dueYear = now.getFullYear();
   const dueMonth = now.getMonth();
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  const effectiveDueDay = occupant.customDueDay ?? settings.desiredDueDate ?? occupant.dueDay ?? 5;
+  let anniversaryDay = 5;
+  if (occupant.joiningDate) {
+    const jDate = new Date(occupant.joiningDate);
+    if (!isNaN(jDate.getTime())) anniversaryDay = jDate.getDate();
+  }
+
+  const effectiveDueDay = occupant.customDueDay ?? (isAnniversary ? anniversaryDay : (settings.desiredDueDate ?? occupant.dueDay ?? 5));
   const dueDayFormatted = effectiveDueDay < 10 ? `0${effectiveDueDay}` : `${effectiveDueDay}`;
   const nextDueDateStr = `${dueDayFormatted} ${monthNames[dueMonth]} ${dueYear}`;
 
@@ -109,7 +116,9 @@ export function calculateRentAmountDue(
     dueAmount: baseMonthlyRent,
     dueDateStr: occupant.dueDate || nextDueDateStr,
     isProRataFirstMonth: false,
-    breakdownText: `Fixed Monthly Rent (Due on ${effectiveDueDay}th)`,
+    breakdownText: isAnniversary
+      ? `Anniversary Rent Cycle (Due on ${effectiveDueDay}th)`
+      : `Fixed Monthly Rent (Due on ${effectiveDueDay}th)`,
   };
 }
 

@@ -215,9 +215,14 @@ export function getRoomTariff(room: Partial<RoomConfig>, propertyId?: string): n
 /**
  * 6. SSOT Pro-Rata Rent Calculation Engine for Mid-Month Joiners
  * Calculates exact rent due for remaining days in the joining month.
- * If joined on 1st of month, returns full monthly rent.
+ * In "1st to End of Month" mode: pro-rates remaining days if joined mid-month.
+ * In "Anniversary Date" mode: charges full monthly rent for the 1-month cycle.
  */
-export function calculateProRataRent(monthlyRent: number, joiningDateStr?: string): {
+export function calculateProRataRent(
+  monthlyRent: number,
+  joiningDateStr?: string,
+  billingCycleDates?: "1st to End of Month" | "Anniversary Date"
+): {
   proRataAmount: number;
   totalDaysInMonth: number;
   remainingDays: number;
@@ -226,6 +231,17 @@ export function calculateProRataRent(monthlyRent: number, joiningDateStr?: strin
 } {
   const now = new Date();
   const joiningDate = parseOccupantDate(joiningDateStr || "") || now;
+
+  // 📅 In Anniversary Date mode (Joining to Joining), billing is always full month cycle
+  if (billingCycleDates === "Anniversary Date") {
+    return {
+      proRataAmount: monthlyRent,
+      totalDaysInMonth: 30,
+      remainingDays: 30,
+      isFullMonth: true,
+      joiningDay: joiningDate.getDate() || 1,
+    };
+  }
 
   // Check if joining date falls strictly within the CURRENT calendar month & year
   const isCurrentMonthJoining =
@@ -346,15 +362,33 @@ export function resolveOccupantLastPaidInfo(occupant?: Partial<Occupant> | null)
 
 /**
  * SSOT Helper to resolve the occupant's current billing cycle payment due date
+ * Supports both "1st to End of Month" and "Anniversary Date" (Joining Date to Joining Date)
  */
 export function resolveOccupantPaymentDueDate(
   occupant?: Partial<Occupant> | null,
   settings?: any
 ): string {
   if (!occupant) return "—";
-  const desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant?.dueDay ?? 5;
+
+  const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
   const now = new Date();
-  
+
+  if (isAnniversary && occupant.joiningDate) {
+    const jDate = parseOccupantDate(occupant.joiningDate);
+    if (jDate && !isNaN(jDate.getTime())) {
+      const joiningDay = jDate.getDate();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const maxDaysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const effectiveDay = occupant.customDueDay ?? Math.min(joiningDay, maxDaysInCurrentMonth);
+      
+      const dayPadded = String(effectiveDay).padStart(2, "0");
+      const monthStr = now.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+      return `${dayPadded} ${monthStr}`;
+    }
+  }
+
+  const desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant?.dueDay ?? 5;
   const dayPadded = String(desiredDueDay).padStart(2, "0");
   const monthStr = now.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
   return `${dayPadded} ${monthStr}`;
@@ -396,7 +430,16 @@ export function calculateOccupantFinancialStatement(
   const isGuest = occupant.stayType === "Guest";
   const history = occupant.paymentHistory || [];
 
-  const desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant.dueDay ?? 5;
+  const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
+  let desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant.dueDay ?? 5;
+
+  if (isAnniversary && occupant.joiningDate) {
+    const jDate = parseOccupantDate(occupant.joiningDate);
+    if (jDate && !isNaN(jDate.getTime())) {
+      desiredDueDay = occupant?.customDueDay ?? jDate.getDate();
+    }
+  }
+
   const graceDays = settings?.gracePeriodDays ?? 5;
   const now = new Date();
   const currentDay = now.getDate();
@@ -543,7 +586,11 @@ export function calculateOccupantFinancialStatement(
   // ---------------------------------------------------------------------------
   // 🏢 TENANT DUAL-LEDGER (Monthly Cycle / Pro-Rata Rent + Security Deposit)
   // ---------------------------------------------------------------------------
-  const proRataRent = calculateProRataRent(occupant.rentAmount || 0, occupant.joiningDate).proRataAmount;
+  const proRataRent = calculateProRataRent(
+    occupant.rentAmount || 0,
+    occupant.joiningDate,
+    settings?.billingCycleDates
+  ).proRataAmount;
   const securityDepositRequired =
     occupant.securityDeposit !== undefined ? occupant.securityDeposit : (occupant.rentAmount ? occupant.rentAmount * 2 : 0);
   const priorArrears = occupant.arrearsBalance || 0;

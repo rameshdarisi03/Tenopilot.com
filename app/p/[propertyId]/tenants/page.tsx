@@ -1763,7 +1763,7 @@ Scroll vertically to browse all residents without pagination limits
                           Payment Due
                         </span>
                         <span className={`font-bold ${occ.paymentStatus === "Paid" ? "text-emerald-700" : "text-[#c2652a]"}`}>
-                          {resolveOccupantPaymentDueDate(occ)}
+                          {resolveOccupantPaymentDueDate(occ, currentSettings)}
                         </span>
                       </div>
                     </div>
