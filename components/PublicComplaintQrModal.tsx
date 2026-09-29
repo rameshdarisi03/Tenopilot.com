@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Building,
 } from "lucide-react";
+import { propertySettingsStore } from "@/constants/propertySettings";
 
 interface PublicComplaintQrModalProps {
   isOpen: boolean;
@@ -31,6 +32,42 @@ export function PublicComplaintQrModal({
   const [copiedLink, setCopiedLink] = useState(false);
   const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  const [settings, setSettings] = useState(() => propertySettingsStore.getSettings(propertyId));
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setSettings(propertySettingsStore.getSettings(propertyId));
+    return propertySettingsStore.subscribe(() => {
+      setSettings(propertySettingsStore.getSettings(propertyId));
+    });
+  }, [propertyId]);
+
+  // Robust resolver: Never display raw building IDs (e.g., "Prop 1788438308277")
+  const isRawBuildingId = (val?: string) => !val || val === "Your Property" || /^prop[-_\s]?\d+/i.test(val.trim());
+  
+  let realPgName = "";
+  if (propertyName && !isRawBuildingId(propertyName)) {
+    realPgName = propertyName;
+  } else if (settings?.propertyName && !isRawBuildingId(settings.propertyName)) {
+    realPgName = settings.propertyName;
+  } else {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("tenopilot_saved_session");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.propertyName && !isRawBuildingId(parsed.propertyName)) {
+            realPgName = parsed.propertyName;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  if (!realPgName) {
+    realPgName = settings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My PG Property");
+  }
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -80,7 +117,7 @@ export function PublicComplaintQrModal({
     // Property Title
     ctx.fillStyle = "#201a17";
     ctx.font = "bold 36px serif";
-    ctx.fillText(propertyName, 400, 160);
+    ctx.fillText(realPgName, 400, 160);
 
     // Subtitle
     ctx.fillStyle = "#554339";
@@ -171,7 +208,7 @@ export function PublicComplaintQrModal({
                 24/7 Resident Care Desk
               </span>
               <h4 className="font-serif font-bold text-base text-gray-900 mt-2">
-                {propertyName}
+                {realPgName}
               </h4>
             </div>
 
@@ -264,7 +301,7 @@ export function PublicComplaintQrModal({
               24/7 RESIDENT CARE DESK
             </span>
             <h1 className="font-serif text-3xl font-bold text-gray-900 pt-4">
-              {propertyName}
+              {realPgName}
             </h1>
             <p className="text-sm text-gray-600">
               Report Maintenance Issues, Plumbing, Electrical & Wi-Fi Repairs

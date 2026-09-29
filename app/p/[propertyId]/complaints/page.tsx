@@ -16,6 +16,7 @@ import {
 } from "@/lib/complaintStore";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { PublicComplaintQrModal } from "@/components/PublicComplaintQrModal";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Wrench,
@@ -60,6 +61,19 @@ export default function AdminComplaintsPage({
   // Navigation & Layout State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Property Settings (Dynamic Brand Name)
+  const [propertySettings, setPropertySettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    return propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
+  }, [propertyId]);
 
   // Complaints State
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -1033,7 +1047,7 @@ export default function AdminComplaintsPage({
         isOpen={qrModalOpen}
         onClose={() => setQrModalOpen(false)}
         propertyId={propertyId}
-        propertyName={propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+        propertyName={propertySettings.propertyName || propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
       />
 
       {/* FULLSCREEN PHOTO ZOOM MODAL */}

@@ -1956,7 +1956,7 @@ export default function IndividualTenantProfilePage({
                     )}
                   </div>
                   <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                    Next Due Date
+                    Due Date
                   </p>
                   <p className="text-base font-bold font-serif text-gray-900">
                     {displayDueDate}

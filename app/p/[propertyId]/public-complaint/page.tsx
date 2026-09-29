@@ -339,9 +339,13 @@ export default function PublicTenantComplaintPage({
     setPhotos([]);
   };
 
+  const isRawBuildingId = (val?: string) => !val || /^prop[-_\s]?\d+/i.test(val.trim());
   const displayName =
-    propertySettings.propertyName ||
-    propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    (propertySettings.propertyName && !isRawBuildingId(propertySettings.propertyName))
+      ? propertySettings.propertyName
+      : (!isRawBuildingId(propertyId)
+          ? propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+          : (propertySettings.propertyName || "Resident Care Desk"));
 
   return (
     <div className="min-h-screen bg-[#fff8f6] text-[#201a17] font-sans selection:bg-orange-100 selection:text-[#964407] pb-16">
