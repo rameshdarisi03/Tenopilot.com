@@ -337,7 +337,7 @@ export default function PropertySettingsPage({
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto w-full max-w-full overflow-x-hidden">
         {/* Top Header */}
         <PropertyHeader
           title="Property & Financial Settings"
@@ -354,116 +354,124 @@ export default function PropertySettingsPage({
           </div>
         )}
 
-        <div className="p-6 md:p-8 max-w-6xl w-full mx-auto space-y-6">
+        <div className="p-3.5 sm:p-6 md:p-8 max-w-6xl w-full mx-auto space-y-5 pb-28 md:pb-12 overflow-hidden">
           {/* Header Action Banner */}
-          <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-orange-100 text-[#c2652a] rounded-2xl shrink-0">
-                <Settings className="w-6 h-6" />
+          <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 sm:p-3 bg-orange-100 text-[#c2652a] rounded-2xl shrink-0">
+                <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
-                <h1 className="font-serif font-bold text-xl text-gray-900">
+              <div className="min-w-0">
+                <h1 className="font-serif font-bold text-lg sm:text-xl text-gray-900 truncate">
                   Settings
                 </h1>
-                <p className="text-xs text-gray-500 font-medium">
+                <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
                   Customize billing cycles, 5th rent due dates, pro-rata proration, and PG preferences.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={handleResetDefaults}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold text-xs flex items-center gap-2 active:scale-95 transition-all"
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
               >
-                <RotateCcw className="w-4 h-4 text-gray-500" /> Reset Defaults
+                <RotateCcw className="w-3.5 h-3.5 text-gray-500" /> Reset
               </button>
               <button
                 type="button"
                 onClick={handleSaveSettings}
                 disabled={isSaving}
-                className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-2 active:scale-95 transition-all"
+                className="px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
               >
-                <Save className="w-4 h-4" /> {isSaving ? "Saving..." : "Save Settings"}
+                <Save className="w-3.5 h-3.5" /> {isSaving ? "Saving..." : "Save Settings"}
               </button>
             </div>
           </div>
 
-          {/* Navigation Category Tabs */}
-          <div className="flex border-b border-gray-200 gap-6 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setActiveTab("FINANCIAL")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all ${
-                activeTab === "FINANCIAL"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <CreditCard className="w-4 h-4" /> Billing & Due Date Rules
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("PROPERTY")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "PROPERTY"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <Building className="w-4 h-4" /> Property Profile & UPI ID
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("PARTNERS")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "PARTNERS"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <Users className="w-4 h-4" /> Partner Ownership & Equity
-            </button>
+          {/* Navigation Category Tabs with Smooth Touch Scrolling */}
+          <div className="border-b border-gray-200 -mx-3.5 sm:mx-0 px-3.5 sm:px-0">
+            <div className="flex gap-2 sm:gap-4 text-xs font-bold overflow-x-auto scrollbar-none pb-2.5 -mb-px flex-nowrap w-full">
+              <button
+                type="button"
+                onClick={() => setActiveTab("FINANCIAL")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "FINANCIAL"
+                    ? "bg-orange-50 text-[#c2652a] sm:bg-transparent sm:border-[#c2652a] font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span>Billing & Due Date Rules</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("PROPERTY")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "PROPERTY"
+                    ? "bg-orange-50 text-[#c2652a] sm:bg-transparent sm:border-[#c2652a] font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <Building className="w-4 h-4 shrink-0" />
+                <span>Property Profile & Rent Tiers</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("PARTNERS")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "PARTNERS"
+                    ? "bg-orange-50 text-[#c2652a] sm:bg-transparent sm:border-[#c2652a] font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <Users className="w-4 h-4 shrink-0" />
+                <span>Partner Ownership & Equity</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("QR_PROFILES")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "QR_PROFILES"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <CreditCard className="w-4 h-4" /> Payment Profiles & Accounts
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("QR_PROFILES")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "QR_PROFILES"
+                    ? "bg-orange-50 text-[#c2652a] sm:bg-transparent sm:border-[#c2652a] font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span>Payment Profiles & Accounts</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("WHATSAPP")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "WHATSAPP"
-                  ? "border-emerald-600 text-emerald-700 font-extrabold"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <MessageSquare className="w-4 h-4 text-emerald-600" /> WhatsApp Cloud & Credits
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold">
-                {whatsappCredits}
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("WHATSAPP")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "WHATSAPP"
+                    ? "bg-emerald-50 text-emerald-800 sm:bg-transparent sm:border-emerald-600 font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>WhatsApp Cloud & Credits</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold">
+                  {whatsappCredits}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("POLICE_REGISTER")}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
-                activeTab === "POLICE_REGISTER"
-                  ? "border-blue-600 text-blue-700 font-extrabold"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4 text-blue-600" /> Police & Legal Register 📜
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("POLICE_REGISTER")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "POLICE_REGISTER"
+                    ? "bg-blue-50 text-blue-800 sm:bg-transparent sm:border-blue-600 font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Police & Legal Register 📜</span>
+              </button>
+            </div>
           </div>
 
           {/* Settings Form */}
@@ -471,23 +479,27 @@ export default function PropertySettingsPage({
             {activeTab === "PARTNERS" && (
               <div className="space-y-6 animate-in fade-in">
                 {/* 1. Partner Ownership & Settlement Ratios */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                      <div className="p-2 sm:p-2.5 rounded-xl bg-purple-100 text-purple-700 shrink-0">
                         <Users className="w-5 h-5" />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-gray-900">Partner Ownership & Profit Sharing Ratios</h3>
-                        <p className="text-[11px] text-gray-500">Configure partner equity percentages to calculate profit distribution on Financial Hub</p>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900">
+                          Partner Ownership & Profit Sharing Ratios
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
+                          Configure partner equity percentages to calculate profit distribution on Financial Hub
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-extrabold px-3 py-1 rounded-full font-mono ${
+                    <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-1 sm:pt-0 shrink-0">
+                      <span className={`text-xs font-extrabold px-3 py-1 rounded-full font-mono shrink-0 ${
                         partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100
-                          ? "bg-emerald-100 text-emerald-900"
-                          : "bg-red-100 text-red-900"
+                          ? "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                          : "bg-red-100 text-red-900 border border-red-200"
                       }`}>
                         Total Ownership: {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0)}%
                         {partners.reduce((a, b) => a + (b.ownershipPercentage || 0), 0) === 100 ? " 🟢" : " 🔴"}
@@ -496,7 +508,7 @@ export default function PropertySettingsPage({
                       <button
                         type="button"
                         onClick={handleAddPartner}
-                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs flex items-center gap-1 border border-purple-200 cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs flex items-center gap-1 border border-purple-200 cursor-pointer active:scale-95 transition-all shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add Partner
                       </button>
@@ -508,9 +520,10 @@ export default function PropertySettingsPage({
                     {partners.map((partner) => (
                       <div
                         key={partner.id}
-                        className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 p-3.5 rounded-xl border border-gray-200 bg-[#fcfcfc] hover:border-gray-300 transition-colors"
+                        className="p-3.5 sm:p-4 rounded-2xl border border-gray-200 bg-[#fcfcfc] hover:border-gray-300 transition-colors shadow-2xs space-y-3 md:space-y-0 md:flex md:items-center md:justify-between md:gap-4"
                       >
-                        <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                        {/* Partner Avatar + Name Input */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           {/* Partner Avatar / Logo Upload */}
                           <div className="relative group shrink-0">
                             {partner.avatarUrl ? (
@@ -519,7 +532,7 @@ export default function PropertySettingsPage({
                                 <img
                                   src={partner.avatarUrl}
                                   alt={partner.name}
-                                  className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs"
+                                  className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-xs"
                                 />
                                 <button
                                   type="button"
@@ -533,13 +546,13 @@ export default function PropertySettingsPage({
                             ) : (
                               <label
                                 htmlFor={`avatar-upload-${partner.id}`}
-                                className="w-10 h-10 rounded-full text-white font-bold flex items-center justify-center text-xs shadow-xs cursor-pointer relative overflow-hidden group/btn"
+                                className="w-11 h-11 rounded-full text-white font-bold flex items-center justify-center text-sm shadow-xs cursor-pointer relative overflow-hidden group/btn shrink-0"
                                 style={{ backgroundColor: partner.color || "#964407" }}
                                 title="Click to upload partner logo/avatar"
                               >
                                 <span>{partner.name.charAt(0) || "P"}</span>
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/btn:opacity-100 flex items-center justify-center transition-opacity">
-                                  <Camera className="w-3.5 h-3.5 text-white" />
+                                  <Camera className="w-4 h-4 text-white" />
                                 </div>
                               </label>
                             )}
@@ -555,58 +568,74 @@ export default function PropertySettingsPage({
                             />
                           </div>
 
-                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                          <div className="flex-1 min-w-0">
                             <input
                               type="text"
                               value={partner.name}
                               onChange={(e) => handleUpdatePartnerName(partner.id, e.target.value)}
-                              className="font-bold text-xs text-gray-900 px-3 py-1.5 rounded-lg border border-gray-300 focus:ring-1 focus:ring-[#c2652a] w-full max-w-[220px]"
+                              className="font-bold text-xs sm:text-sm text-gray-900 px-3 py-2 rounded-xl border border-gray-300 focus:ring-1 focus:ring-[#c2652a] w-full"
                               placeholder="Partner Name"
                             />
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 mt-1">
                               <label
                                 htmlFor={`avatar-upload-${partner.id}`}
                                 className="text-[10px] text-gray-500 hover:text-[#c2652a] font-medium flex items-center gap-1 cursor-pointer"
                               >
-                                <Camera className="w-3 h-3" />
-                                {partner.avatarUrl ? "Change Logo" : "Upload Logo"}
+                                <Camera className="w-3 h-3 text-[#c2652a]" />
+                                {partner.avatarUrl ? "Change Photo / Logo" : "Upload Logo"}
                               </label>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center flex-wrap gap-3">
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-[11px] font-bold text-gray-500">Ownership:</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={partner.ownershipPercentage}
-                              onChange={(e) => handleUpdatePartnerShare(partner.id, Number(e.target.value))}
-                              className="w-16 px-2.5 py-1.5 rounded-lg border border-gray-300 font-mono font-bold text-xs text-right text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                            />
-                            <span className="font-mono font-bold text-gray-700 text-xs">%</span>
-                          </div>
-
-                          <Link
-                            href={`/p/${propertyId}/financial-hub?tab=Partner%20Settlement&partnerId=${partner.id}`}
-                            className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-[#c2652a] text-[#c2652a] hover:bg-orange-50 text-[11px] font-bold flex items-center gap-1 transition-all"
-                            title="View Inflow & Outflow Cashflow Ledger"
-                          >
-                            <Wallet className="w-3.5 h-3.5" />
-                            <span>Ledger</span>
-                            <ArrowUpRight className="w-3 h-3 text-gray-400" />
-                          </Link>
-
+                          {/* Mobile Delete Button */}
                           <button
                             type="button"
                             onClick={() => handleDeletePartner(partner.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
+                            className="md:hidden p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                             title="Remove Partner"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                        </div>
+
+                        {/* Partner Ownership & Actions Row */}
+                        <div className="flex items-center justify-between md:justify-end gap-2.5 pt-2 border-t border-gray-100 md:border-t-0 md:pt-0">
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-xs font-bold text-gray-600">Ownership:</label>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={partner.ownershipPercentage}
+                                onChange={(e) => handleUpdatePartnerShare(partner.id, Number(e.target.value))}
+                                className="w-16 px-2.5 py-1.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-right text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                              />
+                              <span className="font-mono font-bold text-gray-700 text-xs">%</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/p/${propertyId}/financial-hub?tab=Partner%20Settlement&partnerId=${partner.id}`}
+                              className="px-3 py-1.5 rounded-xl border border-gray-200 hover:border-[#c2652a] text-[#c2652a] hover:bg-orange-50 text-xs font-bold flex items-center gap-1 transition-all"
+                              title="View Inflow & Outflow Cashflow Ledger"
+                            >
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span>Ledger</span>
+                              <ArrowUpRight className="w-3 h-3 text-gray-400" />
+                            </Link>
+
+                            {/* Desktop Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePartner(partner.id)}
+                              className="hidden md:inline-flex p-2 rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                              title="Remove Partner"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -616,7 +645,7 @@ export default function PropertySettingsPage({
                     <button
                       type="button"
                       onClick={handleSavePartnerSettings}
-                      className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                     >
                       <Save className="w-4 h-4" /> Save Partner Ownership Ratios
                     </button>
@@ -627,19 +656,23 @@ export default function PropertySettingsPage({
 
             {activeTab === "QR_PROFILES" && (
               <div className="space-y-6 animate-in fade-in">
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2.5 rounded-xl bg-orange-100 text-[#c2652a]">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                      <div className="p-2 sm:p-2.5 rounded-xl bg-orange-100 text-[#c2652a] shrink-0">
                         <CreditCard className="w-5 h-5" />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-gray-900">Pre-Configured Payment Profiles & Bank Accounts</h3>
-                        <p className="text-[11px] text-gray-500">Unified accounts tagged to business pool or partners. Used across rent collections and expenses.</p>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-serif font-bold text-sm sm:text-base text-gray-900">
+                          Pre-Configured Payment Profiles & Bank Accounts
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
+                          Unified accounts tagged to business pool or partners. Used across rent collections and expenses.
+                        </p>
                       </div>
                     </div>
 
-                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-50 text-[#c2652a] border border-orange-200">
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-orange-50 text-[#c2652a] border border-orange-200 self-start sm:self-auto shrink-0">
                       {(settings.qrProfiles || DEFAULT_QR_PROFILES).length} Accounts Configured
                     </span>
                   </div>
@@ -654,9 +687,9 @@ export default function PropertySettingsPage({
                   </div>
 
                   {/* Add New Unified Payment Account Input Card */}
-                  <div className="p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                  <div className="p-3.5 sm:p-4 rounded-2xl border border-orange-200/80 bg-orange-50/40 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900 flex items-center gap-1.5">
                         <Plus className="w-4 h-4 text-[#c2652a]" /> Add New Payment Account
                       </h4>
                       <span className="text-[10px] text-gray-500 font-medium">Saves directly to Firebase Firestore 🔥</span>
@@ -720,7 +753,7 @@ export default function PropertySettingsPage({
                       <button
                         type="button"
                         onClick={handleAddQrProfile}
-                        className="py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                        className="w-full sm:w-auto py-2.5 px-5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                       >
                         <Plus className="w-4 h-4" /> Save Account Profile
                       </button>
@@ -816,15 +849,15 @@ export default function PropertySettingsPage({
               </div>
             )}
             {activeTab === "FINANCIAL" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-in fade-in">
                 {/* Billing Cycle Range */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
                       <Calendar className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-gray-900">Billing Cycle Range</h3>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Billing Cycle Range</h3>
                       <p className="text-[11px] text-gray-500">Defines start and end dates of rent billing cycle</p>
                     </div>
                   </div>
@@ -853,13 +886,13 @@ export default function PropertySettingsPage({
                 </div>
 
                 {/* Desired Rent Due Date */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
                       <DollarSign className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-gray-900">Monthly Rent Due Date</h3>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Monthly Rent Due Date</h3>
                       <p className="text-[11px] text-gray-500">Target day of the month when rent is due</p>
                     </div>
                   </div>
@@ -892,13 +925,13 @@ export default function PropertySettingsPage({
                 </div>
 
                 {/* Grace Period Days */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50 text-amber-600 shrink-0">
                       <Calendar className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-gray-900">Overdue Grace Period</h3>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Overdue Grace Period</h3>
                       <p className="text-[11px] text-gray-500">Days after due date before marking OVERDUE 🔴</p>
                     </div>
                   </div>
@@ -928,13 +961,13 @@ export default function PropertySettingsPage({
                 </div>
 
                 {/* Global Monthly Rental Tiers */}
-                <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="md:col-span-2 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-                    <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-purple-50 text-purple-600 shrink-0">
                       <DollarSign className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-gray-900">Room Sharing Monthly Rental Tiers</h3>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Room Sharing Monthly Rental Tiers</h3>
                       <p className="text-[11px] text-gray-500">Default monthly rent tariffs per bed sharing type (Auto-fills in onboarding & room transfers)</p>
                     </div>
                   </div>
@@ -1045,14 +1078,14 @@ export default function PropertySettingsPage({
             )}
 
             {activeTab === "PROPERTY" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-in fade-in">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
                       <Building className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-gray-900">Property Details</h3>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Property Details</h3>
                       <p className="text-[11px] text-gray-500">Display name and manager contact</p>
                     </div>
                   </div>
@@ -1089,13 +1122,13 @@ export default function PropertySettingsPage({
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
                         <label className="block text-xs font-bold text-gray-700">Manager Mobile *</label>
                         {profile?.phone && settings.managerPhone !== profile.phone && (
                           <button
                             type="button"
                             onClick={() => setSettings({ ...settings, managerPhone: profile.phone! })}
-                            className="text-[10px] font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-[10px] font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
                           >
                             ⚡ Use Owner Phone ({profile.phone})
                           </button>
@@ -1116,13 +1149,13 @@ export default function PropertySettingsPage({
                   </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
                       <QrCode className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-gray-900">UPI Rent Collection VPA</h3>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">UPI Rent Collection VPA</h3>
                       <p className="text-[11px] text-gray-500">UPI ID printed on rent receipts</p>
                     </div>
                   </div>
@@ -1281,16 +1314,16 @@ export default function PropertySettingsPage({
               </div>
 
               {/* 3. Transaction & Delivery Logs Table */}
-              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">Recent WhatsApp Dispatch Logs</h3>
+                    <h3 className="font-bold text-sm sm:text-base text-gray-900">Recent WhatsApp Dispatch Logs</h3>
                     <p className="text-[11px] text-gray-500">Live delivery records and credit usage audit trail</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowWhatsAppWalletModal(true)}
-                    className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700 cursor-pointer"
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700 cursor-pointer"
                   >
                     View All Logs
                   </button>
@@ -1311,27 +1344,27 @@ export default function PropertySettingsPage({
                       return (
                         <div
                           key={tx.id}
-                          className="p-3 rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-between"
+                          className="p-3 rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-between gap-2"
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             <div
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                              className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-bold text-xs ${
                                 isCreditAdd ? "bg-emerald-100 text-emerald-800" : "bg-purple-100 text-purple-800"
                               }`}
                             >
                               {isCreditAdd ? <Plus className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
                             </div>
-                            <div>
-                              <span className="font-bold text-gray-900 block">{tx.description}</span>
-                              <span className="text-[10px] text-gray-400 font-medium">
+                            <div className="min-w-0">
+                              <span className="font-bold text-gray-900 block truncate text-xs">{tx.description}</span>
+                              <span className="text-[10px] text-gray-400 font-medium block truncate">
                                 {new Date(tx.timestamp).toLocaleString("en-IN")} • Status:{" "}
                                 <span className="text-emerald-600 font-bold uppercase">{tx.status}</span>
                               </span>
                             </div>
                           </div>
 
-                          <div className="text-right font-mono">
-                            <span className={`font-bold block ${isCreditAdd ? "text-emerald-700" : "text-gray-900"}`}>
+                          <div className="text-right font-mono shrink-0">
+                            <span className={`font-bold block text-xs ${isCreditAdd ? "text-emerald-700" : "text-gray-900"}`}>
                               {isCreditAdd ? `+${tx.amount}` : `${tx.amount}`} Credits
                             </span>
                             <span className="text-[10px] text-gray-400">Bal: {tx.balanceAfter}</span>
