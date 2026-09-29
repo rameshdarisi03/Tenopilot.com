@@ -149,13 +149,41 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
   // 1. If Meta Production / Sandbox credentials exist in environment, execute live HTTP call
   if (metaToken && phoneNumberId) {
     try {
-      const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${metaToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      let requestBody: any;
+
+      if (payload.type === "RENT_REMINDER") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const dueDateStr = p.dueDate || "5th of this month";
+        const upiStr = p.upiId || "PG Reception / Manager UPI";
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "rent_due_reminder",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: pName },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: dueDateStr },
+                  { type: "text", text: upiStr },
+                ],
+              },
+            ],
+          },
+        };
+      } else {
+        requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
@@ -164,7 +192,16 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             preview_url: true,
             body: messageBody,
           },
-        }),
+        };
+      }
+
+      const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${metaToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
       });
 
       const resData = await response.json();
