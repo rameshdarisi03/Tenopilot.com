@@ -33,38 +33,49 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
   occupant: any | null;
   propertyId: string;
   propertyName: string;
+  allPropertyIds: string[];
 }> {
   const cleanDigits = rawPhone.replace(/\D/g, "").slice(-10);
   let matchedOccupant: any = null;
-  let matchedPropId = "sunshine-pg";
-  let matchedPropName = "TenoPilot PG";
+  let matchedPropId = "prop-1788438308277";
+  let matchedPropName = "Vibe stays";
+  const allPropertyIds = new Set<string>(["prop-1788438308277", "sunshine-pg"]);
 
   try {
-    // 1. Scan properties collection or portfolio_properties to locate the occupant
-    const propSnap = await getDocs(collection(db, "portfolio_properties"));
-    for (const pDoc of propSnap.docs) {
-      const pData = pDoc.data();
-      const propId = pDoc.id;
-      const propName = pData.name || pData.propertyName || "TenoPilot PG";
+    // 1. Discover properties in Firestore
+    try {
+      const propSnap = await getDocs(collection(db, "properties"));
+      propSnap.forEach((d) => allPropertyIds.add(d.id));
+    } catch (e) {}
 
-      // Query occupants subcollection for this property
-      const occSnap = await getDocs(collection(db, `properties/${propId}/occupants`));
-      for (const oDoc of occSnap.docs) {
-        const oData = oDoc.data();
-        const occPhone = (oData.phone || "").replace(/\D/g, "").slice(-10);
-        if (occPhone && occPhone === cleanDigits) {
-          matchedOccupant = { id: oDoc.id, ...oData };
-          matchedPropId = propId;
-          matchedPropName = propName;
-          return { occupant: matchedOccupant, propertyId: matchedPropId, propertyName: matchedPropName };
+    try {
+      const portSnap = await getDocs(collection(db, "portfolio_properties"));
+      portSnap.forEach((d) => allPropertyIds.add(d.id));
+    } catch (e) {}
+
+    // 2. Scan occupants across discovered properties
+    for (const propId of Array.from(allPropertyIds)) {
+      try {
+        const occSnap = await getDocs(collection(db, `properties/${propId}/occupants`));
+        for (const oDoc of occSnap.docs) {
+          const oData = oDoc.data();
+          const occPhone = (oData.phone || "").replace(/\D/g, "").slice(-10);
+          if (occPhone && occPhone === cleanDigits) {
+            matchedOccupant = { id: oDoc.id, ...oData };
+            matchedPropId = propId;
+            matchedPropName = oData.propertyName || (propId === "sunshine-pg" ? "Sunshine Luxury PG" : "Vibe stays");
+            return { occupant: matchedOccupant, propertyId: matchedPropId, propertyName: matchedPropName, allPropertyIds: Array.from(allPropertyIds) };
+          }
         }
+      } catch (err) {
+        // Continue checking other properties
       }
     }
   } catch (err) {
     console.warn("Notice finding occupant by phone in webhook:", err);
   }
 
-  return { occupant: matchedOccupant, propertyId: matchedPropId, propertyName: matchedPropName };
+  return { occupant: matchedOccupant, propertyId: matchedPropId, propertyName: matchedPropName, allPropertyIds: Array.from(allPropertyIds) };
 }
 
 /**
@@ -203,7 +214,7 @@ export async function POST(req: NextRequest) {
           const msgType = msg.type; // text, image, document, interactive
 
           // 1. Resolve occupant and property in Firestore
-          const { occupant, propertyId, propertyName } = await findOccupantByPhone(fromPhone);
+          const { occupant, propertyId, propertyName, allPropertyIds } = await findOccupantByPhone(fromPhone);
 
           let rawText = "";
           let mediaUrl: string | null = null;
@@ -277,11 +288,18 @@ export async function POST(req: NextRequest) {
           };
 
           // 2. Write to Firestore properties/{propertyId}/whatsapp_inbox
-          await setDoc(
-            doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId),
-            inboxPayload,
-            { merge: true }
-          );
+          const targetPropIds = Array.from(new Set([propertyId, ...(allPropertyIds || ["prop-1788438308277", "sunshine-pg"])]));
+          for (const pId of targetPropIds) {
+            try {
+              await setDoc(
+                doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
+                { ...inboxPayload, propertyId: pId },
+                { merge: true }
+              );
+            } catch (e) {
+              console.warn(`Failed writing to properties/${pId}/whatsapp_inbox`, e);
+            }
+          }
 
           // 3. Dispatch smart auto-acknowledgment within Meta's free 24-hour service window
           if (metaToken && phoneNumberId) {
