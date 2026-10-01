@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, getDocs, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DEFAULT_PLATFORM_CONFIG, PlatformConfig } from "@/lib/platformConfig";
+import { evaluateSubscription } from "@/lib/subscriptionEngine";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,25 @@ export async function POST(req: NextRequest) {
       updatedBy = "Founder Console",
     } = body;
 
+    // 1. Fetch previous master settings to calculate additive delta
+    let prevProCredits = DEFAULT_PLATFORM_CONFIG.proWhatsAppCredits;
+    try {
+      const prevDoc = await getDoc(
+        doc(db, "platform_admin", "config", "settings", "master_controls")
+      );
+      if (prevDoc.exists()) {
+        const pData = prevDoc.data();
+        if (typeof pData.proWhatsAppCredits === "number") {
+          prevProCredits = pData.proWhatsAppCredits;
+        }
+      }
+    } catch (e) {
+      console.warn("Notice reading previous master config for delta:", e);
+    }
+
+    const newProCredits = Math.max(0, Number(proWhatsAppCredits));
+    const deltaCredits = newProCredits - prevProCredits;
+
     const payload: PlatformConfig = {
       proMonthlyPrice: Math.max(1, Number(proMonthlyPrice)),
       proAnnualPrice: Math.max(1, Number(proAnnualPrice)),
@@ -82,7 +102,7 @@ export async function POST(req: NextRequest) {
       proTenantLimit: Math.max(1, Number(proTenantLimit)),
       trialTenantLimit: Math.max(1, Number(trialTenantLimit)),
       baseAllowedBuildings: Math.max(1, Number(baseAllowedBuildings)),
-      proWhatsAppCredits: Math.max(0, Number(proWhatsAppCredits)),
+      proWhatsAppCredits: newProCredits,
       trialWhatsAppCredits: Math.max(0, Number(trialWhatsAppCredits)),
       founderWhatsapp: String(founderWhatsapp).replace(/\D/g, "").slice(-10) || DEFAULT_PLATFORM_CONFIG.founderWhatsapp,
       founderUpiVpa: String(founderUpiVpa).trim() || DEFAULT_PLATFORM_CONFIG.founderUpiVpa,
@@ -91,14 +111,14 @@ export async function POST(req: NextRequest) {
       updatedBy,
     };
 
-    // 1. Save to primary master_controls document
+    // 2. Save to primary master_controls document
     await setDoc(
       doc(db, "platform_admin", "config", "settings", "master_controls"),
       payload,
       { merge: true }
     );
 
-    // 2. Backward compatibility mirror to capacity document
+    // 3. Backward compatibility mirror to capacity document
     await setDoc(
       doc(db, "platform_admin", "config", "settings", "capacity"),
       {
@@ -113,10 +133,82 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
+    // 4. 🎁 Automated Additive Delta Appender for Existing Pro Accounts
+    // If Pro credits limit was raised (e.g. 300 -> 350, delta = +50),
+    // append only the difference to their existing wallet without wiping consumed usage.
+    let affectedAccountsCount = 0;
+    if (deltaCredits > 0) {
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        for (const uDoc of usersSnap.docs) {
+          const uData = uDoc.data();
+          const sub = evaluateSubscription(uData);
+
+          if (sub.isPro || uData.subscriptionPlan === "PRO" || uData.plan === "PRO" || uData.isPro === true) {
+            affectedAccountsCount++;
+            const propIds: string[] = Array.isArray(uData.propertyIds) && uData.propertyIds.length > 0
+              ? uData.propertyIds
+              : [uData.primaryPropertyId || uData.propertyId || "sunshine-pg"].filter(Boolean);
+
+            for (const propId of propIds) {
+              const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
+              const wSnap = await getDoc(walletRef);
+              const curCredits = wSnap.exists() && typeof wSnap.data().credits === "number"
+                ? wSnap.data().credits
+                : prevProCredits;
+              const newBalance = curCredits + deltaCredits;
+              const existingTxs = wSnap.exists() && Array.isArray(wSnap.data().transactions)
+                ? wSnap.data().transactions
+                : [];
+
+              const bonusTx = {
+                id: `tx-delta-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                type: "PURCHASE",
+                amount: deltaCredits,
+                balanceAfter: newBalance,
+                description: `🎁 Platform Pro allocation bonus: Quota increased from ${prevProCredits} to ${newProCredits} (+${deltaCredits} credits)`,
+                timestamp: new Date().toISOString(),
+                status: "DELIVERED",
+              };
+
+              await setDoc(
+                walletRef,
+                {
+                  credits: newBalance,
+                  transactions: [bonusTx, ...existingTxs].slice(0, 100),
+                  updatedAt: new Date().toISOString(),
+                },
+                { merge: true }
+              );
+            }
+
+            // Also increment custom limit on user doc
+            const curUserLimit = typeof uData.whatsappCreditsLimit === "number"
+              ? uData.whatsappCreditsLimit
+              : prevProCredits;
+            await setDoc(
+              doc(db, "users", uDoc.id),
+              {
+                whatsappCreditsLimit: curUserLimit + deltaCredits,
+                updatedAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("Warning executing Pro credit delta append:", err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Master platform controls saved & broadcast successfully!",
+      message: deltaCredits > 0
+        ? `Master controls saved! Appended +${deltaCredits} WhatsApp credits to ${affectedAccountsCount} active Pro accounts.`
+        : "Master platform controls saved & broadcast successfully!",
       config: payload,
+      deltaCredits,
+      affectedAccountsCount,
     });
   } catch (err: any) {
     console.error("POST /api/apex/master-controls error:", err);
