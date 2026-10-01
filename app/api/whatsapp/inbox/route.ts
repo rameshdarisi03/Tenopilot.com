@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
@@ -26,5 +26,25 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Error fetching WhatsApp inbox:", err);
     return NextResponse.json({ error: err.message, items: [] }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { propertyId, item } = body;
+
+    if (!propertyId || !item || !item.id) {
+      return NextResponse.json({ error: "Missing propertyId or item payload" }, { status: 400 });
+    }
+
+    if (db) {
+      await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, item.id), item, { merge: true });
+    }
+
+    return NextResponse.json({ success: true, item }, { status: 200 });
+  } catch (err: any) {
+    console.error("Error saving WhatsApp inbox item:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -96,24 +96,14 @@ async function getMetaMediaUrl(mediaId: string, token: string): Promise<{ url: s
 }
 
 /**
- * Helper: Run Gemini Vision OCR on payment screenshot
+ * Helper: Run Gemini Vision OCR directly on base64 image bytes
  */
-async function runGeminiVisionOcr(
-  mediaUrl: string,
-  token: string,
+async function runGeminiVisionOcrWithBytes(
+  base64Data: string,
+  mimeType: string,
   apiKey: string
 ): Promise<{ amount?: number; utr?: string; paymentApp?: string }> {
   try {
-    // 1. Download image bytes with Meta auth token
-    const imgRes = await fetch(mediaUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!imgRes.ok) return {};
-
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-
-    // 2. Call Google Gemini Vision
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
@@ -127,8 +117,8 @@ async function runGeminiVisionOcr(
                   text: `Analyze this payment confirmation screenshot (PhonePe, Google Pay, Paytm, BHIM, Bank Transfer).
 Extract the following fields in strict JSON format:
 {
-  "amount": number (numerical amount paid, without currency symbols, e.g. 12500),
-  "utr": string (12-digit UTR, Transaction ID, Reference Number, or UPI Reference ID),
+  "amount": number (numerical amount paid, without currency symbols, e.g. 135),
+  "utr": string (12-digit UTR, Transaction ID, Reference Number, or UPI Reference ID, e.g. "786476913921"),
   "paymentApp": string ("PhonePe" | "Google Pay" | "Paytm" | "Cred" | "BHIM" | "Bank Transfer" | "Other"),
   "status": string ("SUCCESS" | "PENDING" | "FAILED")
 }
@@ -136,7 +126,7 @@ Return ONLY valid raw JSON, without any markdown formatting or explanations.`,
                 },
                 {
                   inlineData: {
-                    mimeType: "image/jpeg",
+                    mimeType: mimeType || "image/jpeg",
                     data: base64Data,
                   },
                 },
@@ -257,11 +247,24 @@ export async function POST(req: NextRequest) {
             if (mediaId) {
               const metaMedia = await getMetaMediaUrl(mediaId, metaToken);
               if (metaMedia) {
-                mediaUrl = metaMedia.url;
                 mimeType = metaMedia.mimeType;
+                mediaUrl = `/api/whatsapp/media?id=${mediaId}`;
 
-                if (geminiKey) {
-                  extractedData = await runGeminiVisionOcr(metaMedia.url, metaToken, geminiKey);
+                try {
+                  const imgRes = await fetch(metaMedia.url, {
+                    headers: { Authorization: `Bearer ${metaToken}` },
+                  });
+                  if (imgRes.ok) {
+                    const arrayBuffer = await imgRes.arrayBuffer();
+                    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+                    mediaUrl = `data:${metaMedia.mimeType};base64,${base64Data}`;
+
+                    if (geminiKey) {
+                      extractedData = await runGeminiVisionOcrWithBytes(base64Data, metaMedia.mimeType, geminiKey);
+                    }
+                  }
+                } catch (e) {
+                  console.warn("Failed to fetch image binary for OCR:", e);
                 }
               }
             }
