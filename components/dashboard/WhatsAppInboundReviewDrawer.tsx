@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   X,
   MessageSquare,
@@ -17,6 +17,7 @@ import {
   FileCheck,
   Building2,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { WhatsAppInboundItem, whatsappInboxStore } from "@/constants/whatsappInboxStore";
 import { Occupant } from "@/constants/mockOccupants";
@@ -38,9 +39,45 @@ export function WhatsAppInboundReviewDrawer({
 }: WhatsAppInboundReviewDrawerProps) {
   const [filterType, setFilterType] = useState<"ALL" | "PROOFS" | "CLAIMS" | "SUPPORT">("ALL");
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [items, setItems] = useState<WhatsAppInboundItem[]>(() => whatsappInboxStore.getItems(propertyId));
 
-  const items = useMemo(() => {
-    return whatsappInboxStore.getItems(propertyId);
+  const refreshInbox = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch(`/api/whatsapp/inbox?propertyId=${encodeURIComponent(propertyId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.items)) {
+          // Sync with local store
+          data.items.forEach((it: any) => {
+            whatsappInboxStore.addItem(it);
+          });
+          setItems(whatsappInboxStore.getItems(propertyId));
+        }
+      }
+    } catch (e) {
+      console.warn("Manual inbox refresh notice:", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    whatsappInboxStore.initFirebaseListener(propertyId);
+    setItems(whatsappInboxStore.getItems(propertyId));
+
+    const unsub = whatsappInboxStore.subscribe(() => {
+      setItems(whatsappInboxStore.getItems(propertyId));
+    });
+
+    if (isOpen) {
+      refreshInbox();
+    }
+
+    return () => {
+      unsub();
+    };
   }, [propertyId, isOpen]);
 
   const pendingItems = useMemo(() => {
@@ -117,13 +154,25 @@ export function WhatsAppInboundReviewDrawer({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={refreshInbox}
+              disabled={isRefreshing}
+              className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-800 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer transition-colors"
+              title="Sync & check for new incoming WhatsApp messages"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#c2652a]" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer transition-colors"
+              title="Close drawer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Filter Pills */}

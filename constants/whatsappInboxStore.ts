@@ -48,7 +48,9 @@ function notify() {
 export const whatsappInboxStore = {
   subscribe(fn: () => void) {
     LISTENERS.add(fn);
-    return () => LISTENERS.delete(fn);
+    return () => {
+      LISTENERS.delete(fn);
+    };
   },
 
   initFirebaseListener(propertyId: string) {
@@ -97,6 +99,22 @@ export const whatsappInboxStore = {
       ACTIVE_UNSUBSCRIBES.set(propertyId, unsub);
     } catch (e) {
       console.warn(`Failed to attach WhatsApp inbox listener for ${propertyId}:`, e);
+    }
+  },
+
+  setItems(propertyId: string, items: WhatsAppInboundItem[]) {
+    if (!propertyId) return;
+    INBOX_MAP.set(propertyId, items);
+    notify();
+  },
+
+  addItem(item: WhatsAppInboundItem) {
+    if (!item || !item.propertyId) return;
+    const list = INBOX_MAP.get(item.propertyId) || [];
+    const exists = list.some((i) => i.id === item.id);
+    if (!exists) {
+      INBOX_MAP.set(item.propertyId, [item, ...list]);
+      notify();
     }
   },
 
