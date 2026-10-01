@@ -57,6 +57,9 @@ import { complianceLogStore } from "@/constants/complianceLogStore";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
+import { WhatsAppInboundReviewDrawer } from "@/components/dashboard/WhatsAppInboundReviewDrawer";
+import { whatsappInboxStore } from "@/constants/whatsappInboxStore";
+import { useRouter } from "next/navigation";
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -277,10 +280,24 @@ export default function FinancialHubPage({
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
 
-  // Reactive Partner, Category & Payment Account State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
+  const [showWhatsAppInboxDrawer, setShowWhatsAppInboxDrawer] = useState(false);
+  const [inboxPendingCount, setInboxPendingCount] = useState<number>(0);
+  const router = useRouter();
+
+  // WhatsApp Inbound Inbox Real-Time Listener
+  useEffect(() => {
+    whatsappInboxStore.initFirebaseListener(propertyId);
+    setInboxPendingCount(whatsappInboxStore.getPendingCount(propertyId));
+    const unsub = whatsappInboxStore.subscribe(() => {
+      setInboxPendingCount(whatsappInboxStore.getPendingCount(propertyId));
+    });
+    return () => {
+      unsub();
+    };
+  }, [propertyId]);
 
   // 100% Real-Time Date-Filtered Revenues Calculation Engine
   const computeLiveRevenueData = () => {
@@ -975,6 +992,28 @@ export default function FinancialHubPage({
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
+                {/* 💬 WhatsApp Inbound Proofs Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowWhatsAppInboxDrawer(true)}
+                  className="relative px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 cursor-pointer min-h-[38px]"
+                  title="View incoming WhatsApp payment proofs and replies"
+                >
+                  <div className="relative">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    {inboxPendingCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+                    )}
+                  </div>
+                  <span className="hidden md:inline">WhatsApp Inbound</span>
+                  <span className="md:hidden">Inbox</span>
+                  {inboxPendingCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white font-mono text-[9px] font-extrabold">
+                      {inboxPendingCount}
+                    </span>
+                  )}
+                </button>
+
                 {/* 📅 Interactive Timeline Filter Selector */}
                 <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-800 shadow-2xs">
                   <Calendar className="w-4 h-4 text-[#c2652a] shrink-0" />
@@ -3825,6 +3864,18 @@ export default function FinancialHubPage({
           </div>
         </div>
       )}
+
+      {/* 💬 WhatsApp Inbound Activity & Proofs Drawer (Mobile-First Sheet) */}
+      <WhatsAppInboundReviewDrawer
+        propertyId={propertyId}
+        isOpen={showWhatsAppInboxDrawer}
+        onClose={() => setShowWhatsAppInboxDrawer(false)}
+        occupants={occupantStore.getOccupants(propertyId)}
+        onOpenCollectRentModal={(occ, prefill) => {
+          setShowWhatsAppInboxDrawer(false);
+          router.push(`/p/${propertyId}/tenants?collectRent=${occ.id}`);
+        }}
+      />
     </div>
   );
 }
