@@ -209,6 +209,39 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+      } else if (payload.type === "PAYMENT_RECEIPT") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const receiptNoStr = p.receiptId || `RCP-${Date.now().toString().slice(-6)}`;
+        const paidDateStr = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const modeStr = p.paymentMode || "UPI";
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_rent_payment_receipt",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: pName },
+                  { type: "text", text: receiptNoStr },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: paidDateStr },
+                  { type: "text", text: modeStr },
+                  { type: "text", text: roomStay },
+                ],
+              },
+            ],
+          },
+        };
       } else {
         requestBody = {
           messaging_product: "whatsapp",
