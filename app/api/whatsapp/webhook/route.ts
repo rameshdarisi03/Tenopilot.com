@@ -12,9 +12,13 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "tenopilot_meta_webhook_secret";
+  const allowedTokens = [
+    process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    "tenopilot_wa_webhook_secret_2026",
+    "tenopilot_meta_webhook_secret",
+  ].filter(Boolean);
 
-  if (mode === "subscribe" && token === verifyToken) {
+  if (mode === "subscribe" && token && allowedTokens.includes(token)) {
     console.info("Meta WhatsApp Webhook successfully verified!");
     return new NextResponse(challenge, { status: 200 });
   }
