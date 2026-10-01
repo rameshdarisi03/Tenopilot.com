@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function POST(req: NextRequest) {
@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
       maxPropertiesAllowed,
       maxTenantsLimit,
       tenantExtensionPacks,
+      whatsappCreditsLimit,
       updatedBy = "Founder Console",
     } = body;
 
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
     }
     if (tenantExtensionPacks !== undefined) {
       updatePayload.tenantExtensionPacks = Number(tenantExtensionPacks);
+    }
+    if (whatsappCreditsLimit !== undefined) {
+      updatePayload.whatsappCreditsLimit = Number(whatsappCreditsLimit);
     }
 
     // 1. Update users collection by userId
@@ -63,9 +67,45 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 3. If whatsappCreditsLimit was provided, also update/topup the primary property's WhatsApp wallet
+    if (whatsappCreditsLimit !== undefined) {
+      try {
+        const propSnap = await getDocs(query(collection(db, "portfolio_properties"), where("ownerEmail", "==", cleanEmail)));
+        for (const pDoc of propSnap.docs) {
+          const propId = pDoc.id;
+          const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
+          const wSnap = await getDoc(walletRef);
+          const currentTxs = wSnap.exists() && Array.isArray(wSnap.data()?.transactions) ? wSnap.data().transactions : [];
+          
+          const newTx = {
+            id: `tx-apex-override-${Date.now()}`,
+            type: "STARTER_BONUS",
+            amount: Number(whatsappCreditsLimit),
+            balanceAfter: Number(whatsappCreditsLimit),
+            description: `Apex Command Override: Set to ${whatsappCreditsLimit} WhatsApp Credits (${updatedBy})`,
+            timestamp: nowIso,
+            status: "DELIVERED",
+          };
+
+          await setDoc(
+            walletRef,
+            {
+              credits: Number(whatsappCreditsLimit),
+              transactions: [newTx, ...currentTxs].slice(0, 100),
+              updatedAt: nowIso,
+              updatedBy: updatedBy,
+            },
+            { merge: true }
+          );
+        }
+      } catch (wErr) {
+        console.warn("Notice updating primary property WhatsApp wallet:", wErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Capacity limits updated successfully!`,
+      message: `Capacity & WhatsApp credit limits updated successfully!`,
       limits: updatePayload,
     });
   } catch (err: any) {

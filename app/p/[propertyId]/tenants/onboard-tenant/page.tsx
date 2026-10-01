@@ -65,6 +65,7 @@ import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploa
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { useAuth } from "@/providers/AuthProvider";
+import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 import {
   getEffectiveTenantLimit,
   evaluateTenantCapacity,
@@ -169,6 +170,8 @@ export default function OnboardTenantPage({
   // Success Modal State (Step 5)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<Occupant | null>(null);
+  const [sendWelcomeWa, setSendWelcomeWa] = useState(true);
+  const [waDispatchStatus, setWaDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
 
   // User Profile & Tenant Capacity Limits
   const { profile } = useAuth();
@@ -620,6 +623,60 @@ export default function OnboardTenantPage({
 
     setCreatedTenant(newTenant);
     setShowSuccessModal(true);
+
+    // 💬 Automated WhatsApp Welcome & Desk Notice Dispatch
+    if (sendWelcomeWa) {
+      const propSettings = propertySettingsStore.getSettings(propertyId);
+      const propName = propSettings?.propertyName || "TenoPilot PG";
+
+      fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          userId: profile?.uid,
+          userEmail: profile?.email,
+          messages: [
+            {
+              toPhone: fullPhoneNumber,
+              recipientName: fullName.trim(),
+              propertyId,
+              propertyName: propName,
+              type: "ONBOARDING_INVITE",
+              params: {
+                roomNumber: selectedBed ? selectedBed.roomNumber : "101",
+                bedCode: selectedBed ? selectedBed.bedCode : "BED A",
+                dueDate: formattedJoiningDate,
+                paidDate: formattedJoiningDate,
+                amount: monthlyRent,
+                onboardUrl: `https://tenopilot.com/p/${propertyId}/tenants/${newId}`,
+              },
+            },
+          ],
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.successfulCount > 0) {
+            setWaDispatchStatus("sent");
+            whatsappCreditStore.deductCredit(propertyId, {
+              recipientPhone: fullPhoneNumber,
+              recipientName: fullName.trim(),
+              messageType: "ONBOARDING_INVITE",
+              description: `Welcome notice dispatched to ${fullName.trim()} (${fullPhoneNumber})`,
+            });
+            triggerToast("💬 WhatsApp welcome notice dispatched to tenant!");
+          } else {
+            setWaDispatchStatus("failed");
+          }
+        })
+        .catch((err) => {
+          console.warn("WhatsApp welcome dispatch error:", err);
+          setWaDispatchStatus("failed");
+        });
+    } else {
+      setWaDispatchStatus("skipped");
+    }
   };
 
   return (
@@ -1557,6 +1614,35 @@ export default function OnboardTenantPage({
                 <div className="border-t border-gray-300 pt-3 text-[10px] text-gray-600 font-sans leading-normal">
                   By clicking <strong>Agree & Onboard Tenant</strong> below, the property owner confirms room allocation and generates the digital rental agreement record.
                 </div>
+
+                {/* 💬 WhatsApp Welcome Dispatch Toggle */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+                      <MessageSquare className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                        Send WhatsApp Welcome & Desk Notice
+                        <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
+                          Auto
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-gray-600">
+                        Dispatches official check-in & room details to {countryCode} {phone || "resident"} via Meta WhatsApp
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={sendWelcomeWa}
+                      onChange={(e) => setSendWelcomeWa(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
               </div>
 
               <div className="flex justify-between pt-4 border-t border-gray-100">
@@ -1643,6 +1729,16 @@ export default function OnboardTenantPage({
                     {createdTenant.kycVerified ? "VERIFIED ✓" : "PENDING 🟡"}
                   </span>
                 </div>
+                {sendWelcomeWa && (
+                  <div className="flex justify-between pt-1 border-t border-gray-200">
+                    <span className="text-gray-500 font-medium flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Notice
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {waDispatchStatus === "sent" ? "SENT ✓" : waDispatchStatus === "failed" ? "QUEUED 🟡" : "DISPATCHING..."}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-2.5 pt-2">

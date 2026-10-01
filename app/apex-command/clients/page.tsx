@@ -85,6 +85,7 @@ export default function ApexCommandClientsPage() {
   const [capacityMaxProps, setCapacityMaxProps] = useState<number>(1);
   const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(300);
   const [capacityExtensionPacks, setCapacityExtensionPacks] = useState<number>(0);
+  const [capacityWhatsAppCredits, setCapacityWhatsAppCredits] = useState<number>(300);
   const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
   // Plan Activation Form State
@@ -269,8 +270,9 @@ export default function ApexCommandClientsPage() {
       setCapacityMaxProps(selectedCustomer360.maxPropertiesAllowed ?? globalAllowedProps);
       setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
+      setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 300) : (platformConfig.trialWhatsAppCredits || 10)));
     }
-  }, [selectedCustomer360, globalProLimit, globalTrialLimit, globalAllowedProps]);
+  }, [selectedCustomer360, globalProLimit, globalTrialLimit, globalAllowedProps, platformConfig]);
 
   // Handle Save Capacity Limits in Founder 360 Modal
   const handleSaveCapacityLimits = async () => {
@@ -286,13 +288,14 @@ export default function ApexCommandClientsPage() {
           maxPropertiesAllowed: Number(capacityMaxProps),
           maxTenantsLimit: Number(capacityBaseTenants),
           tenantExtensionPacks: Number(capacityExtensionPacks),
+          whatsappCreditsLimit: Number(capacityWhatsAppCredits),
           updatedBy: "Founder Apex Command",
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        triggerToast(`✓ Capacity limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
+        triggerToast(`✓ Capacity & WhatsApp limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
         setSelectedCustomer360((prev) =>
           prev
             ? {
@@ -300,6 +303,7 @@ export default function ApexCommandClientsPage() {
                 maxPropertiesAllowed: Number(capacityMaxProps),
                 maxTenantsLimit: Number(capacityBaseTenants),
                 tenantExtensionPacks: Number(capacityExtensionPacks),
+                whatsappCreditsLimit: Number(capacityWhatsAppCredits),
               }
             : null
         );
@@ -311,6 +315,7 @@ export default function ApexCommandClientsPage() {
                   maxPropertiesAllowed: Number(capacityMaxProps),
                   maxTenantsLimit: Number(capacityBaseTenants),
                   tenantExtensionPacks: Number(capacityExtensionPacks),
+                  whatsappCreditsLimit: Number(capacityWhatsAppCredits),
                 }
               : a
           )
@@ -1661,6 +1666,46 @@ export default function ApexCommandClientsPage() {
                       </button>
                     </div>
                   </div>
+                  {/* 4. WhatsApp Message Credits Override */}
+                  <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-emerald-400">WhatsApp Message Credits</p>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                          {selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY"
+                            ? `Pro Default: ${platformConfig.proWhatsAppCredits || 300}`
+                            : `Trial Default: ${platformConfig.trialWhatsAppCredits || 10}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        Total official Meta WhatsApp Cloud API balance available to this account.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCapacityWhatsAppCredits((p) => Math.max(0, p - 50))}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={capacityWhatsAppCredits}
+                        onChange={(e) => setCapacityWhatsAppCredits(Math.max(0, Number(e.target.value)))}
+                        className="w-20 px-2 py-1.5 rounded-lg bg-black/40 border border-emerald-500/30 text-center font-mono font-bold text-emerald-300 text-xs focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCapacityWhatsAppCredits((p) => p + 50)}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Quick Grant Shortcuts */}
@@ -1683,6 +1728,14 @@ export default function ApexCommandClientsPage() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setCapacityWhatsAppCredits((p) => p + 100)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+100 WA Credits</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setCapacityBaseTenants(300)}
                     className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
                   >
@@ -1700,6 +1753,7 @@ export default function ApexCommandClientsPage() {
                     onClick={() => {
                       setCapacityMaxProps(999);
                       setCapacityBaseTenants(9999);
+                      setCapacityWhatsAppCredits(10000);
                     }}
                     className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer ml-auto"
                   >

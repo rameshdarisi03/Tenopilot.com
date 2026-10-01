@@ -209,6 +209,56 @@ export async function POST(req: NextRequest) {
       console.warn("founder_clients sync notice:", fcErr);
     }
 
+    // 4. Provision WhatsApp Credits for Pro Activation
+    if (!isTrialExtension) {
+      try {
+        // Fetch platform config for default Pro WhatsApp credits
+        let welcomeCredits = 300;
+        try {
+          const cfgSnap = await getDoc(doc(db, "platform_admin", "config", "settings", "master_controls"));
+          if (cfgSnap.exists() && typeof cfgSnap.data()?.proWhatsAppCredits === "number") {
+            welcomeCredits = cfgSnap.data()?.proWhatsAppCredits;
+          }
+        } catch (cfgErr) {
+          console.warn("Notice reading master_controls for WhatsApp welcome credits:", cfgErr);
+        }
+
+        // Find all property wallets owned by this user
+        const propSnap = await getDocs(query(collection(db, "portfolio_properties"), where("ownerEmail", "==", cleanEmail)));
+        for (const pDoc of propSnap.docs) {
+          const propId = pDoc.id;
+          const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
+          const wSnap = await getDoc(walletRef);
+          const currentCredits = wSnap.exists() && typeof wSnap.data()?.credits === "number" ? wSnap.data().credits : 0;
+          const currentTxs = wSnap.exists() && Array.isArray(wSnap.data()?.transactions) ? wSnap.data().transactions : [];
+          const newBalance = currentCredits + welcomeCredits;
+
+          const newTx = {
+            id: `tx-pro-bonus-${Date.now()}`,
+            type: "STARTER_BONUS",
+            amount: welcomeCredits,
+            balanceAfter: newBalance,
+            description: `+${welcomeCredits} Pro Subscription Welcome Bonus (${plan})`,
+            timestamp: nowIso,
+            status: "DELIVERED",
+          };
+
+          await setDoc(
+            walletRef,
+            {
+              credits: newBalance,
+              transactions: [newTx, ...currentTxs].slice(0, 100),
+              updatedAt: nowIso,
+              updatedBy: activatedBy,
+            },
+            { merge: true }
+          );
+        }
+      } catch (wErr) {
+        console.warn("Notice provisioning Pro WhatsApp welcome bonus credits:", wErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Plan ${plan} successfully activated for ${cleanEmail} via ${paymentMode}!`,

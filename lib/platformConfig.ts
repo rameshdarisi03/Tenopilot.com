@@ -13,6 +13,8 @@ export interface PlatformConfig {
   proTenantLimit: number;
   trialTenantLimit: number;
   baseAllowedBuildings: number;
+  proWhatsAppCredits: number;
+  trialWhatsAppCredits: number;
 
   // Founder Support & Billing
   founderWhatsapp: string;
@@ -39,6 +41,8 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   proTenantLimit: 300,
   trialTenantLimit: 50,
   baseAllowedBuildings: 1,
+  proWhatsAppCredits: 300,
+  trialWhatsAppCredits: 10,
 
   // Founder Support & Billing
   founderWhatsapp: "9206651295",

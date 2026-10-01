@@ -595,6 +595,139 @@ export default function MasterControlsPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Pro Plan Default WhatsApp Credits */}
+                <div className="p-4 rounded-xl bg-[#16191f] border border-emerald-500/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                      💬 Pro Plan WhatsApp Welcome Credits
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      {config.proWhatsAppCredits || 300} Messages
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          proWhatsAppCredits: Math.max(0, (config.proWhatsAppCredits || 300) - 50),
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      value={config.proWhatsAppCredits ?? 300}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          proWhatsAppCredits: Math.max(0, Number(e.target.value)),
+                        })
+                      }
+                      className="flex-1 bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-center text-emerald-300 font-mono font-bold text-base focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          proWhatsAppCredits: (config.proWhatsAppCredits || 300) + 50,
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    {[100, 200, 300, 500].map((lim) => (
+                      <button
+                        key={lim}
+                        type="button"
+                        onClick={() => setConfig({ ...config, proWhatsAppCredits: lim })}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                          (config.proWhatsAppCredits ?? 300) === lim
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50"
+                            : "bg-[#0d0f12] text-slate-400 border-white/6 hover:text-white"
+                        }`}
+                      >
+                        {lim}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Complimentary official Meta WhatsApp messages credited to every newly activated Pro property.
+                  </p>
+                </div>
+
+                {/* Free Trial WhatsApp Credits */}
+                <div className="p-4 rounded-xl bg-[#16191f] border border-white/6 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                      ⏳ Free Trial WhatsApp Credits
+                    </span>
+                    <span className="text-xs font-mono font-bold text-amber-400">
+                      {config.trialWhatsAppCredits || 10} Messages
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          trialWhatsAppCredits: Math.max(0, (config.trialWhatsAppCredits || 10) - 5),
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      value={config.trialWhatsAppCredits ?? 10}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          trialWhatsAppCredits: Math.max(0, Number(e.target.value)),
+                        })
+                      }
+                      className="flex-1 bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-center text-amber-300 font-mono font-bold text-base focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          trialWhatsAppCredits: (config.trialWhatsAppCredits || 10) + 5,
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    {[0, 5, 10, 25].map((lim) => (
+                      <button
+                        key={lim}
+                        type="button"
+                        onClick={() => setConfig({ ...config, trialWhatsAppCredits: lim })}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                          (config.trialWhatsAppCredits ?? 10) === lim
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
+                            : "bg-[#0d0f12] text-slate-400 border-white/6 hover:text-white"
+                        }`}
+                      >
+                        {lim}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -24,6 +24,8 @@ export async function GET() {
         proTenantLimit: Number(data.proTenantLimit) || DEFAULT_PLATFORM_CONFIG.proTenantLimit,
         trialTenantLimit: Number(data.trialTenantLimit) || DEFAULT_PLATFORM_CONFIG.trialTenantLimit,
         baseAllowedBuildings: Number(data.baseAllowedBuildings) || DEFAULT_PLATFORM_CONFIG.baseAllowedBuildings,
+        proWhatsAppCredits: Number(data.proWhatsAppCredits) || DEFAULT_PLATFORM_CONFIG.proWhatsAppCredits,
+        trialWhatsAppCredits: Number(data.trialWhatsAppCredits) || DEFAULT_PLATFORM_CONFIG.trialWhatsAppCredits,
         founderWhatsapp: String(data.founderWhatsapp || DEFAULT_PLATFORM_CONFIG.founderWhatsapp),
         founderUpiVpa: String(data.founderUpiVpa || DEFAULT_PLATFORM_CONFIG.founderUpiVpa),
         founderUpiName: String(data.founderUpiName || DEFAULT_PLATFORM_CONFIG.founderUpiName),

@@ -43,6 +43,7 @@ import {
   Clock,
   Building2,
   Lock,
+  MessageSquare,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -56,6 +57,8 @@ import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { useAuth } from "@/providers/AuthProvider";
 import { getEffectiveTenantLimit, evaluateTenantCapacity, evaluateSubscription } from "@/lib/subscriptionEngine";
+import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
+import { propertySettingsStore } from "@/constants/propertySettings";
 
 export default function OnboardGuestPage({
   params,
@@ -165,6 +168,8 @@ export default function OnboardGuestPage({
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdGuest, setCreatedGuest] = useState<Occupant | null>(null);
+  const [sendWelcomeWa, setSendWelcomeWa] = useState(true);
+  const [waDispatchStatus, setWaDispatchStatus] = useState<"idle" | "sent" | "failed" | "skipped">("idle");
 
   // Reactive property structure state subscribed to propertyStore
   const [propertyStructure, setPropertyStructure] = useState<FloorConfig[]>(() =>
@@ -517,6 +522,60 @@ export default function OnboardGuestPage({
 
     setCreatedGuest(newGuest);
     setShowSuccessModal(true);
+
+    // 💬 Automated WhatsApp Welcome & Desk Notice Dispatch
+    if (sendWelcomeWa) {
+      const propSettings = propertySettingsStore.getSettings(propertyId);
+      const propName = propSettings?.propertyName || "TenoPilot PG";
+
+      fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          userId: profile?.uid,
+          userEmail: profile?.email,
+          messages: [
+            {
+              toPhone: fullPhoneNumber,
+              recipientName: fullName.trim(),
+              propertyId,
+              propertyName: propName,
+              type: "ONBOARDING_INVITE",
+              params: {
+                roomNumber: selectedBed ? selectedBed.roomNumber : "101",
+                bedCode: selectedBed ? selectedBed.bedCode : "BED A",
+                dueDate: formattedCheckOut,
+                paidDate: formattedCheckIn,
+                amount: totalTariff,
+                onboardUrl: `https://tenopilot.com/p/${propertyId}/tenants/${newId}`,
+              },
+            },
+          ],
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.successfulCount > 0) {
+            setWaDispatchStatus("sent");
+            whatsappCreditStore.deductCredit(propertyId, {
+              recipientPhone: fullPhoneNumber,
+              recipientName: fullName.trim(),
+              messageType: "ONBOARDING_INVITE",
+              description: `Welcome notice dispatched to guest ${fullName.trim()} (${fullPhoneNumber})`,
+            });
+            triggerToast("💬 WhatsApp welcome notice dispatched to guest!");
+          } else {
+            setWaDispatchStatus("failed");
+          }
+        })
+        .catch((err) => {
+          console.warn("WhatsApp guest welcome dispatch error:", err);
+          setWaDispatchStatus("failed");
+        });
+    } else {
+      setWaDispatchStatus("skipped");
+    }
   };
 
   return (
@@ -1341,6 +1400,35 @@ export default function OnboardGuestPage({
                 </span>
               </div>
 
+              {/* 💬 WhatsApp Welcome Dispatch Toggle */}
+              <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 flex items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-purple-100 text-purple-700 border border-purple-200 shrink-0">
+                    <MessageSquare className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      Send WhatsApp Welcome & Desk Notice
+                      <span className="px-1.5 py-0.2 bg-purple-700 text-white text-[9px] font-extrabold rounded-md uppercase tracking-wider">
+                        Auto
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-gray-600">
+                      Dispatches check-in & short-stay details to {countryCode} {phone || "guest"} via Meta WhatsApp
+                    </p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={sendWelcomeWa}
+                    onChange={(e) => setSendWelcomeWa(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-purple-700"></div>
+                </label>
+              </div>
+
               <div className="flex flex-col md:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"
@@ -1420,6 +1508,16 @@ export default function OnboardGuestPage({
                     {createdGuest.kycVerified ? "VERIFIED ✓" : "PENDING 🟡"}
                   </span>
                 </div>
+                {sendWelcomeWa && (
+                  <div className="flex justify-between pt-1 border-t border-purple-200">
+                    <span className="text-gray-500 font-medium flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 text-purple-700" /> WhatsApp Notice
+                    </span>
+                    <span className="font-bold text-purple-800">
+                      {waDispatchStatus === "sent" ? "SENT ✓" : waDispatchStatus === "failed" ? "QUEUED 🟡" : "DISPATCHING..."}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-2.5 pt-2">

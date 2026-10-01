@@ -28,6 +28,7 @@ export interface ScannedAccountRecord {
   maxPropertiesAllowed?: number;
   maxTenantsLimit?: number;
   tenantExtensionPacks?: number;
+  whatsappCreditsLimit?: number;
 }
 
 export const dynamic = "force-dynamic";
@@ -219,6 +220,7 @@ export async function GET(req: NextRequest) {
             data.maxTenantsLimit ??
             (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 50),
           tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
+          whatsappCreditsLimit: data.whatsappCreditsLimit ?? (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 10),
         });
       }
     } catch (e) {
