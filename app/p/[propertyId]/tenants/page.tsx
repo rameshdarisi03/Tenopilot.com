@@ -84,7 +84,7 @@ export default function TenantsDirectoryPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "sunshine-pg";
 
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const sub = evaluateSubscription(profile);
   const { config: platformConfig } = usePlatformConfig();
 
@@ -260,6 +260,87 @@ export default function TenantsDirectoryPage({
   const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
   const [reminderChannel, setReminderChannel] = useState<"WHATSAPP" | "EMAIL" | "BOTH">("BOTH");
   const [showProReminderPaywall, setShowProReminderPaywall] = useState(false);
+
+  // Single-Tenant WhatsApp Dropdown & Custom Message States
+  const [activeWhatsAppMenuId, setActiveWhatsAppMenuId] = useState<string | null>(null);
+  const [showCustomMessageModal, setShowCustomMessageModal] = useState(false);
+  const [customMessageTargetOccupant, setCustomMessageTargetOccupant] = useState<Occupant | null>(null);
+  const [customMessageText, setCustomMessageText] = useState("");
+  const [isSendingCustomCloud, setIsSendingCustomCloud] = useState(false);
+
+  // Close WhatsApp Dropdown when clicking outside
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setActiveWhatsAppMenuId(null);
+    };
+    if (activeWhatsAppMenuId) {
+      window.addEventListener("click", handleGlobalClick);
+      return () => window.removeEventListener("click", handleGlobalClick);
+    }
+  }, [activeWhatsAppMenuId]);
+
+  // Handler for Cloud Sending a Custom WhatsApp Message (1 Credit)
+  const handleSendCustomCloudMessage = async () => {
+    if (!customMessageTargetOccupant || !customMessageText.trim()) return;
+
+    if (whatsappCredits < 1) {
+      setShowWhatsAppWalletModal(true);
+      return;
+    }
+
+    setIsSendingCustomCloud(true);
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          messages: [
+            {
+              toPhone: customMessageTargetOccupant.phone,
+              recipientName: customMessageTargetOccupant.name,
+              propertyId,
+              propertyName: currentSettings.propertyName || "TenoPilot PG",
+              occupantId: customMessageTargetOccupant.id,
+              type: "CUSTOM",
+              params: {
+                customMessage: customMessageText.trim(),
+                roomNumber: customMessageTargetOccupant.roomNumber,
+                bedCode: customMessageTargetOccupant.bedCode,
+              },
+            },
+          ],
+          userId: user?.uid,
+          userEmail: user?.email || profile?.email,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.requiresPro) {
+          setShowProReminderPaywall(true);
+          return;
+        }
+        throw new Error(data.error || "Failed to dispatch WhatsApp message");
+      }
+
+      whatsappCreditStore.deductCredit(propertyId, {
+        recipientPhone: customMessageTargetOccupant.phone,
+        recipientName: customMessageTargetOccupant.name,
+        messageType: "CUSTOM",
+        description: `Custom Message to ${customMessageTargetOccupant.name}`,
+      });
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+      triggerToast(`✅ WhatsApp message sent to ${customMessageTargetOccupant.name}!`);
+      setShowCustomMessageModal(false);
+      setCustomMessageTargetOccupant(null);
+      setCustomMessageText("");
+    } catch (e: any) {
+      triggerToast(`⚠️ ${e.message || "Failed to send message"}`);
+    } finally {
+      setIsSendingCustomCloud(false);
+    }
+  };
 
   // WhatsApp Inbound Inbox Real-Time Listener
   useEffect(() => {
@@ -1577,16 +1658,58 @@ export default function TenantsDirectoryPage({
                           })()}
                         </td>
                         <td className="p-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <a
-                              href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}, rent reminder for Room ${occ.roomNumber}.`)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
-                              title="Send WhatsApp Message"
-                            >
-                              <MessageSquare className="w-4 h-4" />
-                            </a>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* WhatsApp Actions Dropdown */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveWhatsAppMenuId(activeWhatsAppMenuId === occ.id ? null : occ.id);
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors border border-transparent hover:border-emerald-200 cursor-pointer"
+                                title="WhatsApp Actions"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </button>
+
+                              {activeWhatsAppMenuId === occ.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-0 top-8 z-30 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left"
+                                >
+                                  <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                    WhatsApp for {occ.name}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveWhatsAppMenuId(null);
+                                      setSelectedIds([occ.id]);
+                                      setShowRentReminderQRModal(true);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
+                                  >
+                                    <CreditCard className="w-4 h-4 text-emerald-600" />
+                                    <span>Send Rent Reminder</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveWhatsAppMenuId(null);
+                                      setCustomMessageTargetOccupant(occ);
+                                      setCustomMessageText(`Hi ${occ.name}! `);
+                                      setShowCustomMessageModal(true);
+                                    }}
+                                    className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-750 transition-colors cursor-pointer"
+                                  >
+                                    <MessageSquare className="w-4 h-4 text-emerald-600" />
+                                    <span>Send Custom Message</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
                             <a
                               href={`tel:${occ.phone}`}
                               className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
@@ -1845,6 +1968,67 @@ Scroll vertically to browse all residents without pagination limits
                           {occ.paymentStatus}
                         </span>
 
+                        {/* Mobile WhatsApp Chat Action Button */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveWhatsAppMenuId(activeWhatsAppMenuId === occ.id ? null : occ.id);
+                            }}
+                            className="p-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
+                            title="WhatsApp Actions"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          </button>
+
+                          {activeWhatsAppMenuId === occ.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left"
+                            >
+                              <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                WhatsApp for {occ.name}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveWhatsAppMenuId(null);
+                                  setSelectedIds([occ.id]);
+                                  setShowRentReminderQRModal(true);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                              >
+                                <CreditCard className="w-4 h-4 text-emerald-600" />
+                                <span>Send Rent Reminder</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveWhatsAppMenuId(null);
+                                  setCustomMessageTargetOccupant(occ);
+                                  setCustomMessageText(`Hi ${occ.name}! `);
+                                  setShowCustomMessageModal(true);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-750 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                              >
+                                <MessageSquare className="w-4 h-4 text-emerald-600" />
+                                <span>Send Custom Message</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Mobile Phone Call Button */}
+                        <a
+                          href={`tel:${occ.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 transition-all min-h-[32px] min-w-[32px] flex items-center justify-center"
+                          title="Call Tenant"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </a>
+
                         {/* Mobile Three-Dots Action Button */}
                         <div className="relative">
                           <button
@@ -1853,10 +2037,10 @@ Scroll vertically to browse all residents without pagination limits
                               e.stopPropagation();
                               setActiveActionDropdownId(isActionMenuOpen ? null : occ.id);
                             }}
-                            className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
                             title="More Actions"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <MoreVertical className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Mobile Action Dropdown Popup */}
@@ -3107,6 +3291,122 @@ Scroll vertically to browse all residents without pagination limits
                   <Sparkles className="w-4 h-4 text-yellow-200" />
                   <span>Upgrade to Pro (₹999/mo)</span>
                 </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 💬 Send Custom WhatsApp Message Modal (Starts with Hi {name}!) */}
+        {showCustomMessageModal && customMessageTargetOccupant && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+            onClick={() => setShowCustomMessageModal(false)}
+          >
+            <div
+              className="bg-white rounded-t-3xl sm:rounded-3xl border-t sm:border border-gray-100 shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-xs max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Mobile Drag Handle */}
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto sm:hidden mb-1 shrink-0" />
+
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                    <MessageSquare className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-serif font-bold text-base text-gray-900 leading-tight truncate">
+                      Send Custom Message
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                      To: <strong className="text-gray-800">{customMessageTargetOccupant.name}</strong> • Room {customMessageTargetOccupant.roomNumber} ({customMessageTargetOccupant.phone})
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCustomMessageModal(false)}
+                  className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Message Textarea */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-800 flex items-center justify-between">
+                  <span>Message Content</span>
+                  <span className="text-[10px] text-gray-400 font-normal">{customMessageText.length} characters</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={customMessageText}
+                  onChange={(e) => setCustomMessageText(e.target.value)}
+                  placeholder={`Hi ${customMessageTargetOccupant.name}! Type your message here...`}
+                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#c2652a] focus:border-transparent outline-none font-sans text-xs sm:text-sm text-gray-900 resize-none"
+                  autoFocus
+                />
+              </div>
+
+              {/* Quick Preset Message Chips */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Quick Presets</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "📦 Parcel Arrived", text: "A parcel / courier has arrived for you at the front desk reception. Please collect it at your convenience." },
+                    { label: "🚪 Gate Timings", text: "Friendly reminder: The main gate closes at 10:30 PM. Please ensure timely arrival." },
+                    { label: "🔍 Room Inspection", text: "Please be informed that a routine room maintenance inspection is scheduled tomorrow." },
+                    { label: "🪪 KYC Document", text: "Please submit your pending KYC / ID document copies to the reception office today." },
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        const base = `Hi ${customMessageTargetOccupant.name}! `;
+                        setCustomMessageText(base + preset.text);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 border border-transparent text-[11px] font-medium text-gray-700 transition-all cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomMessageModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-all cursor-pointer order-2 sm:order-1"
+                >
+                  Cancel
+                </button>
+
+                {/* 1. Free WhatsApp link (wa.me) */}
+                <a
+                  href={buildWhatsAppUrl(customMessageTargetOccupant.phone, customMessageText)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowCustomMessageModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs order-1 sm:order-2"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-600" />
+                  <span>Send via WhatsApp (Free)</span>
+                </a>
+
+                {/* 2. 1-Click Cloud Dispatch (1 Credit) */}
+                <button
+                  type="button"
+                  disabled={isSendingCustomCloud || !customMessageText.trim()}
+                  onClick={handleSendCustomCloudMessage}
+                  className="px-4 py-2.5 rounded-xl bg-[#0052cc] hover:bg-[#0047b3] disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer order-0 sm:order-3"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{isSendingCustomCloud ? "Sending..." : "1-Click Send (1 Credit)"}</span>
+                </button>
               </div>
             </div>
           </div>

@@ -9,7 +9,7 @@ export interface WhatsAppCreditTransaction {
   description: string;
   recipientPhone?: string;
   recipientName?: string;
-  messageType?: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "SYSTEM";
+  messageType?: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CUSTOM" | "SYSTEM";
   timestamp: string;
   status: "DELIVERED" | "SENT" | "FAILED" | "PENDING";
 }
