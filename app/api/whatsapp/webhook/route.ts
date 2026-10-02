@@ -29,10 +29,10 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Helper: Find matching tenant & property using 3-Tier Multi-Tenant Resolution
+ * Helper: Find matching tenant & property using Robust Multi-Tenant Resolution
  * Tier 1: Outbound Dispatch Session (Exact Property & Tenant from recent rent reminder)
  * Tier 2: Real-Time Firestore Occupant Scan across all registered properties
- * Tier 3: Global Portfolio & Owner Account Mapping
+ * Tier 3: Global Portfolio & Owner Account Discovery
  */
 async function findOccupantByPhone(rawPhone: string): Promise<{
   occupant: any | null;
@@ -42,11 +42,11 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
 }> {
   const cleanDigits = rawPhone.replace(/\D/g, "").slice(-10);
   let matchedOccupant: any = null;
-  let matchedPropId = "sunshine-pg";
-  let matchedPropName = "Sunshine Luxury PG";
+  let matchedPropId = "all";
+  let matchedPropName = "TenoPilot Living";
   const allPropertyIds = new Set<string>(["sunshine-pg", "prop-1788438308277"]);
 
-  if (!db) {
+  if (!db || !cleanDigits) {
     return { occupant: null, propertyId: matchedPropId, propertyName: matchedPropName, allPropertyIds: Array.from(allPropertyIds) };
   }
 
@@ -81,18 +81,58 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
       console.warn("Notice checking outbound dispatch session:", e);
     }
 
-    // 🔍 TIER 2: Discover properties and scan occupants in Firestore
+    // 🔍 TIER 2: Comprehensive Property Discovery across all collections
+    try {
+      const portSnap = await getDocs(collection(db, "portfolio_properties"));
+      portSnap.forEach((d) => {
+        allPropertyIds.add(d.id);
+        const data = d.data();
+        if (data?.id) allPropertyIds.add(data.id);
+      });
+    } catch (e) {}
+
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      usersSnap.forEach((d) => {
+        const uData = d.data();
+        if (uData?.assignedPropertyId) allPropertyIds.add(uData.assignedPropertyId);
+        if (uData?.propertyId) allPropertyIds.add(uData.propertyId);
+        if (Array.isArray(uData?.assignedPropertyIds)) {
+          uData.assignedPropertyIds.forEach((pid: string) => pid && allPropertyIds.add(pid));
+        }
+        if (Array.isArray(uData?.properties)) {
+          uData.properties.forEach((p: any) => p?.id && allPropertyIds.add(p.id));
+        }
+      });
+    } catch (e) {}
+
+    try {
+      const staffSnap = await getDocs(collection(db, "staff_accounts"));
+      staffSnap.forEach((d) => {
+        const sData = d.data();
+        if (sData?.assignedPropertyId) allPropertyIds.add(sData.assignedPropertyId);
+        if (Array.isArray(sData?.assignedPropertyIds)) {
+          sData.assignedPropertyIds.forEach((pid: string) => pid && allPropertyIds.add(pid));
+        }
+      });
+    } catch (e) {}
+
+    try {
+      const clientSnap = await getDocs(collection(db, "founder_clients"));
+      clientSnap.forEach((d) => {
+        const cData = d.data();
+        if (cData?.assignedPropertyId) allPropertyIds.add(cData.assignedPropertyId);
+      });
+    } catch (e) {}
+
     try {
       const propSnap = await getDocs(collection(db, "properties"));
       propSnap.forEach((d) => allPropertyIds.add(d.id));
     } catch (e) {}
 
-    try {
-      const portSnap = await getDocs(collection(db, "portfolio_properties"));
-      portSnap.forEach((d) => allPropertyIds.add(d.id));
-    } catch (e) {}
-
+    // 🔍 TIER 3: Scan Occupants across all discovered properties
     for (const propId of Array.from(allPropertyIds)) {
+      if (!propId) continue;
       try {
         const occSnap = await getDocs(collection(db, `properties/${propId}/occupants`));
         for (const oDoc of occSnap.docs) {
@@ -125,7 +165,10 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
 async function getMetaMediaUrl(mediaId: string, token: string): Promise<{ url: string; mimeType: string } | null> {
   try {
     const res = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "TenoPilot-WhatsApp-Engine/1.0",
+      },
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -242,7 +285,7 @@ export async function POST(req: NextRequest) {
           const fromPhone = msg.from; // e.g. 919876543210
           const contactObj = contacts.find((c: any) => c.wa_id === fromPhone);
           const contactName = contactObj?.profile?.name || "Resident";
-          const msgType = msg.type; // text, image, document, interactive
+          const msgType = msg.type; // text, image, document, interactive, button
 
           // 1. Resolve occupant and property in Firestore
           const { occupant, propertyId, propertyName, allPropertyIds } = await findOccupantByPhone(fromPhone);
@@ -255,30 +298,23 @@ export async function POST(req: NextRequest) {
 
           if (msgType === "text") {
             rawText = msg.text?.body || "";
-            const lower = rawText.toLowerCase();
-            if (
-              lower.includes("paid") ||
-              lower.includes("done") ||
-              lower.includes("sent") ||
-              lower.includes("completed") ||
-              lower.includes("transfer") ||
-              lower.includes("gpay") ||
-              lower.includes("phonepe") ||
-              lower.includes("paytm") ||
-              lower.includes("upi")
-            ) {
-              inboundCategory = "PAYMENT_CLAIM";
-            } else if (
-              lower.includes("wifi") ||
-              lower.includes("leak") ||
-              lower.includes("clean") ||
-              lower.includes("food") ||
-              lower.includes("water") ||
-              lower.includes("help") ||
-              lower.includes("issue") ||
-              lower.includes("complaint")
-            ) {
-              inboundCategory = "SUPPORT_QUERY";
+          } else if (msgType === "interactive") {
+            rawText =
+              msg.interactive?.button_reply?.title ||
+              msg.interactive?.list_reply?.title ||
+              msg.interactive?.button_reply?.id ||
+              "Interactive Response";
+          } else if (msgType === "button") {
+            rawText = msg.button?.text || msg.button?.payload || "Button Response";
+          } else if (msgType === "document") {
+            rawText = msg.document?.caption || msg.document?.filename || "Document / Receipt Attached";
+            const docMediaId = msg.document?.id;
+            if (docMediaId && metaToken) {
+              const metaMedia = await getMetaMediaUrl(docMediaId, metaToken);
+              if (metaMedia) {
+                mimeType = metaMedia.mimeType;
+                mediaUrl = `/api/whatsapp/media?id=${docMediaId}`;
+              }
             }
           } else if (msgType === "image" && metaToken) {
             inboundCategory = "PAYMENT_PROOF";
@@ -293,7 +329,10 @@ export async function POST(req: NextRequest) {
 
                 try {
                   const imgRes = await fetch(metaMedia.url, {
-                    headers: { Authorization: `Bearer ${metaToken}` },
+                    headers: {
+                      Authorization: `Bearer ${metaToken}`,
+                      "User-Agent": "TenoPilot-WhatsApp-Engine/1.0",
+                    },
                   });
                   if (imgRes.ok) {
                     const arrayBuffer = await imgRes.arrayBuffer();
@@ -311,37 +350,59 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // Intelligent Inbound Intent Classification
+          const lower = rawText.toLowerCase();
+          if (msgType === "image" || (msgType === "document" && (mimeType?.includes("pdf") || mimeType?.includes("image")))) {
+            inboundCategory = "PAYMENT_PROOF";
+          } else if (
+            lower.includes("paid") ||
+            lower.includes("done") ||
+            lower.includes("sent") ||
+            lower.includes("completed") ||
+            lower.includes("transfer") ||
+            lower.includes("gpay") ||
+            lower.includes("phonepe") ||
+            lower.includes("paytm") ||
+            lower.includes("upi")
+          ) {
+            inboundCategory = "PAYMENT_CLAIM";
+          } else if (
+            lower.includes("wifi") ||
+            lower.includes("leak") ||
+            lower.includes("clean") ||
+            lower.includes("food") ||
+            lower.includes("water") ||
+            lower.includes("help") ||
+            lower.includes("issue") ||
+            lower.includes("complaint")
+          ) {
+            inboundCategory = "SUPPORT_QUERY";
+          }
+
           const itemId = `inbox_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const inboxPayload = {
             id: itemId,
-            wamid: msg.id,
+            wamid: msg.id || itemId,
             senderPhone: fromPhone,
             senderName: contactName,
             occupantId: occupant?.id || null,
             occupantName: occupant?.name || contactName,
             roomNumber: occupant?.roomNumber || null,
             bedCode: occupant?.bedCode || null,
-            propertyId,
+            propertyId: propertyId,
+            propertyName: propertyName,
+            isUnassigned: propertyId === "all",
             type: inboundCategory,
             rawText,
             mediaUrl,
             mimeType,
             extractedData,
             status: "PENDING",
-            timestamp: new Date().toISOString(),
+            timestamp: msg.timestamp ? new Date(Number(msg.timestamp) * 1000).toISOString() : new Date().toISOString(),
           };
 
-          // 2. Dual-Write to Firestore: Matched Property Inbox + Global Shared Inbound Archive
-          try {
-            await setDoc(
-              doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId),
-              inboxPayload,
-              { merge: true }
-            );
-          } catch (e) {
-            console.warn(`Failed writing to properties/${propertyId}/whatsapp_inbox:`, e);
-          }
-
+          // 2. Dual-Write to Firestore:
+          // A) Always write to Global Inbound Archive
           try {
             await setDoc(
               doc(db, "whatsapp_global_inbox", itemId),
@@ -352,31 +413,45 @@ export async function POST(req: NextRequest) {
             console.warn("Failed writing to whatsapp_global_inbox:", e);
           }
 
-          // Fan-out replicate to all discovered properties for this management scope
-          const otherPropIds = Array.from(allPropertyIds).filter((p) => p !== propertyId);
-          for (const pId of otherPropIds) {
+          // B) If attributed to a specific property, write to property inbox
+          if (propertyId && propertyId !== "all") {
             try {
               await setDoc(
-                doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
-                { ...inboxPayload, propertyId: pId },
+                doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId),
+                inboxPayload,
                 { merge: true }
               );
-            } catch (e) {}
+            } catch (e) {
+              console.warn(`Failed writing to properties/${propertyId}/whatsapp_inbox:`, e);
+            }
+          } else {
+            // C) If unassigned, replicate to all discovered properties so property managers see incoming inquiries
+            for (const pId of Array.from(allPropertyIds)) {
+              if (!pId) continue;
+              try {
+                await setDoc(
+                  doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
+                  { ...inboxPayload, propertyId: pId },
+                  { merge: true }
+                );
+              } catch (e) {}
+            }
           }
 
           // 3. Dispatch smart auto-acknowledgment within Meta's free 24-hour service window
           if (metaToken && phoneNumberId) {
             let replyText = "";
+            const activePropertyName = propertyName || "TenoPilot Living";
             if (inboundCategory === "PAYMENT_PROOF") {
               const amountBadge = extractedData.amount ? ` (₹${extractedData.amount.toLocaleString("en-IN")})` : "";
               const utrBadge = extractedData.utr ? ` • Ref: ${extractedData.utr}` : "";
-              replyText = `Thank you ${occupant?.name || contactName}! 👋\n\nWe have received your payment screenshot${amountBadge}${utrBadge}.\n\nManagement at *${propertyName}* has been notified. Your verified digital receipt will be issued shortly once confirmed. 🟢\n\n_— ${propertyName} Operations_`;
+              replyText = `Thank you ${occupant?.name || contactName}! 👋\n\nWe have received your payment screenshot${amountBadge}${utrBadge}.\n\nManagement at *${activePropertyName}* has been notified. Your verified digital receipt will be issued shortly once confirmed. 🟢\n\n_— ${activePropertyName} Operations_`;
             } else if (inboundCategory === "PAYMENT_CLAIM") {
-              replyText = `Thank you ${occupant?.name || contactName}! 👍\n\nWe noted your payment confirmation. Kindly share the screenshot or 12-digit UTR reference here so *${propertyName}* desk can issue your official digital receipt immediately.\n\n_— ${propertyName} Operations_`;
+              replyText = `Thank you ${occupant?.name || contactName}! 👍\n\nWe noted your payment confirmation. Kindly share the screenshot or 12-digit UTR reference here so *${activePropertyName}* desk can issue your official digital receipt immediately.\n\n_— ${activePropertyName} Operations_`;
             } else if (inboundCategory === "SUPPORT_QUERY") {
-              replyText = `Hello ${occupant?.name || contactName}! 🛠️\n\nWe have logged your query and forwarded it to the *${propertyName}* front desk team. We will attend to this promptly.\n\n_— ${propertyName} Helpdesk_`;
+              replyText = `Hello ${occupant?.name || contactName}! 🛠️\n\nWe have logged your query and forwarded it to the *${activePropertyName}* front desk team. We will attend to this promptly.\n\n_— ${activePropertyName} Helpdesk_`;
             } else {
-              replyText = `Hello ${occupant?.name || contactName}! 👋\n\nThank you for reaching out to *${propertyName}*. The management team has received your message.\n\n_— Powered by TenoPilot_`;
+              replyText = `Hello ${occupant?.name || contactName}! 👋\n\nThank you for reaching out to *${activePropertyName}*. The management team has received your message.\n\n_— Powered by TenoPilot_`;
             }
 
             await sendAutoAcknowledgment(fromPhone, replyText, metaToken, phoneNumberId);

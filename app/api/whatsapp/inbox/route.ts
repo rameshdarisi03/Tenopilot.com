@@ -26,15 +26,35 @@ export async function GET(req: NextRequest) {
       console.warn(`Notice reading properties/${propertyId}/whatsapp_inbox:`, e);
     }
 
-    // 2. Also fetch from global shared inbound pool (fallback & multi-property)
+    // 2. Fetch all known occupants of this property to cross-reference incoming phones
+    const propertyOccupantPhones = new Set<string>();
+    try {
+      const occSnap = await getDocs(collection(db, `properties/${propertyId}/occupants`));
+      occSnap.forEach((d) => {
+        const oData = d.data();
+        const p = (oData.phone || "").replace(/\D/g, "").slice(-10);
+        if (p) propertyOccupantPhones.add(p);
+      });
+    } catch (e) {}
+
+    // 3. Also fetch from global shared inbound pool (fallback, unassigned & multi-property)
     try {
       const globalCol = collection(db, "whatsapp_global_inbox");
       const globalSnap = await getDocs(globalCol);
       globalSnap.forEach((docSnap) => {
         const data = docSnap.data();
         if (!data) return;
-        // Include if explicitly for this property, or if propertyId was unassigned / matched
-        if (data.propertyId === propertyId || data.propertyId === "all" || !data.propertyId) {
+        const senderClean = (data.senderPhone || "").replace(/\D/g, "").slice(-10);
+        const matchesOccupant = senderClean && propertyOccupantPhones.has(senderClean);
+
+        // Include if explicitly for this property, if unassigned/all, or if sender is occupant of this property
+        if (
+          data.propertyId === propertyId ||
+          data.propertyId === "all" ||
+          !data.propertyId ||
+          data.isUnassigned === true ||
+          matchesOccupant
+        ) {
           if (!itemsMap.has(docSnap.id)) {
             itemsMap.set(docSnap.id, { id: docSnap.id, ...data });
           }

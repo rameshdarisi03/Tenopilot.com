@@ -85,13 +85,27 @@ export const whatsappInboxStore = {
     // Periodic background sync fallback (every 10 seconds)
     const pollInterval = setInterval(fetchHttp, 10000);
 
-    // 2. Real-time Firestore WebSocket listener
-    let unsubFirestore: (() => void) | null = null;
+    // 2. Real-time Firestore WebSocket listeners (Property-scoped + Global Shared Inbox)
+    let unsubFirestoreProp: (() => void) | null = null;
+    let unsubFirestoreGlobal: (() => void) | null = null;
+
+    const mergeAndNotify = (newItems: WhatsAppInboundItem[]) => {
+      const current = INBOX_MAP.get(propertyId) || [];
+      const mergedMap = new Map<string, WhatsAppInboundItem>();
+      current.forEach((it) => mergedMap.set(it.id, it));
+      newItems.forEach((it) => mergedMap.set(it.id, it));
+      const merged = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      INBOX_MAP.set(propertyId, merged);
+      notify();
+    };
+
     if (db) {
       try {
-        const colRef = collection(db, `properties/${propertyId}/whatsapp_inbox`);
-        unsubFirestore = onSnapshot(
-          colRef,
+        const propColRef = collection(db, `properties/${propertyId}/whatsapp_inbox`);
+        unsubFirestoreProp = onSnapshot(
+          propColRef,
           (snapshot) => {
             const items: WhatsAppInboundItem[] = [];
             snapshot.forEach((docSnap) => {
@@ -116,23 +130,68 @@ export const whatsappInboxStore = {
                 timestamp: data.timestamp || new Date().toISOString(),
               });
             });
-
-            items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            INBOX_MAP.set(propertyId, items);
-            notify();
+            mergeAndNotify(items);
           },
           (err) => {
             console.warn(`WhatsApp inbox snapshot notice for ${propertyId}:`, err);
           }
         );
       } catch (e) {
-        console.warn(`Failed to attach WhatsApp inbox listener for ${propertyId}:`, e);
+        console.warn(`Failed to attach WhatsApp property inbox listener for ${propertyId}:`, e);
+      }
+
+      try {
+        const globalColRef = collection(db, "whatsapp_global_inbox");
+        unsubFirestoreGlobal = onSnapshot(
+          globalColRef,
+          (snapshot) => {
+            const globalItems: WhatsAppInboundItem[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data();
+              if (
+                data.propertyId === propertyId ||
+                data.propertyId === "all" ||
+                !data.propertyId ||
+                data.isUnassigned === true
+              ) {
+                globalItems.push({
+                  id: docSnap.id,
+                  wamid: data.wamid || docSnap.id,
+                  senderPhone: data.senderPhone || "",
+                  senderName: data.senderName || "Resident",
+                  occupantId: data.occupantId || null,
+                  occupantName: data.occupantName || null,
+                  roomNumber: data.roomNumber || null,
+                  bedCode: data.bedCode || null,
+                  propertyId: propertyId,
+                  type: data.type || "TEXT_MESSAGE",
+                  rawText: data.rawText || "",
+                  mediaUrl: data.mediaUrl || null,
+                  mimeType: data.mimeType || null,
+                  extractedData: data.extractedData || {},
+                  status: data.status || "PENDING",
+                  resolution: data.resolution,
+                  timestamp: data.timestamp || new Date().toISOString(),
+                });
+              }
+            });
+            if (globalItems.length > 0) {
+              mergeAndNotify(globalItems);
+            }
+          },
+          (err) => {
+            console.warn("WhatsApp global inbox snapshot notice:", err);
+          }
+        );
+      } catch (e) {
+        console.warn("Failed to attach WhatsApp global inbox listener:", e);
       }
     }
 
     ACTIVE_UNSUBSCRIBES.set(propertyId, () => {
       clearInterval(pollInterval);
-      if (unsubFirestore) unsubFirestore();
+      if (unsubFirestoreProp) unsubFirestoreProp();
+      if (unsubFirestoreGlobal) unsubFirestoreGlobal();
     });
   },
 
@@ -178,18 +237,18 @@ export const whatsappInboxStore = {
   ) {
     if (!propertyId || !itemId || !db) return;
     try {
-      const docRef = doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId);
-      await setDoc(
-        docRef,
-        {
-          status: "RESOLVED",
-          resolution: {
-            ...resolution,
-            resolvedAt: new Date().toISOString(),
-          },
+      const resolutionData = {
+        status: "RESOLVED",
+        resolution: {
+          ...resolution,
+          resolvedAt: new Date().toISOString(),
         },
-        { merge: true }
-      );
+      };
+
+      await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), resolutionData, { merge: true });
+      try {
+        await setDoc(doc(db, "whatsapp_global_inbox", itemId), resolutionData, { merge: true });
+      } catch {}
 
       // Local optimistic update
       const items = INBOX_MAP.get(propertyId) || [];
@@ -212,17 +271,17 @@ export const whatsappInboxStore = {
   async dismissItem(propertyId: string, itemId: string) {
     if (!propertyId || !itemId || !db) return;
     try {
-      const docRef = doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId);
-      await setDoc(
-        docRef,
-        {
-          status: "DISMISSED",
-          resolution: {
-            resolvedAt: new Date().toISOString(),
-          },
+      const dismissalData = {
+        status: "DISMISSED",
+        resolution: {
+          resolvedAt: new Date().toISOString(),
         },
-        { merge: true }
-      );
+      };
+
+      await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), dismissalData, { merge: true });
+      try {
+        await setDoc(doc(db, "whatsapp_global_inbox", itemId), dismissalData, { merge: true });
+      } catch {}
 
       const items = INBOX_MAP.get(propertyId) || [];
       const updated = items.map((it) =>
