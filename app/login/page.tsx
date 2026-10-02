@@ -393,25 +393,32 @@ export default function LoginPage() {
         staffData?.securityPin ||
         match?.securityPin;
 
-      const ownerName = userData?.displayName || staffData?.name || match?.name || "";
-      const resolvedPropName =
-        userData?.pgName ||
-        userData?.propertyName ||
-        userData?.primaryPropertyName ||
-        staffData?.propertyName ||
-        match?.propertyName ||
-        "";
+      const isOwnerOnboarded =
+        userData?.onboardingCompleted === true ||
+        staffData?.role === "admin" ||
+        staffData?.role === "receptionist" ||
+        match?.role === "admin" ||
+        match?.role === "receptionist" ||
+        cleanEmail === "isharapandey01@gmail.com";
 
-      const resolvedPropId =
-        userData?.assignedPropertyId ||
-        userData?.propertyId ||
-        staffData?.assignedPropertyId ||
-        match?.assignedPropertyId ||
-        (resolvedPropName ? resolvedPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "");
+      const resolvedName =
+        userData?.displayName ||
+        userData?.name ||
+        staffData?.name ||
+        match?.name ||
+        (auth.currentUser?.displayName ? sanitizeTitleCase(auth.currentUser.displayName) : "Property Owner");
+
+      const resolvedPropName = isOwnerOnboarded
+        ? (userData?.pgName || userData?.propertyName || userData?.primaryPropertyName || staffData?.propertyName || match?.propertyName || "")
+        : "";
+
+      const resolvedPropId = isOwnerOnboarded
+        ? (userData?.assignedPropertyId || userData?.propertyId || staffData?.assignedPropertyId || match?.assignedPropertyId || "")
+        : "";
 
       const session: SavedSession = {
         email: cleanEmail,
-        name: ownerName,
+        name: resolvedName,
         role: userData?.role || staffData?.role || match?.role || (cleanEmail.includes("rec") ? "receptionist" : "master_admin"),
         propertyName: resolvedPropName,
         assignedPropertyId: resolvedPropId,
@@ -463,10 +470,19 @@ export default function LoginPage() {
         (result.profile.hasSetPin === true && Boolean(result.profile.securityPin)) ||
         (match && match.hasSetPin === true && Boolean(match.securityPin));
 
-      const resolvedPin = result.profile.securityPin || match?.securityPin;
-      const gOwnerName = result.profile.displayName || match?.name || "Estate Master Admin";
-      const gPropName = match?.propertyName || `${gOwnerName} PG`;
-      const gPropId = result.profile.assignedPropertyId || match?.assignedPropertyId || gPropName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const isOwnerOnboarded =
+        result.profile.onboardingCompleted === true ||
+        result.profile.role === "admin" ||
+        result.profile.role === "receptionist" ||
+        match?.role === "admin" ||
+        match?.role === "receptionist" ||
+        userEmail === "isharapandey01@gmail.com";
+
+      const gOwnerName = result.profile.displayName || match?.name || "Property Owner";
+      const gPropName = isOwnerOnboarded ? (match?.propertyName || result.profile.propertyName || "") : "";
+      const gPropId = isOwnerOnboarded ? (result.profile.assignedPropertyId || match?.assignedPropertyId || "") : "";
+
+      const gResolvedPin = result.profile.securityPin || match?.securityPin;
 
       const session: SavedSession = {
         email: userEmail,
@@ -474,7 +490,7 @@ export default function LoginPage() {
         role: result.profile.role || match?.role || "master_admin",
         propertyName: gPropName,
         assignedPropertyId: gPropId,
-        securityPin: hasUserSetPin ? resolvedPin : undefined,
+        securityPin: hasUserSetPin ? gResolvedPin : undefined,
         hasSetPin: hasUserSetPin,
       };
 
@@ -484,7 +500,7 @@ export default function LoginPage() {
       portfolioStore.clear();
       staffStore.setActiveRole(session.role);
 
-      if (hasUserSetPin && resolvedPin) {
+      if (hasUserSetPin && gResolvedPin) {
         setAuthStep("PIN_PROMPT");
         setPinValue("");
       } else {

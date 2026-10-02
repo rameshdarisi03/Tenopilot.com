@@ -60,31 +60,22 @@ export default function HomeWorkspacePage() {
         if (cached && cached.length > 0) {
           return cached.filter((p) => p.id !== "sunshine-pg" && p.id !== "main-executive-pg");
         }
-        const s = localStorage.getItem("tenopilot_saved_session");
-        if (s) {
-          const parsed = JSON.parse(s);
-          if (parsed?.propertyName) {
-            return [
-              {
-                id: parsed.propertyId || "prop-activated",
-                name: parsed.propertyName,
-                location: "Bengaluru, Karnataka",
-                bedsCount: 80,
-                occupancyRate: "0.0%",
-                collectionRate: "0%",
-                status: "HEALTHY",
-                createdAt: new Date().toISOString(),
-                ownerEmail: parsed.email || "",
-              },
-            ];
-          }
-        }
       } catch {}
     }
     return [];
   });
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [activeRole, setActiveRole] = useState<UserRole>("master_admin");
+
+  // Strict Onboarding Check: If owner has not completed onboarding, immediately route to /welcome
+  useEffect(() => {
+    if (!profile) return;
+    const isMasterAccount = profile.email?.toLowerCase() === "isharapandey01@gmail.com";
+    const isStaff = profile.role === "admin" || profile.role === "receptionist";
+    if (!isMasterAccount && !isStaff && profile.onboardingCompleted !== true) {
+      router.replace("/welcome");
+    }
+  }, [profile, router]);
 
   // New property form state
   const [newPropName, setNewPropName] = useState("");

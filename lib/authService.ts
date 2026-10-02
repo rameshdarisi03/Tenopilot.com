@@ -289,12 +289,12 @@ export async function loginWithGoogle(
         profile = {
           uid: user.uid,
           email: email,
-          displayName: staffAccountDoc?.name || (user.displayName ? sanitizeTitleCase(user.displayName) : "Team Member"),
+          displayName: staffAccountDoc?.name || (user.displayName ? sanitizeTitleCase(user.displayName) : "Property Owner"),
           organizationId: staffAccountDoc?.orgId || (isMasterTest ? "org_demo_meghana" : `org_${user.uid}`),
           role: resolvedRole,
           assignedPropertyId: resolvedPropId,
-          propertyName: staffAccountDoc?.propertyName,
-          onboardingCompleted: true,
+          propertyName: staffAccountDoc?.propertyName || "",
+          onboardingCompleted: isStaff || isMasterTest,
           hasSetPin: Boolean(staffAccountDoc?.hasSetPin || staffAccountDoc?.securityPin),
           securityPin: staffAccountDoc?.securityPin,
         };

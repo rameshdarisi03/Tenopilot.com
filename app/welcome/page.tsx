@@ -57,13 +57,25 @@ function WelcomeOnboardingContent() {
 
   // Pre-fill user details from AuthProvider / Firebase
   useEffect(() => {
+    if (profile) {
+      if (profile.displayName && profile.displayName !== "Property Owner" && !fullName) {
+        setFullName(sanitizeTitleCase(profile.displayName));
+      }
+      if (profile.phone && !phone) {
+        setPhone(profile.phone);
+      }
+      if (profile.securityPin && !pin) {
+        setPin(profile.securityPin);
+        setConfirmPin(profile.securityPin);
+      }
+    }
     if (user) {
       setEmail(user.email || "");
       if (user.displayName && user.displayName !== "Property Owner" && !fullName) {
         setFullName(sanitizeTitleCase(user.displayName));
       }
     }
-  }, [user, fullName]);
+  }, [user, profile, fullName, phone, pin]);
 
   // 🛡️ Proactively redirect staff members and already onboarded owners away from welcome wizard
   useEffect(() => {
@@ -75,8 +87,8 @@ function WelcomeOnboardingContent() {
         return;
       }
 
-      // 2. Onboarded master admins with existing properties
-      if (profile.onboardingCompleted === true || (profile.assignedPropertyId && profile.assignedPropertyId !== "")) {
+      // 2. Onboarded master admins with existing properties (Strict onboardingCompleted check)
+      if (profile.onboardingCompleted === true) {
         router.replace("/home");
         return;
       }
@@ -103,7 +115,7 @@ function WelcomeOnboardingContent() {
   }, [user, profile, router]);
 
   // Validation for Step 1
-  const handleNextToStep2 = () => {
+  const handleNextToStep2 = async () => {
     setError(null);
     const cleanName = fullName.trim();
     const cleanPhone = phone.replace(/\D/g, "");
@@ -126,6 +138,33 @@ function WelcomeOnboardingContent() {
     if (pin !== confirmPin) {
       setError("PINs do not match. Please re-enter your 6-digit PIN.");
       return;
+    }
+
+    // Persist Step 1 progress seamlessly to Firestore
+    try {
+      const activeUser = auth.currentUser || user;
+      const ownerEmail = (activeUser?.email || email).toLowerCase().trim();
+      const ownerUid = activeUser?.uid;
+      if (ownerUid) {
+        await syncUserSecurityPinToCloud(ownerEmail, pin, ownerUid);
+        await setDoc(
+          doc(db, "users", ownerUid),
+          {
+            uid: ownerUid,
+            email: ownerEmail,
+            displayName: cleanName,
+            phone: cleanPhone,
+            role: "master_admin",
+            hasSetPin: true,
+            securityPin: pin,
+            onboardingCompleted: false,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+    } catch (err) {
+      console.warn("Non-fatal error saving step 1 progress:", err);
     }
 
     setStep(2);

@@ -17,9 +17,11 @@ export interface UserProfile {
   phone?: string;
   role: "master_admin" | "admin" | "receptionist";
   assignedPropertyId: string;
+  propertyName?: string;
   isNewUser?: boolean;
   onboardingCompleted?: boolean;
   hasSetPin?: boolean;
+  securityPin?: string;
   createdAt?: string;
   planExpiresAt?: string;
   plan?: string;
@@ -317,9 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const hasCompletedSetup =
       isMasterTestAccount ||
       isStaffUser ||
-      profile?.onboardingCompleted === true ||
-      Boolean(profile?.assignedPropertyId) ||
-      Boolean(localSavedPropertyId);
+      profile?.onboardingCompleted === true;
 
     if (isProtectedPage) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
