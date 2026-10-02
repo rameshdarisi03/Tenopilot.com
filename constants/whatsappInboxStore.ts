@@ -54,52 +54,86 @@ export const whatsappInboxStore = {
   },
 
   initFirebaseListener(propertyId: string) {
-    if (!propertyId || typeof window === "undefined" || !db) return;
+    if (!propertyId || typeof window === "undefined") return;
     if (ACTIVE_UNSUBSCRIBES.has(propertyId)) return;
 
-    try {
-      const colRef = collection(db, `properties/${propertyId}/whatsapp_inbox`);
-      const q = query(colRef, orderBy("timestamp", "desc"), limit(50));
-
-      const unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          const items: WhatsAppInboundItem[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            items.push({
-              id: docSnap.id,
-              wamid: data.wamid || docSnap.id,
-              senderPhone: data.senderPhone || "",
-              senderName: data.senderName || "Resident",
-              occupantId: data.occupantId || null,
-              occupantName: data.occupantName || null,
-              roomNumber: data.roomNumber || null,
-              bedCode: data.bedCode || null,
-              propertyId,
-              type: data.type || "TEXT_MESSAGE",
-              rawText: data.rawText || "",
-              mediaUrl: data.mediaUrl || null,
-              mimeType: data.mimeType || null,
-              extractedData: data.extractedData || {},
-              status: data.status || "PENDING",
-              resolution: data.resolution,
-              timestamp: data.timestamp || new Date().toISOString(),
-            });
-          });
-
-          INBOX_MAP.set(propertyId, items);
-          notify();
-        },
-        (err) => {
-          console.warn(`WhatsApp inbox snapshot notice for ${propertyId}:`, err);
+    // 1. Initial REST Hydration
+    const fetchHttp = async () => {
+      try {
+        const res = await fetch(`/api/whatsapp/inbox?propertyId=${encodeURIComponent(propertyId)}&t=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.items) && data.items.length > 0) {
+            const current = INBOX_MAP.get(propertyId) || [];
+            const mergedMap = new Map<string, WhatsAppInboundItem>();
+            current.forEach((it) => mergedMap.set(it.id, it));
+            data.items.forEach((it: any) => mergedMap.set(it.id, it));
+            const merged = Array.from(mergedMap.values()).sort(
+              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+            INBOX_MAP.set(propertyId, merged);
+            notify();
+          }
         }
-      );
+      } catch (e) {
+        console.warn("Notice in WhatsApp inbox HTTP fetch:", e);
+      }
+    };
 
-      ACTIVE_UNSUBSCRIBES.set(propertyId, unsub);
-    } catch (e) {
-      console.warn(`Failed to attach WhatsApp inbox listener for ${propertyId}:`, e);
+    fetchHttp();
+
+    // Periodic background sync fallback (every 10 seconds)
+    const pollInterval = setInterval(fetchHttp, 10000);
+
+    // 2. Real-time Firestore WebSocket listener
+    let unsubFirestore: (() => void) | null = null;
+    if (db) {
+      try {
+        const colRef = collection(db, `properties/${propertyId}/whatsapp_inbox`);
+        unsubFirestore = onSnapshot(
+          colRef,
+          (snapshot) => {
+            const items: WhatsAppInboundItem[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data();
+              items.push({
+                id: docSnap.id,
+                wamid: data.wamid || docSnap.id,
+                senderPhone: data.senderPhone || "",
+                senderName: data.senderName || "Resident",
+                occupantId: data.occupantId || null,
+                occupantName: data.occupantName || null,
+                roomNumber: data.roomNumber || null,
+                bedCode: data.bedCode || null,
+                propertyId,
+                type: data.type || "TEXT_MESSAGE",
+                rawText: data.rawText || "",
+                mediaUrl: data.mediaUrl || null,
+                mimeType: data.mimeType || null,
+                extractedData: data.extractedData || {},
+                status: data.status || "PENDING",
+                resolution: data.resolution,
+                timestamp: data.timestamp || new Date().toISOString(),
+              });
+            });
+
+            items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            INBOX_MAP.set(propertyId, items);
+            notify();
+          },
+          (err) => {
+            console.warn(`WhatsApp inbox snapshot notice for ${propertyId}:`, err);
+          }
+        );
+      } catch (e) {
+        console.warn(`Failed to attach WhatsApp inbox listener for ${propertyId}:`, e);
+      }
     }
+
+    ACTIVE_UNSUBSCRIBES.set(propertyId, () => {
+      clearInterval(pollInterval);
+      if (unsubFirestore) unsubFirestore();
+    });
   },
 
   setItems(propertyId: string, items: WhatsAppInboundItem[]) {

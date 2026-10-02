@@ -1,11 +1,12 @@
-// TenoPilot Centralized WhatsApp Cloud Service
-// Supports both Official Meta Cloud API and Zero-Config Simulator Sandbox Mode
+import { doc, setDoc, collection } from "firebase/firestore";
+import { db } from "./firebase";
 
 export interface WhatsAppSendParams {
   toPhone: string; // E.164 without leading plus or 10-digit Indian mobile number
   recipientName: string;
   propertyId: string;
   propertyName?: string;
+  occupantId?: string;
   type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CUSTOM";
   params?: {
     roomNumber?: string;
@@ -285,7 +286,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         };
       }
 
-      return {
+      const sendResult: WhatsAppSendResult = {
         success: true,
         messageId: resData.messages?.[0]?.id || `wamid-${Date.now()}`,
         mode: "LIVE_META_API",
@@ -293,6 +294,11 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         recipientName: payload.recipientName,
         timestamp: new Date().toISOString(),
       };
+
+      // Record outbound session context for deterministic inbound reply routing
+      await recordOutboundDispatchLog(payload, sendResult);
+
+      return sendResult;
     } catch (err: any) {
       console.warn("Meta WhatsApp Cloud Network error:", err);
       return {
@@ -308,12 +314,11 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
   }
 
   // 2. Otherwise: Automatic Zero-Config Simulator Mode (for instant developer testing)
-  // Adds realistic 300ms network simulation latency
   await new Promise((resolve) => setTimeout(resolve, 350));
 
   console.info(`[WhatsApp Simulator 🟢] Dispatched to +${formattedPhone} for ${payload.recipientName}:`, messageBody);
 
-  return {
+  const simResult: WhatsAppSendResult = {
     success: true,
     messageId: `sim-wamid-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     mode: "SIMULATOR_SANDBOX",
@@ -321,4 +326,54 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
     recipientName: payload.recipientName,
     timestamp: new Date().toISOString(),
   };
+
+  // Record outbound session context
+  await recordOutboundDispatchLog(payload, simResult);
+
+  return simResult;
+}
+
+/**
+ * Record outbound dispatch metadata in Firestore SSOT to guarantee 100% accurate
+ * inbound message session routing back to the originating property and tenant profile.
+ */
+async function recordOutboundDispatchLog(payload: WhatsAppSendParams, result: WhatsAppSendResult) {
+  try {
+    if (!db) return;
+    const cleanDigits = payload.toPhone.replace(/\D/g, "").slice(-10);
+    const docId = `dispatch_${cleanDigits}`;
+    const p = payload.params || {};
+
+    const dispatchDoc = {
+      id: docId,
+      wamid: result.messageId,
+      toPhoneClean: cleanDigits,
+      toPhoneFormatted: formatIndianPhoneNumber(payload.toPhone),
+      recipientName: payload.recipientName,
+      propertyId: payload.propertyId,
+      propertyName: payload.propertyName || "TenoPilot PG",
+      occupantId: payload.occupantId || null,
+      roomNumber: p.roomNumber || null,
+      bedCode: p.bedCode || null,
+      amountDue: p.amount ? Number(p.amount) : null,
+      type: payload.type,
+      dispatchedAt: new Date().toISOString(),
+      timestamp: Date.now(),
+      mode: result.mode,
+    };
+
+    // Save in global fast-lookup table
+    await setDoc(doc(db, "whatsapp_outbound_dispatches", docId), dispatchDoc, { merge: true });
+
+    // Also record in property-scoped history
+    if (payload.propertyId) {
+      await setDoc(
+        doc(db, `properties/${payload.propertyId}/whatsapp_dispatches`, `msg_${Date.now()}_${cleanDigits}`),
+        dispatchDoc,
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.warn("Notice recording WhatsApp outbound dispatch log:", err);
+  }
 }

@@ -121,6 +121,63 @@ export function WhatsAppInboundReviewDrawer({
     await whatsappInboxStore.dismissItem(propertyId, itemId);
   };
 
+  const handleSimulateTestInbound = async (type: "PROOF" | "TEXT") => {
+    const targetOccupant = occupants[0] || {
+      id: "occ-test",
+      name: "Aarav Sharma",
+      phone: "+91 98765 43210",
+      roomNumber: "204",
+      bedCode: "B1",
+      rentAmount: 8500,
+    };
+
+    const cleanPhone = (targetOccupant.phone || "9876543210").replace(/\D/g, "");
+    const testItemId = `inbox_sim_${Date.now()}`;
+
+    const testItem: WhatsAppInboundItem = {
+      id: testItemId,
+      wamid: `wamid.HBg.${Date.now()}`,
+      senderPhone: cleanPhone,
+      senderName: targetOccupant.name,
+      occupantId: targetOccupant.id,
+      occupantName: targetOccupant.name,
+      roomNumber: targetOccupant.roomNumber,
+      bedCode: targetOccupant.bedCode,
+      propertyId,
+      type: type === "PROOF" ? "PAYMENT_PROOF" : "PAYMENT_CLAIM",
+      rawText:
+        type === "PROOF"
+          ? "Hi sir, paid rent for this month. Screenshot attached below."
+          : `Paid ₹${(targetOccupant.rentAmount || 8500).toLocaleString("en-IN")} via PhonePe UPI (UTR: 202609048821)`,
+      mediaUrl:
+        type === "PROOF"
+          ? "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80"
+          : null,
+      mimeType: type === "PROOF" ? "image/jpeg" : null,
+      extractedData: {
+        amount: targetOccupant.rentAmount || 8500,
+        utr: "202609048821",
+        paymentApp: "PhonePe",
+        status: "SUCCESS",
+      },
+      status: "PENDING",
+      timestamp: new Date().toISOString(),
+    };
+
+    whatsappInboxStore.addItem(testItem);
+    setItems(whatsappInboxStore.getItems(propertyId));
+
+    try {
+      await fetch("/api/whatsapp/inbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId, item: testItem }),
+      });
+    } catch (e) {
+      console.warn("Notice saving simulated test inbound item:", e);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -230,11 +287,32 @@ export function WhatsAppInboundReviewDrawer({
               <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto shadow-inner text-2xl">
                 ✨
               </div>
-              <div>
+              <div className="space-y-1">
                 <h4 className="font-bold text-sm text-gray-900">All Caught Up!</h4>
-                <p className="text-xs text-gray-500 max-w-xs mx-auto mt-1">
+                <p className="text-xs text-gray-500 max-w-xs mx-auto">
                   No pending WhatsApp payment proofs or messages. Incoming resident replies will appear here automatically in real-time.
                 </p>
+              </div>
+
+              {/* Developer / Owner Live Sandbox Trigger */}
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSimulateTestInbound("PROOF")}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                  title="Simulate an incoming WhatsApp payment screenshot with AI OCR"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Simulate Test Screenshot</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSimulateTestInbound("TEXT")}
+                  className="px-3 py-2 rounded-xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="Simulate an incoming text confirmation"
+                >
+                  <span>Simulate Paid Text</span>
+                </button>
               </div>
             </div>
           ) : (

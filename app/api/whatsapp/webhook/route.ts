@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, setDoc, getDocs, collection, query, where } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatIndianPhoneNumber } from "@/lib/whatsappService";
 
@@ -16,10 +16,12 @@ export async function GET(req: NextRequest) {
     process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
     "tenopilot_wa_webhook_secret_2026",
     "tenopilot_meta_webhook_secret",
+    "tenopilot_webhook_secret",
+    "tenopilot_secret_key",
   ].filter(Boolean);
 
   if (mode === "subscribe" && token && allowedTokens.includes(token)) {
-    console.info("Meta WhatsApp Webhook successfully verified!");
+    console.info("Meta WhatsApp Webhook successfully verified with challenge token!");
     return new NextResponse(challenge, { status: 200 });
   }
 
@@ -27,7 +29,10 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Helper: Find matching tenant & property from phone number
+ * Helper: Find matching tenant & property using 3-Tier Multi-Tenant Resolution
+ * Tier 1: Outbound Dispatch Session (Exact Property & Tenant from recent rent reminder)
+ * Tier 2: Real-Time Firestore Occupant Scan across all registered properties
+ * Tier 3: Global Portfolio & Owner Account Mapping
  */
 async function findOccupantByPhone(rawPhone: string): Promise<{
   occupant: any | null;
@@ -37,12 +42,46 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
 }> {
   const cleanDigits = rawPhone.replace(/\D/g, "").slice(-10);
   let matchedOccupant: any = null;
-  let matchedPropId = "prop-1788438308277";
-  let matchedPropName = "Vibe stays";
-  const allPropertyIds = new Set<string>(["prop-1788438308277", "sunshine-pg"]);
+  let matchedPropId = "sunshine-pg";
+  let matchedPropName = "Sunshine Luxury PG";
+  const allPropertyIds = new Set<string>(["sunshine-pg", "prop-1788438308277"]);
+
+  if (!db) {
+    return { occupant: null, propertyId: matchedPropId, propertyName: matchedPropName, allPropertyIds: Array.from(allPropertyIds) };
+  }
 
   try {
-    // 1. Discover properties in Firestore
+    // 🔍 TIER 1: Check Outbound Dispatch Session Registry (100% Deterministic Attribution)
+    try {
+      const dispatchRef = doc(db, "whatsapp_outbound_dispatches", `dispatch_${cleanDigits}`);
+      const dispatchSnap = await getDoc(dispatchRef);
+      if (dispatchSnap.exists()) {
+        const dData = dispatchSnap.data();
+        if (dData.propertyId) {
+          matchedPropId = dData.propertyId;
+          matchedPropName = dData.propertyName || "TenoPilot PG";
+          matchedOccupant = {
+            id: dData.occupantId || `occ_${cleanDigits}`,
+            name: dData.recipientName || "Resident",
+            phone: rawPhone,
+            roomNumber: dData.roomNumber || null,
+            bedCode: dData.bedCode || null,
+            propertyName: matchedPropName,
+          };
+          allPropertyIds.add(dData.propertyId);
+          return {
+            occupant: matchedOccupant,
+            propertyId: matchedPropId,
+            propertyName: matchedPropName,
+            allPropertyIds: Array.from(allPropertyIds),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("Notice checking outbound dispatch session:", e);
+    }
+
+    // 🔍 TIER 2: Discover properties and scan occupants in Firestore
     try {
       const propSnap = await getDocs(collection(db, "properties"));
       propSnap.forEach((d) => allPropertyIds.add(d.id));
@@ -53,7 +92,6 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
       portSnap.forEach((d) => allPropertyIds.add(d.id));
     } catch (e) {}
 
-    // 2. Scan occupants across discovered properties
     for (const propId of Array.from(allPropertyIds)) {
       try {
         const occSnap = await getDocs(collection(db, `properties/${propId}/occupants`));
@@ -63,16 +101,19 @@ async function findOccupantByPhone(rawPhone: string): Promise<{
           if (occPhone && occPhone === cleanDigits) {
             matchedOccupant = { id: oDoc.id, ...oData };
             matchedPropId = propId;
-            matchedPropName = oData.propertyName || (propId === "sunshine-pg" ? "Sunshine Luxury PG" : "Vibe stays");
-            return { occupant: matchedOccupant, propertyId: matchedPropId, propertyName: matchedPropName, allPropertyIds: Array.from(allPropertyIds) };
+            matchedPropName = oData.propertyName || (propId === "sunshine-pg" ? "Sunshine Luxury PG" : "TenoPilot PG");
+            return {
+              occupant: matchedOccupant,
+              propertyId: matchedPropId,
+              propertyName: matchedPropName,
+              allPropertyIds: Array.from(allPropertyIds),
+            };
           }
         }
-      } catch (err) {
-        // Continue checking other properties
-      }
+      } catch (err) {}
     }
   } catch (err) {
-    console.warn("Notice finding occupant by phone in webhook:", err);
+    console.warn("Notice in findOccupantByPhone:", err);
   }
 
   return { occupant: matchedOccupant, propertyId: matchedPropId, propertyName: matchedPropName, allPropertyIds: Array.from(allPropertyIds) };
@@ -290,18 +331,37 @@ export async function POST(req: NextRequest) {
             timestamp: new Date().toISOString(),
           };
 
-          // 2. Write to Firestore properties/{propertyId}/whatsapp_inbox
-          const targetPropIds = Array.from(new Set([propertyId, ...(allPropertyIds || ["prop-1788438308277", "sunshine-pg"])]));
-          for (const pId of targetPropIds) {
+          // 2. Dual-Write to Firestore: Matched Property Inbox + Global Shared Inbound Archive
+          try {
+            await setDoc(
+              doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId),
+              inboxPayload,
+              { merge: true }
+            );
+          } catch (e) {
+            console.warn(`Failed writing to properties/${propertyId}/whatsapp_inbox:`, e);
+          }
+
+          try {
+            await setDoc(
+              doc(db, "whatsapp_global_inbox", itemId),
+              inboxPayload,
+              { merge: true }
+            );
+          } catch (e) {
+            console.warn("Failed writing to whatsapp_global_inbox:", e);
+          }
+
+          // Fan-out replicate to all discovered properties for this management scope
+          const otherPropIds = Array.from(allPropertyIds).filter((p) => p !== propertyId);
+          for (const pId of otherPropIds) {
             try {
               await setDoc(
                 doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
                 { ...inboxPayload, propertyId: pId },
                 { merge: true }
               );
-            } catch (e) {
-              console.warn(`Failed writing to properties/${pId}/whatsapp_inbox`, e);
-            }
+            } catch (e) {}
           }
 
           // 3. Dispatch smart auto-acknowledgment within Meta's free 24-hour service window
