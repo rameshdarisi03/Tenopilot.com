@@ -63,6 +63,8 @@ export default function ApexCommandClientsPage() {
   const [isApprovingRequestId, setIsApprovingRequestId] = useState<string | null>(null);
   const [isRejectingRequestId, setIsRejectingRequestId] = useState<string | null>(null);
   const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
+  const [rejectModalReq, setRejectModalReq] = useState<any | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState<string>("Payment proof could not be verified in bank records / Invalid UTR.");
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -472,8 +474,15 @@ export default function ApexCommandClientsPage() {
     }
   };
 
-  // Handle Reject Offline Payment Proof
-  const handleRejectRequest = async (req: any) => {
+  // Handle Reject Offline Payment Proof with Reason Dialog
+  const handleOpenRejectModal = (req: any) => {
+    setRejectModalReq(req);
+    setRejectReasonInput("Payment proof could not be verified in bank records / Invalid UTR.");
+  };
+
+  const handleConfirmRejectRequest = async () => {
+    if (!rejectModalReq) return;
+    const req = rejectModalReq;
     setIsRejectingRequestId(req.id);
     try {
       const res = await fetch("/api/apex/reject-request", {
@@ -483,15 +492,16 @@ export default function ApexCommandClientsPage() {
           requestId: req.id,
           userId: req.userId,
           email: req.customerEmail,
-          reason: "Payment could not be verified in bank records.",
-          rejectedBy: "Founder Console",
+          reason: rejectReasonInput.trim() || "Payment proof could not be verified in bank records.",
+          rejectedBy: "Founder Console (Ramesh)",
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        triggerToast("Proof rejected for " + req.customerEmail);
+        triggerToast(`❌ Payment proof rejected for ${req.customerEmail}. Reason saved.`);
         setPendingPaymentRequests((prev) => prev.filter((r) => r.id !== req.id));
+        setRejectModalReq(null);
       } else {
         triggerToast("⚠️ Rejection error: " + data.message);
       }
@@ -948,7 +958,7 @@ export default function ApexCommandClientsPage() {
                       <button
                         type="button"
                         disabled={isApprovingRequestId === req.id || isRejectingRequestId === req.id}
-                        onClick={() => handleRejectRequest(req)}
+                        onClick={() => handleOpenRejectModal(req)}
                         className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs border border-rose-500/30 transition-all cursor-pointer disabled:opacity-50"
                         title="Reject Proof"
                       >
@@ -1298,6 +1308,130 @@ export default function ApexCommandClientsPage() {
               alt="Payment Proof Full View"
               className="max-h-[80vh] w-auto rounded-2xl shadow-2xl object-contain border border-white/20"
             />
+          </div>
+        </div>
+      )}
+
+      {/* ❌ REJECT PAYMENT PROOF REASON MODAL */}
+      {rejectModalReq && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in-50">
+          <div className="w-full max-w-lg bg-[#161b22] border-2 border-rose-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white animate-in zoom-in-95">
+            <div className="flex items-start justify-between border-b border-white/10 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold text-base shrink-0">
+                  <Ban className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Reject Offline Payment Submission</h3>
+                  <p className="text-xs text-gray-400 font-mono">{rejectModalReq.customerEmail}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalReq(null)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Submission Quick Summary */}
+            <div className="p-3 rounded-2xl bg-[#0d1117] border border-white/10 text-xs space-y-1.5">
+              <div className="flex justify-between items-center text-gray-400">
+                <span>Plan Requested:</span>
+                <strong className="text-white font-mono">{rejectModalReq.plan}</strong>
+              </div>
+              <div className="flex justify-between items-center text-gray-400">
+                <span>Amount:</span>
+                <strong className="text-amber-400 font-mono font-bold">₹{Number(rejectModalReq.amount || 999).toLocaleString("en-IN")}</strong>
+              </div>
+              {rejectModalReq.utrNumber && (
+                <div className="flex justify-between items-center text-gray-400">
+                  <span>UTR / Reference:</span>
+                  <strong className="text-gray-200 font-mono">{rejectModalReq.utrNumber}</strong>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Reason Presets */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                Quick Rejection Presets (Click to Auto-Fill)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRejectReasonInput("Invalid UTR / Transfer not found in bank statement.")}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-gray-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/30 text-left text-[11px] transition-all cursor-pointer truncate"
+                >
+                  🚫 Invalid UTR / Not Credited
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRejectReasonInput("Unclear or invalid payment screenshot. Please upload a full receipt.")}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-gray-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/30 text-left text-[11px] transition-all cursor-pointer truncate"
+                >
+                  📸 Fake / Unclear Screenshot
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRejectReasonInput("Amount transferred does not match required plan price.")}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-gray-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/30 text-left text-[11px] transition-all cursor-pointer truncate"
+                >
+                  💵 Price Mismatch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRejectReasonInput("Duplicate submission of a previously approved payment.")}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-gray-300 hover:text-rose-200 border border-white/10 hover:border-rose-500/30 text-left text-[11px] transition-all cursor-pointer truncate"
+                >
+                  🔄 Duplicate Transaction
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Rejection Reason Textarea */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-gray-300 block">
+                Reason for Rejection <span className="text-rose-400">* (Shown to PG Owner in Portal)</span>
+              </label>
+              <textarea
+                value={rejectReasonInput}
+                onChange={(e) => setRejectReasonInput(e.target.value)}
+                rows={3}
+                placeholder="Explain why this payment proof cannot be approved..."
+                className="w-full p-3 rounded-xl bg-[#0d1117] border border-white/10 text-white text-xs placeholder:text-gray-600 focus:outline-none focus:border-rose-500/60 transition-colors resize-none"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setRejectModalReq(null)}
+                className="flex-1 py-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isRejectingRequestId === rejectModalReq.id || !rejectReasonInput.trim()}
+                onClick={handleConfirmRejectRequest}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+              >
+                {isRejectingRequestId === rejectModalReq.id ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Rejecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Ban className="w-4 h-4" />
+                    <span>Confirm & Send Rejection</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2175,7 +2309,10 @@ export default function ApexCommandClientsPage() {
                   <div className="p-3.5 rounded-2xl bg-[#0d1117] border border-white/10">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">TOTAL SUBSCRIBED</span>
                     <p className="text-lg font-black font-mono text-emerald-400 mt-1">
-                      ₹{subscriptionHistory.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0).toLocaleString("en-IN")}
+                      ₹{subscriptionHistory
+                        .filter((item) => item.status !== "REJECTED" && item.status !== "CANCELLED")
+                        .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+                        .toLocaleString("en-IN")}
                     </p>
                   </div>
 
@@ -2215,6 +2352,8 @@ export default function ApexCommandClientsPage() {
                   <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
                     {subscriptionHistory.map((item, idx) => {
                       const isPro = item.plan?.includes("PRO") || item.plan?.includes("VIP");
+                      const isCreditPack = item.plan?.includes("WHATSAPP") || item.plan?.includes("CREDIT");
+                      const isRejected = item.status === "REJECTED";
                       const formattedDate = new Date(item.date).toLocaleDateString("en-IN", {
                         day: "2-digit",
                         month: "short",
@@ -2226,13 +2365,21 @@ export default function ApexCommandClientsPage() {
                       return (
                         <div
                           key={item.id || idx}
-                          className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-3 hover:border-emerald-500/40 transition-colors"
+                          className={`p-4 rounded-2xl bg-[#0d1117] border space-y-3 transition-colors ${
+                            isRejected
+                              ? "border-rose-500/30 hover:border-rose-500/50"
+                              : "border-white/10 hover:border-emerald-500/40"
+                          }`}
                         >
                           {/* Top Row: Plan + Date + Status */}
                           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border ${
-                                isPro
+                                isRejected
+                                  ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                                  : isCreditPack
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                  : isPro
                                   ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
                                   : "bg-amber-500/20 text-amber-300 border-amber-500/30"
                               }`}>
@@ -2244,6 +2391,12 @@ export default function ApexCommandClientsPage() {
                                   ? "💎 Pro Plan (Monthly)"
                                   : item.plan === "10_DAY_TRIAL"
                                   ? "⚡ 10-Day Free Trial"
+                                  : item.plan === "WHATSAPP_PACK_750"
+                                  ? "💬 WhatsApp Growth Pack (+750)"
+                                  : item.plan === "WHATSAPP_PACK_250"
+                                  ? "💬 WhatsApp Starter Pack (+250)"
+                                  : item.plan === "WHATSAPP_PACK_2000"
+                                  ? "💬 WhatsApp Mega Pack (+2000)"
                                   : `💎 ${item.plan}`}
                               </span>
                               <span className="text-[11px] text-gray-400 font-mono">
@@ -2251,8 +2404,12 @@ export default function ApexCommandClientsPage() {
                               </span>
                             </div>
 
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                              ✓ {item.status || "COMPLETED"}
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              isRejected
+                                ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                                : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            }`}>
+                              {isRejected ? "❌ REJECTED" : `✓ ${item.status || "COMPLETED"}`}
                             </span>
                           </div>
 
@@ -2260,15 +2417,23 @@ export default function ApexCommandClientsPage() {
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
                             <div>
                               <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">AMOUNT PAID</span>
-                              <span className="font-bold text-white font-mono text-xs">
+                              <span className={`font-bold font-mono text-xs ${isRejected ? "text-rose-400 line-through" : "text-white"}`}>
                                 {item.amount > 0 ? `₹${item.amount.toLocaleString("en-IN")}` : "₹0 (VIP Pass / Trial)"}
                               </span>
                             </div>
 
                             <div>
-                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">DURATION</span>
-                              <span className="font-bold text-gray-300">
-                                {item.durationDays ? `${item.durationDays} Days` : "30 Days"}
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">
+                                {isCreditPack ? "VALIDITY" : "CYCLE VALIDITY"}
+                              </span>
+                              <span className={`font-bold ${isCreditPack ? "text-emerald-400" : "text-gray-300"}`}>
+                                {isCreditPack
+                                  ? "Lifetime (Never Expires)"
+                                  : item.planExpiresAt
+                                  ? `Valid Till ${new Date(item.planExpiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`
+                                  : item.durationDays
+                                  ? `${item.durationDays} Days`
+                                  : "30 Days"}
                               </span>
                             </div>
 
@@ -2286,6 +2451,17 @@ export default function ApexCommandClientsPage() {
                               </span>
                             </div>
                           </div>
+
+                          {/* Rejection Reason Alert Card (If Rejected) */}
+                          {isRejected && (item.rejectionReason || item.notes) && (
+                            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5">
+                                <span className="font-bold text-rose-200">Rejection Reason:</span>
+                                <p className="text-rose-300 text-xs">{item.rejectionReason || item.notes}</p>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Bottom Row: Notes & Proof Trigger */}
                           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/5 text-[10px]">

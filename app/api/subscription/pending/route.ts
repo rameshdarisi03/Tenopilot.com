@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
     const cleanEmail = (email || "").toLowerCase().trim();
     let pendingRequest: any = null;
+    let rejectedReason: string | null = null;
 
     // 1. Check User Document directly (100% permitted and instant)
     if (userId) {
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest) {
           const uData = uSnap.data();
           if (uData.pendingPaymentRequest && uData.pendingRequestData) {
             pendingRequest = uData.pendingRequestData;
+          }
+          if (uData.lastPaymentRejectionReason) {
+            rejectedReason = uData.lastPaymentRejectionReason;
           }
         }
       } catch (e) {
@@ -39,6 +43,9 @@ export async function GET(req: NextRequest) {
           if (uData.pendingPaymentRequest && uData.pendingRequestData) {
             pendingRequest = uData.pendingRequestData;
             break;
+          }
+          if (uData.lastPaymentRejectionReason) {
+            rejectedReason = uData.lastPaymentRejectionReason;
           }
         }
       } catch (e) {
@@ -94,6 +101,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       hasPending: !!pendingRequest,
       request: pendingRequest,
+      hasRejected: !pendingRequest && !!rejectedReason,
+      rejectedReason: !pendingRequest ? rejectedReason : null,
     });
   } catch (err: any) {
     console.error("GET /api/subscription/pending error:", err);

@@ -97,9 +97,10 @@ export async function GET(req: NextRequest) {
               receiptNumber: data.receiptNumber || (data.utrNumber ? `UTR: ${data.utrNumber}` : `REQ-${d.id.slice(-6)}`),
               receiptUrl: data.proofImageUrl || data.receiptUrl || null,
               notes: data.notes || (data.utrNumber ? `UTR: ${data.utrNumber}` : "Subscription Request"),
-              activatedBy: data.approvedBy || "Founder Portal",
+              activatedBy: data.approvedBy || data.reviewedBy || "Founder Portal",
               planExpiresAt: data.planExpiresAt || null,
-              status: data.status === "APPROVED" ? "COMPLETED" : data.status || "COMPLETED",
+              status: data.status === "APPROVED" ? "COMPLETED" : (data.status === "REJECTED" ? "REJECTED" : data.status || "COMPLETED"),
+              rejectionReason: data.rejectionReason || data.rejectReason || null,
             });
           }
         }

@@ -70,6 +70,7 @@ export default function SubscriptionBillingPage() {
 
   // Pending Request Tracking
   const [pendingRequest, setPendingRequest] = useState<any | null>(null);
+  const [rejectedNotice, setRejectedNotice] = useState<string | null>(null);
   const [loadingPending, setLoadingPending] = useState(true);
   const [zoomedScreenshot, setZoomedScreenshot] = useState<string | null>(null);
 
@@ -140,8 +141,12 @@ export default function SubscriptionBillingPage() {
       const data = await res.json();
       if (data.hasPending && data.request) {
         setPendingRequest(data.request);
+        setRejectedNotice(null);
       } else {
         setPendingRequest(null);
+        if (data.hasRejected && data.rejectedReason) {
+          setRejectedNotice(data.rejectedReason);
+        }
       }
     } catch (err) {
       console.warn("Notice checking pending subscription request:", err);
@@ -416,6 +421,45 @@ export default function SubscriptionBillingPage() {
               Manage your Pro subscription, choose between Instant Online Gateway (Razorpay) or Direct Offline UPI, and extend your workspace.
             </p>
           </div>
+
+          {/* ❌ REJECTED PAYMENT PROOF NOTICE CARD (Rendered if founder rejected previous submission) */}
+          {rejectedNotice && !pendingRequest && (
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-rose-50/95 via-rose-100/60 to-red-50/80 border-2 border-rose-300 shadow-md animate-in fade-in space-y-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md shadow-rose-500/20">
+                    ❌
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-200 text-rose-900 font-black text-[10px] uppercase tracking-wider">
+                        Payment Proof Not Approved
+                      </span>
+                    </div>
+                    <h3 className="text-base font-black text-rose-950 font-serif">
+                      Previous Payment Verification Failed
+                    </h3>
+                    <p className="text-xs text-rose-900 leading-relaxed max-w-2xl font-medium">
+                      <strong>Reason from Founder:</strong> "{rejectedNotice}"
+                    </p>
+                    <p className="text-[11px] text-gray-600 mt-1">
+                      Please verify your bank UTR / transaction and submit a fresh payment receipt below for immediate re-verification.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap sm:flex-col items-end gap-2 shrink-0">
+                  <a
+                    href="#payment-options"
+                    onClick={() => setRejectedNotice(null)}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>🔄 Upload New Payment Proof</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ⏳ PENDING VERIFICATION NOTICE CARD (Rendered if customer has an offline proof under review) */}
           {pendingRequest && (
