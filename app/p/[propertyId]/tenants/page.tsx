@@ -2740,49 +2740,35 @@ Scroll vertically to browse all residents without pagination limits
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setReminderChannel("WHATSAPP")}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold text-xs cursor-pointer transition-all ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 font-bold text-xs cursor-pointer transition-all ${
                       reminderChannel === "WHATSAPP"
-                        ? "bg-emerald-600 text-white border-emerald-700 shadow-sm"
+                        ? "bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400/30"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
                     }`}
                   >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span className="text-[11px]">WhatsApp</span>
+                    <div className="flex items-center gap-1.5">
+                      <MessageSquare className="w-4 h-4 text-white" />
+                      <span className="text-xs font-bold">WhatsApp Cloud</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-100 font-medium">Meta Verified API</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setReminderChannel("EMAIL")}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold text-xs cursor-pointer transition-all ${
-                      reminderChannel === "EMAIL"
-                        ? "bg-blue-600 text-white border-blue-700 shadow-sm"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
-                    }`}
+                    disabled
+                    className="p-2.5 rounded-xl border border-gray-200 bg-gray-100/70 text-gray-400 flex flex-col items-center justify-center gap-1 text-xs cursor-not-allowed opacity-80 select-none"
+                    title="Email Invoices feature coming soon"
                   >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span className="text-[11px]">Email</span>
-                    <span className={`text-[9px] font-medium ${reminderChannel === "EMAIL" ? "text-blue-100" : "text-gray-400"}`}>
-                      Free
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setReminderChannel("BOTH")}
-                    className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold text-xs cursor-pointer transition-all ${
-                      reminderChannel === "BOTH"
-                        ? "bg-gradient-to-r from-emerald-600 to-blue-600 text-white border-blue-700 shadow-sm ring-1.5 ring-blue-400/40"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span className="text-[11px]">Both</span>
-                    <span className={`text-[9px] font-medium ${reminderChannel === "BOTH" ? "text-white/90" : "text-emerald-600 font-extrabold"}`}>
-                      2x Reach
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      <span className="text-xs font-bold text-gray-500">Email Invoices</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                      Coming Soon
                     </span>
                   </button>
                 </div>
@@ -2794,12 +2780,8 @@ Scroll vertically to browse all residents without pagination limits
                   <h4 className="font-bold text-gray-900 text-xs">
                     3. Selected Recipients ({selectedIds.length}):
                   </h4>
-                  <span className="text-[10px] text-gray-400 font-medium">
-                    {reminderChannel === "BOTH"
-                      ? "WhatsApp + Email Invoice"
-                      : reminderChannel === "WHATSAPP"
-                      ? "WhatsApp Message"
-                      : "Email Invoice"}
+                  <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" /> WhatsApp Cloud Message
                   </span>
                 </div>
 
