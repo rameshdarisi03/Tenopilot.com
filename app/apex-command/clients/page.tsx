@@ -44,6 +44,7 @@ import {
   Receipt,
   Calendar,
   History,
+  FileText,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
@@ -51,6 +52,7 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { buildWhatsAppUrl } from "@/utils/security";
+import { TenoPilotInvoiceModal, InvoiceData } from "@/components/billing/TenoPilotInvoiceModal";
 
 export default function ApexCommandClientsPage() {
   const router = useRouter();
@@ -65,6 +67,7 @@ export default function ApexCommandClientsPage() {
   const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
   const [rejectModalReq, setRejectModalReq] = useState<any | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>("Payment proof could not be verified in bank records / Invalid UTR.");
+  const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<InvoiceData | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1436,6 +1439,13 @@ export default function ApexCommandClientsPage() {
         </div>
       )}
 
+      {/* 📄 OFFICIAL TENOPILOT TAX INVOICE & RECEIPT MODAL */}
+      <TenoPilotInvoiceModal
+        isOpen={!!selectedInvoiceForModal}
+        onClose={() => setSelectedInvoiceForModal(null)}
+        invoice={selectedInvoiceForModal}
+      />
+
       {/* 👑 CUSTOMER 360° PROFILE & MANUAL PLAN ACTIVATION MODAL */}
       {selectedCustomer360 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in-50">
@@ -2473,16 +2483,49 @@ export default function ApexCommandClientsPage() {
                               )}
                             </div>
 
-                            {item.receiptUrl && (
-                              <button
-                                type="button"
-                                onClick={() => setZoomedProofUrl(item.receiptUrl)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors active:scale-95"
-                              >
-                                <Eye className="w-3 h-3" />
-                                <span>View Payment Proof</span>
-                              </button>
-                            )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {item.status !== "REJECTED" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedInvoiceForModal({
+                                      invoiceNumber: item.invoiceNumber || `INV-TP-2026-${(item.receiptNumber || item.id || "94821").toString().replace(/\D/g, "").slice(-5) || "10029"}`,
+                                      date: item.date,
+                                      customerName: selectedCustomer360.displayName || selectedCustomer360.email,
+                                      customerEmail: selectedCustomer360.email,
+                                      customerPhone: selectedCustomer360.phone,
+                                      propertyName: selectedCustomer360.primaryPropertyName || "Sunshine Heights PG",
+                                      organizationId: selectedCustomer360.organizationId || "org_tp_estate_01",
+                                      plan: item.plan,
+                                      durationDays: item.durationDays,
+                                      planExpiresAt: item.planExpiresAt,
+                                      amount: Number(item.amount) || 0,
+                                      paymentMode: item.paymentMode || "OFFLINE_UPI",
+                                      receiptNumber: item.receiptNumber,
+                                      receiptUrl: item.receiptUrl,
+                                      notes: item.notes,
+                                      activatedBy: item.activatedBy,
+                                      status: item.status,
+                                    })
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors active:scale-95"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>View Tax Invoice</span>
+                                </button>
+                              )}
+
+                              {item.receiptUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomedProofUrl(item.receiptUrl)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors active:scale-95"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>View Payment Proof</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

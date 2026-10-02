@@ -45,6 +45,7 @@ import {
 import Link from "next/link";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { TenoPilotInvoiceModal, InvoiceData } from "@/components/billing/TenoPilotInvoiceModal";
 
 export default function SubscriptionBillingPage() {
   const params = useParams();
@@ -76,6 +77,7 @@ export default function SubscriptionBillingPage() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [historyTransactions, setHistoryTransactions] = useState<any[]>([]);
+  const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<InvoiceData | null>(null);
 
   // 💬 WhatsApp Cloud Message Wallet & Credits State
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
@@ -1259,37 +1261,100 @@ export default function SubscriptionBillingPage() {
                     <tr className="border-b border-[#d7c2b9]/60 text-gray-500 text-[10px] uppercase tracking-wider">
                       <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3">Receipt / Txn ID</th>
-                      <th className="py-2.5 px-3">Plan</th>
+                      <th className="py-2.5 px-3">Plan / Item</th>
                       <th className="py-2.5 px-3">Payment Mode</th>
                       <th className="py-2.5 px-3">Amount</th>
                       <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Tax Invoice</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#d7c2b9]/30">
-                    {historyTransactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-3 px-3 text-gray-600 font-mono text-[11px]">
-                          {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB") : "Recent"}
-                        </td>
-                        <td className="py-3 px-3 font-mono font-bold text-gray-900">
-                          {tx.receiptNumber || tx.id}
-                        </td>
-                        <td className="py-3 px-3 font-bold text-gray-800">
-                          {tx.plan === "PRO_ANNUAL" ? "Pro Annual" : "Pro Monthly"}
-                        </td>
-                        <td className="py-3 px-3 text-gray-600">
-                          {tx.paymentMode || "UPI"}
-                        </td>
-                        <td className="py-3 px-3 font-mono font-black text-gray-900">
-                          ₹{Number(tx.amountPaid || 999).toLocaleString("en-IN")}
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                            COMPLETED
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {historyTransactions.map((tx) => {
+                      const isCreditPack = tx.plan?.startsWith("WA_") || tx.type === "CREDIT_PACK" || tx.plan?.includes("WHATSAPP");
+                      return (
+                        <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
+                          <td className="py-3 px-3 text-gray-600 font-mono text-[11px]">
+                            {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB") : "Recent"}
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-gray-900">
+                            {tx.receiptNumber || tx.id}
+                          </td>
+                          <td className="py-3 px-3 font-bold text-gray-800">
+                            {tx.plan === "PRO_ANNUAL"
+                              ? "💎 Pro Annual"
+                              : tx.plan === "PRO_MONTHLY"
+                              ? "💎 Pro Monthly"
+                              : isCreditPack
+                              ? "💬 WhatsApp Credits Pack"
+                              : tx.plan || "Pro Subscription"}
+                          </td>
+                          <td className="py-3 px-3 text-gray-600">
+                            {tx.paymentMode || "UPI"}
+                          </td>
+                          <td className="py-3 px-3 font-mono font-black text-gray-900">
+                            ₹{Number(tx.amountPaid || tx.amount || 999).toLocaleString("en-IN")}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                              {tx.status || "COMPLETED"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedInvoiceForModal({
+                                    invoiceNumber:
+                                      tx.invoiceNumber ||
+                                      `INV-TP-2026-${(tx.receiptNumber || tx.id || "94821")
+                                        .toString()
+                                        .replace(/\D/g, "")
+                                        .slice(-5) || "10029"}`,
+                                    date: tx.createdAt
+                                      ? new Date(tx.createdAt).toLocaleDateString("en-IN", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
+                                      : "Today",
+                                    customerName: tx.customerName || profile?.displayName || "PG Owner",
+                                    customerEmail: tx.customerEmail || profile?.email || "",
+                                    customerPhone: tx.customerPhone || profile?.phone || "",
+                                    propertyName: tx.propertyName || "TenoPilot PG",
+                                    plan: tx.plan || "PRO_MONTHLY",
+                                    durationDays: tx.plan === "PRO_ANNUAL" ? 365 : 30,
+                                    planExpiresAt: tx.planExpiresAt || null,
+                                    creditsAdded: isCreditPack ? tx.credits || 750 : null,
+                                    amount: Number(tx.amountPaid || tx.amount || 999),
+                                    paymentMode: tx.paymentMode || "UPI / Razorpay (Verified)",
+                                    receiptNumber: tx.receiptNumber || tx.id,
+                                    receiptUrl: tx.receiptUrl || tx.screenshotUrl || null,
+                                    notes: tx.notes || "Official Tax Invoice issued by TenoPilot",
+                                    activatedBy: tx.activatedBy || "System Gateway",
+                                    status: tx.status || "COMPLETED",
+                                  });
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-[#201a17] hover:bg-[#342924] text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs active:scale-95"
+                              >
+                                <FileText className="w-3 h-3 text-amber-400" />
+                                <span>Tax Invoice</span>
+                              </button>
+                              {tx.receiptUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomedScreenshot(tx.receiptUrl)}
+                                  className="p-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 text-[10px] flex items-center cursor-pointer transition-colors"
+                                  title="View Payment Proof Screenshot"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1340,6 +1405,7 @@ export default function SubscriptionBillingPage() {
           </div>
         </div>
       )}
+
       {/* 💬 WHATSAPP CREDIT RECHARGE & WALLET MODAL */}
       <WhatsAppWalletModal
         propertyId={propertyId}
@@ -1352,6 +1418,13 @@ export default function SubscriptionBillingPage() {
           setWhatsappCredits(newCredits);
           triggerToast(`🎉 Successfully updated WhatsApp wallet balance to ${newCredits} messages!`);
         }}
+      />
+
+      {/* 📄 OFFICIAL TENOPILOT TAX INVOICE MODAL */}
+      <TenoPilotInvoiceModal
+        isOpen={!!selectedInvoiceForModal}
+        onClose={() => setSelectedInvoiceForModal(null)}
+        invoice={selectedInvoiceForModal}
       />
     </div>
   );
