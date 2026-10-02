@@ -4,6 +4,41 @@ import { db } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
 
+const PUBLIC_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "yahoo.co.in",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "rediffmail.com",
+  "proton.me",
+  "protonmail.com",
+  "aol.com",
+  "zoho.com",
+  "gmx.com",
+  "mail.com",
+]);
+
+function isValidStaffDoc(id: string, email: string): boolean {
+  const lowerId = (id || "").toLowerCase().trim();
+  const lowerEmail = (email || "").toLowerCase().trim();
+
+  if (lowerId.startsWith("staff-master_admin-") || lowerId.startsWith("portfolio_") || lowerId.startsWith("mock_")) {
+    return false;
+  }
+  if (!lowerEmail.includes("@") || !lowerEmail.includes(".")) {
+    return false;
+  }
+  if (lowerEmail.startsWith("staff-master_admin-")) {
+    return false;
+  }
+  return true;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
@@ -17,6 +52,41 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ staff: [] }, { status: 200 });
     }
 
+    // Pre-fetch Property Names map for friendly display
+    const propertyNameMap = new Map<string, string>();
+    try {
+      const propSnap = await getDocs(collection(db, "portfolio_properties"));
+      propSnap.docs.forEach((d) => {
+        const data = d.data();
+        const name = data.name || data.propertyName || data.title;
+        if (name) propertyNameMap.set(d.id, name);
+      });
+    } catch (e) {
+      console.warn("Notice loading portfolio_properties for staff:", e);
+    }
+
+    try {
+      const portfoliosSnap = await getDocs(collection(db, "portfolios"));
+      portfoliosSnap.docs.forEach((d) => {
+        const data = d.data();
+        const name = data.name || data.portfolioName || data.title;
+        if (name) propertyNameMap.set(d.id, name);
+      });
+    } catch (e) {
+      console.warn("Notice loading portfolios for staff:", e);
+    }
+
+    const resolvePropertyName = (propId: string, assigned: string[]): string => {
+      if (assigned.includes("*") || propId === "*") return "All Buildings (Global Admin)";
+      if (propertyNameMap.has(propId)) return propertyNameMap.get(propId)!;
+      if (propId === "sunshine-pg") return "Sunshine Luxury Living";
+      if (propId === "vibe-stays") return "Vibe Stays PG";
+      return propId || "All Properties";
+    };
+
+    const clientDomain = clientEmail.includes("@") ? clientEmail.split("@")[1].toLowerCase() : "";
+    const isCorporateDomain = Boolean(clientDomain && !PUBLIC_EMAIL_DOMAINS.has(clientDomain));
+
     const staffMap = new Map<string, any>();
 
     // 1. Scan global staff_accounts collection
@@ -25,27 +95,36 @@ export async function GET(req: NextRequest) {
       snap.forEach((d) => {
         const data = d.data();
         const email = (data.email || d.id || "").toLowerCase().trim();
-        const createdBy = (data.createdByEmail || "").toLowerCase().trim();
-        const dataOrgId = data.orgId || "";
-        const assigned = Array.isArray(data.assignedPropertyIds) ? data.assignedPropertyIds : [data.assignedPropertyId].filter(Boolean);
+        const createdBy = (data.createdByEmail || data.ownerEmail || "").toLowerCase().trim();
+        const dataOrgId = data.orgId || data.organizationId || "";
+        const assigned = Array.isArray(data.assignedPropertyIds)
+          ? data.assignedPropertyIds
+          : [data.assignedPropertyId].filter(Boolean);
 
-        // Match if created by this client, or matching org, or matches client's properties, or matching client's email domain
+        if (!isValidStaffDoc(d.id, email)) {
+          return;
+        }
+
         const isClientOwner = clientEmail && email === clientEmail;
         const isCreatedByClient = clientEmail && createdBy === clientEmail;
-        const isOrgMatch = orgId && dataOrgId === orgId;
-        const isPropMatch = propertyIds.some((pId) => assigned.includes(pId) || assigned.includes("*"));
-        const isDomainMatch = clientEmail && clientEmail.includes("@") && email.endsWith(`@${clientEmail.split("@")[1]}`);
+        const isOrgMatch = orgId && dataOrgId && dataOrgId === orgId;
+        const isPropMatch = propertyIds.length > 0 && propertyIds.some((pId) => assigned.includes(pId));
+        const isDomainMatch = isCorporateDomain && email.endsWith(`@${clientDomain}`);
 
-        if (isClientOwner || isCreatedByClient || isOrgMatch || isPropMatch || isDomainMatch || !clientEmail) {
-          staffMap.set(email || d.id, {
+        // Only include if explicitly associated with this client
+        if (isClientOwner || isCreatedByClient || isOrgMatch || isPropMatch || isDomainMatch) {
+          const primaryPropId = data.assignedPropertyId || assigned[0] || propertyIds[0] || "*";
+          const friendlyPropName = data.propertyName || resolvePropertyName(primaryPropId, assigned);
+
+          staffMap.set(email, {
             id: data.id || d.id,
-            name: data.name || (email ? email.split("@")[0] : "Staff Member"),
-            email: email || data.email || "staff@tenopilot.com",
+            name: data.name || data.displayName || (email ? email.split("@")[0] : "Staff Member"),
+            email: email || data.email,
             phone: data.phone || "",
-            role: data.role || (isClientOwner ? "master_admin" : "admin"),
-            assignedPropertyId: data.assignedPropertyId || propertyIds[0] || "All Properties",
+            role: isClientOwner ? "master_admin" : data.role || "admin",
+            assignedPropertyId: primaryPropId,
             assignedPropertyIds: assigned.length > 0 ? assigned : ["*"],
-            propertyName: data.propertyName || (assigned.includes("*") ? "All Buildings (Global Admin)" : "Assigned Property"),
+            propertyName: friendlyPropName,
             status: data.status || "Active",
             joinedDate: data.joinedDate || data.createdAt || "Recent",
             securityPin: data.securityPin || null,
@@ -57,23 +136,29 @@ export async function GET(req: NextRequest) {
       console.warn("Notice scanning staff_accounts collection:", e);
     }
 
-    // 2. Scan per-property staff subcollections if specific propertyIds provided
+    // 2. Scan per-property staff subcollections for client's specific propertyIds
     for (const propId of propertyIds) {
       try {
         const propStaffSnap = await getDocs(collection(db, `properties/${propId}/staff`));
         propStaffSnap.forEach((d) => {
           const data = d.data();
           const email = (data.email || d.id || "").toLowerCase().trim();
+
+          if (!isValidStaffDoc(d.id, email)) {
+            return;
+          }
+
           if (!staffMap.has(email)) {
+            const friendlyPropName = data.propertyName || resolvePropertyName(propId, [propId]);
             staffMap.set(email, {
               id: data.id || d.id,
-              name: data.name || (email ? email.split("@")[0] : "Staff Member"),
+              name: data.name || data.displayName || (email ? email.split("@")[0] : "Staff Member"),
               email: email || data.email,
               phone: data.phone || "",
               role: data.role || "receptionist",
               assignedPropertyId: propId,
               assignedPropertyIds: [propId],
-              propertyName: data.propertyName || propId,
+              propertyName: friendlyPropName,
               status: data.status || "Active",
               joinedDate: data.joinedDate || "Recent",
               securityPin: data.securityPin || null,
@@ -89,7 +174,7 @@ export async function GET(req: NextRequest) {
     const staffList = Array.from(staffMap.values());
 
     // Sort: master_admin first, then admin, then receptionist
-    const roleOrder: Record<string, number> = { master_admin: 1, admin: 2, receptionist: 3 };
+    const roleOrder: Record<string, number> = { master_admin: 1, owner: 1, admin: 2, property_admin: 2, receptionist: 3 };
     staffList.sort((a, b) => (roleOrder[a.role] || 99) - (roleOrder[b.role] || 99));
 
     return NextResponse.json({ success: true, staff: staffList, count: staffList.length }, { status: 200 });

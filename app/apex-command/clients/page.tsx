@@ -100,7 +100,9 @@ export default function ApexCommandClientsPage() {
     }
   };
 
-  const handleResetStaffPin = async (staffEmail: string) => {
+  const handleResetStaffPin = async (staffOrEmail: any) => {
+    const staffEmail = typeof staffOrEmail === "string" ? staffOrEmail : (staffOrEmail?.email || staffOrEmail?.id);
+    if (!staffEmail) return;
     setResettingPinEmail(staffEmail);
     try {
       const tempPin = Math.floor(100000 + Math.random() * 900000).toString();
@@ -1961,12 +1963,12 @@ export default function ApexCommandClientsPage() {
                                   : "bg-purple-500/10 text-purple-300 border-purple-500/30"
                               }`}
                             >
-                              {(staff.name || staff.displayName || staff.email || "S").slice(0, 2)}
+                              {((isMasterAdmin && selectedCustomer360.displayName) || staff.name || staff.displayName || staff.email || "S").slice(0, 2)}
                             </div>
                             <div className="min-w-0 space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-bold text-white text-sm truncate">
-                                  {staff.name || staff.displayName || staff.email.split("@")[0]}
+                                  {(isMasterAdmin && selectedCustomer360.displayName) || staff.name || staff.displayName || staff.email.split("@")[0]}
                                 </span>
                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${roleBadgeColor}`}>
                                   {roleLabel}
