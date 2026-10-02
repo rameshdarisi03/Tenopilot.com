@@ -55,7 +55,6 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { staffStore, UserRole } from "@/lib/staffStore";
-import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { WhatsAppInboundReviewDrawer } from "@/components/dashboard/WhatsAppInboundReviewDrawer";
 import { whatsappInboxStore } from "@/constants/whatsappInboxStore";
@@ -973,7 +972,6 @@ export default function FinancialHubPage({
           activeTab={activeTab}
           onTabChange={(tab) => setActiveTab(tab)}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
-          actionElement={<RoleSwitcherBadge />}
         />
 
         {/* Workspace Body */}

@@ -5,7 +5,6 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
 import { reauthenticateCurrentAccount, syncUserSecurityPinToCloud } from "@/lib/authService";
 import Link from "next/link";
 import {
@@ -185,7 +184,6 @@ export default function StaffManagementPage({
           showSearch={false}
           propertyId={propertyId}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
-          actionElement={<RoleSwitcherBadge />}
         />
 
         {/* RECEPTIONIST RESTRICTED GUARD SCREEN */}

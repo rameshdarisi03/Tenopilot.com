@@ -17,6 +17,9 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
 
   if (!profile || dismissed) return null;
 
+  // 🛡️ Staff users (Admins & Receptionists) are operational team members, not billing owners
+  if (profile.role === "admin" || profile.role === "receptionist") return null;
+
   const sub = evaluateSubscription(profile);
 
   const isPendingVerification = !!profile.pendingPaymentRequest;

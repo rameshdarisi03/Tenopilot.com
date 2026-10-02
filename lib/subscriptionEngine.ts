@@ -75,6 +75,25 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     };
   }
 
+  // 🏢 STAFF ACCOUNT DELEGATION: Staff users (Admins & Receptionists) inherit organization operational authorization
+  if (userProfile.role === "admin" || userProfile.role === "receptionist") {
+    if (!userProfile.planExpiresAt && (!userProfile.subscriptionStatus || userProfile.subscriptionStatus === "TRIAL")) {
+      return {
+        status: "ACTIVE_PRO",
+        plan: "ORGANIZATION_STAFF",
+        isPro: true,
+        daysRemaining: 999,
+        graceDaysRemaining: 0,
+        isPreExpiry: false,
+        inGracePeriod: false,
+        canAccessProFeatures: true,
+        expiryDateFormatted: "Enterprise Workspace",
+        badgeLabel: userProfile.role === "admin" ? "🏢 Property Admin" : "🔑 Staff Member",
+        badgeColor: "emerald",
+      };
+    }
+  }
+
   if (userProfile.status === "SUSPENDED" || userProfile.subscriptionStatus === "SUSPENDED") {
     return {
       status: "SUSPENDED",

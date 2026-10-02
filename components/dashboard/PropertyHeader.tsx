@@ -392,30 +392,32 @@ export function PropertyHeader({
           )}
         </div>
 
-        {/* ⏳ Dynamic Subscription Lifecycle Badge */}
-        <Link
-          href={`/p/${propertyId}/subscription`}
-          className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-2xs border transition-all hover:scale-[1.02] cursor-pointer ${
-            sub.status === "ACTIVE_PRO"
-              ? "bg-emerald-50 text-emerald-900 border-emerald-300"
-              : sub.inGracePeriod
-              ? "bg-amber-50 text-amber-900 border-amber-300 animate-pulse"
-              : sub.isPreExpiry
-              ? "bg-blue-50 text-blue-900 border-blue-300"
-              : "bg-amber-50 text-amber-900 border-amber-300"
-          }`}
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
+        {/* ⏳ Dynamic Subscription Lifecycle Badge (Master Admin Only) */}
+        {profile?.role === "master_admin" && (
+          <Link
+            href={`/p/${propertyId}/subscription`}
+            className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-2xs border transition-all hover:scale-[1.02] cursor-pointer ${
               sub.status === "ACTIVE_PRO"
-                ? "bg-emerald-500"
+                ? "bg-emerald-50 text-emerald-900 border-emerald-300"
                 : sub.inGracePeriod
-                ? "bg-amber-500 animate-ping"
-                : "bg-amber-500 animate-pulse"
+                ? "bg-amber-50 text-amber-900 border-amber-300 animate-pulse"
+                : sub.isPreExpiry
+                ? "bg-blue-50 text-blue-900 border-blue-300"
+                : "bg-amber-50 text-amber-900 border-amber-300"
             }`}
-          />
-          <span>{sub.badgeLabel}</span>
-        </Link>
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                sub.status === "ACTIVE_PRO"
+                  ? "bg-emerald-500"
+                  : sub.inGracePeriod
+                  ? "bg-amber-500 animate-ping"
+                  : "bg-amber-500 animate-pulse"
+              }`}
+            />
+            <span>{sub.badgeLabel}</span>
+          </Link>
+        )}
 
         {actionElement && <div className="hidden sm:block">{actionElement}</div>}
 

@@ -37,7 +37,6 @@ import { expenseStore, ExpenseRecord } from "@/constants/expenseStore";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 import { ReceiptRupeeIcon } from "@/constants/businessIconLibrary";
-import { RoleSwitcherBadge } from "@/components/auth/RoleSwitcherBadge";
 
 export default function ReportsAnalyticsPage({
   params,
@@ -559,7 +558,6 @@ export default function ReportsAnalyticsPage({
           showSearch={false}
           propertyId={propertyId}
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
-          actionElement={<RoleSwitcherBadge />}
         />
 
         {/* Workspace Body */}
