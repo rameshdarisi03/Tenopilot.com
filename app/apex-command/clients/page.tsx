@@ -40,6 +40,9 @@ import {
   KeyRound,
   UserCheck,
   MessageSquare,
+  Receipt,
+  Calendar,
+  History,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
@@ -75,11 +78,34 @@ export default function ApexCommandClientsPage() {
 
   // Selected account for Customer 360° Profile & Activation modal
   const [selectedCustomer360, setSelectedCustomer360] = useState<ScannedAccountRecord | null>(null);
-  const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "STAFF" | "ACTIONS">("OVERVIEW");
+  const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "STAFF" | "HISTORY" | "ACTIONS">("OVERVIEW");
   const [clientStaffList, setClientStaffList] = useState<any[]>([]);
   const [isLoadingStaff, setIsLoadingStaff] = useState<boolean>(false);
   const [staffSearchQuery, setStaffSearchQuery] = useState<string>("");
   const [resettingPinEmail, setResettingPinEmail] = useState<string | null>(null);
+
+  // Subscription Audit History State
+  const [subscriptionHistory, setSubscriptionHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+
+  const fetchSubscriptionHistory = async (customer: ScannedAccountRecord) => {
+    if (!customer?.email && !customer?.userId) return;
+    setIsLoadingHistory(true);
+    try {
+      const emailParam = customer.email ? `email=${encodeURIComponent(customer.email)}` : "";
+      const uidParam = customer.userId ? `userId=${encodeURIComponent(customer.userId)}` : "";
+      const query = [emailParam, uidParam].filter(Boolean).join("&");
+      const res = await fetch(`/api/apex/subscription-history?${query}&t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptionHistory(data.history || []);
+      }
+    } catch (e) {
+      console.warn("Notice loading subscription history for 360 view:", e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   const fetchClientStaff = async (customer: ScannedAccountRecord) => {
     if (!customer?.email) return;
@@ -134,8 +160,10 @@ export default function ApexCommandClientsPage() {
   useEffect(() => {
     if (selectedCustomer360) {
       fetchClientStaff(selectedCustomer360);
+      fetchSubscriptionHistory(selectedCustomer360);
     } else {
       setClientStaffList([]);
+      setSubscriptionHistory([]);
     }
   }, [selectedCustomer360]);
 
@@ -1265,12 +1293,12 @@ export default function ApexCommandClientsPage() {
 
       {/* 👑 CUSTOMER 360° PROFILE & MANUAL PLAN ACTIVATION MODAL */}
       {selectedCustomer360 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in-50">
-          <div className="w-full max-w-2xl bg-[#161b22] border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-white animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in-50">
+          <div className="w-full max-w-2xl bg-[#161b22] border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl space-y-4 sm:space-y-6 text-white animate-in zoom-in-95 max-h-[94vh] sm:max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-white/10 pb-5">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/30 to-orange-500/30 text-orange-400 border border-orange-500/40 flex items-center justify-center font-black text-base shrink-0">
+            <div className="flex items-start justify-between border-b border-white/10 pb-3.5 sm:pb-5">
+              <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-500/30 to-orange-500/30 text-orange-400 border border-orange-500/40 flex items-center justify-center font-black text-sm sm:text-base shrink-0">
                   {(selectedCustomer360.displayName || selectedCustomer360.email || "TP")
                     .split(" ")
                     .map((n) => n[0])
@@ -1278,30 +1306,30 @@ export default function ApexCommandClientsPage() {
                     .slice(0, 2)
                     .toUpperCase()}
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-lg text-white">{selectedCustomer360.displayName}</h3>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-base sm:text-lg text-white truncate">{selectedCustomer360.displayName}</h3>
+                    <span className="text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
                       360° Profile
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400 font-mono mt-0.5">{selectedCustomer360.email}</p>
+                  <p className="text-[11px] sm:text-xs text-gray-400 font-mono mt-0.5 truncate">{selectedCustomer360.email}</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedCustomer360(null)}
-                className="text-gray-400 hover:text-white p-1 cursor-pointer transition-colors"
+                className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Sub-Tabs */}
-            <div className="flex items-center gap-2 border-b border-white/10 pb-3 text-xs font-bold">
+            {/* Modal Sub-Tabs (Horizontally Scrollable on Mobile) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 border-b border-white/10 pb-3 text-xs font-bold overflow-x-auto scrollbar-none flex-nowrap py-1">
               <button
                 onClick={() => setModalTab("OVERVIEW")}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                   modalTab === "OVERVIEW"
                     ? "bg-white/10 text-white shadow-xs border border-white/10"
                     : "text-gray-400 hover:text-white"
@@ -1312,7 +1340,7 @@ export default function ApexCommandClientsPage() {
               </button>
               <button
                 onClick={() => setModalTab("ACTIVATE")}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                   modalTab === "ACTIVATE"
                     ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs"
                     : "text-gray-400 hover:text-white"
@@ -1323,7 +1351,7 @@ export default function ApexCommandClientsPage() {
               </button>
               <button
                 onClick={() => setModalTab("CAPACITY")}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                   modalTab === "CAPACITY"
                     ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-xs"
                     : "text-gray-400 hover:text-white"
@@ -1334,7 +1362,7 @@ export default function ApexCommandClientsPage() {
               </button>
               <button
                 onClick={() => setModalTab("STAFF")}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                   modalTab === "STAFF"
                     ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-xs"
                     : "text-gray-400 hover:text-white"
@@ -1344,8 +1372,22 @@ export default function ApexCommandClientsPage() {
                 <span>👥 Staff & Team ({clientStaffList.length})</span>
               </button>
               <button
+                onClick={() => {
+                  setModalTab("HISTORY");
+                  if (selectedCustomer360) fetchSubscriptionHistory(selectedCustomer360);
+                }}
+                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                  modalTab === "HISTORY"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-xs"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+                <span>📜 Subscription History ({subscriptionHistory.length})</span>
+              </button>
+              <button
                 onClick={() => setModalTab("ACTIONS")}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                   modalTab === "ACTIONS"
                     ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-xs"
                     : "text-gray-400 hover:text-white"
@@ -2064,7 +2106,178 @@ export default function ApexCommandClientsPage() {
               </div>
             )}
 
-            {/* TAB 5: ADMIN POWER CONTROLS */}
+            {/* TAB 5: SUBSCRIPTION & PAYMENT HISTORY */}
+            {modalTab === "HISTORY" && (
+              <div className="space-y-4 animate-in fade-in text-xs">
+                {/* Header & Refresh */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-emerald-400" />
+                      <span>Subscription & Transaction Log</span>
+                    </h4>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Chronological ledger of all plans, payments, offline approvals, and VIP passes.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => selectedCustomer360 && fetchSubscriptionHistory(selectedCustomer360)}
+                    disabled={isLoadingHistory}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition-colors cursor-pointer active:scale-95 disabled:opacity-50"
+                    title="Refresh subscription history"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingHistory ? "animate-spin text-emerald-400" : ""}`} />
+                  </button>
+                </div>
+
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="p-3.5 rounded-2xl bg-[#0d1117] border border-white/10">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">TOTAL SUBSCRIBED</span>
+                    <p className="text-lg font-black font-mono text-emerald-400 mt-1">
+                      ₹{subscriptionHistory.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#0d1117] border border-white/10">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">TOTAL RECORDS</span>
+                    <p className="text-lg font-black font-mono text-white mt-1">
+                      {subscriptionHistory.length} Transactions
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#0d1117] border border-white/10">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">CURRENT STATUS</span>
+                    <p className="text-sm font-bold text-amber-300 mt-1.5 flex items-center gap-1.5 truncate">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      <span>{selectedCustomer360.classification || selectedCustomer360.subscriptionStatus || "ACTIVE"}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* History List */}
+                {isLoadingHistory ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
+                    <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                    <p className="text-xs text-gray-400">Retrieving secure subscription audit records...</p>
+                  </div>
+                ) : subscriptionHistory.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-center space-y-3 bg-[#0d1117] border border-white/10 rounded-2xl p-6">
+                    <Receipt className="w-10 h-10 text-gray-600" />
+                    <div>
+                      <p className="font-bold text-sm text-gray-300">No Prior Subscription Logs Found</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        New plan activations and verified payment proofs will appear here automatically.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {subscriptionHistory.map((item, idx) => {
+                      const isPro = item.plan?.includes("PRO") || item.plan?.includes("VIP");
+                      const formattedDate = new Date(item.date).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 space-y-3 hover:border-emerald-500/40 transition-colors"
+                        >
+                          {/* Top Row: Plan + Date + Status */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border ${
+                                isPro
+                                  ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                                  : "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                              }`}>
+                                {item.plan === "VIP_PASS"
+                                  ? "👑 Founder VIP Pass"
+                                  : item.plan === "PRO_ANNUAL"
+                                  ? "💎 Pro Plan (Annual)"
+                                  : item.plan === "PRO_MONTHLY"
+                                  ? "💎 Pro Plan (Monthly)"
+                                  : item.plan === "10_DAY_TRIAL"
+                                  ? "⚡ 10-Day Free Trial"
+                                  : `💎 ${item.plan}`}
+                              </span>
+                              <span className="text-[11px] text-gray-400 font-mono">
+                                {formattedDate}
+                              </span>
+                            </div>
+
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              ✓ {item.status || "COMPLETED"}
+                            </span>
+                          </div>
+
+                          {/* Middle Grid: Details */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
+                            <div>
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">AMOUNT PAID</span>
+                              <span className="font-bold text-white font-mono text-xs">
+                                {item.amount > 0 ? `₹${item.amount.toLocaleString("en-IN")}` : "₹0 (VIP Pass / Trial)"}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">DURATION</span>
+                              <span className="font-bold text-gray-300">
+                                {item.durationDays ? `${item.durationDays} Days` : "30 Days"}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">PAYMENT MODE</span>
+                              <span className="font-bold text-amber-300 truncate block">
+                                {item.paymentMode || "OFFLINE_UPI"}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">RECEIPT / REF</span>
+                              <span className="font-mono text-gray-300 text-[10px] truncate block" title={item.receiptNumber}>
+                                {item.receiptNumber || "—"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Bottom Row: Notes & Proof Trigger */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/5 text-[10px]">
+                            <div className="text-gray-400 truncate max-w-sm">
+                              {item.notes ? (
+                                <span>Note: <strong className="text-gray-300">{item.notes}</strong></span>
+                              ) : (
+                                <span>Activated by: <strong className="text-gray-300">{item.activatedBy || "Founder Console"}</strong></span>
+                              )}
+                            </div>
+
+                            {item.receiptUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setZoomedProofUrl(item.receiptUrl)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors active:scale-95"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>View Payment Proof</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 6: ADMIN POWER CONTROLS */}
             {modalTab === "ACTIONS" && (
               <div className="space-y-4 animate-in fade-in text-xs">
                 {/* 1-Click +10 Days Extension */}

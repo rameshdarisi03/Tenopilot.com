@@ -342,13 +342,19 @@ export function getEffectiveTenantLimit(userProfile?: any): number {
     return baseLimit + (packs * TENANT_EXTENSION_PACK_SIZE);
   }
 
-  // 2. Otherwise differentiate between Pro (200) and Free Trial (50)
+  // 2. Otherwise differentiate between Pro (300) and Free Trial (50)
+  const sub = evaluateSubscription(userProfile);
   const isPro =
-    userProfile.subscriptionStatus === "ACTIVE_PRO" ||
-    userProfile.subscriptionStatus === "PRO_PRE_EXPIRY" ||
+    sub.isPro ||
+    sub.status === "ACTIVE_PRO" ||
+    sub.status === "PRO_PRE_EXPIRY" ||
+    sub.status === "GRACE_PERIOD" ||
     userProfile.plan === "PRO_MONTHLY" ||
     userProfile.plan === "PRO_ANNUAL" ||
-    userProfile.subscriptionPlan === "pro";
+    userProfile.plan === "VIP_PASS" ||
+    userProfile.subscriptionPlan === "pro" ||
+    userProfile.role === "admin" ||
+    userProfile.role === "receptionist";
 
   const baseDefault = isPro ? globalConfig.proTenantLimit : globalConfig.trialTenantLimit;
   return baseDefault + (packs * TENANT_EXTENSION_PACK_SIZE);

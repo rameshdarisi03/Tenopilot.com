@@ -1131,10 +1131,10 @@ export default function TenantsDirectoryPage({
               </div>
               <div>
                 <p className="text-base sm:text-2xl font-black font-sans text-gray-900 tracking-tight leading-tight truncate">
-                  <AnimatedNumberCounter value={counts.Active + counts.Guests} />
+                  <AnimatedNumberCounter value={activeTenantsCount} />
                 </p>
                 <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate mt-0.5">
-                  {counts.Active} Tenants • {counts.Guests} Guests
+                  {counts.Active} Active • {counts.Booked + counts.Notice} Booked/Notice • {counts.Guests} Guests
                 </p>
               </div>
             </MagneticGlowCard>
