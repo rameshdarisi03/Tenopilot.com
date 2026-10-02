@@ -8,6 +8,7 @@ import {
   onSnapshot,
   query,
 } from "firebase/firestore";
+import { buildWhatsAppUrl } from "@/utils/security";
 
 export interface Complaint {
   id: string;
@@ -429,9 +430,6 @@ export function exportComplaintsCSV(complaints: Complaint[]) {
  * Helper to construct WhatsApp Direct wa.me URL for resident status notification
  */
 export function buildComplaintWhatsAppUrl(complaint: Complaint, customStatus?: string, customNotes?: string): string {
-  const cleanDigits = complaint.tenantPhone.replace(/\D/g, "");
-  const formattedPhone = cleanDigits.length === 10 ? `91${cleanDigits}` : cleanDigits;
-  
   const statusText = customStatus || complaint.status;
   const statusEmoji = statusText === "RESOLVED" ? "🟢" : statusText === "IN_PROGRESS" ? "🟡" : statusText === "REJECTED" ? "⚪" : "🔴";
   
@@ -451,7 +449,7 @@ Your maintenance request for TenoPilot.com has been updated:
 Thank you,
 TenoPilot.com Management`;
 
-  return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+  return buildWhatsAppUrl(complaint.tenantPhone, message);
 }
 
 /**

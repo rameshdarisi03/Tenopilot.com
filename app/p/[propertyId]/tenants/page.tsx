@@ -13,7 +13,7 @@ import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
-import { sanitizeSearchInput, normalizePhoneNumber } from "@/utils/security";
+import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
@@ -1514,7 +1514,7 @@ export default function TenantsDirectoryPage({
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <a
-                              href={`https://wa.me/91${occ.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${occ.name}, rent reminder for Room ${occ.roomNumber}.`)}`}
+                              href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}, rent reminder for Room ${occ.roomNumber}.`)}
                               target="_blank"
                               rel="noreferrer"
                               className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
@@ -2750,13 +2750,11 @@ Scroll vertically to browse all residents without pagination limits
                     return occupantsList
                       .filter((o) => selectedIds.includes(o.id))
                       .map((occ) => {
-                        const cleanPhone = occ.phone.replace(/\D/g, "");
-                        const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
                         const paymentDetailsText = isCashReq
                           ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
                           : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
 
-                        const msg = encodeURIComponent(
+                        const message =
                           `Hello ${occ.name},\n\n` +
                           `Friendly rent payment reminder for *${currentSettings.propertyName || "TenoPilot PG"}*:\n` +
                           `🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n` +
@@ -2764,9 +2762,8 @@ Scroll vertically to browse all residents without pagination limits
                           `📅 *Due Date*: ${occ.dueDate}\n\n` +
                           `${paymentDetailsText}\n\n` +
                           `Thank you,\n` +
-                          `*${currentSettings.propertyName || "TenoPilot PG"}* Management Desk`
-                        );
-                        const waUrl = `https://wa.me/${formattedPhone}?text=${msg}`;
+                          `*${currentSettings.propertyName || "TenoPilot PG"}* Management Desk`;
+                        const waUrl = buildWhatsAppUrl(occ.phone, message);
 
                         return (
                           <div

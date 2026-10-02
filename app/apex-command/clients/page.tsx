@@ -46,6 +46,7 @@ import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
+import { buildWhatsAppUrl } from "@/utils/security";
 
 export default function ApexCommandClientsPage() {
   const router = useRouter();
@@ -1052,10 +1053,11 @@ export default function ApexCommandClientsPage() {
                     .slice(0, 2)
                     .toUpperCase();
 
-                  const waUrl = cleanPhone
-                    ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${encodeURIComponent(
+                  const waUrl = acc.phone
+                    ? buildWhatsAppUrl(
+                        acc.phone,
                         `Hi ${acc.displayName}, this is Ramesh from the TenoPilot team reaching out regarding your PG workspace (${acc.primaryPropertyName}). How can we support your property today?`
-                      )}`
+                      )
                     : null;
 
                   return (
@@ -1364,9 +1366,10 @@ export default function ApexCommandClientsPage() {
                       </span>
                       {selectedCustomer360.phone && (
                         <a
-                          href={`https://wa.me/91${selectedCustomer360.phone.replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(
+                          href={buildWhatsAppUrl(
+                            selectedCustomer360.phone,
                             `Hi ${selectedCustomer360.displayName}, this is Ramesh from TenoPilot.`
-                          )}`}
+                          )}
                           target="_blank"
                           rel="noreferrer"
                           className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold"
@@ -1992,7 +1995,7 @@ export default function ApexCommandClientsPage() {
                                     <Phone className="w-3 h-3 text-gray-500" />
                                     <span className="text-gray-300 font-mono">{staff.phone}</span>
                                     <a
-                                      href={`https://wa.me/${staff.phone.replace(/\D/g, "")}`}
+                                      href={buildWhatsAppUrl(staff.phone)}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="text-[10px] text-emerald-400 hover:text-emerald-300 underline font-semibold flex items-center gap-0.5 ml-1"

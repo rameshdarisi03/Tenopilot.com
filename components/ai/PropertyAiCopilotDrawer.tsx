@@ -37,6 +37,7 @@ import { expenseStore } from "@/constants/expenseStore";
 import { isMockOccupantId } from "@/lib/firestoreService";
 import { CopilotPropertySnapshot, CopilotApiResponse } from "@/lib/aiCopilotPrompt";
 import { tryFastClientQuery } from "@/lib/aiFastQueryEngine";
+import { buildWhatsAppUrl } from "@/utils/security";
 
 interface ChatMessage {
   id: string;
@@ -360,13 +361,12 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
   const constructWhatsAppRentReminder = (tenantName: string, room: string, amount: number, phone: string) => {
     const settings = propertySettingsStore.getSettings(propertyId);
     const propName = settings?.propertyName || "TenoPilot PG";
-    const cleanPhone = phone.replace(/\D/g, "").slice(-10);
 
     const message = `Dear ${tenantName},\n\nThis is a friendly reminder from *${propName}* regarding your pending rent due of *₹${amount.toLocaleString(
       "en-IN"
     )}* for Room ${room}.\n\nKindly clear it at your earliest convenience via UPI or at the reception desk.\n\nThank you!\nManagement, ${propName}`;
 
-    return `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`;
+    return buildWhatsAppUrl(phone, message);
   };
 
   if (!isOpen) return null;
@@ -1027,7 +1027,7 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
                                 )}
                                 {t.phone && (
                                   <a
-                                    href={`https://wa.me/${t.phone.replace(/[^0-9]/g, "")}`}
+                                    href={buildWhatsAppUrl(t.phone)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors ml-auto"
@@ -1166,9 +1166,10 @@ export function PropertyAiCopilotDrawer({ propertyId }: { propertyId: string }) 
 
                                   {resident.phone ? (
                                     <a
-                                      href={`https://wa.me/${resident.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                                      href={buildWhatsAppUrl(
+                                        resident.phone,
                                         `Hi ${resident.name}, please complete your KYC and submit your Aadhaar card for your stay at ${propertySettingsStore.getSettings(propertyId)?.propertyName || "our property"}.`
-                                      )}`}
+                                      )}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors shrink-0"

@@ -37,7 +37,14 @@ export interface WhatsAppSendResult {
 }
 
 export function formatIndianPhoneNumber(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
+  if (!phone) return "";
+  let digits = phone.replace(/\D/g, "");
+  while (digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+  if (digits.length === 14 && digits.startsWith("9191")) {
+    digits = digits.slice(2);
+  }
   if (digits.length === 10) {
     return `91${digits}`;
   }

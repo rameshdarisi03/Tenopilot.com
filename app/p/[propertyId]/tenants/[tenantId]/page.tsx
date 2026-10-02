@@ -29,6 +29,7 @@ import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect"
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
+import { buildWhatsAppUrl } from "@/utils/security";
 import {
   ChevronLeft,
   ChevronDown,
@@ -5292,10 +5293,11 @@ export default function IndividualTenantProfilePage({
                   <button
                     type="button"
                     onClick={() => {
-                      const msg = encodeURIComponent(
-                        `Hi ${conflictModalData.bookedOccupant?.name}, regarding your booking for Room ${occupantState.roomNumber} (${occupantState.bedCode}) on ${conflictModalData.bookedOccupant?.joiningDate}...`
-                      );
-                      window.open(`https://wa.me/91${conflictModalData.bookedOccupant?.phone.replace(/\D/g, "")}?text=${msg}`, "_blank");
+                      const msg = `Hi ${conflictModalData.bookedOccupant?.name}, regarding your booking for Room ${occupantState.roomNumber} (${occupantState.bedCode}) on ${conflictModalData.bookedOccupant?.joiningDate}...`;
+                      const waUrl = buildWhatsAppUrl(conflictModalData.bookedOccupant?.phone, msg);
+                      if (waUrl) {
+                        window.open(waUrl, "_blank");
+                      }
                     }}
                     className="w-full py-3 px-4 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >

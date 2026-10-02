@@ -36,3 +36,49 @@ export function normalizePhoneNumber(phone: string): string {
   if (!phone) return "";
   return phone.replace(/\D/g, "");
 }
+
+/**
+ * Normalizes and formats a phone number for WhatsApp links (wa.me) or WhatsApp Business API.
+ * Ensures the international country code (default 91 for India) is correctly formatted without duplicates.
+ * Prevents double country codes like '9191...' or '91 +91...'.
+ */
+export function formatWhatsAppPhone(phone?: string | null): string {
+  if (!phone) return "";
+  let digits = phone.replace(/\D/g, "");
+  
+  if (!digits) return "";
+
+  // Strip leading zeros (e.g., 09845010029 -> 9845010029)
+  while (digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+
+  // Handle double 91 prefix if previously corrupted (e.g., 91919845010029 -> 919845010029)
+  if (digits.length === 14 && digits.startsWith("9191")) {
+    digits = digits.slice(2);
+  }
+
+  // Standard 10-digit Indian phone number -> prepend 91
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+
+  // 12-digit Indian number starting with 91 -> already normalized
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return digits;
+  }
+
+  // International or already complete E.164 without plus
+  return digits;
+}
+
+/**
+ * Builds a clean, valid https://wa.me/ URL with pre-filled message text.
+ */
+export function buildWhatsAppUrl(phone?: string | null, message?: string): string {
+  const formattedPhone = formatWhatsAppPhone(phone);
+  if (!formattedPhone) return "";
+  const textParam = message ? `?text=${encodeURIComponent(message)}` : "";
+  return `https://wa.me/${formattedPhone}${textParam}`;
+}
+

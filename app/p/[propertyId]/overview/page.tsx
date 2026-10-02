@@ -43,6 +43,7 @@ import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
+import { buildWhatsAppUrl } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
 import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 
@@ -242,8 +243,11 @@ export default function PropertyOverviewPage({
       return;
     }
     const target = overdueOccupants[0];
-    const text = encodeURIComponent(`Hello ${target.name}, this is a gentle reminder regarding your monthly rent payment of ₹${target.rentAmount} for ${propertySettings.propertyName}. Please clear your dues at your earliest convenience. Thank you!`);
-    window.open(`https://wa.me/91${target.phone}?text=${text}`, "_blank");
+    const text = `Hello ${target.name}, this is a gentle reminder regarding your monthly rent payment of ₹${target.rentAmount} for ${propertySettings.propertyName}. Please clear your dues at your earliest convenience. Thank you!`;
+    const waUrl = buildWhatsAppUrl(target.phone, text);
+    if (waUrl) {
+      window.open(waUrl, "_blank");
+    }
   };
 
   return (

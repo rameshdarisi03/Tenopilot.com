@@ -43,6 +43,7 @@ import {
 } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { buildWhatsAppUrl } from "@/utils/security";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
@@ -2858,10 +2859,11 @@ Anil Verma   9812345678   Room 103   12000"
               <button
                 onClick={() => {
                   const samplePhone = ingestResult.occupants[0]?.phone || "9876543210";
-                  const text = encodeURIComponent(
-                    `Hello! Your room at ${propertyId} has been setup on TenoPilot. Please click here to verify your details and upload your Aadhaar: https://tenopilot.com/self-onboard/${propertyId}`
-                  );
-                  window.open(`https://wa.me/91${samplePhone}?text=${text}`, "_blank");
+                  const text = `Hello! Your room at ${propertyId} has been setup on TenoPilot. Please click here to verify your details and upload your Aadhaar: https://tenopilot.com/self-onboard/${propertyId}`;
+                  const waUrl = buildWhatsAppUrl(samplePhone, text);
+                  if (waUrl) {
+                    window.open(waUrl, "_blank");
+                  }
                 }}
                 className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
               >

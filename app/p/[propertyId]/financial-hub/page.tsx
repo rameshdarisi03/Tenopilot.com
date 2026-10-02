@@ -60,6 +60,7 @@ import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect"
 import { WhatsAppInboundReviewDrawer } from "@/components/dashboard/WhatsAppInboundReviewDrawer";
 import { whatsappInboxStore } from "@/constants/whatsappInboxStore";
 import { useRouter } from "next/navigation";
+import { buildWhatsAppUrl } from "@/utils/security";
 
 const COLOR_SWATCHES = [
   { name: "Terracotta", hex: "#964407" },
@@ -698,8 +699,7 @@ export default function FinancialHubPage({
         : `🔴 *Final Balance:* ${partner.name} must transfer *₹${Math.abs(netSettlement).toLocaleString("en-IN")}* into Common Pool / Co-partners`) +
       `\n\n_Generated via TenoPilot Financial OS_`;
 
-    const encoded = encodeURIComponent(msg);
-    const url = partner.phone ? `https://wa.me/${partner.phone.replace(/[^0-9]/g, "")}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    const url = buildWhatsAppUrl(partner.phone, msg) || `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(url, "_blank");
   };
 
