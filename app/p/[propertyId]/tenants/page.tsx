@@ -2744,7 +2744,7 @@ Scroll vertically to browse all residents without pagination limits
                   <button
                     type="button"
                     onClick={() => setReminderChannel("WHATSAPP")}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 font-bold text-xs cursor-pointer transition-all ${
+                    className={`h-14 rounded-xl border flex flex-col items-center justify-center font-bold text-xs cursor-pointer transition-all ${
                       reminderChannel === "WHATSAPP"
                         ? "bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400/30"
                         : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
@@ -2752,23 +2752,22 @@ Scroll vertically to browse all residents without pagination limits
                   >
                     <div className="flex items-center gap-1.5">
                       <MessageSquare className="w-4 h-4 text-white" />
-                      <span className="text-xs font-bold">WhatsApp Cloud</span>
+                      <span className="text-xs font-bold">WhatsApp</span>
                     </div>
-                    <span className="text-[10px] text-emerald-100 font-medium">Meta Verified API</span>
                   </button>
 
                   <button
                     type="button"
                     disabled
-                    className="p-2.5 rounded-xl border border-gray-200 bg-gray-100/70 text-gray-400 flex flex-col items-center justify-center gap-1 text-xs cursor-not-allowed opacity-80 select-none"
-                    title="Email Invoices feature coming soon"
+                    className="h-14 rounded-xl border border-gray-200 bg-gray-100/70 text-gray-400 flex flex-col items-center justify-center gap-0.5 text-xs cursor-not-allowed opacity-80 select-none"
+                    title="Email feature coming soon"
                   >
                     <div className="flex items-center gap-1.5">
                       <Mail className="w-4 h-4 text-gray-400" />
-                      <span className="text-xs font-bold text-gray-500">Email Invoices</span>
+                      <span className="text-xs font-bold text-gray-600">Email</span>
                     </div>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                      Coming Soon
+                    <span className="text-[10px] text-amber-700 font-semibold">
+                      Coming soon
                     </span>
                   </button>
                 </div>
