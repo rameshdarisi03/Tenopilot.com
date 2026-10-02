@@ -22,10 +22,6 @@ export function FounderSidebar({ mobileOpen, onMobileClose }: FounderSidebarProp
       badgeColor: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
     },
     {
-      label: "PG Onboarding Hub",
-      href: "/apex-command/invites",
-    },
-    {
       label: "Account Audit & Deep Purge",
       href: "/apex-command/clients",
       badge: "LIVE SCAN",

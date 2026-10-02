@@ -253,31 +253,50 @@ export async function loginWithGoogle(
       }
 
       let profile: AuthUserProfile;
+      let staffAccountDoc: any = null;
+      try {
+        const sSnap = await getDoc(doc(db, "staff_accounts", email));
+        if (sSnap.exists()) {
+          staffAccountDoc = sSnap.data();
+        }
+      } catch {}
+
       if (userSnap.exists()) {
         profile = userSnap.data() as AuthUserProfile;
-        // Check if there is a securityPin in staff_accounts or users as well
-        if (!profile.hasSetPin || !profile.securityPin) {
-          try {
-            const staffDoc = await getDoc(doc(db, "staff_accounts", email));
-            if (staffDoc.exists() && staffDoc.data().hasSetPin) {
-              const staffData = staffDoc.data();
-              profile.hasSetPin = true;
-              profile.securityPin = staffData.securityPin;
-              await setDoc(userDocRef, { hasSetPin: true, securityPin: staffData.securityPin }, { merge: true });
-            }
-          } catch {}
+        if (staffAccountDoc) {
+          profile.role = staffAccountDoc.role || profile.role;
+          profile.assignedPropertyId = staffAccountDoc.assignedPropertyId || profile.assignedPropertyId;
+          profile.propertyName = staffAccountDoc.propertyName || profile.propertyName;
+          profile.onboardingCompleted = true;
+          if (staffAccountDoc.securityPin && !profile.securityPin) {
+            profile.securityPin = staffAccountDoc.securityPin;
+            profile.hasSetPin = true;
+          }
+          await setDoc(userDocRef, profile, { merge: true });
+        } else if (!profile.hasSetPin || !profile.securityPin) {
+          if (staffAccountDoc?.hasSetPin) {
+            profile.hasSetPin = true;
+            profile.securityPin = staffAccountDoc.securityPin;
+            await setDoc(userDocRef, { hasSetPin: true, securityPin: staffAccountDoc.securityPin }, { merge: true });
+          }
         }
       } else {
         const isMasterTest = email === "isharapandey01@gmail.com";
+        const isStaff = Boolean(staffAccountDoc);
+        const resolvedRole = isStaff ? (staffAccountDoc.role || "admin") : "master_admin";
+        const resolvedPropId = isStaff ? (staffAccountDoc.assignedPropertyId || "") : (isMasterTest ? "sunshine-pg" : "");
+
         profile = {
           uid: user.uid,
           email: email,
-          displayName: user.displayName ? sanitizeTitleCase(user.displayName) : "Property Owner",
-          organizationId: isMasterTest ? "org_demo_meghana" : `org_${user.uid}`,
-          role: "master_admin",
-          assignedPropertyId: isMasterTest ? "sunshine-pg" : "",
+          displayName: staffAccountDoc?.name || (user.displayName ? sanitizeTitleCase(user.displayName) : "Team Member"),
+          organizationId: staffAccountDoc?.orgId || (isMasterTest ? "org_demo_meghana" : `org_${user.uid}`),
+          role: resolvedRole,
+          assignedPropertyId: resolvedPropId,
+          propertyName: staffAccountDoc?.propertyName,
           onboardingCompleted: true,
-          hasSetPin: false,
+          hasSetPin: Boolean(staffAccountDoc?.hasSetPin || staffAccountDoc?.securityPin),
+          securityPin: staffAccountDoc?.securityPin,
         };
         await setDoc(userDocRef, profile, { merge: true });
       }

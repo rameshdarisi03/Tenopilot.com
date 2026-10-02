@@ -65,12 +65,42 @@ function WelcomeOnboardingContent() {
     }
   }, [user, fullName]);
 
-  // If user already has properties and is fully onboarded, redirect back to /home
+  // 🛡️ Proactively redirect staff members and already onboarded owners away from welcome wizard
   useEffect(() => {
-    if (!loading && profile && profile.assignedPropertyId && profile.email === "isharapandey01@gmail.com") {
-      router.replace("/home");
+    if (!loading && profile) {
+      // 1. Staff users (Admin, Receptionist) must never see owner setup
+      if (profile.role === "admin" || profile.role === "receptionist") {
+        const dest = profile.assignedPropertyId ? `/p/${profile.assignedPropertyId}/overview` : "/home";
+        router.replace(dest);
+        return;
+      }
+
+      // 2. Onboarded master admins with existing properties
+      if (profile.onboardingCompleted === true || (profile.assignedPropertyId && profile.assignedPropertyId !== "")) {
+        router.replace("/home");
+        return;
+      }
     }
   }, [profile, loading, router]);
+
+  // Cloud fallback: check staff_accounts directly by email
+  useEffect(() => {
+    const checkStaffStatus = async () => {
+      const email = user?.email?.toLowerCase() || profile?.email?.toLowerCase();
+      if (!email) return;
+      try {
+        const staffDoc = await getDoc(doc(db, "staff_accounts", email));
+        if (staffDoc.exists()) {
+          const sData = staffDoc.data();
+          const targetProp = sData.assignedPropertyId || (Array.isArray(sData.assignedPropertyIds) ? sData.assignedPropertyIds[0] : "");
+          router.replace(targetProp ? `/p/${targetProp}/overview` : "/home");
+        }
+      } catch {}
+    };
+    if (user || profile) {
+      checkStaffStatus();
+    }
+  }, [user, profile, router]);
 
   // Validation for Step 1
   const handleNextToStep2 = () => {
