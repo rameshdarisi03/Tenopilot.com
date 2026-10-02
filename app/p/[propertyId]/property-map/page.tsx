@@ -40,6 +40,7 @@ import {
 
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
+import { buildWhatsAppUrl } from "@/utils/security";
 
 export default function PropertyMapPage({
   params,
@@ -1092,24 +1093,23 @@ export default function PropertyMapPage({
                       )}
 
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            triggerToast(`Calling ${displayOcc.phone}`)
-                          }
-                          className="flex-1 py-2.5 rounded-xl bg-orange-50 text-[#c2652a] font-bold flex items-center justify-center gap-2 hover:bg-orange-100 cursor-pointer"
+                        <a
+                          href={`tel:${displayOcc.phone}`}
+                          className="flex-1 py-2.5 rounded-xl bg-orange-50 text-[#c2652a] font-bold flex items-center justify-center gap-2 hover:bg-orange-100 transition-colors cursor-pointer text-center"
                         >
                           <Phone className="w-4 h-4" /> Call
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            triggerToast(`WhatsApp sent to ${displayOcc.phone}`)
-                          }
-                          className="flex-1 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center gap-2 hover:bg-emerald-100 cursor-pointer"
+                        </a>
+                        <a
+                          href={buildWhatsAppUrl(
+                            displayOcc.phone,
+                            `Hi ${displayOcc.name}, reaching out from ${propertySettingsStore.getSettings(propertyId).propertyName || "the PG"} regarding your room ${activeBedSlot.roomNumber} (Bed ${activeBedSlot.bed.bedCode}).`
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors cursor-pointer text-center"
                         >
                           <MessageSquare className="w-4 h-4" /> WhatsApp
-                        </button>
+                        </a>
                       </div>
 
                       {/* Formal checkout only for currently residing active/notice tenants */}

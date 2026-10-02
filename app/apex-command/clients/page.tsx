@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { FounderSidebar } from "@/components/founder/FounderSidebar";
 import { FounderHeader } from "@/components/founder/FounderHeader";
@@ -24,6 +24,7 @@ import {
   X,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   Filter,
   Plus,
   Trash2,
@@ -193,6 +194,16 @@ export default function ApexCommandClientsPage() {
   const [isActivating, setIsActivating] = useState<boolean>(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const scrollTabs = (direction: "left" | "right") => {
+    if (tabScrollRef.current) {
+      tabScrollRef.current.scrollBy({
+        left: direction === "left" ? -220 : 220,
+        behavior: "smooth",
+      });
+    }
+  };
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -1294,7 +1305,7 @@ export default function ApexCommandClientsPage() {
       {/* 👑 CUSTOMER 360° PROFILE & MANUAL PLAN ACTIVATION MODAL */}
       {selectedCustomer360 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in-50">
-          <div className="w-full max-w-2xl bg-[#161b22] border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl space-y-4 sm:space-y-6 text-white animate-in zoom-in-95 max-h-[94vh] sm:max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-2xl md:max-w-3xl lg:max-w-4xl bg-[#161b22] border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl space-y-4 sm:space-y-6 text-white animate-in zoom-in-95 max-h-[94vh] sm:max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-white/10 pb-3.5 sm:pb-5">
               <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
@@ -1325,76 +1336,104 @@ export default function ApexCommandClientsPage() {
               </button>
             </div>
 
-            {/* Modal Sub-Tabs (Horizontally Scrollable on Mobile) */}
-            <div className="flex items-center gap-1.5 sm:gap-2 border-b border-white/10 pb-3 text-xs font-bold overflow-x-auto scrollbar-none flex-nowrap py-1">
+            {/* Modal Sub-Tabs with Desktop Scroll Controls & Mouse Wheel Scrolling */}
+            <div className="relative flex items-center group/tabs">
               <button
-                onClick={() => setModalTab("OVERVIEW")}
-                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  modalTab === "OVERVIEW"
-                    ? "bg-white/10 text-white shadow-xs border border-white/10"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                type="button"
+                onClick={() => scrollTabs("left")}
+                aria-label="Scroll left"
+                className="hidden sm:flex absolute -left-2 z-10 w-7 h-7 rounded-full bg-[#0d1117] border border-white/20 text-gray-300 hover:text-white hover:bg-white/10 shadow-lg items-center justify-center cursor-pointer transition-all hover:scale-110 shrink-0"
               >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Overview & Property</span>
+                <ChevronLeft className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setModalTab("ACTIVATE")}
-                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  modalTab === "ACTIVATE"
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>⚡ Activate Plan / VIP Pass</span>
-              </button>
-              <button
-                onClick={() => setModalTab("CAPACITY")}
-                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  modalTab === "CAPACITY"
-                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-xs"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                <span>🏢 Capacity & Limits</span>
-              </button>
-              <button
-                onClick={() => setModalTab("STAFF")}
-                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  modalTab === "STAFF"
-                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-xs"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 text-purple-400" />
-                <span>👥 Staff & Team ({clientStaffList.length})</span>
-              </button>
-              <button
-                onClick={() => {
-                  setModalTab("HISTORY");
-                  if (selectedCustomer360) fetchSubscriptionHistory(selectedCustomer360);
+
+              <div
+                ref={tabScrollRef}
+                onWheel={(e) => {
+                  if (tabScrollRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    tabScrollRef.current.scrollLeft += e.deltaY;
+                  }
                 }}
-                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  modalTab === "HISTORY"
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-xs"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                className="flex items-center gap-1.5 sm:gap-2 border-b border-white/10 pb-3 text-xs font-bold overflow-x-auto scrollbar-none flex-nowrap py-1 w-full scroll-smooth select-none px-1"
               >
-                <Receipt className="w-3.5 h-3.5 text-emerald-400" />
-                <span>📜 Subscription History ({subscriptionHistory.length})</span>
-              </button>
+                <button
+                  onClick={() => setModalTab("OVERVIEW")}
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    modalTab === "OVERVIEW"
+                      ? "bg-white/10 text-white shadow-xs border border-white/10"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Overview & Property</span>
+                </button>
+                <button
+                  onClick={() => setModalTab("ACTIVATE")}
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    modalTab === "ACTIVATE"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>⚡ Activate Plan / VIP Pass</span>
+                </button>
+                <button
+                  onClick={() => setModalTab("CAPACITY")}
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    modalTab === "CAPACITY"
+                      ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-xs"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                  <span>🏢 Capacity & Limits</span>
+                </button>
+                <button
+                  onClick={() => setModalTab("STAFF")}
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    modalTab === "STAFF"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-xs"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-purple-400" />
+                  <span>👥 Staff & Team ({clientStaffList.length})</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setModalTab("HISTORY");
+                    if (selectedCustomer360) fetchSubscriptionHistory(selectedCustomer360);
+                  }}
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    modalTab === "HISTORY"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-xs"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>📜 Subscription History ({subscriptionHistory.length})</span>
+                </button>
+                <button
+                  onClick={() => setModalTab("ACTIONS")}
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                    modalTab === "ACTIONS"
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-xs"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>Power Controls</span>
+                </button>
+              </div>
+
               <button
-                onClick={() => setModalTab("ACTIONS")}
-                className={`px-3 sm:px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-                  modalTab === "ACTIONS"
-                    ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-xs"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                type="button"
+                onClick={() => scrollTabs("right")}
+                aria-label="Scroll right"
+                className="hidden sm:flex absolute -right-2 z-10 w-7 h-7 rounded-full bg-[#0d1117] border border-white/20 text-gray-300 hover:text-white hover:bg-white/10 shadow-lg items-center justify-center cursor-pointer transition-all hover:scale-110 shrink-0"
               >
-                <Ban className="w-3.5 h-3.5" />
-                <span>Power Controls</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
