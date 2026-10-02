@@ -23,7 +23,7 @@ import {
   getRoomTariff,
 } from "@/utils/domainSSOT";
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
-import { propertySettingsStore } from "@/constants/propertySettings";
+import { propertySettingsStore, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { complianceLogStore } from "@/constants/complianceLogStore";
@@ -247,8 +247,74 @@ export default function IndividualTenantProfilePage({
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
 
   // Real-time Property Settings
-  const propertySettings = propertySettingsStore.getSettings(propertyId);
+  const [propertySettings, setPropertySettings] = useState(() => propertySettingsStore.getSettings(propertyId));
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    const unsub = propertySettingsStore.subscribe(() => {
+      setPropertySettings(propertySettingsStore.getSettings(propertyId));
+    });
+    return unsub;
+  }, [propertyId]);
+
   const displayPropertyName = propertySettings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property");
+
+  // WhatsApp Dropdown Menu State & Click-Outside Listener
+  const [showWhatsAppDropdown, setShowWhatsAppDropdown] = useState(false);
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setShowWhatsAppDropdown(false);
+    };
+    if (showWhatsAppDropdown) {
+      window.addEventListener("click", handleGlobalClick);
+      return () => window.removeEventListener("click", handleGlobalClick);
+    }
+  }, [showWhatsAppDropdown]);
+
+  // Helper to obtain all available reminder payment cards
+  const getReminderPaymentCards = (): PaymentQRProfile[] => {
+    const configured = propertySettings.qrProfiles && propertySettings.qrProfiles.length > 0
+      ? propertySettings.qrProfiles
+      : (propertySettings.upiPaymentId ? [{
+          id: "default-upi-profile",
+          name: "Primary UPI Account",
+          bankLabel: "Primary Bank Account",
+          upiId: propertySettings.upiPaymentId,
+          accountType: "UPI_QR" as const,
+          isDefault: true,
+        }] : []);
+
+    const hasCashCard = configured.some(
+      (p) => p.accountType === "CASH_DESK" || p.upiId === "CASH_PAYMENT" || p.id === PAY_BY_CASH_PROFILE.id
+    );
+
+    return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
+  };
+
+  // Helper to construct exact formatted individual rent reminder WhatsApp URL (same template as Send (Free))
+  const getIndividualRentReminderUrl = (occ: Occupant): string => {
+    const reminderCards = getReminderPaymentCards();
+    const activeCard = reminderCards[0];
+    const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+
+    const paymentDetailsText = isCashReq
+      ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
+      : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(propertySettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
+
+    const message =
+      `Hello ${occ.name},\n\n` +
+      `Friendly rent payment reminder for *${propertySettings.propertyName || "TenoPilot PG"}*:\n` +
+      `🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n` +
+      `💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n` +
+      `📅 *Due Date*: ${occ.dueDate}\n\n` +
+      `${paymentDetailsText}\n\n` +
+      `Thank you,\n` +
+      `*${propertySettings.propertyName || "TenoPilot PG"}* Management Desk`;
+
+    return buildWhatsAppUrl(occ.phone, message);
+  };
 
   // Modal Control States
   const [showCollectRentModal, setShowCollectRentModal] = useState(false);
@@ -1473,9 +1539,66 @@ export default function IndividualTenantProfilePage({
                 </div>
               </div>
               <div>
-                <h1 suppressHydrationWarning className="font-serif text-3xl font-bold text-gray-900">
-                  {occupantState.name}
-                </h1>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 suppressHydrationWarning className="font-serif text-2xl sm:text-3xl font-bold text-gray-900">
+                    {occupantState.name}
+                  </h1>
+
+                  {/* WhatsApp Action Button & Dropdown Shortcut */}
+                  <div className="relative inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowWhatsAppDropdown(!showWhatsAppDropdown);
+                      }}
+                      className="inline-flex items-center justify-center p-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all shadow-2xs cursor-pointer min-h-[34px] min-w-[34px]"
+                      title="WhatsApp Actions"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+
+                    {showWhatsAppDropdown && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left"
+                      >
+                        <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                          WhatsApp for {occupantState.name}
+                        </div>
+                        <a
+                          href={getIndividualRentReminderUrl(occupantState)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setShowWhatsAppDropdown(false)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                        >
+                          <CreditCard className="w-4 h-4 text-emerald-600" />
+                          <span>Send Rent Reminder</span>
+                        </a>
+                        <a
+                          href={buildWhatsAppUrl(occupantState.phone, `Hi ${occupantState.name}! `)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setShowWhatsAppDropdown(false)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                        >
+                          <MessageSquare className="w-4 h-4 text-emerald-600" />
+                          <span>Send Custom Message</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Phone Call Shortcut Button */}
+                  <a
+                    href={`tel:${occupantState.phone}`}
+                    className="inline-flex items-center justify-center p-2 rounded-xl border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 transition-all shadow-2xs min-h-[34px] min-w-[34px]"
+                    title={`Call ${occupantState.name} (${occupantState.phone})`}
+                  >
+                    <Phone className="w-4 h-4" />
+                  </a>
+                </div>
                 <div className="flex flex-wrap items-center gap-3 mt-1.5">
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
