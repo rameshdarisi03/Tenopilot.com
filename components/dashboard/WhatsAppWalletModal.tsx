@@ -32,6 +32,7 @@ import {
 } from "@/constants/whatsappCreditStore";
 import { RazorpayModalMockup } from "@/components/dashboard/RazorpayModalMockup";
 import { useAuth } from "@/providers/AuthProvider";
+import { compressImageToDataUrl } from "@/utils/imageCompression";
 
 interface WhatsAppWalletModalProps {
   propertyId: string;
@@ -112,21 +113,31 @@ export function WhatsAppWalletModal({
     }
   }, [isOpen, profile?.email, profile?.uid]);
 
-  if (!isOpen) return null;
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionInfo, setCompressionInfo] = useState<{ origKb: number; compKb: number; ratio: string } | null>(null);
 
-  // Handle Image Upload & Compression
-  const handleImageFile = (file: File) => {
+  // Handle Image Upload & Ultra-Fast Canvas Compression
+  const handleImageFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       alert("Please upload a valid image file (JPG, PNG, WebP).");
       return;
     }
     setScreenshotFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
-      setScreenshotPreview(base64);
-    };
-    reader.readAsDataURL(file);
+    setIsCompressing(true);
+    try {
+      const { dataUrl, originalSizeKb, compressedSizeKb, compressionRatio } = await compressImageToDataUrl(file, 1200, 0.75);
+      setScreenshotPreview(dataUrl);
+      setCompressionInfo({ origKb: originalSizeKb, compKb: compressedSizeKb, ratio: compressionRatio });
+    } catch (err) {
+      console.warn("Canvas compression fallback:", err);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setScreenshotPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   // Handle Offline Form Submission
@@ -533,7 +544,15 @@ export function WhatsAppWalletModal({
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                           />
 
-                          {screenshotPreview ? (
+                          {isCompressing ? (
+                            <div className="py-4 space-y-2">
+                              <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                              <p className="text-xs font-bold text-emerald-800">
+                                ⚡ Compressing & optimizing proof image...
+                              </p>
+                              <p className="text-[10px] text-gray-400">Ready in milliseconds</p>
+                            </div>
+                          ) : screenshotPreview ? (
                             <div className="flex items-center justify-between gap-3 text-left">
                               <div className="flex items-center gap-3">
                                 <img
@@ -545,9 +564,18 @@ export function WhatsAppWalletModal({
                                   <span className="text-xs font-bold text-gray-800 block truncate max-w-[200px]">
                                     {screenshotFileName || "screenshot.png"}
                                   </span>
-                                  <span className="text-[10px] text-emerald-700 font-semibold">
-                                    ✓ Image attached ready to verify
-                                  </span>
+                                  {compressionInfo ? (
+                                    <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                                      <span>⚡ {compressionInfo.origKb}KB → {compressionInfo.compKb}KB</span>
+                                      <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full text-[9px]">
+                                        {compressionInfo.ratio} smaller
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-emerald-700 font-semibold">
+                                      ✓ Image attached ready to verify
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                               <button
@@ -556,6 +584,7 @@ export function WhatsAppWalletModal({
                                   e.stopPropagation();
                                   setScreenshotPreview(null);
                                   setScreenshotFileName(null);
+                                  setCompressionInfo(null);
                                 }}
                                 className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                               >
@@ -568,7 +597,7 @@ export function WhatsAppWalletModal({
                               <p className="text-xs font-bold text-gray-700">
                                 Click to browse or drag payment screenshot here
                               </p>
-                              <p className="text-[10px] text-gray-400">PNG, JPG, WebP up to 10MB</p>
+                              <p className="text-[10px] text-gray-400">Auto-compressed in &lt;0.1s for instant upload</p>
                             </div>
                           )}
                         </div>

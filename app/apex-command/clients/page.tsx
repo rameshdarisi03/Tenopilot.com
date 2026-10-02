@@ -37,6 +37,9 @@ import {
   Users,
   Lock,
   Sliders,
+  KeyRound,
+  UserCheck,
+  MessageSquare,
 } from "lucide-react";
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
@@ -71,7 +74,67 @@ export default function ApexCommandClientsPage() {
 
   // Selected account for Customer 360° Profile & Activation modal
   const [selectedCustomer360, setSelectedCustomer360] = useState<ScannedAccountRecord | null>(null);
-  const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "ACTIONS">("OVERVIEW");
+  const [modalTab, setModalTab] = useState<"OVERVIEW" | "ACTIVATE" | "CAPACITY" | "STAFF" | "ACTIONS">("OVERVIEW");
+  const [clientStaffList, setClientStaffList] = useState<any[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState<boolean>(false);
+  const [staffSearchQuery, setStaffSearchQuery] = useState<string>("");
+  const [resettingPinEmail, setResettingPinEmail] = useState<string | null>(null);
+
+  const fetchClientStaff = async (customer: ScannedAccountRecord) => {
+    if (!customer?.email) return;
+    setIsLoadingStaff(true);
+    try {
+      const propIds = Array.isArray(customer.propertyIds) ? customer.propertyIds.join(",") : "";
+      const res = await fetch(
+        `/api/apex/staff?email=${encodeURIComponent(customer.email)}&propertyIds=${encodeURIComponent(propIds)}&orgId=${encodeURIComponent(customer.organizationId || "")}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setClientStaffList(data.staff || []);
+      }
+    } catch (e) {
+      console.warn("Notice loading client staff for 360 view:", e);
+    } finally {
+      setIsLoadingStaff(false);
+    }
+  };
+
+  const handleResetStaffPin = async (staffEmail: string) => {
+    setResettingPinEmail(staffEmail);
+    try {
+      const tempPin = Math.floor(100000 + Math.random() * 900000).toString();
+      const res = await fetch("/api/apex/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESET_PIN",
+          email: staffEmail,
+          newPin: tempPin,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`🔑 Reset PIN for ${staffEmail}! Temp PIN: ${tempPin}`);
+        if (selectedCustomer360) {
+          fetchClientStaff(selectedCustomer360);
+        }
+      } else {
+        triggerToast(`⚠️ ${data.message || "Failed to reset PIN"}`);
+      }
+    } catch (err) {
+      triggerToast("Failed to reset PIN");
+    } finally {
+      setResettingPinEmail(null);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedCustomer360) {
+      fetchClientStaff(selectedCustomer360);
+    } else {
+      setClientStaffList([]);
+    }
+  }, [selectedCustomer360]);
 
   // Global Platform Master Capacity State (SSOT)
   const [globalProLimit, setGlobalProLimit] = useState<number>(300);
@@ -1266,6 +1329,17 @@ export default function ApexCommandClientsPage() {
                 <span>🏢 Capacity & Limits</span>
               </button>
               <button
+                onClick={() => setModalTab("STAFF")}
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                  modalTab === "STAFF"
+                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-xs"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-purple-400" />
+                <span>👥 Staff & Team ({clientStaffList.length})</span>
+              </button>
+              <button
                 onClick={() => setModalTab("ACTIONS")}
                 className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                   modalTab === "ACTIONS"
@@ -1790,7 +1864,202 @@ export default function ApexCommandClientsPage() {
               </div>
             )}
 
-            {/* TAB 4: ADMIN POWER CONTROLS */}
+            {/* TAB 4: STAFF & TEAM ACCESS DIRECTORY */}
+            {modalTab === "STAFF" && (
+              <div className="space-y-4 animate-in fade-in text-xs">
+                {/* Header Summary & Live Refresh */}
+                <div className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-white text-sm">Team & Staff Access Directory</h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          {clientStaffList.length} Active {clientStaffList.length === 1 ? "Member" : "Members"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        Property admins, receptionists, and sub-accounts under {selectedCustomer360.displayName || selectedCustomer360.email}.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchClientStaff(selectedCustomer360)}
+                    disabled={isLoadingStaff}
+                    className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStaff ? "animate-spin text-purple-400" : ""}`} />
+                    <span>Refresh Directory</span>
+                  </button>
+                </div>
+
+                {/* Loading State */}
+                {isLoadingStaff && (
+                  <div className="py-12 flex flex-col items-center justify-center text-center space-y-3 bg-[#0d1117] rounded-2xl border border-white/5">
+                    <Loader2 className="w-7 h-7 text-purple-400 animate-spin" />
+                    <p className="text-xs text-gray-400">Scanning Firestore subcollections and staff accounts...</p>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!isLoadingStaff && clientStaffList.length === 0 && (
+                  <div className="py-12 px-6 flex flex-col items-center justify-center text-center space-y-3 bg-[#0d1117] rounded-2xl border border-white/5">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-400">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">No Secondary Staff Accounts Found</h4>
+                      <p className="text-xs text-gray-400 max-w-md mt-1">
+                        This client currently operates solely with their Master Admin account ({selectedCustomer360.email}). Staff accounts created in the app will automatically appear here with full PIN control.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Staff Member Cards */}
+                {!isLoadingStaff && clientStaffList.length > 0 && (
+                  <div className="grid grid-cols-1 gap-3">
+                    {clientStaffList.map((staff) => {
+                      const isMasterAdmin = staff.role === "master_admin" || staff.role === "owner";
+                      const isAdmin = staff.role === "admin" || staff.role === "property_admin";
+                      const isReceptionist = staff.role === "receptionist";
+                      const isResetting = resettingPinEmail === (staff.email || staff.id);
+
+                      const roleBadgeColor = isMasterAdmin
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                        : isAdmin
+                        ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                        : "bg-purple-500/20 text-purple-300 border-purple-500/30";
+
+                      const roleLabel = isMasterAdmin
+                        ? "Master Admin / Owner"
+                        : isAdmin
+                        ? "Property Admin"
+                        : isReceptionist
+                        ? "Front Desk / Receptionist"
+                        : staff.role || "Staff";
+
+                      return (
+                        <div
+                          key={staff.id || staff.email}
+                          className="p-4 rounded-2xl bg-[#0d1117] border border-white/10 hover:border-purple-500/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                        >
+                          {/* Left: Avatar + Details */}
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 uppercase border ${
+                                isMasterAdmin
+                                  ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                                  : isAdmin
+                                  ? "bg-blue-500/10 text-blue-300 border-blue-500/30"
+                                  : "bg-purple-500/10 text-purple-300 border-purple-500/30"
+                              }`}
+                            >
+                              {(staff.name || staff.displayName || staff.email || "S").slice(0, 2)}
+                            </div>
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-white text-sm truncate">
+                                  {staff.name || staff.displayName || staff.email.split("@")[0]}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${roleBadgeColor}`}>
+                                  {roleLabel}
+                                </span>
+                                {staff.status && (
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                                      staff.status === "ACTIVE"
+                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                        : "bg-gray-500/10 text-gray-400 border border-gray-500/20"
+                                    }`}
+                                  >
+                                    {staff.status}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Contact row */}
+                              <div className="flex items-center gap-3 text-gray-400 text-[11px] flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  <Mail className="w-3 h-3 text-gray-500" />
+                                  <span className="text-gray-300 font-mono">{staff.email}</span>
+                                </div>
+                                {staff.phone && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Phone className="w-3 h-3 text-gray-500" />
+                                    <span className="text-gray-300 font-mono">{staff.phone}</span>
+                                    <a
+                                      href={`https://wa.me/${staff.phone.replace(/\D/g, "")}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-emerald-400 hover:text-emerald-300 underline font-semibold flex items-center gap-0.5 ml-1"
+                                    >
+                                      <MessageSquare className="w-2.5 h-2.5" />
+                                      WhatsApp
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Property assignment tag */}
+                              <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                                <Building2 className="w-3 h-3 text-purple-400 shrink-0" />
+                                <span className="text-gray-300 font-medium">
+                                  {staff.propertyName || staff.propertyId
+                                    ? `Assigned: ${staff.propertyName || staff.propertyId}`
+                                    : "Assigned: All Organization Properties (Global Admin)"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Security PIN & Reset Action */}
+                          <div className="flex items-center gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/5 justify-between md:justify-end">
+                            {/* PIN Display Badge */}
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] text-gray-400 font-medium">Security PIN</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                                {staff.securityPin ? (
+                                  <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 font-mono font-black text-amber-300 text-xs tracking-wider">
+                                    {staff.securityPin}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-[10px] italic">
+                                    Pending 1st Login
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Reset PIN Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleResetStaffPin(staff)}
+                              disabled={isResetting}
+                              title="Generate a temporary 6-digit PIN"
+                              className="px-3 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                              {isResetting ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              )}
+                              <span>{isResetting ? "Resetting..." : "Reset PIN"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 5: ADMIN POWER CONTROLS */}
             {modalTab === "ACTIONS" && (
               <div className="space-y-4 animate-in fade-in text-xs">
                 {/* 1-Click +10 Days Extension */}
