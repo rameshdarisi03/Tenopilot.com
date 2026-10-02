@@ -318,23 +318,23 @@ export function TenoPilotInvoiceModal({
               </div>
             </div>
 
-            {/* 5. Audit Accounting Attachment & Verification QR Seal */}
+            {/* 5. Audit Accounting Attachment & Verification QR */}
             <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-white border border-amber-300 shadow-xs shrink-0">
                   <QRCodeSVG
                     value={`https://tenopilot.com/verify/invoice/${invoiceNum}`}
-                    size={64}
+                    size={56}
                     level="M"
                   />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span className="font-bold text-xs text-slate-900">Verified Accounting Audit Proof</span>
+                    <span className="font-bold text-xs text-slate-900">Verified System Generated Invoice</span>
                   </div>
                   <p className="text-[10px] text-gray-600 mt-0.5">
-                    Scan QR to authenticate digital tax invoice integrity on TenoPilot Security Cloud.
+                    This is an electronically generated digital tax invoice and does not require a physical signature or seal.
                   </p>
                   {invoice.receiptUrl && (
                     <div className="pt-1 flex items-center gap-2">
@@ -352,14 +352,13 @@ export function TenoPilotInvoiceModal({
                 </div>
               </div>
 
-              {/* Founder Signatory Seal */}
-              <div className="text-right border-t sm:border-t-0 sm:border-l border-amber-200/80 pt-2 sm:pt-0 sm:pl-4 space-y-0.5 shrink-0">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 block">AUTHORIZED SIGNATORY</span>
-                <p className="font-serif font-black text-sm text-slate-900">Ramesh Darisi</p>
-                <p className="text-[10px] text-gray-600 font-bold">Founder & CEO, TenoPilot</p>
-                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold inline-block">
-                  DIGITALLY SIGNED & VERIFIED ✓
+              <div className="text-right sm:text-right shrink-0">
+                <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold inline-block">
+                  ✓ VERIFIED & SETTLED
                 </span>
+                <p className="text-[10px] text-gray-500 mt-1 font-mono">
+                  REF: {invoice.receiptNumber || invoice.invoiceNumber}
+                </p>
               </div>
             </div>
 
