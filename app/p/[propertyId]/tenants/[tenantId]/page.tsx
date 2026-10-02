@@ -1545,7 +1545,7 @@ export default function IndividualTenantProfilePage({
                   </h1>
 
                   {/* WhatsApp Action Button & Dropdown Shortcut */}
-                  <div className="relative inline-flex items-center">
+                  <div className={`relative inline-flex items-center ${showWhatsAppDropdown ? "z-50" : ""}`}>
                     <button
                       type="button"
                       onClick={(e) => {

@@ -1581,12 +1581,15 @@ export default function TenantsDirectoryPage({
                   filteredOccupants.map((occ) => {
                     const isSelected = selectedIds.includes(occ.id);
                     const isPastTenant = occ.lifecycleStatus === "Past";
+                    const isMenuOpen = activeWhatsAppMenuId === occ.id || activeActionDropdownId === occ.id;
 
                     return (
                       <tr
                         key={occ.id}
-                        className={`hover:bg-orange-50/40 transition-colors animate-stagger-up ${
+                        className={`hover:bg-orange-50/40 transition-colors ${
                           isSelected ? "bg-orange-50/60" : ""
+                        } ${
+                          isMenuOpen ? "relative z-50 !transform-none" : "animate-stagger-up"
                         }`}
                       >
                         <td className="p-4">
@@ -1680,10 +1683,10 @@ export default function TenantsDirectoryPage({
                             );
                           })()}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className={`p-4 text-right ${isMenuOpen ? "relative z-50" : ""}`}>
                           <div className="flex items-center justify-end gap-1.5">
                             {/* WhatsApp Actions Dropdown */}
-                            <div className="relative">
+                            <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1699,7 +1702,7 @@ export default function TenantsDirectoryPage({
                               {activeWhatsAppMenuId === occ.id && (
                                 <div
                                   onClick={(e) => e.stopPropagation()}
-                                  className="absolute right-0 top-8 z-30 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left whitespace-nowrap"
+                                  className="absolute right-0 top-8 z-50 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left whitespace-nowrap"
                                 >
                                   <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                     WhatsApp for {occ.name}
@@ -1736,7 +1739,7 @@ export default function TenantsDirectoryPage({
                               <Phone className="w-4 h-4" />
                             </a>
 
-                            <div className="relative">
+                            <div className={`relative ${activeActionDropdownId === occ.id ? "z-50" : ""}`}>
                               <button
                                 onClick={() =>
                                   setActiveActionDropdownId(
@@ -1749,7 +1752,7 @@ export default function TenantsDirectoryPage({
                               </button>
 
                               {activeActionDropdownId === occ.id && (
-                                <div className="absolute right-0 top-8 z-30 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-1 text-xs font-semibold animate-in fade-in">
+                                <div className="absolute right-0 top-8 z-50 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-1 text-xs font-semibold animate-in fade-in">
                                   <Link
                                     href={`/p/${propertyId}/tenants/${occ.id}`}
                                     className="flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
@@ -1914,6 +1917,8 @@ Scroll vertically to browse all residents without pagination limits
                     }}
                     className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3 transition-all relative select-none touch-manipulation cursor-pointer ${
                       isSelected ? "border-[#c2652a] bg-orange-50/40 ring-1 ring-[#c2652a]" : "border-gray-200"
+                    } ${
+                      activeWhatsAppMenuId === occ.id || isActionMenuOpen ? "z-40" : "z-0"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -1987,7 +1992,7 @@ Scroll vertically to browse all residents without pagination limits
                         </span>
 
                         {/* Mobile WhatsApp Chat Action Button */}
-                        <div className="relative">
+                        <div className={`relative ${activeWhatsAppMenuId === occ.id ? "z-50" : ""}`}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2003,7 +2008,7 @@ Scroll vertically to browse all residents without pagination limits
                           {activeWhatsAppMenuId === occ.id && (
                             <div
                               onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
+                              className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
                             >
                               <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                 WhatsApp for {occ.name}
@@ -2043,7 +2048,7 @@ Scroll vertically to browse all residents without pagination limits
                         </a>
 
                         {/* Mobile Three-Dots Action Button */}
-                        <div className="relative">
+                        <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2060,7 +2065,7 @@ Scroll vertically to browse all residents without pagination limits
                           {isActionMenuOpen && (
                             <div
                               onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
+                              className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
                             >
                               <Link
                                 href={`/p/${propertyId}/tenants/${occ.id}`}
