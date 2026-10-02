@@ -410,7 +410,7 @@ export default function PropertyOverviewPage({
                     href={`/p/${propertyId}/tenants?filter=due&sendReminders=true`}
                     className="text-[11px] font-bold text-[#c2652a] hover:underline"
                   >
-                    View List ➔
+                    Send Reminders ➔
                   </Link>
                 </div>
               </div>
