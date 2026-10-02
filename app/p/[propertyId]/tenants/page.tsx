@@ -454,6 +454,29 @@ export default function TenantsDirectoryPage({
     return hasCashCard ? configured : [...configured, PAY_BY_CASH_PROFILE];
   };
 
+  // Helper to construct exact formatted individual rent reminder WhatsApp URL (same template as Send (Free))
+  const getIndividualRentReminderUrl = (occ: Occupant): string => {
+    const reminderCards = getReminderPaymentCards();
+    const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+    const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+
+    const paymentDetailsText = isCashReq
+      ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
+      : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
+
+    const message =
+      `Hello ${occ.name},\n\n` +
+      `Friendly rent payment reminder for *${currentSettings.propertyName || "TenoPilot PG"}*:\n` +
+      `🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n` +
+      `💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n` +
+      `📅 *Due Date*: ${occ.dueDate}\n\n` +
+      `${paymentDetailsText}\n\n` +
+      `Thank you,\n` +
+      `*${currentSettings.propertyName || "TenoPilot PG"}* Management Desk`;
+
+    return buildWhatsAppUrl(occ.phone, message);
+  };
+
   // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Official Email)
   const handleSendCloudWhatsAppReminders = async () => {
     const sub = evaluateSubscription(profile);
@@ -1681,31 +1704,26 @@ export default function TenantsDirectoryPage({
                                   <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                     WhatsApp for {occ.name}
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveWhatsAppMenuId(null);
-                                      setSelectedIds([occ.id]);
-                                      setShowRentReminderQRModal(true);
-                                    }}
+                                  <a
+                                    href={getIndividualRentReminderUrl(occ)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={() => setActiveWhatsAppMenuId(null)}
                                     className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
                                   >
                                     <CreditCard className="w-4 h-4 text-emerald-600" />
                                     <span>Send Rent Reminder</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveWhatsAppMenuId(null);
-                                      setCustomMessageTargetOccupant(occ);
-                                      setCustomMessageText(`Hi ${occ.name}! `);
-                                      setShowCustomMessageModal(true);
-                                    }}
+                                  </a>
+                                  <a
+                                    href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={() => setActiveWhatsAppMenuId(null)}
                                     className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-750 transition-colors cursor-pointer"
                                   >
                                     <MessageSquare className="w-4 h-4 text-emerald-600" />
                                     <span>Send Custom Message</span>
-                                  </button>
+                                  </a>
                                 </div>
                               )}
                             </div>
@@ -1990,31 +2008,26 @@ Scroll vertically to browse all residents without pagination limits
                               <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                 WhatsApp for {occ.name}
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveWhatsAppMenuId(null);
-                                  setSelectedIds([occ.id]);
-                                  setShowRentReminderQRModal(true);
-                                }}
+                              <a
+                                href={getIndividualRentReminderUrl(occ)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => setActiveWhatsAppMenuId(null)}
                                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                               >
                                 <CreditCard className="w-4 h-4 text-emerald-600" />
                                 <span>Send Rent Reminder</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveWhatsAppMenuId(null);
-                                  setCustomMessageTargetOccupant(occ);
-                                  setCustomMessageText(`Hi ${occ.name}! `);
-                                  setShowCustomMessageModal(true);
-                                }}
+                              </a>
+                              <a
+                                href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => setActiveWhatsAppMenuId(null)}
                                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-750 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                               >
                                 <MessageSquare className="w-4 h-4 text-emerald-600" />
                                 <span>Send Custom Message</span>
-                              </button>
+                              </a>
                             </div>
                           )}
                         </div>
