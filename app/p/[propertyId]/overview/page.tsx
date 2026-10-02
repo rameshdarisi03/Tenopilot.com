@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import Link from "next/link";
@@ -60,6 +61,7 @@ export default function PropertyOverviewPage({
 }: {
   params: Promise<{ propertyId: string }>;
 }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "";
   const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
@@ -237,17 +239,7 @@ export default function PropertyOverviewPage({
   const noticeOccupants = occupants.filter((o) => o.lifecycleStatus === "Notice");
 
   const handleSendWhatsAppReminders = () => {
-    const overdueOccupants = occupants.filter((o) => o.paymentStatus === "Overdue" || o.daysDiff < 0);
-    if (overdueOccupants.length === 0) {
-      alert("🟢 All residents are up-to-date! No pending overdue rent reminders needed.");
-      return;
-    }
-    const target = overdueOccupants[0];
-    const text = `Hello ${target.name}, this is a gentle reminder regarding your monthly rent payment of ₹${target.rentAmount} for ${propertySettings.propertyName}. Please clear your dues at your earliest convenience. Thank you!`;
-    const waUrl = buildWhatsAppUrl(target.phone, text);
-    if (waUrl) {
-      window.open(waUrl, "_blank");
-    }
+    router.push(`/p/${propertyId}/tenants?filter=due&sendReminders=true`);
   };
 
   return (
@@ -415,7 +407,7 @@ export default function PropertyOverviewPage({
                     Across {pendingCount} residents
                   </p>
                   <Link
-                    href={`/p/${propertyId}/tenants`}
+                    href={`/p/${propertyId}/tenants?filter=due&sendReminders=true`}
                     className="text-[11px] font-bold text-[#c2652a] hover:underline"
                   >
                     View List ➔

@@ -73,6 +73,7 @@ import {
   Mail,
   Lock,
   Check,
+  Send,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -272,7 +273,7 @@ export default function TenantsDirectoryPage({
     };
   }, [propertyId]);
 
-  // Handle URL Deep-Link for Collect Rent Modal (e.g. from Financial Hub)
+  // Handle URL Deep-Link for Collect Rent Modal or Automated Reminders (e.g. from Overview / Financial Hub)
   const searchParams = useSearchParams();
   useEffect(() => {
     const targetOccId = searchParams?.get("collectRent");
@@ -280,6 +281,34 @@ export default function TenantsDirectoryPage({
       const occ = occupantsList.find((o) => o.id === targetOccId);
       if (occ) {
         setCollectRentOccupant(occ);
+      }
+    }
+
+    const filterParam = searchParams?.get("filter")?.toLowerCase();
+    const sendRemindersParam = searchParams?.get("sendReminders") === "true";
+    const actionParam = searchParams?.get("action")?.toLowerCase();
+
+    if (filterParam === "due" || filterParam === "pending" || filterParam === "overdue" || sendRemindersParam || actionParam === "reminders") {
+      setPaymentStatusFilter("Due");
+      if (filterParam === "overdue") {
+        setPaymentDueFilter("Overdue");
+      }
+
+      if (occupantsList.length > 0) {
+        const dueOccupants = occupantsList.filter((o) => {
+          if (o.lifecycleStatus === "Past") return false;
+          const isPendingOrOverdue = o.paymentStatus === "Due" || o.paymentStatus === "Overdue" || (o.daysDiff !== undefined && o.daysDiff <= 0);
+          return isPendingOrOverdue;
+        });
+
+        const dueIds = dueOccupants.map((o) => o.id);
+        if (dueIds.length > 0) {
+          setSelectedIds(dueIds);
+        }
+
+        if (sendRemindersParam || actionParam === "reminders") {
+          setShowRentReminderQRModal(true);
+        }
       }
     }
   }, [searchParams, occupantsList]);
@@ -827,7 +856,14 @@ export default function TenantsDirectoryPage({
 
       // Dropdown Filters
       if (tenantStatusFilter !== "All" && occ.lifecycleStatus !== tenantStatusFilter) return false;
-      if (paymentStatusFilter !== "All" && occ.paymentStatus !== paymentStatusFilter) return false;
+      if (paymentStatusFilter !== "All") {
+        if (paymentStatusFilter === "Due") {
+          const isDueOrOverdue = occ.paymentStatus === "Due" || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff <= 0);
+          if (!isDueOrOverdue) return false;
+        } else if (occ.paymentStatus !== paymentStatusFilter) {
+          return false;
+        }
+      }
       if (paymentDueFilter !== "All") {
         if (paymentDueFilter === "Today" && (occ.daysDiff !== 0 || occ.paymentStatus !== "Due")) return false;
         if (paymentDueFilter === "Tomorrow" && (occ.daysDiff !== 1 || occ.paymentStatus !== "Due")) return false;
@@ -1254,25 +1290,54 @@ export default function TenantsDirectoryPage({
             />
           </div>
 
-          {/* Active Search Query Tag (Only shows when user types in top search bar) */}
-          {rawSearchTerm && (
-            <div className="flex items-center gap-2 pt-1">
-              <div className="bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-orange-200 font-bold">
-                Search: "{rawSearchTerm}"
-                <X
-                  className="w-3.5 h-3.5 cursor-pointer hover:text-red-500"
+          {/* Active Search & Filter Tags Bar */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {rawSearchTerm && (
+              <div className="flex items-center gap-2">
+                <div className="bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-orange-200 font-bold">
+                  Search: "{rawSearchTerm}"
+                  <X
+                    className="w-3.5 h-3.5 cursor-pointer hover:text-red-500"
+                    onClick={() => setRawSearchTerm("")}
+                  />
+                </div>
+                <button
+                  type="button"
                   onClick={() => setRawSearchTerm("")}
-                />
+                  className="text-xs text-gray-400 hover:text-gray-600 font-medium underline"
+                >
+                  Clear Search
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setRawSearchTerm("")}
-                className="text-xs text-gray-400 hover:text-gray-600 font-medium underline"
-              >
-                Clear Search
-              </button>
-            </div>
-          )}
+            )}
+
+            {paymentStatusFilter === "Due" && (
+              <div className="flex items-center gap-2">
+                <div className="bg-amber-500/15 text-amber-900 px-3 py-1 rounded-full text-xs flex items-center gap-1.5 border border-amber-300 font-bold">
+                  <span>⚡ Showing Pending Dues ({filteredOccupants.length} Residents)</span>
+                  <X
+                    className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                    onClick={() => {
+                      setPaymentStatusFilter("All");
+                      setPaymentDueFilter("All");
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dueIds = filteredOccupants.map((o) => o.id);
+                    setSelectedIds(dueIds);
+                    setShowRentReminderQRModal(true);
+                  }}
+                  className="px-3 py-1 rounded-full bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Send Automated Rent Reminders</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* ⇅ Single Unified Sort Pill Filter (Smartphone & Desktop) */}
           <div className="flex items-center justify-between gap-3 pt-2 pb-1 border-b border-gray-100 relative">
