@@ -313,29 +313,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
     const isMasterTestAccount = user?.email?.toLowerCase() === "isharapandey01@gmail.com";
+    const isStaffUser = profile?.role === "admin" || profile?.role === "receptionist";
     const hasCompletedSetup =
       isMasterTestAccount ||
-      (profile?.onboardingCompleted === true && Boolean(profile?.assignedPropertyId));
+      isStaffUser ||
+      profile?.onboardingCompleted === true ||
+      Boolean(profile?.assignedPropertyId) ||
+      Boolean(localSavedPropertyId);
 
     if (isProtectedPage) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
       if ((!user && !hasLocalSession) || !isSessionUnlocked) {
         router.replace("/login");
-      } else if (!hasCompletedSetup && !loading) {
+      } else if (!loading && profile && !hasCompletedSetup) {
         router.replace("/welcome");
       }
     }
 
-    if (isWelcomePage && !loading) {
+    if (isWelcomePage && !loading && profile) {
       if (!user && !hasLocalSession) {
         router.replace("/login");
       } else if (hasCompletedSetup) {
-        router.replace("/home");
+        const targetDest = isStaffUser
+          ? (profile.assignedPropertyId || localSavedPropertyId ? `/p/${profile.assignedPropertyId || localSavedPropertyId}/overview` : "/home")
+          : "/home";
+        router.replace(targetDest);
       }
     }
 
     if (isAuthPage && !loading && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
-      if (!hasCompletedSetup) {
+      if (profile && !hasCompletedSetup) {
         router.replace("/welcome");
       } else {
         let resolvedRole = profile?.role;
@@ -347,7 +354,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             resolvedProp = parsed.assignedPropertyId;
           } catch {}
         }
-        const dest = resolvedRole === "master_admin" ? "/home" : `/p/${resolvedProp || "sunshine-pg"}/overview`;
+        const dest = (resolvedRole === "admin" || resolvedRole === "receptionist")
+          ? (resolvedProp ? `/p/${resolvedProp}/overview` : "/home")
+          : "/home";
         router.replace(dest);
       }
     }
