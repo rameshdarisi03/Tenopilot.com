@@ -18,11 +18,13 @@ export async function POST(req: NextRequest) {
       notes = "",
       activatedBy = "Founder Console",
       requestId = null,
+      propertyId = null,
+      credits = null,
     } = body;
 
-    if (!email && !userId) {
+    if (!email && !userId && !propertyId) {
       return NextResponse.json(
-        { success: false, message: "Customer email or userId is required." },
+        { success: false, message: "Customer email, userId, or propertyId is required." },
         { status: 400 }
       );
     }
@@ -30,6 +32,95 @@ export async function POST(req: NextRequest) {
     const cleanEmail = (email || "").toLowerCase().trim();
     const now = new Date();
     const nowIso = now.toISOString();
+
+    // 💬 Check if this is a dedicated WhatsApp Credits purchase / approval
+    const isWhatsAppRecharge =
+      plan.startsWith("WHATSAPP") ||
+      plan.startsWith("pack-") ||
+      typeof credits === "number";
+
+    if (isWhatsAppRecharge) {
+      const creditsToAdd =
+        Number(credits) ||
+        (plan.includes("2000") || plan.includes("enterprise")
+          ? 2000
+          : plan.includes("750") || plan.includes("growth")
+          ? 750
+          : 250);
+
+      const targetPropId = propertyId || "prop-1788438308277";
+      const walletRef = doc(db, `properties/${targetPropId}/whatsapp/wallet`);
+      const wSnap = await getDoc(walletRef);
+      const currentCredits = wSnap.exists() && typeof wSnap.data()?.credits === "number" ? wSnap.data().credits : 10;
+      const currentTxs = wSnap.exists() && Array.isArray(wSnap.data()?.transactions) ? wSnap.data().transactions : [];
+      const newBalance = currentCredits + creditsToAdd;
+
+      const newTx = {
+        id: `tx-buy-${Date.now()}`,
+        type: "PURCHASE",
+        amount: creditsToAdd,
+        balanceAfter: newBalance,
+        description: notes || `Recharged +${creditsToAdd} WhatsApp Credits (${paymentMode})`,
+        timestamp: nowIso,
+        status: "DELIVERED",
+      };
+
+      await setDoc(
+        walletRef,
+        {
+          credits: newBalance,
+          transactions: [newTx, ...currentTxs].slice(0, 100),
+          updatedAt: nowIso,
+          updatedBy: activatedBy,
+        },
+        { merge: true }
+      );
+
+      // If linked to an offline payment request, mark it APPROVED
+      if (requestId) {
+        const approvalData = {
+          status: "APPROVED",
+          reviewedAt: nowIso,
+          reviewedBy: activatedBy,
+          activatedPlan: plan,
+        };
+        try {
+          await setDoc(doc(db, "platform_admin", "requests", "submissions", requestId), approvalData, { merge: true });
+          await setDoc(doc(db, "subscription_requests", requestId), approvalData, { merge: true });
+        } catch (e) {}
+      }
+
+      // Record immutable billing transaction
+      const txnRecord = {
+        id: `txn_apex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        customerEmail: cleanEmail || "property_admin@tenopilot.com",
+        userId: userId || null,
+        plan: plan,
+        durationDays: 0,
+        paymentMode: paymentMode,
+        amountPaid: Number(amountPaid),
+        propertyId: targetPropId,
+        creditsAdded: creditsToAdd,
+        receiptNumber: receiptNumber || `REC-${Date.now().toString().slice(-6)}`,
+        receiptUrl: receiptUrl || null,
+        notes: notes || `WhatsApp Credits Purchase (+${creditsToAdd} credits)`,
+        activatedBy: activatedBy,
+        createdAt: nowIso,
+        status: "COMPLETED",
+      };
+
+      try {
+        await setDoc(doc(db, "platform_admin", "billing", "transactions", txnRecord.id), txnRecord);
+        await setDoc(doc(db, "subscription_transactions", txnRecord.id), txnRecord);
+      } catch (e) {}
+
+      return NextResponse.json({
+        success: true,
+        message: `Recharged +${creditsToAdd} WhatsApp credits for ${targetPropId}!`,
+        transaction: txnRecord,
+        newBalance,
+      });
+    }
 
     // Check existing expiry and capacity limits for stacked renewal & add-ons
     let currentExpiryIso: string | null = null;

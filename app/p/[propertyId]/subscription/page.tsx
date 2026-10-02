@@ -8,6 +8,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { evaluateSubscription, calculateStackedExpiry } from "@/lib/subscriptionEngine";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { RazorpayModalMockup } from "@/components/dashboard/RazorpayModalMockup";
+import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
 import {
   Sparkles,
   ShieldCheck,
@@ -1295,77 +1296,19 @@ export default function SubscriptionBillingPage() {
           </div>
         </div>
       )}
-      {/* 💬 WHATSAPP CREDIT RECHARGE MODAL */}
-      {showCreditRechargeModal && selectedCreditPack && (
-        <div
-          className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setShowCreditRechargeModal(false)}
-        >
-          <div
-            className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center space-y-5 animate-in zoom-in-95 text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/20">
-              <Smartphone className="w-7 h-7" />
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
-                Instant Top-Up Pack
-              </span>
-              <h3 className="text-xl font-black text-gray-900">
-                Recharge {selectedCreditPack.name}
-              </h3>
-              <p className="text-gray-500 text-xs">
-                Add +{selectedCreditPack.credits.toLocaleString("en-IN")} WhatsApp messages to your property wallet
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[#fcf9f8] border border-gray-200 text-left space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600 font-medium">Message Credits:</span>
-                <span className="font-mono font-bold text-gray-900">+{selectedCreditPack.credits} Credits</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600 font-medium">Effective Rate:</span>
-                <span className="font-mono text-gray-700">{selectedCreditPack.pricePerCredit} / msg</span>
-              </div>
-              <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-200 font-bold">
-                <span className="text-gray-900">Total Recharge Price:</span>
-                <span className="font-mono font-black text-base text-emerald-700">₹{selectedCreditPack.priceInr}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowCreditRechargeModal(false)}
-                className="w-full sm:w-1/2 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isPurchasingCredits}
-                onClick={handleConfirmCreditRecharge}
-                className="w-full sm:w-1/2 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                {isPurchasingCredits ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Processing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-3.5 h-3.5 text-yellow-300" />
-                    <span>Pay ₹{selectedCreditPack.priceInr} & Add</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 💬 WHATSAPP CREDIT RECHARGE & WALLET MODAL */}
+      <WhatsAppWalletModal
+        propertyId={propertyId}
+        isOpen={showCreditRechargeModal}
+        onClose={() => {
+          setShowCreditRechargeModal(false);
+          setSelectedCreditPack(null);
+        }}
+        onRechargeSuccess={(newCredits) => {
+          setWhatsappCredits(newCredits);
+          triggerToast(`🎉 Successfully updated WhatsApp wallet balance to ${newCredits} messages!`);
+        }}
+      />
     </div>
   );
 }

@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import { X, ShieldCheck, CheckCircle2, Lock, Smartphone, CreditCard, Building2, Sparkles, RefreshCw, ArrowRight } from "lucide-react";
+import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 
 interface RazorpayModalMockupProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
-  plan: "PRO_MONTHLY" | "PRO_ANNUAL";
+  onSuccess: (details?: { paymentId: string; orderId: string }) => void;
+  plan: string;
   amount: number;
   customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
   userId?: string;
+  propertyId?: string;
+  credits?: number;
+  itemDescription?: string;
 }
 
 export function RazorpayModalMockup({
@@ -21,10 +25,13 @@ export function RazorpayModalMockup({
   onSuccess,
   plan,
   amount,
-  customerEmail = "owner@sunshinepg.com",
+  customerEmail = "owner@tenopilot.com",
   customerName = "PG Owner",
   customerPhone = "9876543210",
   userId,
+  propertyId,
+  credits,
+  itemDescription,
 }: RazorpayModalMockupProps) {
   const [activeTab, setActiveTab] = useState<"UPI" | "CARD" | "NETBANKING">("UPI");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -35,6 +42,8 @@ export function RazorpayModalMockup({
   if (!isOpen) return null;
 
   const orderId = `order_RPZ_${Date.now().toString().slice(-7)}`;
+
+  const isWhatsAppPack = plan.startsWith("WHATSAPP") || typeof credits === "number";
 
   const handleSimulatePayment = async () => {
     setIsProcessing(true);
@@ -57,25 +66,52 @@ export function RazorpayModalMockup({
           durationDays: plan === "PRO_MONTHLY" ? 30 : 365,
           paymentMode: `Razorpay (${activeTab})`,
           amountPaid: amount,
+          propertyId,
+          credits,
           receiptNumber: generatedPaymentId,
-          notes: `Razorpay Gateway Payment (Order: ${orderId}, Method: ${activeTab})`,
+          notes: itemDescription || `Razorpay Gateway Payment (Order: ${orderId}, Method: ${activeTab})`,
           activatedBy: "Razorpay Webhook (Automated Gateway)",
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        setIsSuccess(true);
-        setTimeout(() => {
-          onSuccess();
-        }, 1800);
+      if (isWhatsAppPack && propertyId && credits) {
+        whatsappCreditStore.addCredits(
+          propertyId,
+          credits,
+          itemDescription || `WhatsApp Credits Top-Up (${generatedPaymentId})`
+        );
       }
+
+      setIsSuccess(true);
+      setTimeout(() => {
+        onSuccess({ paymentId: generatedPaymentId, orderId });
+      }, 1600);
     } catch (err) {
       console.error("Razorpay simulation error:", err);
+      // Fallback local credit addition
+      if (isWhatsAppPack && propertyId && credits) {
+        whatsappCreditStore.addCredits(
+          propertyId,
+          credits,
+          itemDescription || `WhatsApp Credits Top-Up (${generatedPaymentId})`
+        );
+      }
+      setIsSuccess(true);
+      setTimeout(() => {
+        onSuccess({ paymentId: generatedPaymentId, orderId });
+      }, 1600);
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const resolvedItemTitle =
+    itemDescription ||
+    (plan === "PRO_MONTHLY"
+      ? "TenoPilot Pro (1 Month Renewal)"
+      : plan === "PRO_ANNUAL"
+      ? "TenoPilot Pro (1 Year Plan)"
+      : `WhatsApp Credit Pack (+${credits || 250} Credits)`);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
@@ -99,8 +135,8 @@ export function RazorpayModalMockup({
                   Verified Merchant
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300">
-                {plan === "PRO_MONTHLY" ? "TenoPilot Pro (1 Month Renewal)" : "TenoPilot Pro (1 Year Plan)"}
+              <p className="text-[11px] text-slate-300 truncate max-w-[200px] sm:max-w-[280px]">
+                {resolvedItemTitle}
               </p>
             </div>
           </div>
