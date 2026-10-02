@@ -1699,7 +1699,7 @@ export default function TenantsDirectoryPage({
                               {activeWhatsAppMenuId === occ.id && (
                                 <div
                                   onClick={(e) => e.stopPropagation()}
-                                  className="absolute right-0 top-8 z-30 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left"
+                                  className="absolute right-0 top-8 z-30 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left whitespace-nowrap"
                                 >
                                   <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                     WhatsApp for {occ.name}
@@ -1711,7 +1711,7 @@ export default function TenantsDirectoryPage({
                                     onClick={() => setActiveWhatsAppMenuId(null)}
                                     className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
                                   >
-                                    <CreditCard className="w-4 h-4 text-emerald-600" />
+                                    <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
                                     <span>Send Rent Reminder</span>
                                   </a>
                                   <a
@@ -1719,9 +1719,9 @@ export default function TenantsDirectoryPage({
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={() => setActiveWhatsAppMenuId(null)}
-                                    className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-750 transition-colors cursor-pointer"
+                                    className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-700 transition-colors cursor-pointer"
                                   >
-                                    <MessageSquare className="w-4 h-4 text-emerald-600" />
+                                    <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
                                     <span>Send Custom Message</span>
                                   </a>
                                 </div>
@@ -2003,7 +2003,7 @@ Scroll vertically to browse all residents without pagination limits
                           {activeWhatsAppMenuId === occ.id && (
                             <div
                               onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left"
+                              className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-30 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
                             >
                               <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                 WhatsApp for {occ.name}
@@ -2015,7 +2015,7 @@ Scroll vertically to browse all residents without pagination limits
                                 onClick={() => setActiveWhatsAppMenuId(null)}
                                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                               >
-                                <CreditCard className="w-4 h-4 text-emerald-600" />
+                                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
                                 <span>Send Rent Reminder</span>
                               </a>
                               <a
@@ -2023,9 +2023,9 @@ Scroll vertically to browse all residents without pagination limits
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={() => setActiveWhatsAppMenuId(null)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-750 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                               >
-                                <MessageSquare className="w-4 h-4 text-emerald-600" />
+                                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
                                 <span>Send Custom Message</span>
                               </a>
                             </div>

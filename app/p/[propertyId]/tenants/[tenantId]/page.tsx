@@ -1561,7 +1561,7 @@ export default function IndividualTenantProfilePage({
                     {showWhatsAppDropdown && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left"
+                        className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
                       >
                         <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                           WhatsApp for {occupantState.name}
@@ -1573,7 +1573,7 @@ export default function IndividualTenantProfilePage({
                           onClick={() => setShowWhatsAppDropdown(false)}
                           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                         >
-                          <CreditCard className="w-4 h-4 text-emerald-600" />
+                          <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span>Send Rent Reminder</span>
                         </a>
                         <a
@@ -1583,7 +1583,7 @@ export default function IndividualTenantProfilePage({
                           onClick={() => setShowWhatsAppDropdown(false)}
                           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
                         >
-                          <MessageSquare className="w-4 h-4 text-emerald-600" />
+                          <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span>Send Custom Message</span>
                         </a>
                       </div>
