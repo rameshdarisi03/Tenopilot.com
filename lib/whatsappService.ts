@@ -337,16 +337,17 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
  * Record outbound dispatch metadata in Firestore SSOT to guarantee 100% accurate
  * inbound message session routing back to the originating property and tenant profile.
  */
-async function recordOutboundDispatchLog(payload: WhatsAppSendParams, result: WhatsAppSendResult) {
+export async function recordOutboundDispatchLog(payload: WhatsAppSendParams, result?: Partial<WhatsAppSendResult>) {
   try {
     if (!db) return;
     const cleanDigits = payload.toPhone.replace(/\D/g, "").slice(-10);
+    if (!cleanDigits || cleanDigits.length < 10) return;
     const docId = `dispatch_${cleanDigits}`;
     const p = payload.params || {};
 
     const dispatchDoc = {
       id: docId,
-      wamid: result.messageId,
+      wamid: result?.messageId || `wamid_manual_${Date.now()}`,
       toPhoneClean: cleanDigits,
       toPhoneFormatted: formatIndianPhoneNumber(payload.toPhone),
       recipientName: payload.recipientName,
@@ -356,14 +357,31 @@ async function recordOutboundDispatchLog(payload: WhatsAppSendParams, result: Wh
       roomNumber: p.roomNumber || null,
       bedCode: p.bedCode || null,
       amountDue: p.amount ? Number(p.amount) : null,
-      type: payload.type,
+      type: payload.type || "RENT_REMINDER",
       dispatchedAt: new Date().toISOString(),
       timestamp: Date.now(),
-      mode: result.mode,
+      mode: result?.mode || "LIVE_META_API",
     };
 
     // Save in global fast-lookup table
     await setDoc(doc(db, "whatsapp_outbound_dispatches", docId), dispatchDoc, { merge: true });
+
+    // Also update occupants_by_phone index
+    await setDoc(
+      doc(db, "occupants_by_phone", cleanDigits),
+      {
+        phone: cleanDigits,
+        occupantId: payload.occupantId || `occ_${cleanDigits}`,
+        occupantName: payload.recipientName,
+        propertyId: payload.propertyId,
+        propertyName: payload.propertyName || "TenoPilot PG",
+        roomNumber: p.roomNumber || null,
+        bedCode: p.bedCode || null,
+        rentAmount: p.amount ? Number(p.amount) : 0,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
 
     // Also record in property-scoped history
     if (payload.propertyId) {
@@ -377,3 +395,4 @@ async function recordOutboundDispatchLog(payload: WhatsAppSendParams, result: Wh
     console.warn("Notice recording WhatsApp outbound dispatch log:", err);
   }
 }
+

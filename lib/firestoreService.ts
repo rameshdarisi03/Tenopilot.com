@@ -42,6 +42,34 @@ export async function saveOccupantToFirestore(
     );
     const sanitizedOccupant = sanitizeForFirestore(occupant);
     await setDoc(occupantRef, sanitizedOccupant, { merge: true });
+
+    // 📱 Multi-tenant Phone Index: Fast O(1) lookup for WhatsApp Webhooks & Inbound Routing
+    if (occupant.phone) {
+      const cleanPhone = occupant.phone.replace(/\D/g, "").slice(-10);
+      if (cleanPhone.length === 10) {
+        try {
+          const phoneIndexRef = doc(db, "occupants_by_phone", cleanPhone);
+          await setDoc(
+            phoneIndexRef,
+            {
+              phone: cleanPhone,
+              occupantId: occupant.id,
+              occupantName: occupant.name,
+              propertyId: propertyId,
+              roomNumber: occupant.roomNumber || null,
+              bedCode: occupant.bedCode || null,
+              rentAmount: occupant.rentAmount || 0,
+              lifecycleStatus: occupant.lifecycleStatus || "Active",
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.warn("Notice updating phone index:", e);
+        }
+      }
+    }
+
     return true;
   } catch (error) {
     console.warn("Firestore save fallback to in-memory store:", error);
@@ -67,6 +95,32 @@ export async function updateOccupantInFirestore(
     );
     const sanitizedUpdates = sanitizeForFirestore(updates);
     await updateDoc(occupantRef, sanitizedUpdates);
+
+    // Update phone index if phone was modified
+    if (updates.phone) {
+      const cleanPhone = updates.phone.replace(/\D/g, "").slice(-10);
+      if (cleanPhone.length === 10) {
+        try {
+          const phoneIndexRef = doc(db, "occupants_by_phone", cleanPhone);
+          await setDoc(
+            phoneIndexRef,
+            {
+              phone: cleanPhone,
+              occupantId: occupantId,
+              occupantName: updates.name,
+              propertyId: propertyId,
+              roomNumber: updates.roomNumber || null,
+              bedCode: updates.bedCode || null,
+              rentAmount: updates.rentAmount,
+              lifecycleStatus: updates.lifecycleStatus,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (e) {}
+      }
+    }
+
     return true;
   } catch (error) {
     console.warn("Firestore update fallback to in-memory store:", error);

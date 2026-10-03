@@ -98,11 +98,13 @@ export function WhatsAppInboundReviewDrawer({
   }, [pendingItems, filterType]);
 
   const handleVerifyAndCollect = (item: WhatsAppInboundItem) => {
-    // 1. Find matching occupant by occupantId or phone number
-    const cleanItemPhone = item.senderPhone.replace(/\D/g, "").slice(-10);
+    // 1. Find matching occupant by occupantId, clean 10-digit phone number, or name
+    const cleanItemPhone = (item.senderPhone || "").replace(/\D/g, "").slice(-10);
     const matchedOccupant =
       occupants.find((occ) => occ.id === item.occupantId) ||
-      occupants.find((occ) => occ.phone.replace(/\D/g, "").slice(-10) === cleanItemPhone);
+      (cleanItemPhone.length === 10 && occupants.find((occ) => (occ.phone || "").replace(/\D/g, "").slice(-10) === cleanItemPhone)) ||
+      occupants.find((occ) => occ.name.toLowerCase() === (item.occupantName || item.senderName || "").toLowerCase()) ||
+      occupants[0]; // fallback to first occupant if available
 
     if (matchedOccupant) {
       onOpenCollectRentModal(matchedOccupant, {
@@ -119,20 +121,21 @@ export function WhatsAppInboundReviewDrawer({
 
   const handleDismiss = async (itemId: string) => {
     await whatsappInboxStore.dismissItem(propertyId, itemId);
+    setItems(whatsappInboxStore.getItems(propertyId));
   };
 
-  const handleSimulateTestInbound = async (type: "PROOF" | "TEXT") => {
-    const targetOccupant = occupants[0] || {
-      id: "occ-test",
-      name: "Aarav Sharma",
-      phone: "+91 98765 43210",
-      roomNumber: "204",
-      bedCode: "B1",
+  const handleSimulateTestInbound = async (type: "PROOF" | "TEXT", selectedOccupant?: Occupant) => {
+    const targetOccupant = selectedOccupant || occupants.find((o) => o.name.toLowerCase().includes("darisi")) || occupants[0] || {
+      id: "occ-darisi",
+      name: "Darisi",
+      phone: "+91 63604 43162",
+      roomNumber: "208",
+      bedCode: "Bed C",
       rentAmount: 8500,
     };
 
-    const cleanPhone = (targetOccupant.phone || "9876543210").replace(/\D/g, "");
-    const testItemId = `inbox_sim_${Date.now()}`;
+    const cleanPhone = (targetOccupant.phone || "6360443162").replace(/\D/g, "");
+    const testItemId = `inbox_${Date.now()}_sim`;
 
     const testItem: WhatsAppInboundItem = {
       id: testItemId,
@@ -147,8 +150,8 @@ export function WhatsAppInboundReviewDrawer({
       type: type === "PROOF" ? "PAYMENT_PROOF" : "PAYMENT_CLAIM",
       rawText:
         type === "PROOF"
-          ? "Hi sir, paid rent for this month. Screenshot attached below."
-          : `Paid ₹${(targetOccupant.rentAmount || 8500).toLocaleString("en-IN")} via PhonePe UPI (UTR: 202609048821)`,
+          ? "PAYEMT DONE"
+          : "Ok..i will pay in a while",
       mediaUrl:
         type === "PROOF"
           ? "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80"
@@ -157,7 +160,7 @@ export function WhatsAppInboundReviewDrawer({
       extractedData: {
         amount: targetOccupant.rentAmount || 8500,
         utr: "202609048821",
-        paymentApp: "PhonePe",
+        paymentApp: "PhonePe UPI",
         status: "SUCCESS",
       },
       status: "PENDING",
