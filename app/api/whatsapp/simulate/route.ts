@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      fromPhone = "916360443162",
+      fromPhone = "919845010000", // Tenant's personal mobile number
       senderName = "Darisi",
       text = "PAYEMT DONE",
       type = "image", // "text" | "image"
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
               value: {
                 messaging_product: "whatsapp",
                 metadata: {
-                  display_phone_number: "+1 555 123 4567",
+                  display_phone_number: "+91 63604 43162", // TenoPilot Official WhatsApp Business Number
                   phone_number_id: "1379712951886965",
                 },
                 contacts: [
