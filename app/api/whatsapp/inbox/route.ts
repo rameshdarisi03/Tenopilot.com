@@ -1,67 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collection, getDocs, query, orderBy, limit, doc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // In-memory persistent server store for fast retrieval across serverless invocations
 const MEMORY_INBOX = new Map<string, any>();
-
-// Seed default initial messages so Vibe stays and Sunshine PG are never blank
-function seedInitialInbox() {
-  const initialItems = [
-    {
-      id: "inbox_vibe_darisi_proof_latest",
-      wamid: "wamid.vibe_darisi_proof_latest",
-      timestamp: new Date().toISOString(),
-      senderPhone: "919206651295",
-      senderName: "Darisi",
-      propertyId: "prop-1788438308277",
-      propertyName: "Vibe stays",
-      occupantId: "og-tenant-1790870124901",
-      occupantName: "Darisi",
-      roomNumber: "208",
-      bedCode: "Bed C",
-      type: "PAYMENT_PROOF",
-      status: "PENDING",
-      rawText: "payment done ...please check!",
-      mediaUrl: null,
-      mimeType: "image/jpeg",
-      extractedData: {
-        amount: 8500,
-        utr: "UPI8500202610VIBE",
-        paymentApp: "PhonePe / UPI",
-      },
-    },
-    {
-      id: "inbox_vibe_darisi_claim_1",
-      wamid: "wamid.vibe_darisi_claim_1",
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      senderPhone: "919206651295",
-      senderName: "Darisi",
-      propertyId: "prop-1788438308277",
-      propertyName: "Vibe stays",
-      occupantId: "og-tenant-1790870124901",
-      occupantName: "Darisi",
-      roomNumber: "208",
-      bedCode: "Bed C",
-      type: "PAYMENT_CLAIM",
-      status: "PENDING",
-      rawText: "RENT PAID",
-      mediaUrl: null,
-      mimeType: null,
-      extractedData: {
-        amount: 8500,
-      },
-    },
-  ];
-
-  initialItems.forEach((it) => {
-    if (!MEMORY_INBOX.has(it.id)) {
-      MEMORY_INBOX.set(it.id, it);
-    }
-  });
-}
-
-seedInitialInbox();
 
 export async function GET(req: NextRequest) {
   try {
@@ -70,9 +12,11 @@ export async function GET(req: NextRequest) {
 
     const itemsMap = new Map<string, any>();
 
-    // 1. Include all active items from MEMORY_INBOX (tagged with propertyName)
+    // 1. Include active items from MEMORY_INBOX
     MEMORY_INBOX.forEach((val, key) => {
-      itemsMap.set(key, val);
+      if (val.status !== "DISMISSED" && val.status !== "RESOLVED") {
+        itemsMap.set(key, val);
+      }
     });
 
     if (db) {
@@ -82,7 +26,7 @@ export async function GET(req: NextRequest) {
         const globalSnap = await getDocs(globalCol);
         globalSnap.forEach((docSnap) => {
           const data = docSnap.data();
-          if (data) {
+          if (data && data.status !== "DISMISSED" && data.status !== "RESOLVED") {
             itemsMap.set(docSnap.id, { id: docSnap.id, ...data });
           }
         });
@@ -95,7 +39,10 @@ export async function GET(req: NextRequest) {
         const colRef = collection(db, `properties/${propertyId}/whatsapp_inbox`);
         const snap = await getDocs(colRef);
         snap.forEach((docSnap) => {
-          itemsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+          const data = docSnap.data();
+          if (data && data.status !== "DISMISSED" && data.status !== "RESOLVED") {
+            itemsMap.set(docSnap.id, { id: docSnap.id, ...data });
+          }
         });
       } catch (e) {
         console.warn(`Notice reading properties/${propertyId}/whatsapp_inbox:`, e);
@@ -158,6 +105,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, item }, { status: 200 });
   } catch (err: any) {
     console.error("Error saving WhatsApp inbox item:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const itemId = searchParams.get("id");
+    const propertyId = searchParams.get("propertyId") || "prop-1788438308277";
+
+    if (!itemId) {
+      return NextResponse.json({ error: "Missing item id" }, { status: 400 });
+    }
+
+    // Remove from in-memory store
+    MEMORY_INBOX.delete(itemId);
+
+    // Remove/mark dismissed in Firestore
+    if (db) {
+      try {
+        await deleteDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId));
+        await deleteDoc(doc(db, "whatsapp_global_inbox", itemId));
+      } catch (fsErr) {
+        console.warn("Firestore delete notice in DELETE /api/whatsapp/inbox:", fsErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, id: itemId }, { status: 200 });
+  } catch (err: any) {
+    console.error("Error deleting WhatsApp inbox item:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

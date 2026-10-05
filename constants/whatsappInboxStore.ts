@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export interface WhatsAppInboundItem {
@@ -33,55 +33,7 @@ export interface WhatsAppInboundItem {
   timestamp: string;
 }
 
-const DEFAULT_VIBE_ITEMS: WhatsAppInboundItem[] = [
-  {
-    id: "inbox_vibe_darisi_proof_latest",
-    wamid: "wamid.vibe_darisi_proof_latest",
-    timestamp: new Date().toISOString(),
-    senderPhone: "919206651295",
-    senderName: "Darisi",
-    propertyId: "prop-1788438308277",
-    occupantId: "og-tenant-1790870124901",
-    occupantName: "Darisi",
-    roomNumber: "208",
-    bedCode: "Bed C",
-    type: "PAYMENT_PROOF",
-    status: "PENDING",
-    rawText: "payment done ...please check!",
-    mediaUrl: null,
-    mimeType: "image/jpeg",
-    extractedData: {
-      amount: 8500,
-      utr: "UPI8500202610VIBE",
-      paymentApp: "PhonePe / UPI",
-    },
-  },
-  {
-    id: "inbox_vibe_darisi_claim_1",
-    wamid: "wamid.vibe_darisi_claim_1",
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    senderPhone: "919206651295",
-    senderName: "Darisi",
-    propertyId: "prop-1788438308277",
-    occupantId: "og-tenant-1790870124901",
-    occupantName: "Darisi",
-    roomNumber: "208",
-    bedCode: "Bed C",
-    type: "PAYMENT_CLAIM",
-    status: "PENDING",
-    rawText: "RENT PAID",
-    mediaUrl: null,
-    mimeType: null,
-    extractedData: {
-      amount: 8500,
-    },
-  },
-];
-
-const INBOX_MAP = new Map<string, WhatsAppInboundItem[]>([
-  ["prop-1788438308277", DEFAULT_VIBE_ITEMS],
-  ["sunshine-pg", DEFAULT_VIBE_ITEMS],
-]);
+const INBOX_MAP = new Map<string, WhatsAppInboundItem[]>();
 const ACTIVE_UNSUBSCRIBES = new Map<string, () => void>();
 const LISTENERS = new Set<() => void>();
 
@@ -113,15 +65,10 @@ export const whatsappInboxStore = {
         const res = await fetch(`/api/whatsapp/inbox?propertyId=${encodeURIComponent(propertyId)}&t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.items) && data.items.length > 0) {
-            const current = INBOX_MAP.get(propertyId) || [];
-            const mergedMap = new Map<string, WhatsAppInboundItem>();
-            current.forEach((it) => mergedMap.set(it.id, it));
-            data.items.forEach((it: any) => mergedMap.set(it.id, it));
-            const merged = Array.from(mergedMap.values()).sort(
-              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-            );
-            INBOX_MAP.set(propertyId, merged);
+          if (Array.isArray(data.items)) {
+            // Keep only active pending items
+            const activeItems: WhatsAppInboundItem[] = data.items.filter((it: any) => it.status === "PENDING");
+            INBOX_MAP.set(propertyId, activeItems);
             notify();
           }
         }
@@ -132,18 +79,19 @@ export const whatsappInboxStore = {
 
     fetchHttp();
 
-    // Periodic background sync fallback (every 10 seconds)
-    const pollInterval = setInterval(fetchHttp, 10000);
+    // Periodic background sync fallback (every 8 seconds)
+    const pollInterval = setInterval(fetchHttp, 8000);
 
     // 2. Real-time Firestore WebSocket listeners (Property-scoped + Global Shared Inbox)
     let unsubFirestoreProp: (() => void) | null = null;
     let unsubFirestoreGlobal: (() => void) | null = null;
 
     const mergeAndNotify = (newItems: WhatsAppInboundItem[]) => {
-      const current = INBOX_MAP.get(propertyId) || [];
+      const activeNew = newItems.filter((i) => i.status === "PENDING");
+      const current = (INBOX_MAP.get(propertyId) || []).filter((i) => i.status === "PENDING");
       const mergedMap = new Map<string, WhatsAppInboundItem>();
       current.forEach((it) => mergedMap.set(it.id, it));
-      newItems.forEach((it) => mergedMap.set(it.id, it));
+      activeNew.forEach((it) => mergedMap.set(it.id, it));
       const merged = Array.from(mergedMap.values()).sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
@@ -160,25 +108,28 @@ export const whatsappInboxStore = {
             const items: WhatsAppInboundItem[] = [];
             snapshot.forEach((docSnap) => {
               const data = docSnap.data();
-              items.push({
-                id: docSnap.id,
-                wamid: data.wamid || docSnap.id,
-                senderPhone: data.senderPhone || "",
-                senderName: data.senderName || "Resident",
-                occupantId: data.occupantId || null,
-                occupantName: data.occupantName || null,
-                roomNumber: data.roomNumber || null,
-                bedCode: data.bedCode || null,
-                propertyId,
-                type: data.type || "TEXT_MESSAGE",
-                rawText: data.rawText || "",
-                mediaUrl: data.mediaUrl || null,
-                mimeType: data.mimeType || null,
-                extractedData: data.extractedData || {},
-                status: data.status || "PENDING",
-                resolution: data.resolution,
-                timestamp: data.timestamp || new Date().toISOString(),
-              });
+              if (data && data.status === "PENDING") {
+                items.push({
+                  id: docSnap.id,
+                  wamid: data.wamid || docSnap.id,
+                  senderPhone: data.senderPhone || "",
+                  senderName: data.senderName || "Resident",
+                  occupantId: data.occupantId || null,
+                  occupantName: data.occupantName || null,
+                  roomNumber: data.roomNumber || null,
+                  bedCode: data.bedCode || null,
+                  propertyId,
+                  propertyName: data.propertyName || (propertyId === "prop-1788438308277" ? "Vibe stays" : "Sunshine Luxury PG"),
+                  type: data.type || "TEXT_MESSAGE",
+                  rawText: data.rawText || "",
+                  mediaUrl: data.mediaUrl || null,
+                  mimeType: data.mimeType || null,
+                  extractedData: data.extractedData || {},
+                  status: data.status || "PENDING",
+                  resolution: data.resolution,
+                  timestamp: data.timestamp || new Date().toISOString(),
+                });
+              }
             });
             mergeAndNotify(items);
           },
@@ -198,11 +149,7 @@ export const whatsappInboxStore = {
             const globalItems: WhatsAppInboundItem[] = [];
             snapshot.forEach((docSnap) => {
               const data = docSnap.data();
-              // Include item if it matches this property OR if it is PENDING across the owner's portfolio
-              const isPending = data.status === "PENDING";
-              const isForThisProp = data.propertyId === propertyId || data.propertyId === "all" || !data.propertyId || data.isUnassigned === true;
-
-              if (isForThisProp || isPending) {
+              if (data && data.status === "PENDING") {
                 globalItems.push({
                   id: docSnap.id,
                   wamid: data.wamid || docSnap.id,
@@ -247,12 +194,12 @@ export const whatsappInboxStore = {
 
   setItems(propertyId: string, items: WhatsAppInboundItem[]) {
     if (!propertyId) return;
-    INBOX_MAP.set(propertyId, items);
+    INBOX_MAP.set(propertyId, items.filter((i) => i.status === "PENDING"));
     notify();
   },
 
   addItem(item: WhatsAppInboundItem) {
-    if (!item || !item.propertyId) return;
+    if (!item || !item.propertyId || item.status !== "PENDING") return;
     const list = INBOX_MAP.get(item.propertyId) || [];
     const exists = list.some((i) => i.id === item.id);
     if (!exists) {
@@ -263,7 +210,8 @@ export const whatsappInboxStore = {
 
   getItems(propertyId?: string): WhatsAppInboundItem[] {
     if (!propertyId) return [];
-    return INBOX_MAP.get(propertyId) || [];
+    const items = INBOX_MAP.get(propertyId) || [];
+    return items.filter((item) => item.status === "PENDING");
   },
 
   getPendingItems(propertyId?: string): WhatsAppInboundItem[] {
@@ -285,62 +233,69 @@ export const whatsappInboxStore = {
       amountCollected?: number;
     }
   ) {
-    if (!propertyId || !itemId || !db) return;
+    if (!propertyId || !itemId) return;
+
+    // 1. Remove from local store immediately
+    const items = INBOX_MAP.get(propertyId) || [];
+    INBOX_MAP.set(propertyId, items.filter((it) => it.id !== itemId));
+    notify();
+
+    // 2. Sync to backend DELETE / RESOLVE
     try {
-      const resolutionData = {
-        status: "RESOLVED",
-        resolution: {
-          ...resolution,
-          resolvedAt: new Date().toISOString(),
-        },
-      };
+      await fetch(`/api/whatsapp/inbox?id=${encodeURIComponent(itemId)}&propertyId=${encodeURIComponent(propertyId)}`, {
+        method: "DELETE",
+      });
+    } catch {}
 
-      await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), resolutionData, { merge: true });
+    if (db) {
       try {
-        await setDoc(doc(db, "whatsapp_global_inbox", itemId), resolutionData, { merge: true });
-      } catch {}
-
-      // Local optimistic update
-      const items = INBOX_MAP.get(propertyId) || [];
-      const updated = items.map((it) =>
-        it.id === itemId
-          ? {
-              ...it,
-              status: "RESOLVED" as const,
-              resolution: { ...resolution, resolvedAt: new Date().toISOString() },
-            }
-          : it
-      );
-      INBOX_MAP.set(propertyId, updated);
-      notify();
-    } catch (err) {
-      console.error("Failed to mark WhatsApp inbox item as resolved:", err);
+        const resolutionData = {
+          status: "RESOLVED",
+          resolution: {
+            ...resolution,
+            resolvedAt: new Date().toISOString(),
+          },
+        };
+        await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), resolutionData, { merge: true });
+        try {
+          await setDoc(doc(db, "whatsapp_global_inbox", itemId), resolutionData, { merge: true });
+        } catch {}
+      } catch (err) {
+        console.error("Failed to mark WhatsApp inbox item as resolved in Firestore:", err);
+      }
     }
   },
 
   async dismissItem(propertyId: string, itemId: string) {
-    if (!propertyId || !itemId || !db) return;
+    if (!propertyId || !itemId) return;
+
+    // 1. Remove from local store immediately
+    const items = INBOX_MAP.get(propertyId) || [];
+    INBOX_MAP.set(propertyId, items.filter((it) => it.id !== itemId));
+    notify();
+
+    // 2. Sync to server DELETE
     try {
-      const dismissalData = {
-        status: "DISMISSED",
-        resolution: {
-          resolvedAt: new Date().toISOString(),
-        },
-      };
+      await fetch(`/api/whatsapp/inbox?id=${encodeURIComponent(itemId)}&propertyId=${encodeURIComponent(propertyId)}`, {
+        method: "DELETE",
+      });
+    } catch {}
 
-      await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), dismissalData, { merge: true });
+    if (db) {
       try {
-        await setDoc(doc(db, "whatsapp_global_inbox", itemId), dismissalData, { merge: true });
-      } catch {}
-
-      const items = INBOX_MAP.get(propertyId) || [];
-      const updated = items.map((it) =>
-        it.id === itemId ? { ...it, status: "DISMISSED" as const } : it
-      );
-      INBOX_MAP.set(propertyId, updated);
-      notify();
-    } catch (err) {
-      console.error("Failed to dismiss WhatsApp inbox item:", err);
+        const dismissalData = {
+          status: "DISMISSED",
+          resolution: {
+            resolvedAt: new Date().toISOString(),
+          },
+        };
+        await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), dismissalData, { merge: true });
+        try {
+          await setDoc(doc(db, "whatsapp_global_inbox", itemId), dismissalData, { merge: true });
+        } catch {}
+      } catch (err) {
+        console.error("Failed to dismiss WhatsApp inbox item in Firestore:", err);
+      }
     }
   },
 };
