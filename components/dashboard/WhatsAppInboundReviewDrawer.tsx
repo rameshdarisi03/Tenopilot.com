@@ -271,6 +271,11 @@ export function WhatsAppInboundReviewDrawer({
                             Room {item.roomNumber} ({item.bedCode || "Bed"})
                           </span>
                         )}
+                        {((item as any).propertyName || (item.propertyId && item.propertyId !== propertyId)) && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 text-[10px] font-bold flex items-center gap-1">
+                            🏢 {(item as any).propertyName || (item.propertyId === "prop-1788438308277" ? "Vibe stays" : "Sunshine Luxury PG")}
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-gray-400 font-mono">
                         +{item.senderPhone}

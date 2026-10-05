@@ -70,15 +70,27 @@ export async function GET(req: NextRequest) {
 
     const itemsMap = new Map<string, any>();
 
-    // 1. Include matching items from MEMORY_INBOX
+    // 1. Include all active items from MEMORY_INBOX (tagged with propertyName)
     MEMORY_INBOX.forEach((val, key) => {
-      if (val.propertyId === propertyId || val.propertyId === "all" || !val.propertyId) {
-        itemsMap.set(key, val);
-      }
+      itemsMap.set(key, val);
     });
 
     if (db) {
-      // 2. Fetch from property-scoped inbox in Firestore
+      // 2. Fetch from global shared inbound pool in Firestore
+      try {
+        const globalCol = collection(db, "whatsapp_global_inbox");
+        const globalSnap = await getDocs(globalCol);
+        globalSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data) {
+            itemsMap.set(docSnap.id, { id: docSnap.id, ...data });
+          }
+        });
+      } catch (e) {
+        console.warn("Notice reading whatsapp_global_inbox:", e);
+      }
+
+      // 3. Fetch from property-scoped inbox in Firestore
       try {
         const colRef = collection(db, `properties/${propertyId}/whatsapp_inbox`);
         const snap = await getDocs(colRef);
@@ -89,39 +101,21 @@ export async function GET(req: NextRequest) {
         console.warn(`Notice reading properties/${propertyId}/whatsapp_inbox:`, e);
       }
 
-      // 3. Fetch all known occupants of this property to cross-reference incoming phones
-      const propertyOccupantPhones = new Set<string>();
-      try {
-        const occSnap = await getDocs(collection(db, `properties/${propertyId}/occupants`));
-        occSnap.forEach((d) => {
-          const oData = d.data();
-          const p = (oData.phone || "").replace(/\D/g, "").slice(-10);
-          if (p) propertyOccupantPhones.add(p);
-        });
-      } catch (e) {}
-
-      // 4. Also fetch from global shared inbound pool in Firestore
-      try {
-        const globalCol = collection(db, "whatsapp_global_inbox");
-        const globalSnap = await getDocs(globalCol);
-        globalSnap.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (!data) return;
-          const senderClean = (data.senderPhone || "").replace(/\D/g, "").slice(-10);
-          const matchesOccupant = senderClean && propertyOccupantPhones.has(senderClean);
-
-          if (
-            data.propertyId === propertyId ||
-            data.propertyId === "all" ||
-            !data.propertyId ||
-            data.isUnassigned === true ||
-            matchesOccupant
-          ) {
-            itemsMap.set(docSnap.id, { id: docSnap.id, ...data });
-          }
-        });
-      } catch (e) {
-        console.warn("Notice reading whatsapp_global_inbox:", e);
+      // 4. Fetch all known properties in portfolio to pull any pending items
+      const knownProperties = ["prop-1788438308277", "sunshine-pg"];
+      for (const pId of knownProperties) {
+        if (pId !== propertyId) {
+          try {
+            const otherColRef = collection(db, `properties/${pId}/whatsapp_inbox`);
+            const otherSnap = await getDocs(otherColRef);
+            otherSnap.forEach((docSnap) => {
+              const data = docSnap.data();
+              if (data && data.status === "PENDING") {
+                itemsMap.set(docSnap.id, { id: docSnap.id, ...data });
+              }
+            });
+          } catch (e) {}
+        }
       }
     }
 

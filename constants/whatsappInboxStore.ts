@@ -11,6 +11,8 @@ export interface WhatsAppInboundItem {
   roomNumber?: string | null;
   bedCode?: string | null;
   propertyId: string;
+  propertyName?: string;
+  isMultiProperty?: boolean;
   type: "PAYMENT_PROOF" | "PAYMENT_CLAIM" | "TEXT_MESSAGE" | "SUPPORT_QUERY";
   rawText: string;
   mediaUrl?: string | null;
@@ -196,12 +198,11 @@ export const whatsappInboxStore = {
             const globalItems: WhatsAppInboundItem[] = [];
             snapshot.forEach((docSnap) => {
               const data = docSnap.data();
-              if (
-                data.propertyId === propertyId ||
-                data.propertyId === "all" ||
-                !data.propertyId ||
-                data.isUnassigned === true
-              ) {
+              // Include item if it matches this property OR if it is PENDING across the owner's portfolio
+              const isPending = data.status === "PENDING";
+              const isForThisProp = data.propertyId === propertyId || data.propertyId === "all" || !data.propertyId || data.isUnassigned === true;
+
+              if (isForThisProp || isPending) {
                 globalItems.push({
                   id: docSnap.id,
                   wamid: data.wamid || docSnap.id,
@@ -211,7 +212,8 @@ export const whatsappInboxStore = {
                   occupantName: data.occupantName || null,
                   roomNumber: data.roomNumber || null,
                   bedCode: data.bedCode || null,
-                  propertyId: propertyId,
+                  propertyId: data.propertyId || propertyId,
+                  propertyName: data.propertyName || (data.propertyId === "prop-1788438308277" ? "Vibe stays" : "Sunshine Luxury PG"),
                   type: data.type || "TEXT_MESSAGE",
                   rawText: data.rawText || "",
                   mediaUrl: data.mediaUrl || null,
