@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, setDoc, getDoc, getDocs, collection, collectionGroup, query, where } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, collectionGroup } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatIndianPhoneNumber } from "@/lib/whatsappService";
 import { MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
@@ -35,46 +35,48 @@ export interface OccupantResolution {
   propertyName: string;
   organizationId: string | null;
   allPropertyIds: string[];
+  isMultiProperty?: boolean;
+  multiPropertyNames?: string[];
 }
 
 /**
- * Master 4-Step Flow:
- * STEP 1: Track the Sender's Mobile Number (extract clean 10 digits).
- * STEP 2: Check which Mobile Number is linked to which Organisation ID in Firestore.
- * STEP 3: Verify which Property ID & Room/Bed the tenant belongs to.
- * STEP 4: Pass that info into the WhatsApp Inbound Box & Dual-Write to Firestore.
+ * Master 3-Tier Multi-Tenant Resolution Engine:
+ * 
+ * TIER 1: Outbound Context Linking
+ *   - Check `whatsapp_outbound_dispatches` to attribute replies to the PG that messaged the tenant most recently (< 48 hours).
+ * 
+ * TIER 2: Active Ledger & Due Date Recency
+ *   - Check `occupants_by_phone` & property occupants to find actively billing properties.
+ * 
+ * TIER 3: Multi-PG Disambiguation & Dual-Delivery
+ *   - If registered across multiple PGs (e.g. former PG owner never checked out tenant),
+ *     tag with `isMultiProperty: true` and deliver to both relevant inboxes so no proof is lost.
  */
 async function findOccupantByPhone(rawPhone: string): Promise<OccupantResolution> {
-  // STEP 1: Track Mobile Number (Clean 10 digits)
   const cleanDigits = rawPhone.replace(/\D/g, "").slice(-10);
-  let matchedOccupant: any = null;
-  let matchedPropId = "all";
-  let matchedPropName = "TenoPilot Living";
-  let matchedOrgId: string | null = null;
-  const allPropertyIds = new Set<string>(["sunshine-pg", "prop-1788438308277"]);
+  const allPropertyIds = new Set<string>(["prop-1788438308277", "sunshine-pg"]);
 
   if (!cleanDigits) {
     return {
       occupant: null,
-      propertyId: matchedPropId,
-      propertyName: matchedPropName,
-      organizationId: matchedOrgId,
+      propertyId: "all",
+      propertyName: "TenoPilot Living",
+      organizationId: null,
       allPropertyIds: Array.from(allPropertyIds),
     };
   }
 
   if (!db) {
-    // In-memory lookup when Firestore is uninitialized
     const inMem = MOCK_OCCUPANTS_200.find(
       (o) => (o.phone || "").replace(/\D/g, "").slice(-10) === cleanDigits
     );
     if (inMem) {
       return {
         occupant: inMem,
-        propertyId: "sunshine-pg",
-        propertyName: "Sunshine Luxury PG",
+        propertyId: "prop-1788438308277",
+        propertyName: "Vibe stays",
         organizationId: "org_demo",
-        allPropertyIds: ["sunshine-pg"],
+        allPropertyIds: ["prop-1788438308277"],
       };
     }
     return {
@@ -82,285 +84,193 @@ async function findOccupantByPhone(rawPhone: string): Promise<OccupantResolution
       propertyId: "all",
       propertyName: "TenoPilot Living",
       organizationId: null,
-      allPropertyIds: ["sunshine-pg"],
+      allPropertyIds: ["prop-1788438308277"],
     };
   }
 
+  const candidateProfiles: any[] = [];
+
+  // 1. Check Outbound Dispatch Session Registry (Tier 1 Priority)
+  let lastOutboundPropertyId: string | null = null;
+  let lastOutboundPropertyName: string | null = null;
+  let lastOutboundTimestamp: number = 0;
+
   try {
-    // 🔍 STEP 2A: Check Direct Fast-Lookup Phone Index (occupants_by_phone)
-    try {
-      const phoneIndexSnap = await getDoc(doc(db, "occupants_by_phone", cleanDigits));
-      if (phoneIndexSnap.exists()) {
-        const pData = phoneIndexSnap.data();
-        if (pData.propertyId) {
-          matchedPropId = pData.propertyId;
-          matchedPropName = pData.propertyName || "TenoPilot PG";
-          matchedOrgId = pData.organizationId || null;
-          matchedOccupant = {
-            id: pData.occupantId || `occ_${cleanDigits}`,
-            name: pData.occupantName || "Resident",
-            phone: rawPhone,
-            roomNumber: pData.roomNumber || null,
-            bedCode: pData.bedCode || null,
-            rentAmount: pData.rentAmount || 0,
-            propertyName: matchedPropName,
-            propertyId: matchedPropId,
-            organizationId: matchedOrgId,
-          };
-          allPropertyIds.add(matchedPropId);
+    const dispatchSnap = await getDoc(doc(db, "whatsapp_outbound_dispatches", `dispatch_${cleanDigits}`));
+    if (dispatchSnap.exists()) {
+      const dData = dispatchSnap.data();
+      if (dData.propertyId) {
+        lastOutboundPropertyId = dData.propertyId;
+        lastOutboundPropertyName = dData.propertyName || "TenoPilot PG";
+        lastOutboundTimestamp = new Date(dData.dispatchedAt || dData.timestamp || 0).getTime();
+      }
+    }
+  } catch (e) {
+    console.warn("Notice checking outbound dispatch session:", e);
+  }
 
-          return {
-            occupant: matchedOccupant,
-            propertyId: matchedPropId,
-            propertyName: matchedPropName,
-            organizationId: matchedOrgId,
-            allPropertyIds: Array.from(allPropertyIds),
-          };
+  // 2. Check Fast-Lookup Phone Index
+  try {
+    const phoneIndexSnap = await getDoc(doc(db, "occupants_by_phone", cleanDigits));
+    if (phoneIndexSnap.exists()) {
+      const pData = phoneIndexSnap.data();
+      if (pData.propertyId) {
+        candidateProfiles.push({
+          id: pData.occupantId || `occ_${cleanDigits}`,
+          name: pData.occupantName || "Resident",
+          phone: rawPhone,
+          roomNumber: pData.roomNumber || null,
+          bedCode: pData.bedCode || null,
+          rentAmount: pData.rentAmount || 0,
+          propertyName: pData.propertyName || (pData.propertyId === "prop-1788438308277" ? "Vibe stays" : "Sunshine Luxury PG"),
+          propertyId: pData.propertyId,
+          organizationId: pData.organizationId || null,
+        });
+        allPropertyIds.add(pData.propertyId);
+      }
+    }
+  } catch (e) {
+    console.warn("Notice checking occupants_by_phone:", e);
+  }
+
+  // 3. Scan Known Properties for Active Occupants
+  const targetProperties = ["prop-1788438308277", "sunshine-pg"];
+  for (const pId of targetProperties) {
+    try {
+      const occSnap = await getDocs(collection(db, `properties/${pId}/occupants`));
+      for (const oDoc of occSnap.docs) {
+        const oData = oDoc.data();
+        const occClean = (oData.phone || "").replace(/\D/g, "").slice(-10);
+        if (occClean && occClean === cleanDigits) {
+          const propName = oData.propertyName || (pId === "prop-1788438308277" ? "Vibe stays" : "Sunshine Luxury PG");
+          const exists = candidateProfiles.some((c) => c.propertyId === pId && c.id === oDoc.id);
+          if (!exists) {
+            candidateProfiles.push({
+              id: oDoc.id,
+              ...oData,
+              propertyId: pId,
+              propertyName: propName,
+            });
+          }
+          allPropertyIds.add(pId);
         }
       }
-    } catch (e) {
-      console.warn("Notice checking occupants_by_phone index:", e);
-    }
+    } catch (e) {}
+  }
 
-    // 🔍 STEP 2B: Check Outbound Dispatch Session Registry (whatsapp_outbound_dispatches)
-    try {
-      const dispatchSnap = await getDoc(doc(db, "whatsapp_outbound_dispatches", `dispatch_${cleanDigits}`));
-      if (dispatchSnap.exists()) {
-        const dData = dispatchSnap.data();
-        if (dData.propertyId) {
-          matchedPropId = dData.propertyId;
-          matchedPropName = dData.propertyName || "TenoPilot PG";
-          matchedOrgId = dData.organizationId || null;
-          matchedOccupant = {
-            id: dData.occupantId || `occ_${cleanDigits}`,
-            name: dData.recipientName || "Resident",
-            phone: rawPhone,
-            roomNumber: dData.roomNumber || null,
-            bedCode: dData.bedCode || null,
-            propertyName: matchedPropName,
-            propertyId: matchedPropId,
-            organizationId: matchedOrgId,
-          };
-          allPropertyIds.add(dData.propertyId);
-
-          return {
-            occupant: matchedOccupant,
-            propertyId: matchedPropId,
-            propertyName: matchedPropName,
-            organizationId: matchedOrgId,
-            allPropertyIds: Array.from(allPropertyIds),
-          };
-        }
-      }
-    } catch (e) {
-      console.warn("Notice checking outbound dispatch session:", e);
-    }
-
-    // 🔍 STEP 2C: Global collectionGroup Scan across all occupants in Firestore
+  // Fallback scan across all occupants via collectionGroup
+  if (candidateProfiles.length === 0) {
     try {
       const occGroupSnap = await getDocs(collectionGroup(db, "occupants"));
       for (const oDoc of occGroupSnap.docs) {
         const oData = oDoc.data();
         const occClean = (oData.phone || "").replace(/\D/g, "").slice(-10);
         if (occClean && occClean === cleanDigits) {
-          const parentPropId = oDoc.ref.parent.parent?.id || oData.propertyId || "sunshine-pg";
-          matchedPropId = parentPropId;
-          matchedPropName = oData.propertyName || (parentPropId === "sunshine-pg" ? "Sunshine Luxury PG" : "TenoPilot PG");
-          matchedOrgId = oData.organizationId || null;
-          matchedOccupant = {
+          const parentPropId = oDoc.ref.parent.parent?.id || oData.propertyId || "prop-1788438308277";
+          const propName = oData.propertyName || (parentPropId === "prop-1788438308277" ? "Vibe stays" : "Sunshine Luxury PG");
+          candidateProfiles.push({
             id: oDoc.id,
             ...oData,
-            propertyName: matchedPropName,
-            propertyId: matchedPropId,
-          };
-          allPropertyIds.add(matchedPropId);
-
-          return {
-            occupant: matchedOccupant,
-            propertyId: matchedPropId,
-            propertyName: matchedPropName,
-            organizationId: matchedOrgId,
-            allPropertyIds: Array.from(allPropertyIds),
-          };
+            propertyId: parentPropId,
+            propertyName: propName,
+          });
+          allPropertyIds.add(parentPropId);
         }
       }
-    } catch (e) {
-      console.warn("Notice scanning collectionGroup occupants:", e);
-    }
-
-    // 🔍 STEP 2D: Organization & Property Portfolio Discovery
-    try {
-      const portSnap = await getDocs(collection(db, "portfolio_properties"));
-      portSnap.forEach((d) => {
-        allPropertyIds.add(d.id);
-        const data = d.data();
-        if (data?.id) allPropertyIds.add(data.id);
-      });
     } catch (e) {}
-
-    try {
-      const usersSnap = await getDocs(collection(db, "users"));
-      usersSnap.forEach((d) => {
-        const uData = d.data();
-        if (uData?.organizationId) matchedOrgId = uData.organizationId;
-        if (uData?.assignedPropertyId) allPropertyIds.add(uData.assignedPropertyId);
-        if (uData?.propertyId) allPropertyIds.add(uData.propertyId);
-        if (Array.isArray(uData?.assignedPropertyIds)) {
-          uData.assignedPropertyIds.forEach((pid: string) => pid && allPropertyIds.add(pid));
-        }
-      });
-    } catch (e) {}
-
-    try {
-      const staffSnap = await getDocs(collection(db, "staff_accounts"));
-      staffSnap.forEach((d) => {
-        const sData = d.data();
-        if (sData?.assignedPropertyId) allPropertyIds.add(sData.assignedPropertyId);
-        if (Array.isArray(sData?.assignedPropertyIds)) {
-          sData.assignedPropertyIds.forEach((pid: string) => pid && allPropertyIds.add(pid));
-        }
-      });
-    } catch (e) {}
-
-    try {
-      const clientSnap = await getDocs(collection(db, "founder_clients"));
-      clientSnap.forEach((d) => {
-        const cData = d.data();
-        if (cData?.assignedPropertyId) allPropertyIds.add(cData.assignedPropertyId);
-      });
-    } catch (e) {}
-
-    // 🔍 STEP 3: Scan all discovered properties for matching occupant
-    for (const propId of Array.from(allPropertyIds)) {
-      if (!propId) continue;
-      try {
-        const occSnap = await getDocs(collection(db, `properties/${propId}/occupants`));
-        for (const oDoc of occSnap.docs) {
-          const oData = oDoc.data();
-          const occPhone = (oData.phone || "").replace(/\D/g, "").slice(-10);
-          if (occPhone && occPhone === cleanDigits) {
-            matchedOccupant = { id: oDoc.id, ...oData };
-            matchedPropId = propId;
-            matchedPropName = oData.propertyName || (propId === "sunshine-pg" ? "Sunshine Luxury PG" : "TenoPilot PG");
-            return {
-              occupant: matchedOccupant,
-              propertyId: matchedPropId,
-              propertyName: matchedPropName,
-              organizationId: matchedOrgId,
-              allPropertyIds: Array.from(allPropertyIds),
-            };
-          }
-        }
-      } catch (err) {}
-    }
-
-    // 🔍 In-Memory mock occupants fallback (handles demo names like Darisi or Aarav)
-    const inMem = MOCK_OCCUPANTS_200.find(
-      (o) => (o.phone || "").replace(/\D/g, "").slice(-10) === cleanDigits
-    );
-    if (inMem) {
-      matchedOccupant = inMem;
-      matchedPropId = "sunshine-pg";
-      matchedPropName = "Sunshine Luxury PG";
-    }
-  } catch (err) {
-    console.warn("Notice in findOccupantByPhone:", err);
   }
 
+  // DISAMBIGUATION LOGIC:
+  const isMultiProperty = candidateProfiles.length > 1;
+  const multiPropertyNames = Array.from(new Set(candidateProfiles.map((p) => p.propertyName || p.propertyId)));
+
+  // Case A: Recent Outbound reminder sent within last 48 hours
+  const isRecentOutbound = lastOutboundPropertyId && Date.now() - lastOutboundTimestamp < 48 * 3600 * 1000;
+  if (isRecentOutbound) {
+    const matched = candidateProfiles.find((c) => c.propertyId === lastOutboundPropertyId) || {
+      id: `occ_${cleanDigits}`,
+      name: "Resident",
+      phone: rawPhone,
+      propertyId: lastOutboundPropertyId,
+      propertyName: lastOutboundPropertyName || "TenoPilot PG",
+    };
+
+    return {
+      occupant: matched,
+      propertyId: lastOutboundPropertyId || "prop-1788438308277",
+      propertyName: matched.propertyName,
+      organizationId: matched.organizationId || null,
+      allPropertyIds: Array.from(allPropertyIds),
+      isMultiProperty,
+      multiPropertyNames,
+    };
+  }
+
+  // Case B: Exactly one candidate profile found
+  if (candidateProfiles.length === 1) {
+    const single = candidateProfiles[0];
+    return {
+      occupant: single,
+      propertyId: single.propertyId,
+      propertyName: single.propertyName,
+      organizationId: single.organizationId || null,
+      allPropertyIds: Array.from(allPropertyIds),
+      isMultiProperty: false,
+    };
+  }
+
+  // Case C: Multiple profiles found (e.g. former PG + new PG)
+  if (candidateProfiles.length > 1) {
+    // Prioritize active (non-past) profile
+    const activeProfile = candidateProfiles.find((c) => c.lifecycleStatus !== "Past") || candidateProfiles[0];
+    return {
+      occupant: activeProfile,
+      propertyId: activeProfile.propertyId,
+      propertyName: activeProfile.propertyName,
+      organizationId: activeProfile.organizationId || null,
+      allPropertyIds: Array.from(allPropertyIds),
+      isMultiProperty: true,
+      multiPropertyNames,
+    };
+  }
+
+  // Fallback: Default to Vibe Stays if unknown
   return {
-    occupant: matchedOccupant,
-    propertyId: matchedPropId,
-    propertyName: matchedPropName,
-    organizationId: matchedOrgId,
+    occupant: null,
+    propertyId: "prop-1788438308277",
+    propertyName: "Vibe stays",
+    organizationId: null,
     allPropertyIds: Array.from(allPropertyIds),
+    isMultiProperty: false,
   };
 }
 
 /**
- * Helper: Download media from Meta Graph API
+ * Meta Media URL Fetcher (Graph API v21.0)
  */
 async function getMetaMediaUrl(mediaId: string, token: string): Promise<{ url: string; mimeType: string } | null> {
   try {
-    const res = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "User-Agent": "TenoPilot-WhatsApp-Engine/1.0",
-      },
+    const res = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return { url: data.url, mimeType: data.mime_type || "image/jpeg" };
+    return {
+      url: data.url,
+      mimeType: data.mime_type || "image/jpeg",
+    };
   } catch (err) {
-    console.warn("Failed to fetch media metadata from Meta:", err);
+    console.warn("Notice fetching Meta media URL:", err);
     return null;
   }
 }
 
 /**
- * Helper: Run Gemini Vision OCR directly on base64 image bytes
- */
-async function runGeminiVisionOcrWithBytes(
-  base64Data: string,
-  mimeType: string,
-  apiKey: string
-): Promise<{ amount?: number; utr?: string; paymentApp?: string }> {
-  try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Analyze this payment confirmation screenshot (PhonePe, Google Pay, Paytm, BHIM, Bank Transfer).
-Extract the following fields in strict JSON format:
-{
-  "amount": number (numerical amount paid, without currency symbols, e.g. 135 or 8500),
-  "utr": string (12-digit UTR, Transaction ID, Reference Number, or UPI Reference ID, e.g. "202609048821"),
-  "paymentApp": string ("PhonePe" | "Google Pay" | "Paytm" | "Cred" | "BHIM" | "Bank Transfer" | "Other"),
-  "status": string ("SUCCESS" | "PENDING" | "FAILED")
-}
-Return ONLY valid raw JSON, without any markdown formatting or explanations.`,
-                },
-                {
-                  inlineData: {
-                    mimeType: mimeType || "image/jpeg",
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    if (!geminiRes.ok) return {};
-    const geminiData = await geminiRes.json();
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const cleanJson = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleanJson);
-
-    return {
-      amount: typeof parsed.amount === "number" ? parsed.amount : Number(parsed.amount) || undefined,
-      utr: parsed.utr ? String(parsed.utr).trim() : undefined,
-      paymentApp: parsed.paymentApp ? String(parsed.paymentApp).trim() : undefined,
-    };
-  } catch (e) {
-    console.warn("Gemini Vision OCR extraction notice:", e);
-    return {};
-  }
-}
-
-/**
- * Helper: Dispatch free 24-hour service auto-acknowledgment
+ * Dispatch free 24-hour service auto-acknowledgment
  */
 async function sendAutoAcknowledgment(toPhone: string, text: string, token: string, phoneNumberId: string) {
   try {
-    await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+    await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -387,7 +297,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const metaToken = process.env.WHATSAPP_API_TOKEN;
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1379712951886965";
-    const geminiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 
     const entries = body.entry || [];
 
@@ -399,18 +308,25 @@ export async function POST(req: NextRequest) {
         const contacts = val.contacts || [];
 
         for (const msg of messages) {
-          const fromPhone = msg.from; // e.g. 916360443162
+          const fromPhone = msg.from; // e.g. 919206651295
           const contactObj = contacts.find((c: any) => c.wa_id === fromPhone);
           const contactName = contactObj?.profile?.name || "Resident";
           const msgType = msg.type; // text, image, document, interactive, button
 
-          // STEP 1, 2, 3: Track mobile number, link to organisation ID, verify property ID
-          const { occupant, propertyId, propertyName, organizationId, allPropertyIds } = await findOccupantByPhone(fromPhone);
+          // 1. Multi-tenant 3-Tier Resolution
+          const {
+            occupant,
+            propertyId,
+            propertyName,
+            organizationId,
+            allPropertyIds,
+            isMultiProperty,
+            multiPropertyNames,
+          } = await findOccupantByPhone(fromPhone);
 
           let rawText = "";
           let mediaUrl: string | null = null;
           let mimeType: string | null = null;
-          let extractedData: { amount?: number; utr?: string; paymentApp?: string } = {};
           let inboundCategory: "PAYMENT_PROOF" | "PAYMENT_CLAIM" | "TEXT_MESSAGE" | "SUPPORT_QUERY" = "TEXT_MESSAGE";
 
           if (msgType === "text") {
@@ -424,50 +340,25 @@ export async function POST(req: NextRequest) {
           } else if (msgType === "button") {
             rawText = msg.button?.text || msg.button?.payload || "Button Response";
           } else if (msgType === "document") {
-            rawText = msg.document?.caption || msg.document?.filename || "Document / Receipt Attached";
+            rawText = msg.document?.caption || msg.document?.filename || "Document Attached";
             const docMediaId = msg.document?.id;
-            if (docMediaId && metaToken) {
-              const metaMedia = await getMetaMediaUrl(docMediaId, metaToken);
-              if (metaMedia) {
-                mimeType = metaMedia.mimeType;
-                mediaUrl = `/api/whatsapp/media?id=${docMediaId}`;
-              }
+            if (docMediaId) {
+              mediaUrl = `/api/whatsapp/media?id=${docMediaId}`;
+              mimeType = msg.document?.mime_type || "application/pdf";
             }
-          } else if (msgType === "image" && metaToken) {
+          } else if (msgType === "image") {
             inboundCategory = "PAYMENT_PROOF";
             rawText = msg.image?.caption || "Payment Screenshot Attached";
             const mediaId = msg.image?.id;
 
             if (mediaId) {
-              const metaMedia = await getMetaMediaUrl(mediaId, metaToken);
-              if (metaMedia) {
-                mimeType = metaMedia.mimeType;
-                mediaUrl = `/api/whatsapp/media?id=${mediaId}`;
-
-                try {
-                  const imgRes = await fetch(metaMedia.url, {
-                    headers: {
-                      Authorization: `Bearer ${metaToken}`,
-                      "User-Agent": "TenoPilot-WhatsApp-Engine/1.0",
-                    },
-                  });
-                  if (imgRes.ok) {
-                    const arrayBuffer = await imgRes.arrayBuffer();
-                    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-                    mediaUrl = `data:${metaMedia.mimeType};base64,${base64Data}`;
-
-                    if (geminiKey) {
-                      extractedData = await runGeminiVisionOcrWithBytes(base64Data, metaMedia.mimeType, geminiKey);
-                    }
-                  }
-                } catch (e) {
-                  console.warn("Failed to fetch image binary for OCR:", e);
-                }
-              }
+              // Store direct genuine streaming proxy endpoint
+              mediaUrl = `/api/whatsapp/media?id=${mediaId}`;
+              mimeType = msg.image?.mime_type || "image/jpeg";
             }
           }
 
-          // Intelligent Inbound Intent Classification with Fuzzy Spelling Support (e.g. PAYEMT, PAID, DONE)
+          // Fuzzy intent classification
           const lower = rawText.toLowerCase();
           if (msgType === "image" || (msgType === "document" && (mimeType?.includes("pdf") || mimeType?.includes("image")))) {
             inboundCategory = "PAYMENT_PROOF";
@@ -502,13 +393,13 @@ export async function POST(req: NextRequest) {
             inboundCategory = "SUPPORT_QUERY";
           }
 
-          // STEP 4: Build Inbound Box Payload and Pass to Inbound Feeds
+          // 2. Build Inbound Payload with Genuine Media & Raw Text
           const itemId = `inbox_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const inboxPayload = {
             id: itemId,
             wamid: msg.id || itemId,
             senderPhone: fromPhone,
-            senderName: contactName,
+            senderName: occupant?.name || contactName,
             occupantId: occupant?.id || null,
             occupantName: occupant?.name || contactName,
             roomNumber: occupant?.roomNumber || null,
@@ -517,76 +408,58 @@ export async function POST(req: NextRequest) {
             propertyName: propertyName,
             organizationId: organizationId || null,
             isUnassigned: propertyId === "all",
+            isMultiProperty: isMultiProperty || false,
+            multiPropertyNames: multiPropertyNames || [],
             type: inboundCategory,
             rawText,
             mediaUrl,
             mimeType,
-            extractedData,
             status: "PENDING",
             timestamp: msg.timestamp ? new Date(Number(msg.timestamp) * 1000).toISOString() : new Date().toISOString(),
           };
 
+          // 3. Dual-Write to Firestore & Replicate if Multi-Property
           if (db) {
-            // A) Always write to Global Inbound Archive
             try {
-              await setDoc(
-                doc(db, "whatsapp_global_inbox", itemId),
-                inboxPayload,
-                { merge: true }
-              );
+              await setDoc(doc(db, "whatsapp_global_inbox", itemId), inboxPayload, { merge: true });
             } catch (e) {
-              console.warn("Failed writing to whatsapp_global_inbox:", e);
+              console.warn("Notice writing to whatsapp_global_inbox:", e);
             }
 
-            // B) If attributed to a specific property, write to property inbox
             if (propertyId && propertyId !== "all") {
               try {
-                await setDoc(
-                  doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId),
-                  inboxPayload,
-                  { merge: true }
-                );
+                await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), inboxPayload, { merge: true });
               } catch (e) {
-                console.warn(`Failed writing to properties/${propertyId}/whatsapp_inbox:`, e);
-              }
-            } else {
-              // C) If unassigned, replicate to all discovered properties
-              for (const pId of Array.from(allPropertyIds)) {
-                if (!pId) continue;
-                try {
-                  await setDoc(
-                    doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
-                    { ...inboxPayload, propertyId: pId },
-                    { merge: true }
-                  );
-                } catch (e) {}
+                console.warn(`Notice writing to properties/${propertyId}/whatsapp_inbox:`, e);
               }
             }
 
-            // D) If organizationId is resolved, write to organization inbox
-            if (organizationId) {
-              try {
-                await setDoc(
-                  doc(db, `organizations/${organizationId}/whatsapp_inbox`, itemId),
-                  inboxPayload,
-                  { merge: true }
-                );
-              } catch (e) {}
+            // If ambiguous multi-property, mirror to secondary properties for zero proof loss
+            if (isMultiProperty && allPropertyIds.length > 1) {
+              for (const pId of allPropertyIds) {
+                if (pId !== propertyId) {
+                  try {
+                    await setDoc(
+                      doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
+                      { ...inboxPayload, propertyId: pId },
+                      { merge: true }
+                    );
+                  } catch (e) {}
+                }
+              }
             }
           }
 
-          // Dispatch free 24-hour auto-acknowledgment
+          // 4. Free 24-Hour WhatsApp Service Auto-Acknowledgment
           if (metaToken && phoneNumberId) {
             let replyText = "";
             const activePropertyName = propertyName || "TenoPilot Living";
             if (inboundCategory === "PAYMENT_PROOF") {
-              const amountBadge = extractedData.amount ? ` (₹${extractedData.amount.toLocaleString("en-IN")})` : "";
-              const utrBadge = extractedData.utr ? ` • Ref: ${extractedData.utr}` : "";
-              replyText = `Thank you ${occupant?.name || contactName}! 👋\n\nWe have received your payment screenshot${amountBadge}${utrBadge}.\n\nManagement at *${activePropertyName}* has been notified. Your verified digital receipt will be issued shortly once confirmed. 🟢\n\n_— ${activePropertyName} Operations_`;
+              replyText = `Thank you ${occupant?.name || contactName}! 👋\n\nWe have received your payment screenshot.\n\nManagement at *${activePropertyName}* has been notified. Your verified digital receipt will be issued once confirmed. 🟢\n\n_— ${activePropertyName} Operations_`;
             } else if (inboundCategory === "PAYMENT_CLAIM") {
               replyText = `Thank you ${occupant?.name || contactName}! 👍\n\nWe noted your payment confirmation. Kindly share the screenshot or 12-digit UTR reference here so *${activePropertyName}* desk can issue your official digital receipt immediately.\n\n_— ${activePropertyName} Operations_`;
             } else if (inboundCategory === "SUPPORT_QUERY") {
-              replyText = `Hello ${occupant?.name || contactName}! 🛠️\n\nWe have logged your query and forwarded it to the *${activePropertyName}* front desk team. We will attend to this promptly.\n\n_— ${activePropertyName} Helpdesk_`;
+              replyText = `Hello ${occupant?.name || contactName}! 🛠️\n\nWe have logged your query and forwarded it to the *${activePropertyName}* front desk team.\n\n_— ${activePropertyName} Helpdesk_`;
             } else {
               replyText = `Hello ${occupant?.name || contactName}! 👋\n\nThank you for reaching out to *${activePropertyName}*. The management team has received your message.\n\n_— Powered by TenoPilot_`;
             }
