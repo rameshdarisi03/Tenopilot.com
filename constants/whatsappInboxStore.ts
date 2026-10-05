@@ -31,7 +31,55 @@ export interface WhatsAppInboundItem {
   timestamp: string;
 }
 
-const INBOX_MAP = new Map<string, WhatsAppInboundItem[]>();
+const DEFAULT_VIBE_ITEMS: WhatsAppInboundItem[] = [
+  {
+    id: "inbox_vibe_darisi_proof_latest",
+    wamid: "wamid.vibe_darisi_proof_latest",
+    timestamp: new Date().toISOString(),
+    senderPhone: "919206651295",
+    senderName: "Darisi",
+    propertyId: "prop-1788438308277",
+    occupantId: "og-tenant-1790870124901",
+    occupantName: "Darisi",
+    roomNumber: "208",
+    bedCode: "Bed C",
+    type: "PAYMENT_PROOF",
+    status: "PENDING",
+    rawText: "payment done ...please check!",
+    mediaUrl: null,
+    mimeType: "image/jpeg",
+    extractedData: {
+      amount: 8500,
+      utr: "UPI8500202610VIBE",
+      paymentApp: "PhonePe / UPI",
+    },
+  },
+  {
+    id: "inbox_vibe_darisi_claim_1",
+    wamid: "wamid.vibe_darisi_claim_1",
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    senderPhone: "919206651295",
+    senderName: "Darisi",
+    propertyId: "prop-1788438308277",
+    occupantId: "og-tenant-1790870124901",
+    occupantName: "Darisi",
+    roomNumber: "208",
+    bedCode: "Bed C",
+    type: "PAYMENT_CLAIM",
+    status: "PENDING",
+    rawText: "RENT PAID",
+    mediaUrl: null,
+    mimeType: null,
+    extractedData: {
+      amount: 8500,
+    },
+  },
+];
+
+const INBOX_MAP = new Map<string, WhatsAppInboundItem[]>([
+  ["prop-1788438308277", DEFAULT_VIBE_ITEMS],
+  ["sunshine-pg", DEFAULT_VIBE_ITEMS],
+]);
 const ACTIVE_UNSUBSCRIBES = new Map<string, () => void>();
 const LISTENERS = new Set<() => void>();
 
