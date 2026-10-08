@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendBrevoEmail, BrevoSendParams, BrevoSendResult, isBrevoQuotaError } from "@/lib/brevoService";
+import { sendSESEmail, SESSendParams, SESSendResult, isSESQuotaError } from "@/lib/sesService";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       userEmail,
     }: {
       propertyId: string;
-      messages: BrevoSendParams[];
+      messages: SESSendParams[];
       userId?: string;
       userEmail?: string;
     } = body;
@@ -71,10 +71,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 🔍 2. Resolve Custom Brevo Gateway Configuration
-    // Check if property or client has an active custom Brevo key and founder permission
+    // 🔍 2. Resolve Custom Email Gateway Configuration
     let customGatewayConfig: {
-      apiKey: string;
+      apiKey?: string;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+      region?: string;
       senderEmail?: string;
       senderName?: string;
     } | null = null;
@@ -91,10 +93,13 @@ export async function POST(req: NextRequest) {
         if (
           isCustomGatewayAllowed &&
           pData?.customEmailGateway?.enabled &&
-          pData?.customEmailGateway?.apiKey
+          (pData?.customEmailGateway?.apiKey || pData?.customEmailGateway?.accessKeyId)
         ) {
           customGatewayConfig = {
             apiKey: pData.customEmailGateway.apiKey,
+            accessKeyId: pData.customEmailGateway.accessKeyId,
+            secretAccessKey: pData.customEmailGateway.secretAccessKey,
+            region: pData.customEmailGateway.region,
             senderEmail: pData.customEmailGateway.senderEmail,
             senderName: pData.customEmailGateway.senderName,
           };
@@ -104,32 +109,32 @@ export async function POST(req: NextRequest) {
       console.warn("Notice reading property email gateway settings:", err);
     }
 
-    // 🚀 3. Execute Dispatches with Graceful Hot-Failover & Quota Detection
-    const results: BrevoSendResult[] = [];
+    // 🚀 3. Execute Dispatches with Graceful Hot-Failover & Sandbox Detection
+    const results: SESSendResult[] = [];
     let quotaFailoverOccurred = false;
 
     for (const msgPayload of messages) {
-      let finalResult: BrevoSendResult;
+      let finalResult: SESSendResult;
 
-      // If custom gateway is configured, try sending via client's Brevo account first
+      // If custom gateway is configured, try sending via client's credentials first
       if (customGatewayConfig) {
-        finalResult = await sendBrevoEmail({
+        finalResult = await sendSESEmail({
           ...msgPayload,
           customCredentials: customGatewayConfig,
           replyToEmail: cleanEmail || msgPayload.replyToEmail,
         });
 
-        // If client's Brevo account encounters a quota/credit limit exhaustion:
-        if (!finalResult.success && isBrevoQuotaError(finalResult.error)) {
+        // If client's gateway encounters a quota/credit limit exhaustion:
+        if (!finalResult.success && isSESQuotaError(finalResult.error)) {
           console.warn(
-            `⚠️ Client custom Brevo quota exceeded for ${propertyId}. Triggering hot-failover to TenoPilot Central Backup.`
+            `⚠️ Client custom email gateway quota/restriction for ${propertyId}. Triggering hot-failover to TenoPilot Central SES.`
           );
           quotaFailoverOccurred = true;
 
-          // Hot-Failover: Instant fallback to TenoPilot Central Brevo!
-          const fallbackResult = await sendBrevoEmail({
+          // Hot-Failover: Instant fallback to TenoPilot Central Amazon SES!
+          const fallbackResult = await sendSESEmail({
             ...msgPayload,
-            customCredentials: undefined, // uses platform central Brevo
+            customCredentials: undefined, // uses platform central SES
             replyToEmail: cleanEmail || msgPayload.replyToEmail,
           });
 
@@ -139,8 +144,8 @@ export async function POST(req: NextRequest) {
           };
         }
       } else {
-        // Platform Central Brevo Default
-        finalResult = await sendBrevoEmail({
+        // Platform Central Amazon SES Default
+        finalResult = await sendSESEmail({
           ...msgPayload,
           customCredentials: undefined,
           replyToEmail: cleanEmail || msgPayload.replyToEmail,

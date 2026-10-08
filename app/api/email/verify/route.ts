@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendBrevoEmail, BrevoSendResult } from "@/lib/brevoService";
+import { sendSESEmail, SESSendResult } from "@/lib/sesService";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
       apiKey,
+      accessKeyId,
+      secretAccessKey,
+      region,
       senderEmail,
       senderName,
       testRecipientEmail,
@@ -19,15 +22,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const customCreds = apiKey
+    const customCreds = (accessKeyId && secretAccessKey) || apiKey
       ? {
           apiKey,
+          accessKeyId,
+          secretAccessKey,
+          region,
           senderEmail: senderEmail || undefined,
           senderName: senderName || undefined,
         }
       : undefined;
 
-    const result: BrevoSendResult = await sendBrevoEmail({
+    const result: SESSendResult = await sendSESEmail({
       toEmail: testRecipientEmail,
       recipientName: "Administrator",
       propertyId: "verify-test",
@@ -40,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: result.error || "Failed to verify Brevo credentials.",
+          error: result.error || "Failed to verify email credentials.",
           mode: result.mode,
         },
         { status: 400 }
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Internal server error verifying Brevo gateway." },
+      { error: err.message || "Internal server error verifying email gateway." },
       { status: 500 }
     );
   }
