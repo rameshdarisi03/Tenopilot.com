@@ -80,7 +80,7 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
               : isGrace
               ? `⏳ ${platformConfig.graceDays}-Day Pro Grace Period Active (${sub.graceDaysRemaining} Days Left)`
               : isPreExpiry
-              ? `💎 Pro Plan Renewal Due in ${sub.daysRemaining} Days`
+              ? `💎 Pro Plan Expires in ${sub.daysRemaining} Day${sub.daysRemaining === 1 ? "" : "s"}`
               : `⚠️ Pro Subscription Expired`}
             :
           </strong>{" "}
@@ -92,7 +92,7 @@ export function SubscriptionGraceBanner({ propertyId: propId }: { propertyId?: s
               : isGrace
               ? `Your Pro cycle ended on ${sub.expiryDateFormatted}. All operations remain active.`
               : isPreExpiry
-              ? `Renews on ${sub.expiryDateFormatted}. Early renewals stack seamlessly.`
+              ? `Expires on ${sub.expiryDateFormatted}. Renew early to stack validity seamlessly.`
               : `Renew now to restore full multi-property automation.`}
           </span>
         </p>

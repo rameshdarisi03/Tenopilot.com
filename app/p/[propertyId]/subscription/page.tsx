@@ -586,7 +586,7 @@ export default function SubscriptionBillingPage() {
                         : sub.inGracePeriod
                         ? `⏳ 7-Day Pro Grace (${sub.graceDaysRemaining}d Left)`
                         : sub.isPreExpiry
-                        ? `💎 Pro (Renews in ${sub.daysRemaining}d)`
+                        ? `💎 Pro (Expires in ${sub.daysRemaining}d)`
                         : `⚡ 10-Day Free Express Trial (${sub.daysRemaining === 0 ? "Ends Today" : `${sub.daysRemaining}d Left`})`}
                     </span>
                   </span>
@@ -600,7 +600,7 @@ export default function SubscriptionBillingPage() {
                   {sub.inGracePeriod
                     ? `Your Pro cycle completed on ${sub.expiryDateFormatted}. All operations remain active during your 7-day grace period.`
                     : sub.isPreExpiry
-                    ? `Your Pro subscription will renew on ${sub.expiryDateFormatted}. Early renewals seamlessly stack +30 days without losing current days.`
+                    ? `Your Pro subscription expires on ${sub.expiryDateFormatted}. Early renewals seamlessly stack +30 days without losing current days.`
                     : sub.isPro
                     ? `Enjoy uninterrupted access to automated WhatsApp reminders, verified email dispatches, and multi-bed management.`
                     : `You have full access to explore TenoPilot features. Upgrade to Pro (₹999/mo) to unlock automated multi-channel batch reminders.`}

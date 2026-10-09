@@ -296,7 +296,7 @@ export function PropertyHeader({
                           {sub.inGracePeriod
                             ? `⏳ Pro Grace Period: ${sub.graceDaysRemaining} Days Left`
                             : sub.isPreExpiry
-                            ? `💎 Pro Renewal Notice (${sub.daysRemaining} Days)`
+                            ? `💎 Pro Expiry Notice (${sub.daysRemaining} Days)`
                             : `⚡ Subscription Status`}
                         </p>
                         <p className="text-[11px] text-gray-700 mt-1 leading-relaxed">

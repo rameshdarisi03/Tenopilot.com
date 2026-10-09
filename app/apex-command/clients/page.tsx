@@ -1149,7 +1149,7 @@ export default function ApexCommandClientsPage() {
                               {acc.subscriptionStatus === "PRO_PRE_EXPIRY" && (
                                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
                                   <Sparkles className="w-3 h-3 text-blue-400" />
-                                  <span>💎 PRO (RENEWS IN {acc.trialDaysLeft}D)</span>
+                                  <span>💎 PRO (EXPIRES IN {acc.trialDaysLeft}D)</span>
                                 </span>
                               )}
                               {acc.subscriptionStatus === "GRACE_PERIOD" && (

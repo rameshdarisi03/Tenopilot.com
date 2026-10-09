@@ -147,7 +147,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     // A. Plan is actively valid
     if (isTimeActive) {
       const isPreExpiry = daysRemaining <= PRE_EXPIRY_ALERT_DAYS;
-      const renewsText = daysRemaining === 0 ? "Renews Today" : `Renews in ${daysRemaining}d`;
+      const expiresText = daysRemaining === 0 ? "Expires Today" : `Expires in ${daysRemaining}d`;
 
       return {
         status: isPreExpiry ? "PRO_PRE_EXPIRY" : "ACTIVE_PRO",
@@ -160,14 +160,14 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
         canAccessProFeatures: true,
         expiryDateFormatted: expiryDateFormatted,
         badgeLabel: isPreExpiry
-          ? `💎 Pro (${renewsText})`
+          ? `💎 Pro (${expiresText})`
           : `💎 Pro Active`,
         badgeColor: isPreExpiry ? "amber" : "emerald",
         notificationMessage: isPreExpiry
-          ? `Renewal Notice: Your Pro plan will renew ${daysRemaining === 0 ? "today" : `in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}`} (on ${expiryDateFormatted}). Early renewals stack automatically without losing any days.`
+          ? `Expiry Notice: Your Pro plan will expire ${daysRemaining === 0 ? "today" : `in ${daysRemaining} day${daysRemaining > 1 ? "s" : ""}`} (on ${expiryDateFormatted}). Early renewals stack automatically without losing any days.`
           : undefined,
         bannerMessage: isPreExpiry
-          ? `💎 Pro Plan Renewal: Your cycle ends on ${expiryDateFormatted} (${daysRemaining === 0 ? "today" : `${daysRemaining} days left`}). Renew now to seamlessly extend your plan.`
+          ? `💎 Pro Plan Expiry: Your cycle ends on ${expiryDateFormatted} (${daysRemaining === 0 ? "today" : `${daysRemaining} days left`}). Renew now to seamlessly extend your plan.`
           : undefined,
       };
     }
