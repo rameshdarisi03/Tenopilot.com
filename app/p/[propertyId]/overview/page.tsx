@@ -46,7 +46,7 @@ import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
-import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, calculatePropertyRentComplianceSummary } from "@/utils/domainSSOT";
 
 function getTimeAwareGreeting(): string {
   const hour = new Date().getHours();
@@ -151,23 +151,16 @@ export default function PropertyOverviewPage({
 
   const occRatePct = totalBeds > 0 ? ((occupiedBeds / totalBeds) * 100).toFixed(1) : "0.0";
 
-  // Financial Metrics Calculation
-  let totalCollectedThisMonth = 0;
-  let totalPendingDue = 0;
-  let overdueCount = 0;
-  let pendingCount = 0;
+  // SSOT Property-Wide Rent Compliance Summary
+  const rentCompliance = useMemo(() => {
+    return calculatePropertyRentComplianceSummary(occupants, propertySettings);
+  }, [occupants, propertySettings]);
 
-  occupants.forEach((occ) => {
-    if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") {
-      const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-      totalCollectedThisMonth += stmt.totalRentPaid;
-      totalPendingDue += stmt.netOutstandingBalance;
-      if (stmt.netOutstandingBalance > 0) {
-        pendingCount++;
-        if (occ.paymentStatus === "Overdue" || occ.daysDiff < 0) overdueCount++;
-      }
-    }
-  });
+  // Financial Metrics Calculation
+  let totalCollectedThisMonth = rentCompliance.totalCollectedThisCycle;
+  let totalPendingDue = rentCompliance.totalPendingDueAmount;
+  let overdueCount = rentCompliance.overdueTenantsCount;
+  let pendingCount = rentCompliance.totalPendingDueCount;
 
   const openComplaintsCount = complaints.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS").length;
 
@@ -397,33 +390,37 @@ export default function PropertyOverviewPage({
               </div>
             </div>
 
-            {/* Card 3: Pending Due */}
-            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-amber-500/60 transition-all flex flex-col justify-between group">
+            {/* Card 3: Rent Pending (Overdue Compliance SSOT) */}
+            <Link
+              href={`/p/${propertyId}/tenants?filter=due&sendReminders=true`}
+              className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-[#c2652a] hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
+              title="Click to view all overdue residents and send reminders"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  PENDING DUE
+                  RENT PENDING
                 </span>
-                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform">
+                <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a] group-hover:scale-110 group-hover:bg-[#c2652a] group-hover:text-white transition-all">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <p className="font-sans font-bold text-3xl text-amber-600 tracking-tight">
-                  {formatCompactCurrency(totalPendingDue)}
+                <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
+                  {rentCompliance.overdueTenantsCount}{" "}
+                  <span className="text-lg font-semibold text-gray-500">
+                    {rentCompliance.overdueTenantsCount === 1 ? "Tenant Rent Pending" : "Tenants Rent Pending"}
+                  </span>
                 </p>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs font-bold text-gray-600">
-                    Across {pendingCount} residents
+                  <p className="text-xs font-bold text-[#c2652a]">
+                    {rentCompliance.paidTenantsCount} / {rentCompliance.totalActiveTenants} Tenants have paid rent ({rentCompliance.paidRatePct}%)
                   </p>
-                  <Link
-                    href={`/p/${propertyId}/tenants?filter=due&sendReminders=true`}
-                    className="text-[11px] font-bold text-[#c2652a] hover:underline"
-                  >
+                  <span className="text-[10px] font-extrabold text-[#c2652a] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
                     Send Reminders ➔
-                  </Link>
+                  </span>
                 </div>
               </div>
-            </div>
+            </Link>
 
             {/* Card 4: Maintenance */}
             <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-rose-500/60 transition-all flex flex-col justify-between group">

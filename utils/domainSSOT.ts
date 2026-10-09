@@ -983,3 +983,72 @@ export function getActiveResidentForToday(phoneInput: string, occupantsList: Occ
   return res.isValid && res.occupant ? res.occupant : null;
 }
 
+/**
+ * 12. SSOT Property-Wide Rent Compliance & Overdue Calculator
+ * Evaluates all active residents against property rent cycle settings (Calendar vs. Anniversary),
+ * individual custom due dates, and grace periods with 100% mathematical accuracy.
+ */
+export interface PropertyRentComplianceSummary {
+  totalActiveTenants: number;
+  paidTenantsCount: number;
+  overdueTenantsCount: number;   // Unpaid past grace period cutoff
+  gracePendingCount: number;     // Unpaid but still within grace period window
+  totalPendingDueCount: number;  // All tenants with pending balance (overdue + within grace)
+  paidRatePct: string;
+  totalCollectedThisCycle: number;
+  totalPendingDueAmount: number;
+  overduePendingAmount: number;
+}
+
+export function calculatePropertyRentComplianceSummary(
+  occupantsList: Occupant[],
+  settings?: any
+): PropertyRentComplianceSummary {
+  const activeOccupants = (occupantsList || []).filter(
+    (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+  );
+
+  let paidTenantsCount = 0;
+  let overdueTenantsCount = 0;
+  let gracePendingCount = 0;
+  let totalCollectedThisCycle = 0;
+  let totalPendingDueAmount = 0;
+  let overduePendingAmount = 0;
+
+  activeOccupants.forEach((occ) => {
+    const stmt = calculateOccupantFinancialStatement(occ, settings);
+    totalCollectedThisCycle += stmt.totalRentPaid;
+
+    if (stmt.isFullyPaid) {
+      paidTenantsCount++;
+    } else {
+      totalPendingDueAmount += stmt.netOutstandingBalance;
+      if (stmt.isOverdue || occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0)) {
+        overdueTenantsCount++;
+        overduePendingAmount += stmt.netOutstandingBalance;
+      } else {
+        gracePendingCount++;
+      }
+    }
+  });
+
+  const totalActiveTenants = activeOccupants.length;
+  const paidRatePct =
+    totalActiveTenants > 0
+      ? ((paidTenantsCount / totalActiveTenants) * 100).toFixed(1)
+      : "100.0";
+
+  return {
+    totalActiveTenants,
+    paidTenantsCount,
+    overdueTenantsCount,
+    gracePendingCount,
+    totalPendingDueCount: overdueTenantsCount + gracePendingCount,
+    paidRatePct,
+    totalCollectedThisCycle,
+    totalPendingDueAmount,
+    overduePendingAmount,
+  };
+}
+
+
