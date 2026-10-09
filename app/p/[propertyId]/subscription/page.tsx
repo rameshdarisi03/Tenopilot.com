@@ -661,7 +661,7 @@ export default function SubscriptionBillingPage() {
                   <span>Pro Plan Monthly Credit</span>
                   <span>💎 Active</span>
                 </div>
-                <p className="font-black text-xl text-emerald-950">350 Messages</p>
+                <p className="font-black text-xl text-emerald-950">{platformConfig.proWhatsAppCredits || 350} Messages</p>
                 <p className="text-[10px] text-emerald-700">Included complimentary in every Pro Monthly cycle</p>
               </div>
 
