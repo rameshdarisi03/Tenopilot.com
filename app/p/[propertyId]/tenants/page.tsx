@@ -257,9 +257,16 @@ export default function TenantsDirectoryPage({
   const [inboxPendingCount, setInboxPendingCount] = useState<number>(0);
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
+  const [isSendingCloudEmail, setIsSendingCloudEmail] = useState(false);
   const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
   const [reminderChannel, setReminderChannel] = useState<"WHATSAPP" | "EMAIL" | "BOTH">("BOTH");
   const [showProReminderPaywall, setShowProReminderPaywall] = useState(false);
+  const [grandSuccessData, setGrandSuccessData] = useState<{
+    type: "EMAIL" | "WHATSAPP";
+    count: number;
+    total: number;
+    creditsRemaining?: number;
+  } | null>(null);
 
   // Single-Tenant WhatsApp Dropdown & Custom Message States
   const [activeWhatsAppMenuId, setActiveWhatsAppMenuId] = useState<string | null>(null);
@@ -394,6 +401,22 @@ export default function TenantsDirectoryPage({
     }
   }, [searchParams, occupantsList]);
 
+  // When reminder modal opens, ensure all candidate occupants are checked by default
+  useEffect(() => {
+    if (showRentReminderQRModal) {
+      const active = occupantsList.filter(
+        (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+      );
+      const pendingIds = active
+        .filter((o) => o.paymentStatus === "Due" || o.paymentStatus === "Overdue" || (o.daysDiff !== undefined && o.daysDiff <= 0))
+        .map((o) => o.id);
+
+      if (pendingIds.length > 0 && selectedIds.length === 0) {
+        setSelectedIds(pendingIds);
+      }
+    }
+  }, [showRentReminderQRModal, occupantsList]);
+
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
   const [postponeModalOccupant, setPostponeModalOccupant] = useState<Occupant | null>(null);
@@ -477,12 +500,56 @@ export default function TenantsDirectoryPage({
     return buildWhatsAppUrl(occ.phone, message);
   };
 
-  // 1-Tap Central Multi-Channel Cloud Dispatch Handler (WhatsApp & Official Email)
-  const handleSendCloudWhatsAppReminders = async () => {
+  // Candidate occupants for Rent Reminders Modal (Sorted: Overdue first, then Due)
+  const reminderCandidateOccupants = useMemo(() => {
+    const active = occupantsList.filter(
+      (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
+    );
+    const candidates = active.filter((o) => {
+      const isPending =
+        o.paymentStatus === "Due" ||
+        o.paymentStatus === "Overdue" ||
+        (o.daysDiff !== undefined && o.daysDiff <= 0);
+      return isPending || selectedIds.includes(o.id);
+    });
+
+    return [...candidates].sort((a, b) => {
+      const aIsOverdue = a.paymentStatus === "Overdue" || (a.daysDiff !== undefined && a.daysDiff < 0);
+      const bIsOverdue = b.paymentStatus === "Overdue" || (b.daysDiff !== undefined && b.daysDiff < 0);
+      if (aIsOverdue && !bIsOverdue) return -1;
+      if (!aIsOverdue && bIsOverdue) return 1;
+      const aDays = a.daysDiff !== undefined ? a.daysDiff : 0;
+      const bDays = b.daysDiff !== undefined ? b.daysDiff : 0;
+      return aDays - bDays;
+    });
+  }, [occupantsList, selectedIds]);
+
+  // Toggle individual tenant in reminder selection
+  const handleToggleReminderRecipient = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((item) => item !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  // Toggle select all / deselect all in reminder selection
+  const handleToggleAllReminderRecipients = () => {
+    const allCandidateIds = reminderCandidateOccupants.map((o) => o.id);
+    const allSelected = allCandidateIds.length > 0 && allCandidateIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(selectedIds.filter((id) => !allCandidateIds.includes(id)));
+    } else {
+      setSelectedIds(Array.from(new Set([...selectedIds, ...allCandidateIds])));
+    }
+  };
+
+  // 1-Click Send Email Invoices Handler (Free via Amazon SES)
+  const handleSendEmailReminders = async () => {
     const sub = evaluateSubscription(profile);
     if (!sub.isPro) {
       setShowProReminderPaywall(true);
-      triggerToast("🔒 Automated WhatsApp & Email Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+      triggerToast("🔒 Automated Email Invoices are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
       return;
     }
 
@@ -491,165 +558,205 @@ export default function TenantsDirectoryPage({
     const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
 
     if (selectedOccupants.length === 0) {
-      triggerToast("Please select at least one tenant to send reminders.");
+      triggerToast("⚠️ Please select at least one tenant to send email reminders.");
       return;
     }
 
-    const isWhatsApp = reminderChannel === "WHATSAPP" || reminderChannel === "BOTH";
-    const isEmail = reminderChannel === "EMAIL" || reminderChannel === "BOTH";
+    setIsSendingCloudEmail(true);
+    setCloudSendProgress({ sent: 0, total: selectedOccupants.length });
 
-    // WhatsApp Credit Balance Validation (Only if WhatsApp channel is active)
-    if (isWhatsApp) {
-      const currentBal = whatsappCreditStore.getCredits(propertyId);
-      if (currentBal < selectedOccupants.length) {
-        triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge.`);
-        setShowWhatsAppWalletModal(true);
-        return;
+    let emailSentCount = 0;
+
+    for (const occ of selectedOccupants) {
+      const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
+      try {
+        const emailRes = await fetch("/api/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
+            messages: [
+              {
+                toEmail: destEmail,
+                recipientName: occ.name,
+                propertyId,
+                propertyName: currentSettings.propertyName || "TenoPilot PG",
+                replyToEmail: profile?.email,
+                type: "RENT_REMINDER",
+                params: {
+                  roomNumber: occ.roomNumber,
+                  bedCode: occ.bedCode,
+                  amount: occ.rentAmount,
+                  dueDate: occ.dueDate,
+                  upiId: activeQr?.upiId,
+                  bankLabel: activeQr?.bankLabel,
+                  accountType: activeQr?.accountType,
+                },
+              },
+            ],
+          }),
+        });
+
+        if (emailRes.ok) {
+          emailSentCount++;
+        } else {
+          const errData = await emailRes.json().catch(() => ({}));
+          console.warn("Failed sending Email for", occ.name, errData);
+          if (errData?.requiresPro) {
+            setShowProReminderPaywall(true);
+            triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
+            break;
+          } else if (errData?.error) {
+            triggerToast(`⚠️ Email dispatch: ${errData.error}`);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed sending Email for", occ.name, err);
       }
+
+      setCloudSendProgress({
+        sent: emailSentCount,
+        total: selectedOccupants.length,
+      });
+    }
+
+    setIsSendingCloudEmail(false);
+    setCloudSendProgress(null);
+
+    if (emailSentCount === 0) {
+      return;
+    }
+
+    setShowRentReminderQRModal(false);
+
+    activityAuditStore.logActivity(propertyId, {
+      type: "PAYMENT",
+      title: `Email Invoices Sent: ${emailSentCount} tenants`,
+      subtitle: `Dispatched via Amazon SES Official Gateway (Free)`,
+      staffName: profile?.displayName || "Manager",
+      staffRole: "Property Admin",
+    });
+
+    setGrandSuccessData({
+      type: "EMAIL",
+      count: emailSentCount,
+      total: selectedOccupants.length,
+    });
+  };
+
+  // 1-Click Send WhatsApp Cloud Reminders Handler (Credits)
+  const handleSendCloudWhatsAppReminders = async () => {
+    const sub = evaluateSubscription(profile);
+    if (!sub.isPro) {
+      setShowProReminderPaywall(true);
+      triggerToast("🔒 Automated WhatsApp Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+      return;
+    }
+
+    const reminderCards = getReminderPaymentCards();
+    const activeQr = reminderCards[activeQrIndex] || reminderCards[0];
+    const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+
+    if (selectedOccupants.length === 0) {
+      triggerToast("⚠️ Please select at least one tenant to send WhatsApp reminders.");
+      return;
+    }
+
+    // WhatsApp Credit Balance Validation
+    const currentBal = whatsappCreditStore.getCredits(propertyId);
+    if (currentBal < selectedOccupants.length) {
+      triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge.`);
+      setShowWhatsAppWalletModal(true);
+      return;
     }
 
     setIsSendingCloudWhatsApp(true);
     setCloudSendProgress({ sent: 0, total: selectedOccupants.length });
 
     let waSentCount = 0;
-    let emailSentCount = 0;
 
     for (const occ of selectedOccupants) {
-      // 1. Dispatch WhatsApp Cloud Reminder
-      if (isWhatsApp) {
-        try {
-          const res = await fetch("/api/whatsapp/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              propertyId,
-              userId: profile?.uid,
-              userEmail: profile?.email,
-              messages: [
-                {
-                  toPhone: occ.phone,
-                  recipientName: occ.name,
-                  propertyId,
-                  propertyName: currentSettings.propertyName || "TenoPilot PG",
-                  type: "RENT_REMINDER",
-                  params: {
-                    roomNumber: occ.roomNumber,
-                    bedCode: occ.bedCode,
-                    amount: occ.rentAmount,
-                    dueDate: occ.dueDate,
-                    upiId: activeQr?.upiId,
-                    bankLabel: activeQr?.bankLabel,
-                    accountType: activeQr?.accountType,
-                  },
+      try {
+        const res = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            userId: profile?.uid,
+            userEmail: profile?.email,
+            messages: [
+              {
+                toPhone: occ.phone,
+                recipientName: occ.name,
+                propertyId,
+                propertyName: currentSettings.propertyName || "TenoPilot PG",
+                type: "RENT_REMINDER",
+                params: {
+                  roomNumber: occ.roomNumber,
+                  bedCode: occ.bedCode,
+                  amount: occ.rentAmount,
+                  dueDate: occ.dueDate,
+                  upiId: activeQr?.upiId,
+                  bankLabel: activeQr?.bankLabel,
+                  accountType: activeQr?.accountType,
                 },
-              ],
-            }),
+              },
+            ],
+          }),
+        });
+
+        if (res.ok) {
+          whatsappCreditStore.deductCredit(propertyId, {
+            recipientPhone: occ.phone,
+            recipientName: occ.name,
+            messageType: "RENT_REMINDER",
+            description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
           });
-
-          if (res.ok) {
-            whatsappCreditStore.deductCredit(propertyId, {
-              recipientPhone: occ.phone,
-              recipientName: occ.name,
-              messageType: "RENT_REMINDER",
-              description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
-            });
-            waSentCount++;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            console.warn("Failed sending WhatsApp for", occ.name, errData);
-            if (errData?.requiresPro) {
-              setShowProReminderPaywall(true);
-              triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
-              break;
-            }
+          waSentCount++;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn("Failed sending WhatsApp for", occ.name, errData);
+          if (errData?.requiresPro) {
+            setShowProReminderPaywall(true);
+            triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
+            break;
           }
-        } catch (err) {
-          console.warn("Failed sending WhatsApp for", occ.name, err);
         }
-      }
-
-      // 2. Dispatch Brevo Transactional Email Reminder
-      if (isEmail) {
-        const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
-        try {
-          const emailRes = await fetch("/api/email/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              propertyId,
-              userId: profile?.uid,
-              userEmail: profile?.email,
-              messages: [
-                {
-                  toEmail: destEmail,
-                  recipientName: occ.name,
-                  propertyId,
-                  propertyName: currentSettings.propertyName || "TenoPilot PG",
-                  replyToEmail: profile?.email,
-                  type: "RENT_REMINDER",
-                  params: {
-                    roomNumber: occ.roomNumber,
-                    bedCode: occ.bedCode,
-                    amount: occ.rentAmount,
-                    dueDate: occ.dueDate,
-                    upiId: activeQr?.upiId,
-                    bankLabel: activeQr?.bankLabel,
-                    accountType: activeQr?.accountType,
-                  },
-                },
-              ],
-            }),
-          });
-
-          if (emailRes.ok) {
-            emailSentCount++;
-          } else {
-            const errData = await emailRes.json().catch(() => ({}));
-            console.warn("Failed sending Email for", occ.name, errData);
-            if (errData?.requiresPro) {
-              setShowProReminderPaywall(true);
-              triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
-              break;
-            } else if (errData?.error) {
-              triggerToast(`⚠️ Email dispatch: ${errData.error}`);
-            }
-          }
-        } catch (err) {
-          console.warn("Failed sending Email for", occ.name, err);
-        }
+      } catch (err) {
+        console.warn("Failed sending WhatsApp for", occ.name, err);
       }
 
       setCloudSendProgress({
-        sent: Math.max(waSentCount, emailSentCount),
+        sent: waSentCount,
         total: selectedOccupants.length,
       });
     }
 
     setIsSendingCloudWhatsApp(false);
     setCloudSendProgress(null);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
 
-    if (waSentCount === 0 && emailSentCount === 0) {
+    if (waSentCount === 0) {
       return;
     }
 
     setShowRentReminderQRModal(false);
 
-    let toastText = "";
-    if (reminderChannel === "BOTH") {
-      toastText = `🎉 Dispatched ${waSentCount} WhatsApp and ${emailSentCount} Email reminders!`;
-    } else if (reminderChannel === "WHATSAPP") {
-      toastText = `🎉 Successfully dispatched ${waSentCount} automated WhatsApp reminders!`;
-    } else {
-      toastText = `🎉 Successfully dispatched ${emailSentCount} automated Email reminders!`;
-    }
-    triggerToast(toastText);
-
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
-      title: `Rent Reminders Sent: ${selectedOccupants.length} tenants`,
-      subtitle: `Dispatched via ${reminderChannel === "BOTH" ? "WhatsApp + Official Email" : reminderChannel === "WHATSAPP" ? "WhatsApp Cloud" : "Official Email Gateway"}`,
+      title: `WhatsApp Reminders Sent: ${waSentCount} tenants`,
+      subtitle: `Dispatched via WhatsApp Cloud API (${waSentCount} Credits)`,
       staffName: profile?.displayName || "Manager",
       staffRole: "Property Admin",
+    });
+
+    setGrandSuccessData({
+      type: "WHATSAPP",
+      count: waSentCount,
+      total: selectedOccupants.length,
+      creditsRemaining: whatsappCreditStore.getCredits(propertyId),
     });
   };
 
@@ -2779,7 +2886,7 @@ Scroll vertically to browse all residents without pagination limits
                       Send Rent Reminders
                     </h3>
                     <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
-                      {selectedIds.length} Tenant{selectedIds.length > 1 ? "s" : ""} Selected for Batch Dispatch
+                      {selectedIds.length} of {reminderCandidateOccupants.length} Tenant{reminderCandidateOccupants.length === 1 ? "" : "s"} Selected
                     </p>
                   </div>
                 </div>
@@ -2907,94 +3014,40 @@ Scroll vertically to browse all residents without pagination limits
                 );
               })()}
 
-              {/* Step 2: Choose Delivery Channel (WhatsApp, Email, or Both) */}
-              <div className="p-3 sm:p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    <span>2. Select Dispatch Channel</span>
-                  </h4>
-                  <span className="text-[10px] text-gray-400 font-medium">TenoPilot Cloud</span>
-                </div>
-
-                {!sub.isPro && (
-                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 border border-amber-200/80 flex items-center justify-between gap-2 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-6 h-6 rounded-md bg-amber-500 text-white flex items-center justify-center shrink-0">
-                        <Lock className="w-3 h-3" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-amber-950 text-[11px] truncate">
-                          Automated Reminders (Pro Only)
-                        </p>
-                        <p className="text-[10px] text-amber-800 truncate">
-                          Upgrade to Pro or use free manual wa.me links below
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowProReminderPaywall(true)}
-                      className="px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-[10px] rounded-lg shadow-xs hover:opacity-95 transition-all shrink-0 cursor-pointer"
-                    >
-                      ₹999/mo
-                    </button>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReminderChannel("WHATSAPP")}
-                    className={`h-14 rounded-xl border flex flex-col items-center justify-center font-bold text-xs cursor-pointer transition-all ${
-                      reminderChannel === "WHATSAPP"
-                        ? "bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400/30"
-                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <MessageSquare className="w-4 h-4 text-white" />
-                      <span className="text-xs font-bold">WhatsApp</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled
-                    className="h-14 rounded-xl border border-gray-200 bg-gray-100/70 text-gray-400 flex flex-col items-center justify-center gap-0.5 text-xs cursor-not-allowed opacity-80 select-none"
-                    title="Email feature coming soon"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <span className="text-xs font-bold text-gray-600">Email</span>
-                    </div>
-                    <span className="text-[10px] text-amber-700 font-semibold">
-                      Coming soon
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Step 3: Selected Tenants Summary & Send Action */}
+              {/* Step 2: Selected Recipients List with Ticker Checkboxes & Overdue First Ordering */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-gray-900 text-xs">
-                    3. Selected Recipients ({selectedIds.length}):
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-gray-700" />
+                    <span>2. Selected Recipients ({selectedIds.length}/{reminderCandidateOccupants.length}):</span>
                   </h4>
-                  <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
-                    <MessageSquare className="w-3 h-3" /> WhatsApp Cloud Message
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleAllReminderRecipients}
+                    className="text-[11px] font-bold text-[#c2652a] hover:underline cursor-pointer"
+                  >
+                    {reminderCandidateOccupants.length > 0 &&
+                    reminderCandidateOccupants.every((o) => selectedIds.includes(o.id))
+                      ? "Deselect All"
+                      : "Select All"}
+                  </button>
                 </div>
 
-                <div className="space-y-1.5 max-h-36 sm:max-h-44 overflow-y-auto pr-1">
-                  {(() => {
-                    const reminderCards = getReminderPaymentCards();
-                    const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
-                    const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+                <div className="space-y-1.5 max-h-48 sm:max-h-56 overflow-y-auto pr-1">
+                  {reminderCandidateOccupants.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-gray-50 text-center text-gray-500 text-xs">
+                      No pending or overdue residents found.
+                    </div>
+                  ) : (
+                    (() => {
+                      const reminderCards = getReminderPaymentCards();
+                      const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
+                      const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
 
-                    return occupantsList
-                      .filter((o) => selectedIds.includes(o.id))
-                      .map((occ) => {
+                      return reminderCandidateOccupants.map((occ) => {
+                        const isSelected = selectedIds.includes(occ.id);
+                        const isOverdue = occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0);
+
                         const paymentDetailsText = isCashReq
                           ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
                           : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
@@ -3013,13 +3066,40 @@ Scroll vertically to browse all residents without pagination limits
                         return (
                           <div
                             key={occ.id}
-                            className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between gap-2 text-xs"
+                            onClick={() => handleToggleReminderRecipient(occ.id)}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 text-xs transition-all cursor-pointer select-none ${
+                              isSelected
+                                ? isOverdue
+                                  ? "bg-rose-50/50 border-rose-200"
+                                  : "bg-orange-50/50 border-orange-200"
+                                : "bg-gray-50/60 border-gray-200 opacity-60 hover:opacity-100"
+                            }`}
                           >
+                            {/* Checkbox Ticker */}
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleToggleReminderRecipient(occ.id);
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] cursor-pointer shrink-0"
+                            />
+
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-gray-900 truncate">{occ.name}</span>
+                                {isOverdue ? (
+                                  <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-200 text-[9px] font-extrabold uppercase flex items-center gap-0.5">
+                                    🚨 Overdue
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold uppercase">
+                                    ⏳ Due
+                                  </span>
+                                )}
                                 {occ.email && (
-                                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[140px]">
+                                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[130px]">
                                     ✉️ {occ.email}
                                   </span>
                                 )}
@@ -3033,6 +3113,7 @@ Scroll vertically to browse all residents without pagination limits
                               href={waUrl}
                               target="_blank"
                               rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
                               className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10px] flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer transition-colors"
                               title="Send via WhatsApp Web/App (Free)"
                             >
@@ -3042,64 +3123,173 @@ Scroll vertically to browse all residents without pagination limits
                           </div>
                         );
                       });
-                  })()}
+                    })()
+                  )}
                 </div>
               </div>
 
-              {/* Bottom Action Footer with Dynamic Multi-Channel Dispatch */}
-              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2.5 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowRentReminderQRModal(false)}
-                  className="py-2.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer text-center"
-                >
-                  Close
-                </button>
+              {/* 1-Click Send Rent Reminders Action Bar */}
+              <div className="space-y-2 pt-2.5 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                    <span>1-Click Send Rent Reminders</span>
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-medium">
+                    {selectedIds.length} Selected
+                  </span>
+                </div>
 
                 {!sub.isPro ? (
                   <button
                     type="button"
                     onClick={() => setShowProReminderPaywall(true)}
-                    className="flex-1 py-2.5 sm:py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
                   >
                     <Lock className="w-4 h-4" />
                     <span>Upgrade to Pro to Dispatch (₹999/mo)</span>
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={isSendingCloudWhatsApp || selectedIds.length === 0}
-                    onClick={handleSendCloudWhatsAppReminders}
-                    className={`flex-1 py-2.5 sm:py-3 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
-                      reminderChannel === "BOTH"
-                        ? "bg-gradient-to-r from-emerald-600 via-teal-700 to-blue-700 hover:from-emerald-700 hover:to-blue-800"
-                        : reminderChannel === "WHATSAPP"
-                        ? "bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-700 hover:to-emerald-900"
-                        : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900"
-                    }`}
-                  >
-                    {isSendingCloudWhatsApp ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>
-                          Dispatching {cloudSendProgress?.sent || 0}/{cloudSendProgress?.total || selectedIds.length}{" "}
-                          {reminderChannel === "BOTH" ? "Multi-Channel" : reminderChannel === "WHATSAPP" ? "WhatsApp" : "Email"}{" "}
-                          Reminders...
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4 fill-current text-yellow-300" />
-                        <span>
-                          {reminderChannel === "EMAIL"
-                            ? `1-Click Send Email Invoices (Free)`
-                            : `1-Click Send Rent Reminders (${selectedIds.length} ${selectedIds.length === 1 ? "Credit" : "Credits"})`}
-                        </span>
-                      </>
-                    )}
-                  </button>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Email (Free) Button */}
+                    <button
+                      type="button"
+                      disabled={isSendingCloudEmail || isSendingCloudWhatsApp || selectedIds.length === 0}
+                      onClick={handleSendEmailReminders}
+                      className="py-2.5 sm:py-3 px-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95"
+                    >
+                      {isSendingCloudEmail ? (
+                        <div className="flex items-center gap-1.5">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-xs">
+                            {cloudSendProgress ? `${cloudSendProgress.sent}/${cloudSendProgress.total}` : "Sending..."}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="w-4 h-4" />
+                            <span>Email (Free)</span>
+                          </div>
+                          <span className="text-[10px] text-blue-200 font-normal">Amazon SES • Free</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* WhatsApp (Credits) Button */}
+                    <button
+                      type="button"
+                      disabled={isSendingCloudWhatsApp || isSendingCloudEmail || selectedIds.length === 0}
+                      onClick={handleSendCloudWhatsAppReminders}
+                      className="py-2.5 sm:py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95"
+                    >
+                      {isSendingCloudWhatsApp ? (
+                        <div className="flex items-center gap-1.5">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-xs">
+                            {cloudSendProgress ? `${cloudSendProgress.sent}/${cloudSendProgress.total}` : "Sending..."}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <MessageSquare className="w-4 h-4 fill-current" />
+                            <span>WhatsApp</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-200 font-normal">
+                            ({selectedIds.length} {selectedIds.length === 1 ? "Credit" : "Credits"})
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowRentReminderQRModal(false)}
+                  className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-100 cursor-pointer text-center transition-colors"
+                >
+                  Close
+                </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🎉 GRAND REMINDERS SUCCESS MODAL */}
+        {grandSuccessData && (
+          <div className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 sm:p-8 text-center space-y-5 animate-in zoom-in-95">
+              {grandSuccessData.type === "EMAIL" ? (
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-blue-500/20 animate-bounce">
+                    <Mail className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider inline-block">
+                      100% Free • Amazon SES Official
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-serif">
+                      Email Invoices Dispatched! 🎉
+                    </h3>
+                    <p className="text-xs text-gray-600 leading-relaxed max-w-xs mx-auto">
+                      Successfully sent official rent payment reminders & invoices to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl text-left space-y-2 text-xs">
+                    <div className="flex items-center gap-2 text-blue-950 font-medium">
+                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</div>
+                      <span>Instant inbox delivery with personalized rent breakdowns</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-blue-950 font-medium">
+                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</div>
+                      <span>Direct UPI & bank payment instructions included</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-blue-950 font-medium">
+                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</div>
+                      <span>Activity audit trail logged in database</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/20 animate-bounce">
+                    <MessageSquare className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider inline-block">
+                      WhatsApp Cloud API • Verified
+                    </span>
+                    <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-serif">
+                      WhatsApp Reminders Dispatched! 🚀
+                    </h3>
+                    <p className="text-xs text-gray-600 leading-relaxed max-w-xs mx-auto">
+                      Successfully dispatched automated WhatsApp reminders to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-left space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-emerald-950 font-bold border-b border-emerald-200/60 pb-1.5">
+                      <span>Credits Deducted:</span>
+                      <span className="font-mono text-emerald-700">-{grandSuccessData.count} Credits</span>
+                    </div>
+                    <div className="flex items-center justify-between text-emerald-950 font-bold">
+                      <span>Remaining Balance:</span>
+                      <span className="font-mono text-emerald-800 font-extrabold">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setGrandSuccessData(null)}
+                className="w-full py-3 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                Awesome, Done! ✨
+              </button>
             </div>
           </div>
         )}
