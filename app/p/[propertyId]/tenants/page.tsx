@@ -500,7 +500,7 @@ export default function TenantsDirectoryPage({
     return buildWhatsAppUrl(occ.phone, message);
   };
 
-  // Candidate occupants for Rent Reminders Modal (Sorted: Overdue first, then Due)
+  // Candidate occupants for Rent Reminders Modal (All active residents with pending due rent)
   const reminderCandidateOccupants = useMemo(() => {
     const active = occupantsList.filter(
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
@@ -514,15 +514,16 @@ export default function TenantsDirectoryPage({
     });
 
     return [...candidates].sort((a, b) => {
-      const aIsOverdue = a.paymentStatus === "Overdue" || (a.daysDiff !== undefined && a.daysDiff < 0);
-      const bIsOverdue = b.paymentStatus === "Overdue" || (b.daysDiff !== undefined && b.daysDiff < 0);
-      if (aIsOverdue && !bIsOverdue) return -1;
-      if (!aIsOverdue && bIsOverdue) return 1;
-      const aDays = a.daysDiff !== undefined ? a.daysDiff : 0;
-      const bDays = b.daysDiff !== undefined ? b.daysDiff : 0;
-      return aDays - bDays;
+      const roomA = a.roomNumber || "";
+      const roomB = b.roomNumber || "";
+      return roomA.localeCompare(roomB, undefined, { numeric: true });
     });
   }, [occupantsList, selectedIds]);
+
+  // Accurately bounded count of selected candidates (guaranteed never to exceed candidate total)
+  const selectedCandidateCount = useMemo(() => {
+    return reminderCandidateOccupants.filter((o) => selectedIds.includes(o.id)).length;
+  }, [reminderCandidateOccupants, selectedIds]);
 
   // Toggle individual tenant in reminder selection
   const handleToggleReminderRecipient = (id: string) => {
@@ -549,13 +550,13 @@ export default function TenantsDirectoryPage({
     const sub = evaluateSubscription(profile);
     if (!sub.isPro) {
       setShowProReminderPaywall(true);
-      triggerToast("🔒 Automated Email Invoices are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+      triggerToast("🔒 Automated Email Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
       return;
     }
 
     const reminderCards = getReminderPaymentCards();
     const activeQr = reminderCards[activeQrIndex] || reminderCards[0];
-    const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+    const selectedOccupants = reminderCandidateOccupants.filter((o) => selectedIds.includes(o.id));
 
     if (selectedOccupants.length === 0) {
       triggerToast("⚠️ Please select at least one tenant to send email reminders.");
@@ -566,6 +567,7 @@ export default function TenantsDirectoryPage({
     setCloudSendProgress({ sent: 0, total: selectedOccupants.length });
 
     let emailSentCount = 0;
+    let lastAwsError = "";
 
     for (const occ of selectedOccupants) {
       const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
@@ -599,20 +601,24 @@ export default function TenantsDirectoryPage({
           }),
         });
 
-        if (emailRes.ok) {
+        const resData = await emailRes.json().catch(() => ({}));
+        if (emailRes.ok && resData?.successfulCount > 0) {
           emailSentCount++;
         } else {
-          const errData = await emailRes.json().catch(() => ({}));
-          console.warn("Failed sending Email for", occ.name, errData);
-          if (errData?.requiresPro) {
+          const errDetail =
+            resData?.results?.[0]?.error ||
+            resData?.error ||
+            "AWS SES Rejected (Sandbox mode: recipient email unverified)";
+          lastAwsError = errDetail;
+          console.warn("Failed sending Email for", occ.name, errDetail);
+          if (resData?.requiresPro) {
             setShowProReminderPaywall(true);
-            triggerToast(errData.error || "🔒 Pro Plan required for automated reminders.");
+            triggerToast(resData.error || "🔒 Pro Plan required for automated reminders.");
             break;
-          } else if (errData?.error) {
-            triggerToast(`⚠️ Email dispatch: ${errData.error}`);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        lastAwsError = err.message || "Network error sending email";
         console.warn("Failed sending Email for", occ.name, err);
       }
 
@@ -626,6 +632,7 @@ export default function TenantsDirectoryPage({
     setCloudSendProgress(null);
 
     if (emailSentCount === 0) {
+      triggerToast(`⚠️ Email not delivered: ${lastAwsError || "Amazon SES is in Sandbox mode awaiting AWS production approval."}`);
       return;
     }
 
@@ -657,7 +664,7 @@ export default function TenantsDirectoryPage({
 
     const reminderCards = getReminderPaymentCards();
     const activeQr = reminderCards[activeQrIndex] || reminderCards[0];
-    const selectedOccupants = occupantsList.filter((o) => selectedIds.includes(o.id));
+    const selectedOccupants = reminderCandidateOccupants.filter((o) => selectedIds.includes(o.id));
 
     if (selectedOccupants.length === 0) {
       triggerToast("⚠️ Please select at least one tenant to send WhatsApp reminders.");
@@ -2886,7 +2893,7 @@ Scroll vertically to browse all residents without pagination limits
                       Send Rent Reminders
                     </h3>
                     <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
-                      {selectedIds.length} of {reminderCandidateOccupants.length} Tenant{reminderCandidateOccupants.length === 1 ? "" : "s"} Selected
+                      {selectedCandidateCount} of {reminderCandidateOccupants.length} Tenant{reminderCandidateOccupants.length === 1 ? "" : "s"} Selected
                     </p>
                   </div>
                 </div>
@@ -3014,12 +3021,12 @@ Scroll vertically to browse all residents without pagination limits
                 );
               })()}
 
-              {/* Step 2: Selected Recipients List with Ticker Checkboxes & Overdue First Ordering */}
+              {/* Step 2: Selected Recipients List with Ticker Checkboxes */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-gray-700" />
-                    <span>2. Selected Recipients ({selectedIds.length}/{reminderCandidateOccupants.length}):</span>
+                    <span>2. Selected Recipients ({selectedCandidateCount}/{reminderCandidateOccupants.length}):</span>
                   </h4>
                   <button
                     type="button"
@@ -3036,7 +3043,7 @@ Scroll vertically to browse all residents without pagination limits
                 <div className="space-y-1.5 max-h-48 sm:max-h-56 overflow-y-auto pr-1">
                   {reminderCandidateOccupants.length === 0 ? (
                     <div className="p-4 rounded-xl bg-gray-50 text-center text-gray-500 text-xs">
-                      No pending or overdue residents found.
+                      No residents with pending rent dues found.
                     </div>
                   ) : (
                     (() => {
@@ -3046,7 +3053,6 @@ Scroll vertically to browse all residents without pagination limits
 
                       return reminderCandidateOccupants.map((occ) => {
                         const isSelected = selectedIds.includes(occ.id);
-                        const isOverdue = occ.paymentStatus === "Overdue" || (occ.daysDiff !== undefined && occ.daysDiff < 0);
 
                         const paymentDetailsText = isCashReq
                           ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
@@ -3069,9 +3075,7 @@ Scroll vertically to browse all residents without pagination limits
                             onClick={() => handleToggleReminderRecipient(occ.id)}
                             className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 text-xs transition-all cursor-pointer select-none ${
                               isSelected
-                                ? isOverdue
-                                  ? "bg-rose-50/50 border-rose-200"
-                                  : "bg-orange-50/50 border-orange-200"
+                                ? "bg-amber-50/50 border-amber-200"
                                 : "bg-gray-50/60 border-gray-200 opacity-60 hover:opacity-100"
                             }`}
                           >
@@ -3089,15 +3093,9 @@ Scroll vertically to browse all residents without pagination limits
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-gray-900 truncate">{occ.name}</span>
-                                {isOverdue ? (
-                                  <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-200 text-[9px] font-extrabold uppercase flex items-center gap-0.5">
-                                    🚨 Overdue
-                                  </span>
-                                ) : (
-                                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold uppercase">
-                                    ⏳ Due
-                                  </span>
-                                )}
+                                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold uppercase">
+                                  ⏳ Due
+                                </span>
                                 {occ.email && (
                                   <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[130px]">
                                     ✉️ {occ.email}
@@ -3136,7 +3134,7 @@ Scroll vertically to browse all residents without pagination limits
                     <span>1-Click Send Rent Reminders</span>
                   </span>
                   <span className="text-[10px] text-gray-400 font-medium">
-                    {selectedIds.length} Selected
+                    {selectedCandidateCount} Selected
                   </span>
                 </div>
 
@@ -3154,7 +3152,7 @@ Scroll vertically to browse all residents without pagination limits
                     {/* Email (Free) Button */}
                     <button
                       type="button"
-                      disabled={isSendingCloudEmail || isSendingCloudWhatsApp || selectedIds.length === 0}
+                      disabled={isSendingCloudEmail || isSendingCloudWhatsApp || selectedCandidateCount === 0}
                       onClick={handleSendEmailReminders}
                       className="py-2.5 sm:py-3 px-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95"
                     >
@@ -3179,7 +3177,7 @@ Scroll vertically to browse all residents without pagination limits
                     {/* WhatsApp (Credits) Button */}
                     <button
                       type="button"
-                      disabled={isSendingCloudWhatsApp || isSendingCloudEmail || selectedIds.length === 0}
+                      disabled={isSendingCloudWhatsApp || isSendingCloudEmail || selectedCandidateCount === 0}
                       onClick={handleSendCloudWhatsAppReminders}
                       className="py-2.5 sm:py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95"
                     >
@@ -3197,7 +3195,7 @@ Scroll vertically to browse all residents without pagination limits
                             <span>WhatsApp</span>
                           </div>
                           <span className="text-[10px] text-emerald-200 font-normal">
-                            ({selectedIds.length} {selectedIds.length === 1 ? "Credit" : "Credits"})
+                            ({selectedCandidateCount} {selectedCandidateCount === 1 ? "Credit" : "Credits"})
                           </span>
                         </>
                       )}
