@@ -31,6 +31,7 @@ import {
   Upload,
   ArrowUpRight,
   Wallet,
+  Lock,
 } from "lucide-react";
 import {
   propertySettingsStore,
@@ -976,85 +977,118 @@ export default function PropertySettingsPage({
                 </div>
 
                 {/* Desired Rent Due Date */}
-                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                      <DollarSign className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Monthly Rent Due Date</h3>
-                      <p className="text-[11px] text-gray-500">Target day of the month when rent is due</p>
-                    </div>
-                  </div>
+                {(() => {
+                  const isAnniversary = settings.billingCycleDates === "Anniversary Date";
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-gray-700">Target Due Day *</label>
-                      <span className="text-[11px] font-bold text-[#c2652a]">Due on {settings.desiredDueDate}th</span>
-                    </div>
+                  return (
+                    <div
+                      className={`p-4 sm:p-6 rounded-2xl border transition-all space-y-4 ${
+                        isAnniversary
+                          ? "bg-gray-100/80 border-gray-200 opacity-60 cursor-not-allowed select-none"
+                          : "bg-white border-gray-200 shadow-xs"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`p-2 sm:p-2.5 rounded-xl shrink-0 ${
+                              isAnniversary ? "bg-gray-200 text-gray-500" : "bg-blue-50 text-blue-600"
+                            }`}
+                          >
+                            <DollarSign className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-sm sm:text-base text-gray-900">Monthly Rent Due Date</h3>
+                            <p className="text-[11px] text-gray-500">Target day of the month when rent is due</p>
+                          </div>
+                        </div>
 
-                    {/* Stepper + Input */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            desiredDueDate: Math.max(1, settings.desiredDueDate - 1),
-                          })
-                        }
-                        className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
-                      >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        min={1}
-                        max={28}
-                        required
-                        value={settings.desiredDueDate}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            desiredDueDate: Number(e.target.value),
-                          })
-                        }
-                        className="flex-1 px-3 py-2 rounded-xl border border-gray-300 font-mono font-bold text-sm text-center text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            desiredDueDate: Math.min(28, settings.desiredDueDate + 1),
-                          })
-                        }
-                        className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
-                      >
-                        +
-                      </button>
-                      <span className="font-bold text-xs text-gray-600 shrink-0">th of Month</span>
-                    </div>
+                        {isAnniversary && (
+                          <span className="px-2 py-0.5 rounded-md bg-gray-200 text-gray-700 font-bold text-[10px] flex items-center gap-1 shadow-2xs">
+                            <Lock className="w-3 h-3 text-gray-500" /> Locked (Anniversary)
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Quick One-Tap Thumb Chips */}
-                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                      {[1, 5, 10, 15].map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setSettings({ ...settings, desiredDueDate: d })}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                            settings.desiredDueDate === d
-                              ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
-                              : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                          }`}
-                        >
-                          {d}th {d === 5 ? "★ (Popular)" : ""}
-                        </button>
-                      ))}
+                      {isAnniversary ? (
+                        <div className="p-3 rounded-xl bg-gray-200/60 border border-gray-300/80 text-gray-700 text-xs flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-gray-500 shrink-0" />
+                          <p className="text-[11px] font-medium leading-relaxed">
+                            <strong>Dynamic Anniversary Mode Active:</strong> Rent is dynamically due on each resident&apos;s individual joining date (e.g., 12th if joined on 12th). Fixed monthly due day is not applicable.
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-bold text-gray-700">Target Due Day *</label>
+                            <span className="text-[11px] font-bold text-[#c2652a]">Due on {settings.desiredDueDate}th</span>
+                          </div>
+
+                          {/* Stepper + Input */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSettings({
+                                  ...settings,
+                                  desiredDueDate: Math.max(1, settings.desiredDueDate - 1),
+                                })
+                              }
+                              className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              max={28}
+                              required
+                              value={settings.desiredDueDate}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  desiredDueDate: Number(e.target.value),
+                                })
+                              }
+                              className="flex-1 px-3 py-2 rounded-xl border border-gray-300 font-mono font-bold text-sm text-center text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSettings({
+                                  ...settings,
+                                  desiredDueDate: Math.min(28, settings.desiredDueDate + 1),
+                                })
+                              }
+                              className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                            >
+                              +
+                            </button>
+                            <span className="font-bold text-xs text-gray-600 shrink-0">th of Month</span>
+                          </div>
+
+                          {/* Quick One-Tap Thumb Chips */}
+                          <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                            {[1, 5, 10, 15].map((d) => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => setSettings({ ...settings, desiredDueDate: d })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                  settings.desiredDueDate === d
+                                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                                    : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                                }`}
+                              >
+                                {d}th {d === 5 ? "★ (Popular)" : ""}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Grace Period Days */}
                 <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
