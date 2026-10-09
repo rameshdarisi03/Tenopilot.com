@@ -406,14 +406,19 @@ export default function PropertyOverviewPage({
               </div>
               <div className="mt-3">
                 <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                  {rentCompliance.overdueTenantsCount}{" "}
+                  {rentCompliance.totalPendingDueCount}{" "}
                   <span className="text-lg font-semibold text-gray-500">
-                    {rentCompliance.overdueTenantsCount === 1 ? "Tenant Rent Pending" : "Tenants Rent Pending"}
+                    {rentCompliance.totalPendingDueCount === 1 ? "Tenant Rent Pending" : "Tenants Rent Pending"}
                   </span>
                 </p>
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs font-bold text-[#c2652a]">
                     {rentCompliance.paidTenantsCount} / {rentCompliance.totalActiveTenants} Tenants have paid rent ({rentCompliance.paidRatePct}%)
+                    {rentCompliance.overdueTenantsCount > 0 && (
+                      <span className="text-amber-800 font-extrabold ml-1">
+                        • {rentCompliance.overdueTenantsCount} Overdue
+                      </span>
+                    )}
                   </p>
                   <span className="text-[10px] font-extrabold text-[#c2652a] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
                     Send Reminders ➔
