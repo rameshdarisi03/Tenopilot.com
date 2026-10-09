@@ -633,7 +633,7 @@ export default function TenantsDirectoryPage({
 
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
-      title: `Email Invoices Sent: ${emailSentCount} tenants`,
+      title: `Email Rent Reminders Sent: ${emailSentCount} tenants`,
       subtitle: `Dispatched via Amazon SES Official Gateway (Free)`,
       staffName: profile?.displayName || "Manager",
       staffRole: "Property Admin",
@@ -3220,65 +3220,44 @@ Scroll vertically to browse all residents without pagination limits
         {/* 🎉 GRAND REMINDERS SUCCESS MODAL */}
         {grandSuccessData && (
           <div className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 sm:p-8 text-center space-y-5 animate-in zoom-in-95">
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-sm w-full p-6 sm:p-7 text-center space-y-5 animate-in zoom-in-95">
               {grandSuccessData.type === "EMAIL" ? (
                 <>
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-blue-500/20 animate-bounce">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-blue-500/20">
                     <Mail className="w-8 h-8" />
                   </div>
-                  <div className="space-y-2">
-                    <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider inline-block">
-                      100% Free • Amazon SES Official
+                  <div className="space-y-1.5">
+                    <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider inline-block border border-blue-200">
+                      100% Free • Amazon SES
                     </span>
-                    <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-serif">
-                      Email Invoices Dispatched! 🎉
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight font-serif pt-1">
+                      Email Reminders Sent! 🎉
                     </h3>
-                    <p className="text-xs text-gray-600 leading-relaxed max-w-xs mx-auto">
-                      Successfully sent official rent payment reminders & invoices to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
+                    <p className="text-xs text-gray-600 leading-relaxed px-1">
+                      Rent reminder emails have been successfully sent to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
                     </p>
-                  </div>
-
-                  <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl text-left space-y-2 text-xs">
-                    <div className="flex items-center gap-2 text-blue-950 font-medium">
-                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</div>
-                      <span>Instant inbox delivery with personalized rent breakdowns</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-blue-950 font-medium">
-                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</div>
-                      <span>Direct UPI & bank payment instructions included</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-blue-950 font-medium">
-                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</div>
-                      <span>Activity audit trail logged in database</span>
-                    </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/20 animate-bounce">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/20">
                     <MessageSquare className="w-8 h-8" />
                   </div>
-                  <div className="space-y-2">
-                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider inline-block">
-                      WhatsApp Cloud API • Verified
+                  <div className="space-y-1.5">
+                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider inline-block border border-emerald-200">
+                      WhatsApp Cloud API
                     </span>
-                    <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-serif">
-                      WhatsApp Reminders Dispatched! 🚀
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight font-serif pt-1">
+                      WhatsApp Reminders Sent! 🚀
                     </h3>
-                    <p className="text-xs text-gray-600 leading-relaxed max-w-xs mx-auto">
-                      Successfully dispatched automated WhatsApp reminders to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
+                    <p className="text-xs text-gray-600 leading-relaxed px-1">
+                      Rent reminder WhatsApp messages have been successfully sent to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
                     </p>
                   </div>
 
-                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-left space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-emerald-950 font-bold border-b border-emerald-200/60 pb-1.5">
-                      <span>Credits Deducted:</span>
-                      <span className="font-mono text-emerald-700">-{grandSuccessData.count} Credits</span>
-                    </div>
-                    <div className="flex items-center justify-between text-emerald-950 font-bold">
-                      <span>Remaining Balance:</span>
-                      <span className="font-mono text-emerald-800 font-extrabold">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
-                    </div>
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs flex items-center justify-between text-emerald-950 font-medium">
+                    <span>Wallet Balance:</span>
+                    <span className="font-mono font-bold text-emerald-800">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
                   </div>
                 </>
               )}
