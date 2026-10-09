@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
@@ -42,13 +43,12 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { staffStore, UserRole } from "@/lib/staffStore";
 import { buildWhatsAppUrl } from "@/utils/security";
 
-export default function PropertyMapPage({
-  params,
+function PropertyMapContent({
+  propertyId,
 }: {
-  params: Promise<{ propertyId: string }>;
+  propertyId: string;
 }) {
-  const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const searchParams = useSearchParams();
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -120,7 +120,31 @@ export default function PropertyMapPage({
   const [selectedRoom, setSelectedRoom] = useState<string>("ALL ROOMS");
   const [activeFilterStatus, setActiveFilterStatus] = useState<
     "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest"
-  >("ALL");
+  >(() => {
+    const f = searchParams?.get("filter")?.toLowerCase();
+    if (f === "available" || f === "vacant") return "Available";
+    if (f === "occupied") return "Occupied";
+    if (f === "vacating") return "Vacating";
+    if (f === "booked") return "Booked";
+    if (f === "guest" || f === "guests") return "Guest";
+    return "ALL";
+  });
+
+  // Sync active filter status if URL search params change
+  useEffect(() => {
+    const f = searchParams?.get("filter")?.toLowerCase();
+    if (f === "available" || f === "vacant") {
+      setActiveFilterStatus("Available");
+    } else if (f === "occupied") {
+      setActiveFilterStatus("Occupied");
+    } else if (f === "vacating") {
+      setActiveFilterStatus("Vacating");
+    } else if (f === "booked") {
+      setActiveFilterStatus("Booked");
+    } else if (f === "guest" || f === "guests") {
+      setActiveFilterStatus("Guest");
+    }
+  }, [searchParams]);
 
   // Selected Bed Slot state for Quick-View Drawer
   const [activeBedSlot, setActiveBedSlot] = useState<{
@@ -1469,3 +1493,19 @@ export default function PropertyMapPage({
     </div>
   );
 }
+
+export default function PropertyMapPage({
+  params,
+}: {
+  params: Promise<{ propertyId: string }>;
+}) {
+  const resolvedParams = use(params);
+  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#fcf9f8] flex items-center justify-center text-gray-500 font-bold text-sm">Loading Floor Navigation...</div>}>
+      <PropertyMapContent propertyId={propertyId} />
+    </Suspense>
+  );
+}
+

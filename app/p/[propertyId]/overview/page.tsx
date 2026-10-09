@@ -349,12 +349,16 @@ export default function PropertyOverviewPage({
           {/* 4 High-Impact Operational KPI Bento Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Card 1: Vacant Inventory & Occupancy */}
-            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-[#c2652a]/60 transition-all flex flex-col justify-between group">
+            <Link
+              href={`/p/${propertyId}/property-map?filter=available`}
+              className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-[#c2652a] hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
+              title="Click to view all vacant and available beds on Floor Map"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
                   VACANT INVENTORY
                 </span>
-                <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a] group-hover:scale-105 transition-transform">
+                <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a] group-hover:scale-110 group-hover:bg-[#c2652a] group-hover:text-white transition-all">
                   <Building2 className="w-4 h-4" />
                 </div>
               </div>
@@ -362,11 +366,16 @@ export default function PropertyOverviewPage({
                 <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
                   {totalBeds - occupiedBeds} <span className="text-lg font-semibold text-gray-500">Vacant Beds</span>
                 </p>
-                <p className="text-xs font-bold text-[#c2652a] mt-1">
-                  {occupiedBeds} / {totalBeds} Beds Occupied ({occRatePct}%)
-                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs font-bold text-[#c2652a]">
+                    {occupiedBeds} / {totalBeds} Beds Occupied ({occRatePct}%)
+                  </p>
+                  <span className="text-[10px] font-extrabold text-[#c2652a] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                    View Floor Map ➔
+                  </span>
+                </div>
               </div>
-            </div>
+            </Link>
 
             {/* Card 2: Rent Collected */}
             <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:border-emerald-500/60 transition-all flex flex-col justify-between group">
