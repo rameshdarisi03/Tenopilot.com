@@ -30,6 +30,7 @@ import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { buildWhatsAppUrl } from "@/utils/security";
+import { RentReceiptModal } from "@/components/RentReceiptModal";
 import {
   ChevronLeft,
   ChevronDown,
@@ -245,6 +246,9 @@ export default function IndividualTenantProfilePage({
 
   // Payment History State (Starts empty [] for Booked status or newly onboarded profiles!)
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
+
+  // Selected Receipt for PDF/Print Modal
+  const [selectedReceiptForModal, setSelectedReceiptForModal] = useState<PaymentHistoryItem | null>(null);
 
   // Real-time Property Settings
   const [propertySettings, setPropertySettings] = useState(() => propertySettingsStore.getSettings(propertyId));
@@ -2425,6 +2429,15 @@ export default function IndividualTenantProfilePage({
                             </td>
                             <td className="py-3 text-right">
                               <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedReceiptForModal(item)}
+                                  className="px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all mr-1"
+                                  title="View / Download PDF Receipt"
+                                >
+                                  <FileText className="w-3 h-3 text-amber-600" />
+                                  <span>PDF</span>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
@@ -5565,6 +5578,17 @@ export default function IndividualTenantProfilePage({
               );
               triggerToast(`🎉 Completed formal check-out & deposit settlement for ${occupantState.name}!`);
             }}
+          />
+        )}
+
+        {/* 📄 Colorful Official Rental/Deposit PDF Receipt & Print Modal */}
+        {selectedReceiptForModal && occupantState && (
+          <RentReceiptModal
+            isOpen={!!selectedReceiptForModal}
+            onClose={() => setSelectedReceiptForModal(null)}
+            receiptItem={selectedReceiptForModal}
+            occupant={occupantState}
+            propertySettings={propertySettings}
           />
         )}
       </>
