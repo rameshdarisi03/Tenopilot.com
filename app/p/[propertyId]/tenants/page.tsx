@@ -179,9 +179,15 @@ export default function TenantsDirectoryPage({
   const [showFastTrackModal, setShowFastTrackModal] = useState(false);
   const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
 
-  // Collect Rent Modal State
+  // Collect Rent Modal State (Defaults dynamically to today's running calendar date)
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
-  const [paymentDate, setPaymentDate] = useState<string>("2026-08-01");
+  const [paymentDate, setPaymentDate] = useState<string>(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  });
   const [paymentPurpose, setPaymentPurpose] = useState<"RENT" | "DEPOSIT" | "COMBINED">("RENT");
   const [rentPaymentPortion, setRentPaymentPortion] = useState<number>(14500);
   const [depositPaymentPortion, setDepositPaymentPortion] = useState<number>(0);

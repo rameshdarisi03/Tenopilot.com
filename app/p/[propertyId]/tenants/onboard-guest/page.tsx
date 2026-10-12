@@ -1376,7 +1376,7 @@ export default function OnboardGuestPage({
                   )}
 
                   {/* Section-level Indicator for Govt ID */}
-                  {(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) ? (
+                  {(aadhaarFrontUrl || aadhaarBackUrl || aadhaarFrontDoc || aadhaarBackDoc || aadhaarDoc) && (
                     <div className="space-y-2 w-full pt-2 border-t border-gray-200/80">
                       <div className="p-2.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-950 font-bold text-xs flex items-center justify-between animate-in fade-in">
                         <span className="flex items-center gap-1.5">
@@ -1384,20 +1384,8 @@ export default function OnboardGuestPage({
                         </span>
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 font-bold text-[11px] flex items-center gap-1.5 animate-in fade-in">
-                      <Info className="w-4 h-4 text-purple-700 shrink-0" />
-                      <span>💡 Optional: If left empty, completing onboarding automatically marks KYC as Pending 🟡</span>
-                    </div>
                   )}
                 </div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
-                <Info className="w-4 h-4 text-purple-700 shrink-0" />
-                <span>
-                  The system verifies individual upload steps above. Profiles reflect <strong>Verified 🟢</strong>, <strong>Partial KYC 🟡</strong>, or <strong>KYC Pending 🟡</strong> accordingly.
-                </span>
               </div>
 
               {/* 💬 WhatsApp Welcome Dispatch Toggle */}
