@@ -176,14 +176,14 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_rent_due_reminder",
+            name: "pg_rent_due_friendly",
             language: { code: "en_US" },
             components: [
               {
                 type: "body",
                 parameters: [
-                  { type: "text", text: payload.recipientName },
                   { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
                   { type: "text", text: roomStay },
                   { type: "text", text: amountStr },
                   { type: "text", text: dueDateStr },
