@@ -76,7 +76,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
     case "RENT_REMINDER": {
       const isCash = p.upiId === "CASH_PAYMENT" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
       const subject = isCash
-        ? `🏠 Rent Payment Notice (Pay by Cash) for Room ${p.roomNumber || "N/A"} — ${pName}`
+        ? `🏠 Rent Payment Reminder (Pay by Cash) for Room ${p.roomNumber || "N/A"} — ${pName}`
         : `🏠 Rent Payment Reminder for Room ${p.roomNumber || "N/A"} — ${pName}`;
       const upiText = isCash
         ? "CASH IN HAND at PG Reception / Front Desk"
@@ -119,7 +119,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         🏢 ${pName.toUpperCase()}
       </div>
       <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Rent Payment Reminder</h1>
-      <p style="margin:0;color:#cbd5e1;font-size:13px;">Official Notice for Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})</p>
+      <p style="margin:0;color:#cbd5e1;font-size:13px;">Friendly Reminder for Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})</p>
     </div>
 
     <!-- Main Body -->

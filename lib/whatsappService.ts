@@ -71,8 +71,10 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
           (p.upiId && p.upiId !== "CASH_PAYMENT" ? `🔗 _Direct UPI Pay Link:_ upi://pay?pa=${p.upiId}&pn=${encodeURIComponent(pName)}&am=${Number(p.amount || 0)}&cu=INR` : "");
 
       return (
-        `👋 *Hello ${payload.recipientName}*,\n\n` +
-        `Hope you're having a comfortable stay with us at *${pName}*! ✨\n\n` +
+        `*${pName}*\n` +
+        `Greetings from ${pName} Management! ✨\n\n` +
+        `Hello *${payload.recipientName}*,\n\n` +
+        `Hope you're having a comfortable and peaceful stay with us!\n\n` +
         `This is a friendly reminder regarding your monthly accommodation dues for Room *${p.roomNumber || "N/A"}* (${p.bedCode || "Standard Bed"}):\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `💰 *Amount Due*: ₹${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
@@ -82,11 +84,9 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `${paymentInstr}\n\n` +
         `💡 _Once paid, kindly share the screenshot or transaction reference so we can issue your official digital receipt immediately._\n\n` +
-        `_Thank you for being a valued resident of ${pName}!_\n\n` +
+        `Thank you for being a valued resident!\n\n` +
         `Warm regards,\n` +
-        `*Management & Operations Desk*\n` +
-        `*${pName}*\n` +
-        `_Powered by TenoPilot.com_`
+        `*${pName} Management Desk*`
       );
     }
 
@@ -96,11 +96,12 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
       const payMode = p.paymentMode || "UPI / Digital Transfer";
 
       return (
-        `🎉 *OFFICIAL PAYMENT RECEIPT — ${pName}*\n\n` +
+        `*${pName}*\n` +
+        `Greetings from ${pName} Management! 🌟\n\n` +
         `Dear *${payload.recipientName}*,\n\n` +
         `We have successfully received and verified your payment. Thank you for clearing your accommodation dues promptly! 🟢\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `🧾 *Receipt No*: ${receiptNo}\n` +
+        `🧾 *Receipt Number*: ${receiptNo}\n` +
         `💵 *Amount Received*: ₹${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
         `📅 *Date Paid*: ${paidDate}\n` +
         `💳 *Payment Mode*: ${payMode}\n` +
@@ -109,38 +110,40 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `✅ *Status*: Fully Verified & Recorded in Property Ledger\n` +
         `📄 _This electronic confirmation serves as your authentic proof of payment._\n\n` +
-        `We appreciate having you as our resident at *${pName}*. Wishing you a wonderful day! 🌟\n\n` +
+        `Thank you for being a valued resident of ${pName}!\n\n` +
         `Warm regards,\n` +
-        `*Administration & Accounts*\n` +
-        `*${pName}*\n` +
-        `_TenoPilot Verified Ledger_`
+        `*${pName} Administration*`
       );
     }
 
     case "ONBOARDING_INVITE": {
       return (
-        `🏢 *Welcome to ${pName}!* 🎉\n\n` +
-        `Dear ${payload.recipientName},\n` +
-        `Please complete your digital check-in and KYC registration on our tenant portal:\n\n` +
+        `*${pName}*\n` +
+        `Welcome to ${pName}! 🎉\n\n` +
+        `Dear *${payload.recipientName}*,\n\n` +
+        `We are delighted to welcome you to our community! To ensure a seamless check-in experience, please complete your digital resident registration and KYC:\n\n` +
         `🔗 *Registration Link*: ${p.onboardUrl || "https://tenopilot.com"}\n\n` +
-        `Please submit your ID proof and digital signature prior to check-in.\n` +
-        `_${pName} Management_`
+        `Please have your photo ID handy. It takes only 2 minutes.\n\n` +
+        `Warm regards,\n` +
+        `*${pName} Administration*`
       );
     }
 
     case "COMPLAINT_UPDATE": {
       return (
-        `🛠️ *Maintenance Ticket Update — ${pName}*\n\n` +
-        `Dear ${payload.recipientName},\n` +
+        `*${pName}*\n` +
+        `Greetings from ${pName} Support Desk!\n\n` +
+        `Dear *${payload.recipientName}*,\n\n` +
         `Your maintenance ticket *#${p.complaintId || "CARE"}* (${p.complaintTitle || "Maintenance issue"}) has been updated to: *${p.complaintStatus || "In Progress"}*.\n\n` +
-        `Our team is addressing this promptly.\n` +
-        `_${pName} Support Desk_`
+        `Our team is addressing this promptly.\n\n` +
+        `Warm regards,\n` +
+        `*${pName} Support Desk*`
       );
     }
 
     case "CUSTOM":
     default:
-      return p.customMessage || `Hello ${payload.recipientName}, update from ${pName}.`;
+      return `*${pName}*\n\n${p.customMessage || `Hello ${payload.recipientName}, update from ${pName}.`}`;
   }
 }
 
@@ -222,7 +225,11 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const receiptNoStr = p.receiptId || `RCP-${Date.now().toString().slice(-6)}`;
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
-        
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const paidDateStr = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const modeStr = p.paymentMode || "UPI";
+
         // Construct dynamic direct PDF streaming URL
         const pdfParams = new URLSearchParams({
           receiptNo: receiptNoStr,
@@ -231,26 +238,50 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           roomNumber: p.roomNumber || "N/A",
           bedCode: p.bedCode || "Bed 1",
           amount: String(p.amount || 0),
-          paidDate: p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-          paymentMode: p.paymentMode || "UPI",
+          paidDate: paidDateStr,
+          paymentMode: modeStr,
           paidTo: p.bankLabel || "Main Business Pool",
           isDeposit: receiptNoStr.startsWith("DEP") ? "true" : "false",
         });
 
         const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
         const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
-        const caption = `🧾 Official Rent Payment Receipt (#${receiptNoStr}) for Room ${p.roomNumber || "N/A"} — ${pName}`;
 
-        // 📎 Send Native PDF Document Attachment right into WhatsApp Chat
+        // 📎 First priority: Send pre-approved Meta Document-Header Template outside 24h window
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
-          type: "document",
-          document: {
-            link: pdfUrl,
-            filename: fileName,
-            caption: caption,
+          type: "template",
+          template: {
+            name: "pg_rent_payment_receipt_doc",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: pdfUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: receiptNoStr },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: paidDateStr },
+                  { type: "text", text: modeStr },
+                  { type: "text", text: roomStay },
+                ],
+              },
+            ],
           },
         };
       } else {
