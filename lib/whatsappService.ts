@@ -220,34 +220,37 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
       } else if (payload.type === "PAYMENT_RECEIPT") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
-        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
-        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
         const receiptNoStr = p.receiptId || `RCP-${Date.now().toString().slice(-6)}`;
-        const paidDateStr = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-        const modeStr = p.paymentMode || "UPI";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
+        
+        // Construct dynamic direct PDF streaming URL
+        const pdfParams = new URLSearchParams({
+          receiptNo: receiptNoStr,
+          propertyName: pName,
+          residentName: payload.recipientName,
+          roomNumber: p.roomNumber || "N/A",
+          bedCode: p.bedCode || "Bed 1",
+          amount: String(p.amount || 0),
+          paidDate: p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+          paymentMode: p.paymentMode || "UPI",
+          paidTo: p.bankLabel || "Main Business Pool",
+          isDeposit: receiptNoStr.startsWith("DEP") ? "true" : "false",
+        });
 
+        const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
+        const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
+        const caption = `🧾 Official Rent Payment Receipt (#${receiptNoStr}) for Room ${p.roomNumber || "N/A"} — ${pName}`;
+
+        // 📎 Send Native PDF Document Attachment right into WhatsApp Chat
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
-          type: "template",
-          template: {
-            name: "pg_rent_payment_receipt",
-            language: { code: "en_US" },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: payload.recipientName },
-                  { type: "text", text: pName },
-                  { type: "text", text: receiptNoStr },
-                  { type: "text", text: amountStr },
-                  { type: "text", text: paidDateStr },
-                  { type: "text", text: modeStr },
-                  { type: "text", text: roomStay },
-                ],
-              },
-            ],
+          type: "document",
+          document: {
+            link: pdfUrl,
+            filename: fileName,
+            caption: caption,
           },
         };
       } else {
