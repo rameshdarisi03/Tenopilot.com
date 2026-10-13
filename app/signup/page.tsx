@@ -46,6 +46,7 @@ function SignUpPageContent() {
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [purgedActivationNotice, setPurgedActivationNotice] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [highlightTerms, setHighlightTerms] = useState(false);
 
   // 🔄 Smart Visibility & Polling Listener: Detects email verification cleanly without IndexedDB collisions
   useEffect(() => {
@@ -94,9 +95,11 @@ function SignUpPageContent() {
   const handleGoogleSignUp = async () => {
     setError(null);
     if (!agreedToTerms) {
-      setError("Please check the box to agree to the Terms of Service and Privacy Policy before continuing with Google.");
+      setHighlightTerms(true);
+      setError("⚠️ Please check the box above to accept the Terms of Service & Privacy Policy before continuing with Google.");
       return;
     }
+    setHighlightTerms(false);
     setIsLoading(true);
     try {
       const authResult = await loginWithGoogle(true);
@@ -158,10 +161,11 @@ function SignUpPageContent() {
     }
 
     if (!agreedToTerms) {
-      setError("Please check the box to agree to the Terms of Service and Privacy Policy.");
+      setHighlightTerms(true);
+      setError("⚠️ Please check the box above to accept the Terms of Service & Privacy Policy before creating your account.");
       return;
     }
-
+    setHighlightTerms(false);
     setIsLoading(true);
 
     try {
@@ -445,13 +449,29 @@ function SignUpPageContent() {
           ) : (
             <div className="space-y-4">
               {/* Terms of Service & Privacy Policy Universal Consent Checkbox */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 transition-all">
+              <div
+                className={`p-3.5 rounded-2xl border transition-all ${
+                  highlightTerms
+                    ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-200 shadow-sm"
+                    : agreedToTerms
+                    ? "bg-emerald-50/60 border-emerald-200"
+                    : "bg-amber-50/70 border-amber-200/80"
+                }`}
+              >
                 <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 leading-snug">
                   <input
                     type="checkbox"
                     checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] cursor-pointer shrink-0 accent-[#c2652a]"
+                    onChange={(e) => {
+                      setAgreedToTerms(e.target.checked);
+                      if (e.target.checked) {
+                        setHighlightTerms(false);
+                        if (error?.includes("Terms of Service")) setError(null);
+                      }
+                    }}
+                    className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 accent-[#c2652a] ${
+                      highlightTerms ? "border-rose-400 ring-2 ring-rose-300" : "border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
+                    }`}
                   />
                   <span>
                     I have read and agree to the{" "}
@@ -473,14 +493,20 @@ function SignUpPageContent() {
                     .
                   </span>
                 </label>
+                {highlightTerms && (
+                  <p className="text-[11px] font-bold text-rose-700 mt-2 pl-6 flex items-center gap-1.5 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>Please tick this box to continue</span>
+                  </p>
+                )}
               </div>
 
               {/* 1. Google 1-Click Sign-Up Button */}
               <button
                 type="button"
                 onClick={handleGoogleSignUp}
-                disabled={isLoading || !agreedToTerms}
-                className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-2xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+                className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-2xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -612,7 +638,7 @@ function SignUpPageContent() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isLoading || !agreedToTerms}
+                  disabled={isLoading}
                   className="w-full py-3 mt-1 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 hover:opacity-95 transition-all cursor-pointer active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isLoading ? (

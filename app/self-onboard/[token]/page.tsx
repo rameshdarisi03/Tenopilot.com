@@ -47,6 +47,7 @@ export default function TenantSelfOnboardingPage({
   const [aadhaarBack, setAadhaarBack] = useState<string | null>(null);
   const [signatureName, setSignatureName] = useState("");
   const [residentAgreedToTerms, setResidentAgreedToTerms] = useState(false);
+  const [highlightResidentTerms, setHighlightResidentTerms] = useState(false);
 
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
@@ -92,9 +93,10 @@ export default function TenantSelfOnboardingPage({
     if (!matchedOccupant) return;
 
     if (!residentAgreedToTerms) {
-      alert("Please check the box to agree to the Terms of Service and Privacy Policy to complete verification.");
+      setHighlightResidentTerms(true);
       return;
     }
+    setHighlightResidentTerms(false);
 
     // Update occupant in store
     const updated: Occupant = {
@@ -357,13 +359,26 @@ export default function TenantSelfOnboardingPage({
               </div>
 
               {/* Terms of Service & Privacy Policy Consent Checkbox */}
-              <div className="pt-2 p-3.5 rounded-xl bg-gray-50 border border-gray-200">
+              <div
+                className={`pt-2 p-3.5 rounded-xl border transition-all ${
+                  highlightResidentTerms
+                    ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-200 shadow-sm"
+                    : residentAgreedToTerms
+                    ? "bg-emerald-50/60 border-emerald-200"
+                    : "bg-gray-50 border-gray-200"
+                }`}
+              >
                 <label className="flex items-start gap-2.5 cursor-pointer text-[11px] text-gray-600 leading-snug">
                   <input
                     type="checkbox"
                     checked={residentAgreedToTerms}
-                    onChange={(e) => setResidentAgreedToTerms(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer shrink-0 accent-emerald-600"
+                    onChange={(e) => {
+                      setResidentAgreedToTerms(e.target.checked);
+                      if (e.target.checked) setHighlightResidentTerms(false);
+                    }}
+                    className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 accent-emerald-600 ${
+                      highlightResidentTerms ? "border-rose-400 ring-2 ring-rose-300" : "border-gray-300 text-emerald-600 focus:ring-emerald-600"
+                    }`}
                   />
                   <span>
                     I confirm my residency details, agree to the{" "}
@@ -385,6 +400,12 @@ export default function TenantSelfOnboardingPage({
                     , and consent to receiving accommodation receipts and notices via Email and WhatsApp.
                   </span>
                 </label>
+                {highlightResidentTerms && (
+                  <p className="text-[11px] font-bold text-rose-700 mt-2 pl-6 flex items-center gap-1.5 animate-in fade-in">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>Please tick this box to complete resident verification</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -399,8 +420,7 @@ export default function TenantSelfOnboardingPage({
               <button
                 type="button"
                 onClick={handleSubmitKYC}
-                disabled={!residentAgreedToTerms}
-                className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Submit Verification & Complete</span>
