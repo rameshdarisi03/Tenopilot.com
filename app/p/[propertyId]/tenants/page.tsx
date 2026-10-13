@@ -1072,6 +1072,7 @@ export default function TenantsDirectoryPage({
       }
 
       // 2. Status Segmented Tab Filter (Only applied when NOT searching)
+      if (activeFilterTab === "All" && occ.lifecycleStatus === "Past") return false;
       if (activeFilterTab === "Booked" && occ.lifecycleStatus !== "Booked") return false;
       if (activeFilterTab === "Active" && occ.lifecycleStatus !== "Active") return false;
       if (activeFilterTab === "Notice" && occ.lifecycleStatus !== "Notice") return false;
@@ -1192,7 +1193,7 @@ export default function TenantsDirectoryPage({
 
   const counts = useMemo(() => {
     return {
-      All: occupantsList.length,
+      All: occupantsList.filter((o) => o.lifecycleStatus !== "Past").length,
       Booked: occupantsList.filter((o) => o.lifecycleStatus === "Booked").length,
       Active: occupantsList.filter((o) => o.lifecycleStatus === "Active").length,
       Notice: occupantsList.filter((o) => o.lifecycleStatus === "Notice").length,
