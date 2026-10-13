@@ -17,6 +17,20 @@ export interface PaymentHistoryItem {
   };
 }
 
+export interface CheckoutSettlementAudit {
+  settledDate: string;
+  initialDeposit: number;
+  unpaidRentDeduction?: number;
+  repairDeduction?: number;
+  maintenanceDeduction?: number;
+  otherDeductions?: number;
+  totalDeductions: number;
+  netRefunded: number;
+  status: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND";
+  paymentChannel?: string;
+  notes?: string;
+}
+
 export interface Occupant {
   id: string;
   name: string;
@@ -61,6 +75,7 @@ export interface Occupant {
   partialPaidThisCycle?: number;
   arrearsBalance?: number;
   paymentHistory?: PaymentHistoryItem[];
+  checkoutSettlement?: CheckoutSettlementAudit;
 }
 
 // 200 Guaranteed 100% Unique Indian Names (No Duplicates)

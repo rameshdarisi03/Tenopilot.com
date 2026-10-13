@@ -2009,27 +2009,67 @@ export default function IndividualTenantProfilePage({
                 </div>
 
             {/* Security Deposit */}
-            <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
-              <div className="p-2 bg-purple-50 w-fit rounded-lg mb-2 text-purple-600">
-                <Lock className="w-5 h-5" />
-              </div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
-                Security Deposit
-              </p>
-              <p className="text-2xl font-bold font-serif text-gray-900">
-                ₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}
-              </p>
-              <p className="text-[10px] text-gray-500 font-bold mt-1.5 flex items-center gap-1">
-                STATUS:{" "}
-                <span className="text-purple-700 font-extrabold">
-                  {occupantState.lifecycleStatus === "Past" || occupantState.depositStatus === "REFUNDED"
-                    ? occupantState.arrearsBalance && occupantState.arrearsBalance > 0
-                      ? "PARTIAL REFUND 🟡"
-                      : "FULL REFUND 🟢"
-                    : occupantState.depositStatus || "PAID 🟢"}
-                </span>
-              </p>
-            </div>
+            {(() => {
+              const isPast = occupantState.lifecycleStatus === "Past";
+              const audit = occupantState.checkoutSettlement;
+
+              let headline = `₹${(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}`;
+              let subtext = occupantState.depositStatus || "PAID 🟢";
+              let subtextColor = "text-purple-700 font-extrabold";
+
+              if (isPast) {
+                if (audit) {
+                  if (audit.status === "PARTIAL_REFUND" || (audit.totalDeductions > 0 && audit.netRefunded > 0)) {
+                    headline = "Partial Refund";
+                    subtext = "DEDUCTIONS APPLIED 🟡";
+                    subtextColor = "text-amber-600 font-extrabold";
+                  } else if (audit.status === "NO_REFUND" || audit.netRefunded === 0) {
+                    headline = "Retained / Dues";
+                    subtext = "ADJUSTED FOR DUES 🔴";
+                    subtextColor = "text-rose-600 font-extrabold";
+                  } else {
+                    headline = "Full Refund";
+                    subtext = "SETTLED & RETURNED 🟢";
+                    subtextColor = "text-emerald-700 font-extrabold";
+                  }
+                } else {
+                  // Fallback for legacy past records without explicit audit object
+                  if (occupantState.arrearsBalance && occupantState.arrearsBalance > 0) {
+                    headline = "Partial Refund";
+                    subtext = "DEDUCTIONS APPLIED 🟡";
+                    subtextColor = "text-amber-600 font-extrabold";
+                  } else {
+                    headline = "Full Refund";
+                    subtext = "SETTLED & RETURNED 🟢";
+                    subtextColor = "text-emerald-700 font-extrabold";
+                  }
+                }
+              }
+
+              return (
+                <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-xs">
+                  <div className="p-2 bg-purple-50 w-fit rounded-lg mb-2 text-purple-600">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">
+                    Security Deposit
+                  </p>
+                  <p className="text-2xl font-bold font-serif text-gray-900">
+                    {headline}
+                  </p>
+                  <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1">
+                    {isPast ? (
+                      <span className={subtextColor}>{subtext}</span>
+                    ) : (
+                      <>
+                        <span className="text-gray-500 font-bold">STATUS:</span>
+                        <span className={subtextColor}>{subtext}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Next Due Date */}
             {(() => {
@@ -2182,37 +2222,143 @@ export default function IndividualTenantProfilePage({
               </div>
 
               {/* Past Tenant Deposit Settlement Audit Card (If Vacated) */}
-              {occupantState.lifecycleStatus === "Past" && (
-                <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 space-y-2 text-xs">
-                  <div className="flex items-center justify-between border-b border-purple-200/60 pb-1.5 font-bold text-xs">
-                    <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-purple-700" /> Check-Out Deposit Settlement Audit
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                      occupantState.arrearsBalance && occupantState.arrearsBalance > 0
-                        ? "bg-amber-200 text-amber-950 border border-amber-300"
-                        : "bg-emerald-200 text-emerald-950 border border-emerald-300"
-                    }`}>
-                      {occupantState.arrearsBalance && occupantState.arrearsBalance > 0
-                        ? "PARTIAL REFUND 🟡"
-                        : "FULL REFUND 🟢"}
-                    </span>
+              {occupantState.lifecycleStatus === "Past" && (() => {
+                const audit = occupantState.checkoutSettlement;
+                const initialDeposit = audit?.initialDeposit ?? (occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
+                
+                // Deductions
+                const unpaidRent = audit?.unpaidRentDeduction ?? (occupantState.arrearsBalance && occupantState.arrearsBalance > 0 ? occupantState.arrearsBalance : 0);
+                const repairs = audit?.repairDeduction ?? 0;
+                const maintenance = audit?.maintenanceDeduction ?? 0;
+                const otherDeductions = audit?.otherDeductions ?? 0;
+                const totalDeductions = audit?.totalDeductions ?? (unpaidRent + repairs + maintenance + otherDeductions);
+                const netRefunded = audit?.netRefunded ?? Math.max(0, initialDeposit - totalDeductions);
+                
+                const status = audit?.status ?? (totalDeductions === 0 ? "FULL_REFUND" : netRefunded > 0 ? "PARTIAL_REFUND" : "NO_REFUND");
+                const paymentChannel = audit?.paymentChannel;
+                const notes = audit?.notes;
+                const checkoutDate = occupantState.vacatingDate || audit?.settledDate || "Checked Out";
+
+                return (
+                  <div className="p-4 rounded-2xl bg-purple-50/80 border border-purple-200 text-purple-950 space-y-3 text-xs shadow-2xs">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-purple-200/70 pb-2">
+                      <span className="flex items-center gap-1.5 font-bold text-xs text-purple-950">
+                        <ShieldCheck className="w-4 h-4 text-purple-700 shrink-0" /> Check-Out Deposit Settlement Audit
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-extrabold shadow-2xs ${
+                          status === "PARTIAL_REFUND"
+                            ? "bg-amber-200 text-amber-950 border border-amber-300"
+                            : status === "NO_REFUND"
+                            ? "bg-rose-200 text-rose-950 border border-rose-300"
+                            : "bg-emerald-200 text-emerald-950 border border-emerald-300"
+                        }`}>
+                          {status === "PARTIAL_REFUND"
+                            ? "PARTIAL REFUND 🟡"
+                            : status === "NO_REFUND"
+                            ? "NO REFUND / FORFEITED 🔴"
+                            : "FULL REFUND 🟢"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowCheckOutModal(true)}
+                          className="text-[10px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                          title="Review or adjust checkout settlement deductions"
+                        >
+                          Adjust
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Ledger Body */}
+                    <div className="space-y-1.5 text-[11px] font-mono text-purple-900">
+                      {/* Initial Deposit */}
+                      <div className="flex justify-between items-center py-0.5">
+                        <span className="font-sans font-semibold text-gray-700">Initial Deposit Intake:</span>
+                        <span className="font-bold text-gray-900 text-xs">₹{initialDeposit.toLocaleString("en-IN")}</span>
+                      </div>
+
+                      {/* Itemized Deductions (Clean Breakup) */}
+                      {totalDeductions > 0 ? (
+                        <div className="my-2 p-2.5 rounded-xl bg-purple-100/50 border border-purple-200/60 space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider text-purple-900 pb-1 border-b border-purple-200/50">
+                            <span>Deductions & Adjustments Breakdown</span>
+                            <span className="font-mono text-rose-700 font-extrabold">-₹{totalDeductions.toLocaleString("en-IN")}</span>
+                          </div>
+
+                          {unpaidRent > 0 && (
+                            <div className="flex justify-between items-center text-rose-900 pl-1.5 border-l-2 border-rose-400">
+                              <span className="font-sans font-medium text-[11px]">(-) Unpaid Rent Dues:</span>
+                              <span className="font-bold">-₹{unpaidRent.toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+
+                          {repairs > 0 && (
+                            <div className="flex justify-between items-center text-rose-900 pl-1.5 border-l-2 border-rose-400">
+                              <span className="font-sans font-medium text-[11px]">(-) Repairs, Damages & Penalties:</span>
+                              <span className="font-bold">-₹{repairs.toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+
+                          {maintenance > 0 && (
+                            <div className="flex justify-between items-center text-rose-900 pl-1.5 border-l-2 border-rose-400">
+                              <span className="font-sans font-medium text-[11px]">(-) Maintenance & Cleaning / Painting:</span>
+                              <span className="font-bold">-₹{maintenance.toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+
+                          {otherDeductions > 0 && (
+                            <div className="flex justify-between items-center text-rose-900 pl-1.5 border-l-2 border-rose-400">
+                              <span className="font-sans font-medium text-[11px]">(-) Other Miscellaneous Deductions:</span>
+                              <span className="font-bold">-₹{otherDeductions.toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center py-1 text-emerald-800 text-[11px] bg-emerald-50/60 px-2 rounded-lg border border-emerald-100">
+                          <span className="font-sans font-medium">(-) Deductions (Repairs, Rent, Penalty):</span>
+                          <span className="font-bold">₹0 (Zero Deductions / Cleared)</span>
+                        </div>
+                      )}
+
+                      {/* Net Amount Refunded */}
+                      <div className="flex justify-between items-center text-emerald-900 font-bold border-t border-purple-200/80 pt-2 text-xs">
+                        <span className="font-sans flex items-center gap-1.5">
+                          <span>Net Amount Refunded:</span>
+                          {status === "FULL_REFUND" && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-bold">100%</span>
+                          )}
+                        </span>
+                        <span className="font-mono text-sm font-black text-emerald-700">₹{netRefunded.toLocaleString("en-IN")}</span>
+                      </div>
+
+                      {/* Payment Channel */}
+                      {paymentChannel && (
+                        <div className="flex justify-between items-center text-[11px] text-purple-900 pt-1 font-sans">
+                          <span className="text-gray-600">Refund Payment Channel:</span>
+                          <span className="font-bold">{paymentChannel}</span>
+                        </div>
+                      )}
+
+                      {/* Settlement Notes */}
+                      {notes && (
+                        <div className="p-2 rounded-xl bg-white/80 border border-purple-200/70 text-[11px] text-purple-950 font-sans italic mt-1">
+                          "{notes}"
+                        </div>
+                      )}
+
+                      {/* Footer Meta */}
+                      <div className="text-[10px] text-purple-800/80 pt-2 font-sans border-t border-purple-200/50 flex flex-wrap items-center justify-between gap-1">
+                        <span>Checked Out: <strong>{checkoutDate}</strong></span>
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 inline" /> Status: <strong>Settled & Closed</strong>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1 text-[11px] font-mono text-purple-900">
-                    <div className="flex justify-between">
-                      <span>Initial Deposit Intake:</span>
-                      <span className="font-bold">₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-800 font-bold border-t border-purple-200/60 pt-1">
-                      <span>Net Amount Refunded:</span>
-                      <span>₹{(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}</span>
-                    </div>
-                    <div className="text-[10px] opacity-80 pt-1 font-sans">
-                      Checked Out: {occupantState.vacatingDate || "09 Aug 2026"} • Status: Settled & Closed
-                    </div>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* 🪪 Government ID & KYC Verification Card for Tenants */}
               {(() => {
@@ -5572,16 +5718,20 @@ export default function IndividualTenantProfilePage({
             propertyId={propertyId}
             isOpen={showCheckOutModal}
             onClose={() => setShowCheckOutModal(false)}
-            onSuccess={() => {
-              setOccupantState((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      lifecycleStatus: "Past",
-                      depositStatus: "REFUNDED",
-                    }
-                  : null
-              );
+            onSuccess={(updated) => {
+              if (updated) {
+                setOccupantState(updated);
+              } else {
+                setOccupantState((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        lifecycleStatus: "Past",
+                        depositStatus: "REFUNDED",
+                      }
+                    : null
+                );
+              }
               triggerToast(`🎉 Completed formal check-out & deposit settlement for ${occupantState.name}!`);
             }}
           />

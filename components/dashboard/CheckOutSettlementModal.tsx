@@ -33,7 +33,7 @@ export function CheckOutSettlementModal({
   propertyId?: string;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (updatedOccupant?: Occupant) => void;
 }) {
   // Step 1: Handover Checklist State
   const [keysReturned, setKeysReturned] = useState(true);
@@ -42,18 +42,20 @@ export function CheckOutSettlementModal({
   const [roomInspected, setRoomInspected] = useState(true);
 
   // Step 2: Financial Settlement Calculator State
-  const initialDeposit = occupant.securityDeposit !== undefined ? occupant.securityDeposit : (occupant.rentAmount ? occupant.rentAmount * 2 : 0);
-  const [unpaidRentDues, setUnpaidRentDues] = useState<number>(0);
-  const [repairDeductions, setRepairDeductions] = useState<number>(0);
-  const [maintenanceExpenses, setMaintenanceExpenses] = useState<number>(0); // Cleaning, painting fees
+  const initialDeposit = occupant.checkoutSettlement?.initialDeposit ?? (occupant.securityDeposit !== undefined ? occupant.securityDeposit : (occupant.rentAmount ? occupant.rentAmount * 2 : 0));
+  const [unpaidRentDues, setUnpaidRentDues] = useState<number>(() => occupant.checkoutSettlement?.unpaidRentDeduction ?? 0);
+  const [repairDeductions, setRepairDeductions] = useState<number>(() => occupant.checkoutSettlement?.repairDeduction ?? 0);
+  const [maintenanceExpenses, setMaintenanceExpenses] = useState<number>(() => occupant.checkoutSettlement?.maintenanceDeduction ?? 0); // Cleaning, painting fees
 
   // Calculated Net Refundable Deposit
   const totalDeductions = unpaidRentDues + repairDeductions + maintenanceExpenses;
   const netRefundableAmount = Math.max(0, initialDeposit - totalDeductions);
 
   // Step 3: Refund Payment Channel State
-  const [paymentChannel, setPaymentChannel] = useState<"Online payments (UPI)" | "Cash Desk">("Online payments (UPI)");
-  const [settlementNotes, setSettlementNotes] = useState("");
+  const [paymentChannel, setPaymentChannel] = useState<"Online payments (UPI)" | "Cash Desk">(() =>
+    (occupant.checkoutSettlement?.paymentChannel as any) || "Online payments (UPI)"
+  );
+  const [settlementNotes, setSettlementNotes] = useState(() => occupant.checkoutSettlement?.notes || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || !occupant) return null;
@@ -67,22 +69,48 @@ export function CheckOutSettlementModal({
         year: "numeric",
       });
 
+      const settlementStatus: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND" =
+        totalDeductions === 0
+          ? "FULL_REFUND"
+          : netRefundableAmount > 0
+          ? "PARTIAL_REFUND"
+          : "NO_REFUND";
+
+      const checkoutSettlement = {
+        settledDate: todayStr,
+        initialDeposit,
+        unpaidRentDeduction: unpaidRentDues,
+        repairDeduction: repairDeductions,
+        maintenanceDeduction: maintenanceExpenses,
+        totalDeductions,
+        netRefunded: netRefundableAmount,
+        status: settlementStatus,
+        paymentChannel,
+        notes: settlementNotes.trim() || undefined,
+      };
+
       // 1. Update Occupant Status to "Past" (Reusing standard Past Alumni Tenant category)
       const updatedOccupant: Occupant = {
         ...occupant,
         lifecycleStatus: "Past",
+        depositStatus: "REFUNDED",
         vacatingDate: todayStr,
+        checkoutSettlement,
         paymentHistory: [
           ...(occupant.paymentHistory || []),
-          {
-            id: `pay-ref-${Date.now()}`,
-            amount: netRefundableAmount,
-            date: todayStr,
-            month: todayStr,
-            mode: paymentChannel,
-            receiptNo: `REF-${Date.now().toString().slice(-6)}`,
-            status: "PAID" as const,
-          },
+          ...(netRefundableAmount > 0
+            ? [
+                {
+                  id: `pay-ref-${Date.now()}`,
+                  amount: netRefundableAmount,
+                  date: todayStr,
+                  month: todayStr,
+                  mode: paymentChannel,
+                  receiptNo: `REF-${Date.now().toString().slice(-6)}`,
+                  status: "PAID" as const,
+                },
+              ]
+            : []),
         ],
       };
 
@@ -133,7 +161,7 @@ export function CheckOutSettlementModal({
       complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
 
       setIsSubmitting(false);
-      onSuccess?.();
+      onSuccess?.(updatedOccupant);
       onClose();
     } catch (err) {
       console.error("Check-Out settlement error:", err);
