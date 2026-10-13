@@ -93,6 +93,10 @@ function SignUpPageContent() {
 
   const handleGoogleSignUp = async () => {
     setError(null);
+    if (!agreedToTerms) {
+      setError("Please check the box to agree to the Terms of Service and Privacy Policy before continuing with Google.");
+      return;
+    }
     setIsLoading(true);
     try {
       const authResult = await loginWithGoogle(true);
@@ -440,12 +444,43 @@ function SignUpPageContent() {
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Terms of Service & Privacy Policy Universal Consent Checkbox */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 transition-all">
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 leading-snug">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] cursor-pointer shrink-0 accent-[#c2652a]"
+                  />
+                  <span>
+                    I have read and agree to the{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      className="font-bold text-[#c2652a] hover:underline"
+                    >
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      className="font-bold text-[#c2652a] hover:underline"
+                    >
+                      Privacy Policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+              </div>
+
               {/* 1. Google 1-Click Sign-Up Button */}
               <button
                 type="button"
                 onClick={handleGoogleSignUp}
-                disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-2xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                disabled={isLoading || !agreedToTerms}
+                className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-2xs flex items-center justify-center gap-2.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -572,37 +607,6 @@ function SignUpPageContent() {
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                </div>
-
-                {/* Terms of Service & Privacy Policy Consent Checkbox */}
-                <div className="pt-1">
-                  <label className="flex items-start gap-2.5 cursor-pointer text-[11px] text-gray-600 leading-snug">
-                    <input
-                      type="checkbox"
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] cursor-pointer shrink-0 accent-[#c2652a]"
-                    />
-                    <span>
-                      I have read and agree to the{" "}
-                      <Link
-                        href="/terms"
-                        target="_blank"
-                        className="font-bold text-[#c2652a] hover:underline"
-                      >
-                        Terms of Service
-                      </Link>{" "}
-                      and{" "}
-                      <Link
-                        href="/privacy"
-                        target="_blank"
-                        className="font-bold text-[#c2652a] hover:underline"
-                      >
-                        Privacy Policy
-                      </Link>
-                      .
-                    </span>
-                  </label>
                 </div>
 
                 {/* Submit Button */}
