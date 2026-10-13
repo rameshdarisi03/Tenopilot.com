@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const paidTo = searchParams.get("paidTo") || "Main Business Pool";
     const month = searchParams.get("month") || "Current Cycle";
     const isDeposit = searchParams.get("isDeposit") === "true" || receiptNo.startsWith("DEP");
+    const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
 
     const pdfData: ReceiptPdfData = {
       receiptNo,
@@ -34,6 +35,19 @@ export async function GET(req: NextRequest) {
       paidTo,
       month,
       isDeposit,
+      isSettlement,
+      settlementDetails: isSettlement
+        ? {
+            initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : amount,
+            unpaidRent: searchParams.get("unpaidRent") ? Number(searchParams.get("unpaidRent")) : 0,
+            repairs: searchParams.get("repairs") ? Number(searchParams.get("repairs")) : 0,
+            maintenance: searchParams.get("maintenance") ? Number(searchParams.get("maintenance")) : 0,
+            totalDeductions: searchParams.get("totalDeductions") ? Number(searchParams.get("totalDeductions")) : 0,
+            netRefunded: searchParams.get("netRefunded") ? Number(searchParams.get("netRefunded")) : amount,
+            status: searchParams.get("status") || "SETTLED & CLOSED",
+            notes: searchParams.get("notes") || undefined,
+          }
+        : undefined,
     };
 
     const pdfBuffer = await generateReceiptPdfBuffer(pdfData);

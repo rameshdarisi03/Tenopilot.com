@@ -9,7 +9,7 @@ export interface SESSendParams {
   propertyId: string;
   propertyName?: string;
   replyToEmail?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
@@ -19,6 +19,8 @@ export interface SESSendParams {
     bankLabel?: string;
     accountType?: string;
     receiptId?: string;
+    receiptUrl?: string;
+    managerPhone?: string;
     paymentMode?: string;
     paidDate?: string;
     onboardUrl?: string;
@@ -335,6 +337,79 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
       const text = `Amazon SES Gateway Verified successfully for ${pName} at ${new Date().toISOString()}.`;
+      return { subject, html, text };
+    }
+
+    case "CHECKOUT_THANK_YOU": {
+      const subject = `🌟 Thank You for Staying With Us! Check-Out & Settlement Confirmation — ${pName}`;
+      const receiptNo = p.receiptId || `REF-${Date.now().toString().slice(-6)}`;
+      const downloadLink = p.receiptUrl || `https://tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(receiptNo)}&isSettlement=true&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}`;
+
+      const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:28px 12px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
+    
+    <!-- Top Header Banner -->
+    <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#047857 100%);padding:32px 24px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.18);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.2);">
+        🌟 THANK YOU FOR STAYING WITH US
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;">${pName}</h1>
+      <p style="margin:0;color:#cbd5e1;font-size:13px;">Move-Out Handover & Deposit Settlement Confirmation</p>
+    </div>
+
+    <!-- Main Body -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#0f172a;">Dear <strong>${payload.recipientName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 20px 0;line-height:1.6;">
+        Thank you for choosing <strong>${pName}</strong> as your home! It was an absolute pleasure having you with us, and we wish you continued success and happiness in your next chapter.
+      </p>
+
+      <p style="font-size:14px;color:#475569;margin:0 0 24px 0;line-height:1.6;">
+        Your room handover and move-out security deposit settlement have been finalized.
+      </p>
+
+      <!-- Download Receipt Box -->
+      <div style="background:#f8fafc;border-radius:16px;padding:22px;margin-bottom:24px;border:1px solid #e2e8f0;text-align:center;">
+        <p style="margin:0 0 6px 0;font-size:11px;font-weight:800;color:#059669;text-transform:uppercase;letter-spacing:1px;">📄 OFFICIAL SETTLEMENT DOCUMENT</p>
+        <p style="margin:0 0 10px 0;font-size:16px;font-weight:800;color:#0f172a;">Check-Out & Deposit Settlement Receipt</p>
+        <p style="margin:0 0 20px 0;font-size:13px;color:#64748b;line-height:1.5;">
+          Your official settlement receipt with complete details, room handover verification, and final ledger breakdown is available below for your records and company reimbursement.
+        </p>
+        <a href="${downloadLink}" target="_blank" style="display:inline-block;background:#059669;color:#ffffff;font-size:14px;font-weight:700;padding:12px 28px;border-radius:12px;text-decoration:none;box-shadow:0 4px 12px rgba(5,150,105,0.25);">
+          📥 Download Settlement PDF Receipt
+        </a>
+      </div>
+
+      <p style="font-size:13px;color:#475569;margin:0 0 20px 0;line-height:1.5;">
+        You and your friends are always welcome back at <strong>${pName}</strong>. Keep in touch! 🌟
+      </p>
+
+      <div style="border-top:1px solid #f1f5f9;padding-top:18px;margin-top:20px;">
+        <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Warm regards,</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#0f172a;">${pName} Management</p>
+        ${p.managerPhone ? `<p style="margin:2px 0 0 0;font-size:12px;color:#64748b;">📞 ${p.managerPhone}</p>` : ""}
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
+      Verified & Issued by ${pName} • Powered by <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a>
+    </div>
+  </div>
+</body>
+</html>`;
+
+      const text = `${pName}\nThank You for Staying With Us!\n\nDear ${payload.recipientName},\n\nThank you for choosing ${pName} as your home! It was an absolute pleasure having you with us, and we wish you great success in your next chapter.\n\nYour room handover and move-out security deposit settlement have been finalized.\n\nDownload your official Settlement PDF Receipt:\n${downloadLink}\n\nYou and your friends are always welcome back at ${pName}!\n\nWarm regards,\n${pName} Management`;
+
       return { subject, html, text };
     }
 

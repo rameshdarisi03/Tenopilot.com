@@ -7,7 +7,7 @@ export interface WhatsAppSendParams {
   propertyId: string;
   propertyName?: string;
   occupantId?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
@@ -17,6 +17,8 @@ export interface WhatsAppSendParams {
     bankLabel?: string;
     accountType?: string;
     receiptId?: string;
+    receiptUrl?: string;
+    managerPhone?: string;
     paidDate?: string;
     paymentMode?: string;
     onboardUrl?: string;
@@ -138,6 +140,21 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `Our team is addressing this promptly.\n\n` +
         `Warm regards,\n` +
         `*${pName} Support Desk*`
+      );
+    }
+
+    case "CHECKOUT_THANK_YOU": {
+      const receiptLink = p.receiptUrl ? `\n\n📄 _Download your official Settlement PDF Receipt:_ \n${p.receiptUrl}` : "";
+      return (
+        `*${pName}*\n` +
+        `Thank You for Staying With Us! 🌟\n\n` +
+        `Dear *${payload.recipientName}*,\n\n` +
+        `Thank you for choosing *${pName}* as your home! It was an absolute pleasure having you with us, and we wish you great success and happiness in your next chapter.\n\n` +
+        `Your room handover and move-out security deposit settlement have been finalized.\n\n` +
+        `📄 Your official *Check-Out & Deposit Settlement Receipt* is attached with all the settlement details and breakdown for your reference.${receiptLink}\n\n` +
+        `You and your friends are always welcome back at ${pName}! Keep in touch!\n\n` +
+        `Warm regards,\n` +
+        `*${pName} Management*${p.managerPhone ? `\n📞 ${p.managerPhone}` : ""}`
       );
     }
 

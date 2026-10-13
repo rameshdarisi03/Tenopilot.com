@@ -17,6 +17,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { expenseStore } from "@/constants/expenseStore";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
+import { propertySettingsStore } from "@/constants/propertySettings";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -51,11 +52,11 @@ export function CheckOutSettlementModal({
   const totalDeductions = unpaidRentDues + repairDeductions + maintenanceExpenses;
   const netRefundableAmount = Math.max(0, initialDeposit - totalDeductions);
 
-  // Step 3: Refund Payment Channel State
   const [paymentChannel, setPaymentChannel] = useState<"Online payments (UPI)" | "Cash Desk">(() =>
     (occupant.checkoutSettlement?.paymentChannel as any) || "Online payments (UPI)"
   );
   const [settlementNotes, setSettlementNotes] = useState(() => occupant.checkoutSettlement?.notes || "");
+  const [sendThankYouNotice, setSendThankYouNotice] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || !occupant) return null;
@@ -159,6 +160,98 @@ export function CheckOutSettlementModal({
       });
 
       complianceLogStore.addLog(propertyId, sanitizedComplianceEntry);
+
+      // 5. 💬 Auto-Dispatch Thank You Note & Settlement PDF Receipt via WhatsApp & Email
+      if (sendThankYouNotice) {
+        try {
+          const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+          const receiptNoStr = `REF-${Date.now().toString().slice(-6)}`;
+          const settings = propertySettingsStore.getSettings(propertyId);
+          const propName = settings?.propertyName || "TenoPilot PG";
+
+          const pdfParams = new URLSearchParams({
+            receiptNo: receiptNoStr,
+            propertyName: propName,
+            propertyAddress: settings?.propertyAddress || "",
+            managerPhone: settings?.managerPhone || "",
+            residentName: occupant.name,
+            roomNumber: roomNumber || occupant.roomNumber || "N/A",
+            bedCode: bedCode || occupant.bedCode || "Bed 1",
+            amount: String(netRefundableAmount),
+            paidDate: todayStr,
+            paymentMode: paymentChannel,
+            isSettlement: "true",
+            initialDeposit: String(initialDeposit),
+            unpaidRent: String(unpaidRentDues),
+            repairs: String(repairDeductions),
+            maintenance: String(maintenanceExpenses),
+            totalDeductions: String(totalDeductions),
+            netRefunded: String(netRefundableAmount),
+            checkoutDate: todayStr,
+            status: settlementStatus,
+            notes: settlementNotes.trim(),
+          });
+
+          const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
+
+          // WhatsApp Dispatch
+          if (occupant.phone) {
+            fetch("/api/whatsapp/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                propertyId,
+                messages: [
+                  {
+                    toPhone: occupant.phone,
+                    recipientName: occupant.name,
+                    propertyId,
+                    propertyName: propName,
+                    occupantId: occupant.id,
+                    type: "CHECKOUT_THANK_YOU",
+                    params: {
+                      receiptId: receiptNoStr,
+                      receiptUrl: pdfUrl,
+                      roomNumber: roomNumber || occupant.roomNumber,
+                      bedCode: bedCode || occupant.bedCode,
+                      managerPhone: settings?.managerPhone,
+                    },
+                  },
+                ],
+              }),
+            }).catch((e) => console.warn("Notice dispatching WhatsApp checkout thank you:", e));
+          }
+
+          // Email Dispatch
+          if (occupant.email && !occupant.email.includes("resident.tenopilot.com")) {
+            fetch("/api/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                propertyId,
+                messages: [
+                  {
+                    toEmail: occupant.email,
+                    recipientName: occupant.name,
+                    propertyId,
+                    propertyName: propName,
+                    type: "CHECKOUT_THANK_YOU",
+                    params: {
+                      receiptId: receiptNoStr,
+                      receiptUrl: pdfUrl,
+                      roomNumber: roomNumber || occupant.roomNumber,
+                      bedCode: bedCode || occupant.bedCode,
+                      managerPhone: settings?.managerPhone,
+                    },
+                  },
+                ],
+              }),
+            }).catch((e) => console.warn("Notice dispatching Email checkout thank you:", e));
+          }
+        } catch (dispatchErr) {
+          console.warn("Notice dispatching digital notices:", dispatchErr);
+        }
+      }
 
       setIsSubmitting(false);
       onSuccess?.(updatedOccupant);
@@ -360,7 +453,25 @@ export function CheckOutSettlementModal({
           </div>
         </div>
 
-        {/* SECTION 4: Final Execution Action */}
+        {/* SECTION 4: Automated Digital Dispatch (WhatsApp & Email) */}
+        <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-1">
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sendThankYouNotice}
+              onChange={(e) => setSendThankYouNotice(e.target.checked)}
+              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+            />
+            <span className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
+              <span>💬</span> Send Thank You note & Settlement PDF Receipt via WhatsApp & Email
+            </span>
+          </label>
+          <p className="text-[11px] text-emerald-800/80 pl-6.5 font-medium leading-relaxed">
+            Delivers a warm appreciation note with the official Settlement & No-Dues PDF Receipt attached (zero number clutter in text; all financial breakdown in PDF).
+          </p>
+        </div>
+
+        {/* SECTION 5: Final Execution Action */}
         <div className="pt-2 flex gap-3">
           <button
             type="button"
