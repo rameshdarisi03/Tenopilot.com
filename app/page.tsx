@@ -25,6 +25,7 @@ import { LandingPageClient } from "@/components/LandingPageClient";
 import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import { DynamicPricingSection } from "@/components/pricing/DynamicPricingSection";
 import { DynamicLandingPricingSubtitle } from "@/components/pricing/DynamicPricingHero";
+import { PublicFooter } from "@/components/public/PublicFooter";
 
 export default function Home() {
   const faqData = [
@@ -695,24 +696,7 @@ export default function Home() {
       </section>
 
       {/* 10. Footer */}
-      <footer className="bg-[#fff8f6] border-t border-[#d7c2b9]/60 py-16 px-6 text-xs text-[#554339]">
-        <div className="max-w-[1240px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-base">
-              T
-            </div>
-            <span className="font-serif font-bold text-xl text-[#201a17]">TenoPilot.com</span>
-          </div>
-
-          <p>© 2026 TenoPilot Inc. Engineered for Excellence in Property Management.</p>
-
-          <div className="flex gap-6 font-semibold">
-            <a href="#features" className="hover:text-[#964407] transition-colors">Features</a>
-            <a href="#pricing" className="hover:text-[#964407] transition-colors">Pricing</a>
-            <a href="#how-it-works" className="hover:text-[#964407] transition-colors">How It Works</a>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

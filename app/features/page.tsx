@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { DynamicTrialDaysSpan } from "@/components/pricing/DynamicPricingHero";
+import { PublicFooter } from "@/components/public/PublicFooter";
 
 export const metadata: Metadata = {
   title: "PG & Hostel Management Features | TenoPilot.com",
@@ -271,22 +272,7 @@ export default function FeaturesPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#fff8f6] border-t border-[#d7c2b9]/60 py-12 px-6 text-xs text-[#554339] mt-auto">
-        <div className="max-w-[1240px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#964407] text-white flex items-center justify-center font-serif font-bold text-base">
-              T
-            </div>
-            <span className="font-serif font-bold text-xl text-[#201a17]">TenoPilot.com</span>
-          </div>
-          <p>© 2026 TenoPilot Inc. Engineered for Excellence in Property Management.</p>
-          <div className="flex gap-6 font-semibold">
-            <Link href="/features" className="text-[#964407]">Features</Link>
-            <Link href="/pricing" className="hover:text-[#964407] transition-colors">Pricing</Link>
-            <Link href="/how-it-works" className="hover:text-[#964407] transition-colors">How It Works</Link>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
