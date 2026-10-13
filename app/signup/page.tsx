@@ -45,6 +45,7 @@ function SignUpPageContent() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [purgedActivationNotice, setPurgedActivationNotice] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // 🔄 Smart Visibility & Polling Listener: Detects email verification cleanly without IndexedDB collisions
   useEffect(() => {
@@ -149,6 +150,11 @@ function SignUpPageContent() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match. Please re-enter your password.");
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setError("Please check the box to agree to the Terms of Service and Privacy Policy.");
       return;
     }
 
@@ -568,10 +574,41 @@ function SignUpPageContent() {
                   </div>
                 </div>
 
+                {/* Terms of Service & Privacy Policy Consent Checkbox */}
+                <div className="pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-[11px] text-gray-600 leading-snug">
+                    <input
+                      type="checkbox"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] cursor-pointer shrink-0 accent-[#c2652a]"
+                    />
+                    <span>
+                      I have read and agree to the{" "}
+                      <Link
+                        href="/terms"
+                        target="_blank"
+                        className="font-bold text-[#c2652a] hover:underline"
+                      >
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href="/privacy"
+                        target="_blank"
+                        className="font-bold text-[#c2652a] hover:underline"
+                      >
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                </div>
+
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !agreedToTerms}
                   className="w-full py-3 mt-1 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 hover:opacity-95 transition-all cursor-pointer active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
@@ -595,6 +632,13 @@ function SignUpPageContent() {
                 Log In
               </Link>
             </p>
+            <div className="flex items-center justify-center gap-3 text-[11px] text-gray-400 pt-1">
+              <Link href="/privacy" target="_blank" className="hover:text-gray-600 underline">Privacy Policy</Link>
+              <span>•</span>
+              <Link href="/terms" target="_blank" className="hover:text-gray-600 underline">Terms of Service</Link>
+              <span>•</span>
+              <Link href="/refund-policy" target="_blank" className="hover:text-gray-600 underline">Refund Policy</Link>
+            </div>
           </div>
         </div>
       </div>

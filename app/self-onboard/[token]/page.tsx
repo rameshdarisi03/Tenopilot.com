@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -45,6 +46,7 @@ export default function TenantSelfOnboardingPage({
   const [aadhaarFront, setAadhaarFront] = useState<string | null>(null);
   const [aadhaarBack, setAadhaarBack] = useState<string | null>(null);
   const [signatureName, setSignatureName] = useState("");
+  const [residentAgreedToTerms, setResidentAgreedToTerms] = useState(false);
 
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +90,11 @@ export default function TenantSelfOnboardingPage({
 
   const handleSubmitKYC = async () => {
     if (!matchedOccupant) return;
+
+    if (!residentAgreedToTerms) {
+      alert("Please check the box to agree to the Terms of Service and Privacy Policy to complete verification.");
+      return;
+    }
 
     // Update occupant in store
     const updated: Occupant = {
@@ -348,6 +355,37 @@ export default function TenantSelfOnboardingPage({
                   By submitting, I confirm that all provided details and identity documents are authentic.
                 </p>
               </div>
+
+              {/* Terms of Service & Privacy Policy Consent Checkbox */}
+              <div className="pt-2 p-3.5 rounded-xl bg-gray-50 border border-gray-200">
+                <label className="flex items-start gap-2.5 cursor-pointer text-[11px] text-gray-600 leading-snug">
+                  <input
+                    type="checkbox"
+                    checked={residentAgreedToTerms}
+                    onChange={(e) => setResidentAgreedToTerms(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer shrink-0 accent-emerald-600"
+                  />
+                  <span>
+                    I confirm my residency details, agree to the{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      className="font-bold text-[#c2652a] hover:underline"
+                    >
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      className="font-bold text-[#c2652a] hover:underline"
+                    >
+                      Privacy Policy
+                    </Link>
+                    , and consent to receiving accommodation receipts and notices via Email and WhatsApp.
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -361,7 +399,8 @@ export default function TenantSelfOnboardingPage({
               <button
                 type="button"
                 onClick={handleSubmitKYC}
-                className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                disabled={!residentAgreedToTerms}
+                className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Submit Verification & Complete</span>
