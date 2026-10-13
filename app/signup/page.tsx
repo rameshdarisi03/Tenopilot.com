@@ -96,7 +96,8 @@ function SignUpPageContent() {
     setError(null);
     if (!agreedToTerms) {
       setHighlightTerms(true);
-      setError("⚠️ Please check the box above to accept the Terms of Service & Privacy Policy before continuing with Google.");
+      setError("⚠️ Please agree to the Terms of Service & Privacy Policy below to continue.");
+      document.getElementById("terms-checkbox-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     setHighlightTerms(false);
@@ -162,7 +163,8 @@ function SignUpPageContent() {
 
     if (!agreedToTerms) {
       setHighlightTerms(true);
-      setError("⚠️ Please check the box above to accept the Terms of Service & Privacy Policy before creating your account.");
+      setError("⚠️ Please agree to the Terms of Service & Privacy Policy below to create your account.");
+      document.getElementById("terms-checkbox-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     setHighlightTerms(false);
@@ -448,59 +450,6 @@ function SignUpPageContent() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Terms of Service & Privacy Policy Universal Consent Checkbox */}
-              <div
-                className={`p-3.5 rounded-2xl border transition-all ${
-                  highlightTerms
-                    ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-200 shadow-sm"
-                    : agreedToTerms
-                    ? "bg-emerald-50/60 border-emerald-200"
-                    : "bg-amber-50/70 border-amber-200/80"
-                }`}
-              >
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 leading-snug">
-                  <input
-                    type="checkbox"
-                    checked={agreedToTerms}
-                    onChange={(e) => {
-                      setAgreedToTerms(e.target.checked);
-                      if (e.target.checked) {
-                        setHighlightTerms(false);
-                        if (error?.includes("Terms of Service")) setError(null);
-                      }
-                    }}
-                    className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 accent-[#c2652a] ${
-                      highlightTerms ? "border-rose-400 ring-2 ring-rose-300" : "border-gray-300 text-[#c2652a] focus:ring-[#c2652a]"
-                    }`}
-                  />
-                  <span>
-                    I have read and agree to the{" "}
-                    <Link
-                      href="/terms"
-                      target="_blank"
-                      className="font-bold text-[#c2652a] hover:underline"
-                    >
-                      Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link
-                      href="/privacy"
-                      target="_blank"
-                      className="font-bold text-[#c2652a] hover:underline"
-                    >
-                      Privacy Policy
-                    </Link>
-                    .
-                  </span>
-                </label>
-                {highlightTerms && (
-                  <p className="text-[11px] font-bold text-rose-700 mt-2 pl-6 flex items-center gap-1.5 animate-in fade-in">
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                    <span>Please tick this box to continue</span>
-                  </p>
-                )}
-              </div>
-
               {/* 1. Google 1-Click Sign-Up Button */}
               <button
                 type="button"
@@ -633,6 +582,49 @@ function SignUpPageContent() {
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                </div>
+
+                {/* Terms of Service & Privacy Policy Consent Checkbox */}
+                <div
+                  id="terms-checkbox-container"
+                  className={`p-3 rounded-xl border transition-all ${
+                    highlightTerms
+                      ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-200 shadow-sm"
+                      : agreedToTerms
+                      ? "bg-emerald-50/60 border-emerald-200"
+                      : "bg-gray-50 border-gray-200"
+                  }`}
+                >
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 leading-snug">
+                    <input
+                      type="checkbox"
+                      checked={agreedToTerms}
+                      onChange={(e) => {
+                        setAgreedToTerms(e.target.checked);
+                        if (e.target.checked) {
+                          setHighlightTerms(false);
+                          if (error?.includes("Terms of Service")) setError(null);
+                        }
+                      }}
+                      className="mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 accent-[#c2652a]"
+                    />
+                    <span>
+                      I have read and agree to the{" "}
+                      <Link href="/terms" target="_blank" className="font-bold text-[#c2652a] hover:underline">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/privacy" target="_blank" className="font-bold text-[#c2652a] hover:underline">
+                        Privacy Policy
+                      </Link>.
+                    </span>
+                  </label>
+                  {highlightTerms && (
+                    <p className="text-[11px] font-bold text-rose-700 mt-2 pl-6 flex items-center gap-1.5 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>Please tick this box to continue</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Submit Button */}
