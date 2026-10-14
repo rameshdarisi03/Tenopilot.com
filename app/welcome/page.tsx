@@ -17,8 +17,6 @@ import {
   CheckCircle2,
   AlertCircle,
   MapPin,
-  Layers,
-  Bed,
   Hotel,
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
@@ -48,8 +46,6 @@ function WelcomeOnboardingContent() {
   const [propertyName, setPropertyName] = useState("");
   const [propertyCategory, setPropertyCategory] = useState("PG / Co-Living");
   const [city, setCity] = useState("Hyderabad, Telangana");
-  const [floorsCount, setFloorsCount] = useState<number>(4);
-  const [approxBeds, setApproxBeds] = useState<number>(50);
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -208,7 +204,7 @@ function WelcomeOnboardingContent() {
         ownerEmail: ownerEmail,
         ownerPhone: cleanPhone,
         city: city.trim(),
-        approxBeds: Number(approxBeds) || 40,
+        approxBeds: 0,
         securityPin: pin,
       });
 
@@ -583,39 +579,6 @@ function WelcomeOnboardingContent() {
                       onChange={(e) => setCity(e.target.value)}
                       placeholder="e.g. Madhapur, Hitec City, Hyderabad"
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Floors & Beds Baseline */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-[#964407]" />
-                      Total Floors
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={floorsCount}
-                      onChange={(e) => setFloorsCount(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] font-medium focus:ring-2 focus:ring-[#c2652a] text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                      <Bed className="w-3.5 h-3.5 text-[#964407]" />
-                      Approx Total Beds
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={1000}
-                      value={approxBeds}
-                      onChange={(e) => setApproxBeds(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] font-medium focus:ring-2 focus:ring-[#c2652a] text-xs"
                     />
                   </div>
                 </div>
