@@ -161,11 +161,14 @@ export async function checkAccountRegistrationStatus(email: string): Promise<Acc
   if (!cleanEmail) return { exists: false };
 
   try {
-    // 1. Check in staff_accounts collection
+    // 1. Check in staff_accounts collection (STRICT: only if configured as admin or receptionist)
     const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
     if (staffDoc.exists()) {
-      deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
-      return { exists: true, isStaff: true };
+      const sData = staffDoc.data();
+      if (sData?.role === "admin" || sData?.role === "receptionist") {
+        deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+        return { exists: true, isStaff: true };
+      }
     }
 
     // 2. Check in users collection by email field
@@ -383,20 +386,31 @@ export async function syncUserSecurityPinToCloud(
   try {
     const writes: Promise<any>[] = [];
 
-    // 1. Update staff_accounts collection in Firestore
-    writes.push(
-      setDoc(
-        doc(db, "staff_accounts", cleanEmail),
-        {
-          securityPin: pin,
-          hasSetPin: true,
-          sessionVersion: newSessionVersion,
-          pinUpdatedAt: nowTimestamp,
-          updatedAt: nowIso,
-        },
-        { merge: true }
-      )
-    );
+    // 1. Update staff_accounts collection in Firestore ONLY if the account is an existing staff member
+    try {
+      const staffRef = doc(db, "staff_accounts", cleanEmail);
+      const staffSnap = await getDoc(staffRef);
+      if (staffSnap.exists()) {
+        const sData = staffSnap.data();
+        if (sData?.role === "admin" || sData?.role === "receptionist") {
+          writes.push(
+            setDoc(
+              staffRef,
+              {
+                securityPin: pin,
+                hasSetPin: true,
+                sessionVersion: newSessionVersion,
+                pinUpdatedAt: nowTimestamp,
+                updatedAt: nowIso,
+              },
+              { merge: true }
+            )
+          );
+        }
+      }
+    } catch (e) {
+      console.warn("staff_accounts pin sync notice:", e);
+    }
 
     // 2. Update users collection in Firestore
     const targetUid = uid || auth.currentUser?.uid;
