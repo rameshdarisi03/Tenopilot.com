@@ -36,7 +36,10 @@ import {
   Download,
   Printer,
   Sparkles,
+  HelpCircle,
 } from "lucide-react";
+
+import { GuidedSpotlightTour, TourStep } from "@/components/onboarding/GuidedSpotlightTour";
 
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
@@ -56,6 +59,63 @@ function getTimeAwareGreeting(): string {
   return "Good night";
 }
 
+const TOUR_STEPS: TourStep[] = [
+  {
+    id: "overview-header",
+    targetSelector: '[data-tour="property-header"]',
+    title: "Your Command Center",
+    description:
+      "Welcome to your property flight deck! Monitor live operational health, total bed count, real-time occupancy rates, and active license tier.",
+    icon: Building2,
+    placement: "bottom",
+  },
+  {
+    id: "property-setup",
+    targetSelector: '[data-tour="property-setup"]',
+    title: "Layout & FastTrack AI Setup",
+    description:
+      "Easily configure your floors, rooms, and bed types, or use FastTrack AI to ingest paper registers and spreadsheets automatically.",
+    icon: Sparkles,
+    placement: "bottom",
+  },
+  {
+    id: "kpi-bento",
+    targetSelector: '[data-tour="kpi-grid"]',
+    title: "Real-Time Operational KPIs",
+    description:
+      "Instant visibility into vacant beds, total rent collected this month, overdue compliance counts, and pending maintenance tickets.",
+    icon: Wallet,
+    placement: "bottom",
+  },
+  {
+    id: "whatsapp-engine",
+    targetSelector: '[data-tour="whatsapp-reminders"]',
+    title: "1-Tap WhatsApp Cloud Reminders",
+    description:
+      "Send professional rent due reminders, UPI payment links, and payment receipts directly to residents' WhatsApp in one click.",
+    icon: Send,
+    placement: "bottom",
+  },
+  {
+    id: "financial-hub",
+    targetSelector: '[data-tour="financial-hub-btn"]',
+    title: "Dual-Ledger Financial Hub",
+    description:
+      "Deep financial ledger tracking: separate Rent and Security Deposit ledgers, automated pro-rata billing, and GST invoices.",
+    icon: Receipt,
+    placement: "bottom",
+  },
+  {
+    id: "resident-qr-portal",
+    targetSelector: '[data-tour="complaint-portal"]',
+    title: "Resident Complaint QR Code",
+    description:
+      "Print this QR code and paste it on room doors or reception. Residents can scan to lodge maintenance tickets directly.",
+    icon: QrCode,
+    placement: "top",
+  },
+];
+
 export default function PropertyOverviewPage({
   params,
 }: {
@@ -67,6 +127,34 @@ export default function PropertyOverviewPage({
   const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/public-complaint`);
   const [copiedLink, setCopiedLink] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !propertyId) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasTourParam = urlParams.get("tour") === "true";
+    const hasSeenTour = localStorage.getItem(`tenopilot_tour_seen_${propertyId}`);
+
+    if (hasTourParam || !hasSeenTour) {
+      const timer = setTimeout(() => {
+        setShowTour(true);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [propertyId]);
+
+  const handleCloseTour = () => {
+    setShowTour(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`tenopilot_tour_seen_${propertyId}`, "true");
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("tour")) {
+        url.searchParams.delete("tour");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  };
 
   const handleCopyLink = async () => {
     const urlToCopy = portalUrl || (typeof window !== "undefined" ? `${window.location.origin}/p/${propertyId}/public-complaint` : `/p/${propertyId}/public-complaint`);
@@ -257,7 +345,7 @@ export default function PropertyOverviewPage({
         <div className="p-4 md:p-8 space-y-6 flex-1 max-w-[1280px] mx-auto w-full pb-24">
           {/* Greeting Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
+            <div data-tour="property-header">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full border border-orange-200">
                   {sub.isPro ? "PRO OPERATING SYSTEM" : sub.inGracePeriod ? "GRACE PERIOD ACTIVE" : `${platformConfig.trialDays}-DAY FREE TRIAL ACTIVE`}
@@ -275,8 +363,19 @@ export default function PropertyOverviewPage({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowTour(true)}
+                title="Start Guided Product Tour"
+                className="px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 hover:border-[#c2652a]/40 hover:bg-orange-50/40 text-gray-700 hover:text-[#964407] text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-[#c2652a]" />
+                <span className="hidden sm:inline">Product Tour</span>
+              </button>
+
               <Link
+                data-tour="financial-hub-btn"
                 href={`/p/${propertyId}/financial-hub`}
                 className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer shrink-0"
               >
@@ -288,7 +387,7 @@ export default function PropertyOverviewPage({
 
           {/* If Property is Brand New (0 Beds Configured), show Setup Banner */}
           {totalBeds === 0 && (
-            <div className="p-6 rounded-3xl bg-gradient-to-r from-[#fff8f6] to-[#faefe8] border-2 border-dashed border-[#c2652a]/40 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div data-tour="property-setup" className="p-6 rounded-3xl bg-gradient-to-r from-[#fff8f6] to-[#faefe8] border-2 border-dashed border-[#c2652a]/40 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#c2652a]/15 text-[#964407] flex items-center justify-center shrink-0">
                   <Building2 className="w-6 h-6" />
@@ -315,7 +414,7 @@ export default function PropertyOverviewPage({
           )}
 
           {/* Urgent Attention Alert Banner */}
-          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div data-tour="whatsapp-reminders" className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 shrink-0">
                 <AlertCircle className="w-5 h-5 text-amber-800" />
@@ -340,7 +439,7 @@ export default function PropertyOverviewPage({
           </div>
 
           {/* 4 High-Impact Operational KPI Bento Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div data-tour="kpi-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Card 1: Vacant Inventory & Occupancy */}
             <Link
               href={`/p/${propertyId}/property-map?filter=available`}
@@ -605,6 +704,7 @@ export default function PropertyOverviewPage({
                   </Link>
 
                   <Link
+                    data-tour={totalBeds > 0 ? "property-setup" : undefined}
                     href={`/p/${propertyId}/property-setup`}
                     className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
                   >
@@ -652,7 +752,7 @@ export default function PropertyOverviewPage({
               </div>
 
               {/* Resident Complaint Portal QR Code Card */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4 text-center">
+              <div data-tour="complaint-portal" className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4 text-center">
                 <div className="flex items-center justify-center gap-2">
                   <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
                     <QrCode className="w-5 h-5" />
@@ -725,6 +825,14 @@ export default function PropertyOverviewPage({
         onClose={() => setQrModalOpen(false)}
         propertyId={propertyId}
         propertyName={propertySettings.propertyName || propertyId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+      />
+
+      {/* GUIDED SPOTLIGHT ONBOARDING TOUR */}
+      <GuidedSpotlightTour
+        steps={TOUR_STEPS}
+        isOpen={showTour}
+        onClose={handleCloseTour}
+        onComplete={handleCloseTour}
       />
     </div>
   );

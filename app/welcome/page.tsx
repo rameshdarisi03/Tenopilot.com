@@ -370,7 +370,7 @@ function WelcomeOnboardingContent() {
       setProvisionStatusText("✨ Workspace Ready! Opening Your Flight Deck...");
 
       setTimeout(() => {
-        router.replace("/home");
+        router.replace(`/p/${propertyId}/overview?tour=true`);
       }, 900);
     } catch (err: any) {
       console.error("Onboarding error:", err);
