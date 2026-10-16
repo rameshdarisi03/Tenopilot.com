@@ -18,6 +18,10 @@ import {
   AlertCircle,
   MapPin,
   Hotel,
+  Navigation,
+  Loader2,
+  Briefcase,
+  Check,
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { auth, db } from "@/lib/firebase";
@@ -30,26 +34,37 @@ import { getStoredPlatformConfig } from "@/lib/platformConfig";
 function WelcomeOnboardingContent() {
   const router = useRouter();
   const { user, profile, loading } = useAuth();
+  const platformConfig = getStoredPlatformConfig();
 
-  const [step, setStep] = useState<1 | 2>(1);
+  // Progressive Micro-Steps:
+  // 1 = Tell us about yourself (Role, Name, WhatsApp)
+  // 2 = Set 6-Digit Security PIN (Banking PIN setup)
+  // 3 = Let's setup your first property (Name, Category, 1-Tap Location)
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Step 1: Personal & Identity
+  // Step 1: Personal & Role
+  const [roleType, setRoleType] = useState<"owner" | "manager" | "partner">("owner");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+
+  // Step 2: Security PIN
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [showPin, setShowPin] = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
 
-  // Step 2: Property Baseline
+  // Step 3: Property & Location
   const [propertyName, setPropertyName] = useState("");
   const [propertyCategory, setPropertyCategory] = useState("PG / Co-Living");
   const [city, setCity] = useState("Hyderabad, Telangana");
+  const [isLocating, setIsLocating] = useState(false);
 
+  // Provisioning & Progress
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [provisionProgress, setProvisionProgress] = useState(0);
+  const [provisionStatusText, setProvisionStatusText] = useState("Preparing your workspace...");
 
   // Pre-fill user details from AuthProvider / Firebase
   useEffect(() => {
@@ -116,8 +131,8 @@ function WelcomeOnboardingContent() {
     }
   }, [user, profile, router]);
 
-  // Validation for Step 1
-  const handleNextToStep2 = async () => {
+  // Step 1 Validation -> Move to Step 2
+  const handleProceedToStep2 = () => {
     setError(null);
     const cleanName = fullName.trim();
     const cleanPhone = phone.replace(/\D/g, "");
@@ -132,8 +147,15 @@ function WelcomeOnboardingContent() {
       return;
     }
 
+    setStep(2);
+  };
+
+  // Step 2 Validation -> Move to Step 3
+  const handleProceedToStep3 = async () => {
+    setError(null);
+
     if (pin.length !== 6 || !/^\d{6}$/.test(pin)) {
-      setError("Please set a 6-digit numeric PIN.");
+      setError("Please set a 6-digit numeric security PIN.");
       return;
     }
 
@@ -142,11 +164,12 @@ function WelcomeOnboardingContent() {
       return;
     }
 
-    // Persist Step 1 progress seamlessly to Firestore
+    // Persist identity & PIN progress safely to Firestore
     try {
       const activeUser = auth.currentUser || user;
       const ownerEmail = (activeUser?.email || email).toLowerCase().trim();
       const ownerUid = activeUser?.uid;
+      const cleanPhone = phone.replace(/\D/g, "");
       if (ownerUid) {
         await syncUserSecurityPinToCloud(ownerEmail, pin, ownerUid);
         await setDoc(
@@ -154,7 +177,7 @@ function WelcomeOnboardingContent() {
           {
             uid: ownerUid,
             email: ownerEmail,
-            displayName: cleanName,
+            displayName: fullName.trim(),
             phone: cleanPhone,
             role: "master_admin",
             hasSetPin: true,
@@ -166,13 +189,73 @@ function WelcomeOnboardingContent() {
         );
       }
     } catch (err) {
-      console.warn("Non-fatal error saving step 1 progress:", err);
+      console.warn("Non-fatal error saving step 2 progress:", err);
     }
 
-    setStep(2);
+    setStep(3);
   };
 
-  // Submission for Step 2
+  // 1-Tap Geolocation via Browser GPS & OpenStreetMap Reverse Geocoding
+  const handleDetectLocation = () => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      setError("Geolocation is not supported by your browser. Please enter your location manually below.");
+      return;
+    }
+
+    setIsLocating(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`
+          );
+          const data = await res.json();
+          const address = data.address || {};
+          const area =
+            address.suburb ||
+            address.neighbourhood ||
+            address.commercial ||
+            address.residential ||
+            address.road ||
+            address.subdistrict ||
+            "";
+          const cityOrTown =
+            address.city ||
+            address.town ||
+            address.state_district ||
+            address.village ||
+            "";
+          const state = address.state || "";
+
+          const formatted = [area, cityOrTown, state].filter(Boolean).join(", ");
+          if (formatted) {
+            setCity(formatted);
+          } else if (data.display_name) {
+            setCity(data.display_name.split(",").slice(0, 3).join(",").trim());
+          }
+        } catch (err) {
+          console.warn("Reverse geocode notice:", err);
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (geoErr) => {
+        console.warn("Geolocation permission error:", geoErr);
+        setIsLocating(false);
+        if (geoErr.code === geoErr.PERMISSION_DENIED) {
+          setError("Location permission denied. Please enter your location manually below.");
+        } else {
+          setError("Could not detect GPS location. Please enter your location manually below.");
+        }
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  };
+
+  // Final Step: Submit & Animated Workspace Provisioning Engine
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -184,6 +267,8 @@ function WelcomeOnboardingContent() {
     }
 
     setIsSubmitting(true);
+    setProvisionProgress(15);
+    setProvisionStatusText("🔐 Encrypting 6-Digit Banking Security PIN...");
 
     try {
       const activeUser = auth.currentUser || user;
@@ -193,10 +278,13 @@ function WelcomeOnboardingContent() {
       const propertyId = `prop-${Date.now()}`;
       const cleanPhone = phone.replace(/\D/g, "");
 
-      // 1. Synchronize Security PIN to Cloud
+      // Stage 1: PIN sync
       await syncUserSecurityPinToCloud(ownerEmail, pin, ownerUid);
 
-      // 2. Call Master Workspace Initializer (Existing SSOT)
+      setProvisionProgress(45);
+      setProvisionStatusText("🏢 Provisioning Dual-Ledger Financial Engine...");
+
+      // Stage 2: Master workspace provision
       await provisionNewPropertyWorkspace({
         propertyId: propertyId,
         propertyName: cleanPropName,
@@ -208,7 +296,10 @@ function WelcomeOnboardingContent() {
         securityPin: pin,
       });
 
-      // 3. Mark user profile complete in Firestore with Hack-Proof 10-Day Clock
+      setProvisionProgress(75);
+      setProvisionStatusText(`🎁 Activating ${platformConfig.trialDays}-Day Pro Trial & WhatsApp Credits...`);
+
+      // Stage 3: Complete user profile in Firestore
       const userDocRef = doc(db, "users", ownerUid);
       let existingCreatedAt = "";
       let existingPlanExpiresAt = "";
@@ -223,9 +314,10 @@ function WelcomeOnboardingContent() {
 
       const nowIso = new Date().toISOString();
       const finalCreatedAt = existingCreatedAt || nowIso;
-      const platformCfg = getStoredPlatformConfig();
-      const activeTrialDays = Number(platformCfg.trialDays) || 10;
-      const finalPlanExpiresAt = existingPlanExpiresAt || new Date(new Date(finalCreatedAt).getTime() + activeTrialDays * 24 * 60 * 60 * 1000).toISOString();
+      const activeTrialDays = Number(platformConfig.trialDays) || 10;
+      const finalPlanExpiresAt =
+        existingPlanExpiresAt ||
+        new Date(new Date(finalCreatedAt).getTime() + activeTrialDays * 24 * 60 * 60 * 1000).toISOString();
 
       await setDoc(
         userDocRef,
@@ -252,12 +344,12 @@ function WelcomeOnboardingContent() {
         { merge: true }
       );
 
-      // 3b. Clean up any purged account tombstone on fresh workspace initialization
+      // Clean up any purged tombstone
       try {
         await deleteDoc(doc(db, "purged_accounts", ownerEmail));
       } catch {}
 
-      // 4. Update local session state
+      // Stage 4: Update session and finish
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");
         localStorage.setItem(
@@ -274,11 +366,12 @@ function WelcomeOnboardingContent() {
         );
       }
 
-      setIsSuccess(true);
+      setProvisionProgress(100);
+      setProvisionStatusText("✨ Workspace Ready! Opening Your Flight Deck...");
 
       setTimeout(() => {
         router.replace("/home");
-      }, 1400);
+      }, 900);
     } catch (err: any) {
       console.error("Onboarding error:", err);
       setError(err?.message || "Failed to initialize workspace. Please try again.");
@@ -305,83 +398,152 @@ function WelcomeOnboardingContent() {
         
         {/* Header with App Logo & Stepper */}
         <div className="text-center space-y-3">
-          <div className="inline-flex justify-center mb-1">
+          <div className="inline-flex justify-center mb-0.5">
             <TenoPilotLogo size="md" variant="terracotta" />
           </div>
 
           <div>
             <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-[#201a17]">
-              Welcome to TenoPilot
+              {step === 1 && "Tell us about yourself"}
+              {step === 2 && "Set Your Security PIN"}
+              {step === 3 && "Let's setup your first property"}
             </h1>
             <p className="text-xs text-gray-500 font-medium mt-1">
-              Configure your master property workspace in 2 quick steps
+              {step === 1 && "Configure your master profile in 30 seconds"}
+              {step === 2 && "Banking-grade 6-digit access code to unlock your property ledgers"}
+              {step === 3 && "You can add more buildings, floors, and branches later"}
             </p>
           </div>
 
-          {/* Stepper Progress Bar */}
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-              step === 1
-                ? "bg-[#964407] text-white shadow-xs"
-                : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9]"
-            }`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
-                step === 1 ? "bg-white/20 text-white" : "bg-[#d7c2b9] text-[#201a17]"
-              }`}>
-                1
+          {/* Stepper Progress Bar (Micro-step RentOK inspired) */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 mb-1.5 px-1">
+              <span>Step {step} of 3</span>
+              <span className="text-[#964407] font-extrabold">
+                {step === 1 && "Profile & WhatsApp"}
+                {step === 2 && "6-Digit Security PIN"}
+                {step === 3 && "Property & Location"}
               </span>
-              <span>Owner Profile</span>
             </div>
-
-            <div className="w-6 h-0.5 bg-[#d7c2b9]" />
-
-            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-              step === 2
-                ? "bg-[#964407] text-white shadow-xs"
-                : "bg-[#fff8f6] text-[#554339] border border-[#d7c2b9]"
-            }`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
-                step === 2 ? "bg-white/20 text-white" : "bg-[#d7c2b9] text-[#201a17]"
-              }`}>
-                2
-              </span>
-              <span>Property Setup</span>
+            <div className="w-full h-1.5 bg-[#f0e4dc] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] transition-all duration-300 rounded-full"
+                style={{ width: `${(step / 3) * 100}%` }}
+              />
             </div>
           </div>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 font-semibold">
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 font-semibold animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Success Splash */}
-        {isSuccess ? (
-          <div className="py-10 text-center space-y-4 animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-600 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 animate-pulse" />
+        {/* Animated Provisioning State (The Delight Moment) */}
+        {isSubmitting ? (
+          <div className="py-10 text-center space-y-6 animate-in zoom-in-95">
+            <div className="relative w-20 h-20 mx-auto">
+              {/* Spinning Glow Ring */}
+              <div className="absolute inset-0 rounded-full border-4 border-[#c2652a]/20 border-t-[#c2652a] animate-spin" />
+              <div className="absolute inset-2 rounded-full bg-[#fff8f6] flex items-center justify-center text-[#c2652a]">
+                {provisionProgress === 100 ? (
+                  <CheckCircle2 className="w-9 h-9 text-emerald-600 animate-in zoom-in" />
+                ) : (
+                  <Building2 className="w-8 h-8 text-[#c2652a] animate-pulse" />
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold text-[#201a17]">
-                Workspace Initialized Successfully!
+
+            <div className="space-y-2 max-w-sm mx-auto">
+              <h3 className="text-lg font-bold text-[#201a17]">
+                {provisionStatusText}
               </h3>
-              <p className="text-xs text-gray-500">
-                Opening &ldquo;{propertyName}&rdquo; dashboard in realtime...
+              <p className="text-xs text-gray-500 font-medium">
+                Setting up high-speed dual ledger accounting &amp; cloud storage
               </p>
+            </div>
+
+            <div className="w-full max-w-xs mx-auto h-2 bg-[#f0e4dc] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#c2652a] to-emerald-600 transition-all duration-500 rounded-full"
+                style={{ width: `${provisionProgress}%` }}
+              />
             </div>
           </div>
         ) : (
           <>
-            {/* STEP 1: Personal & Identity */}
+            {/* STEP 1: Personal & Role */}
             {step === 1 && (
-              <div className="space-y-4 text-xs">
+              <div className="space-y-5 text-xs animate-in fade-in slide-in-from-right-4 duration-300">
+                {/* Role Selection Cards */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-2">
+                    What best describes your role?
+                  </label>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setRoleType("owner")}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        roleType === "owner"
+                          ? "bg-[#fff8f6] border-[#964407] ring-2 ring-[#964407]/20 shadow-xs"
+                          : "bg-white border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-orange-100/70 text-[#964407] flex items-center justify-center mb-2">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#201a17] text-xs leading-snug">Owner / Landlord</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Proprietor</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRoleType("manager")}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        roleType === "manager"
+                          ? "bg-[#fff8f6] border-[#964407] ring-2 ring-[#964407]/20 shadow-xs"
+                          : "bg-white border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-amber-100/70 text-amber-800 flex items-center justify-center mb-2">
+                        <Briefcase className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#201a17] text-xs leading-snug">Property Manager</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Admin &amp; Ops</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRoleType("partner")}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        roleType === "partner"
+                          ? "bg-[#fff8f6] border-[#964407] ring-2 ring-[#964407]/20 shadow-xs"
+                          : "bg-white border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-purple-100/70 text-purple-800 flex items-center justify-center mb-2">
+                        <UserIcon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#201a17] text-xs leading-snug">Operator / Broker</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Partner</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Full Name */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1.5">
-                    Full Name *
+                    What should we call you? *
                   </label>
                   <div className="relative">
                     <UserIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -391,7 +553,7 @@ function WelcomeOnboardingContent() {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="e.g. Ramesh Darisi"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
+                      className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                     />
                   </div>
                 </div>
@@ -433,25 +595,43 @@ function WelcomeOnboardingContent() {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                         placeholder="9876543210"
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
+                        className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                       />
                     </div>
                   </div>
                   <p className="text-[10px] text-gray-400 mt-1">
-                    Used for sending instant tenant PDF receipts &amp; admin login security
+                    Used for sending instant tenant PDF receipts &amp; admin login security alerts
                   </p>
                 </div>
 
-                {/* Set 6-Digit PIN */}
-                <div className="pt-2 border-t border-gray-200">
-                  <div className="mb-2">
-                    <label className="block font-bold text-gray-700">
-                      Set 6-Digit PIN *
-                    </label>
-                  </div>
+                {/* Continue to Step 2 Button */}
+                <button
+                  type="button"
+                  onClick={handleProceedToStep2}
+                  className="w-full py-3.5 mt-2 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                >
+                  <span>Continue to Security PIN</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Enter PIN */}
+            {/* STEP 2: 6-Digit Banking PIN */}
+            {step === 2 && (
+              <div className="space-y-5 text-xs animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-start gap-2.5">
+                  <Lock className="w-4 h-4 text-[#964407] shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                    Your 6-digit PIN provides rapid 1-tap authentication on your phone or tablet without typing long passwords every time.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Enter PIN */}
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1.5">
+                      Create 6-Digit PIN *
+                    </label>
                     <div className="relative">
                       <input
                         type={showPin ? "text" : "password"}
@@ -462,7 +642,7 @@ function WelcomeOnboardingContent() {
                         value={pin}
                         onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                         placeholder="Enter 6-digit PIN"
-                        className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-mono tracking-widest text-center focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
+                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-mono tracking-widest text-base font-bold text-center focus:ring-2 focus:ring-[#c2652a] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -478,8 +658,13 @@ function WelcomeOnboardingContent() {
                         {showPin ? <EyeOff className="w-4 h-4 text-[#964407]" /> : <Eye className="w-4 h-4 text-gray-400" />}
                       </button>
                     </div>
+                  </div>
 
-                    {/* Confirm PIN */}
+                  {/* Confirm PIN */}
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1.5">
+                      Confirm 6-Digit PIN *
+                    </label>
                     <div className="relative">
                       <input
                         type={showConfirmPin ? "text" : "password"}
@@ -489,8 +674,8 @@ function WelcomeOnboardingContent() {
                         required
                         value={confirmPin}
                         onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
-                        placeholder="Confirm 6-digit PIN"
-                        className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-mono tracking-widest text-center focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
+                        placeholder="Re-enter 6-digit PIN"
+                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-mono tracking-widest text-base font-bold text-center focus:ring-2 focus:ring-[#c2652a] focus:border-transparent"
                       />
                       <button
                         type="button"
@@ -509,21 +694,32 @@ function WelcomeOnboardingContent() {
                   </div>
                 </div>
 
-                {/* Continue to Step 2 Button */}
-                <button
-                  type="button"
-                  onClick={handleNextToStep2}
-                  className="w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-                >
-                  <span>Continue to Property Setup</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                {/* Back & Next Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleProceedToStep3}
+                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    <span>Continue to Property Setup</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* STEP 2: Property Setup & Room Baseline */}
-            {step === 2 && (
-              <form onSubmit={handleFinalSubmit} className="space-y-4 text-xs">
+            {/* STEP 3: Property Identity & 1-Tap Geolocation */}
+            {step === 3 && (
+              <form onSubmit={handleFinalSubmit} className="space-y-4 text-xs animate-in fade-in slide-in-from-right-4 duration-300">
                 {/* Property Name */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1.5">
@@ -536,8 +732,8 @@ function WelcomeOnboardingContent() {
                       required
                       value={propertyName}
                       onChange={(e) => setPropertyName(e.target.value)}
-                      placeholder="e.g. Meghana Luxury Executive PG"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
+                      placeholder="e.g. Ramesh Luxury PG"
+                      className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                     />
                   </div>
                 </div>
@@ -545,31 +741,60 @@ function WelcomeOnboardingContent() {
                 {/* Property Category */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1.5">
-                    Property Category
+                    What type of property do you manage?
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {["PG / Co-Living", "Student Hostel", "Apartment", "House Rental"].map((cat) => (
+                    {[
+                      { label: "PG / Co-Living", desc: "Shared living" },
+                      { label: "Student Hostel", desc: "Campus hostel" },
+                      { label: "Apartment", desc: "Flats & units" },
+                      { label: "House Rental", desc: "Private rentals" },
+                    ].map((cat) => (
                       <button
-                        key={cat}
+                        key={cat.label}
                         type="button"
-                        onClick={() => setPropertyCategory(cat)}
-                        className={`py-2 px-2 rounded-xl border text-[10px] font-bold transition-all text-center ${
-                          propertyCategory === cat
+                        onClick={() => setPropertyCategory(cat.label)}
+                        className={`py-2.5 px-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          propertyCategory === cat.label
                             ? "bg-[#964407] text-white border-[#964407] shadow-xs"
                             : "bg-[#fff8f6] text-[#554339] border-[#d7c2b9] hover:bg-[#f8ede3]"
                         }`}
                       >
-                        {cat}
+                        <p className="font-bold text-[11px] leading-snug">{cat.label}</p>
+                        <p className={`text-[9px] mt-0.5 ${propertyCategory === cat.label ? "text-white/80" : "text-gray-400"}`}>
+                          {cat.desc}
+                        </p>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* City & Address */}
+                {/* Location with 1-Tap Geolocation button (RentOK style) */}
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1.5">
-                    City &amp; Area Location *
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-bold text-gray-700">
+                      Property Location *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleDetectLocation}
+                      disabled={isLocating}
+                      className="text-[11px] font-bold text-[#c2652a] hover:text-[#964407] flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      {isLocating ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Detecting GPS...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="w-3 h-3 text-[#c2652a]" />
+                          <span>Use My Current Location</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -578,16 +803,19 @@ function WelcomeOnboardingContent() {
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       placeholder="e.g. Madhapur, Hitec City, Hyderabad"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
+                      className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                     />
                   </div>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Tap &ldquo;Use My Current Location&rdquo; above for instant 1-tap GPS detection or edit manually.
+                  </p>
                 </div>
 
                 {/* FastTrack AI Migration Teaser */}
-                <div className="p-3 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] text-[11px] text-[#6e391b] flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="p-3.5 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9] text-[11px] text-[#6e391b] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
                     <Hotel className="w-4 h-4 text-[#c2652a] shrink-0" />
-                    <span>Have handwritten registers or PDFs? Import 50+ tenants in 1-click inside dashboard with FastTrack AI!</span>
+                    <span>Have paper registers or PDFs? Import 50+ tenants in 1-click inside dashboard with FastTrack AI!</span>
                   </div>
                 </div>
 
@@ -595,7 +823,7 @@ function WelcomeOnboardingContent() {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(2)}
                     disabled={isSubmitting}
                     className="py-3 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98"
                   >
@@ -606,16 +834,10 @@ function WelcomeOnboardingContent() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                   >
-                    {isSubmitting ? (
-                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Launch Property Workspace ➔</span>
-                      </>
-                    )}
+                    <Sparkles className="w-4 h-4" />
+                    <span>Launch Property Workspace ➔</span>
                   </button>
                 </div>
               </form>
