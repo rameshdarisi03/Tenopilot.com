@@ -498,7 +498,6 @@ function WelcomeOnboardingContent() {
                       </div>
                       <div>
                         <p className="font-bold text-[#201a17] text-xs leading-snug">Owner / Landlord</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Proprietor</p>
                       </div>
                     </button>
 
@@ -516,7 +515,6 @@ function WelcomeOnboardingContent() {
                       </div>
                       <div>
                         <p className="font-bold text-[#201a17] text-xs leading-snug">Property Manager</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Admin &amp; Ops</p>
                       </div>
                     </button>
 
@@ -534,7 +532,6 @@ function WelcomeOnboardingContent() {
                       </div>
                       <div>
                         <p className="font-bold text-[#201a17] text-xs leading-snug">Operator / Broker</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Partner</p>
                       </div>
                     </button>
                   </div>
