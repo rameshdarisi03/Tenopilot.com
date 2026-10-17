@@ -41,7 +41,7 @@ export interface SESSendParams {
 export interface SESSendResult {
   success: boolean;
   messageId: string;
-  mode: "LIVE_AWS_SES" | "SIMULATOR_SANDBOX";
+  mode: "LIVE_ZOHO_CPAAS" | "LIVE_AWS_SES" | "SIMULATOR_SANDBOX";
   recipientEmail: string;
   recipientName: string;
   fallbackUsed?: boolean;
@@ -58,6 +58,7 @@ export function isSESQuotaError(errorMsg?: string, statusCode?: number): boolean
   const lower = errorMsg.toLowerCase();
   return (
     lower.includes("not_enough_credits") ||
+    lower.includes("insufficient_credits") ||
     lower.includes("quota") ||
     lower.includes("limit exceeded") ||
     lower.includes("daily limit") ||
@@ -65,6 +66,21 @@ export function isSESQuotaError(errorMsg?: string, statusCode?: number): boolean
     lower.includes("email address is not verified") ||
     lower.includes("messagesendlimitexceeded")
   );
+}
+
+/**
+ * Anti-Spam & Zoho CPaaS Terms-Compliant Legal Footer
+ * Ensures mandatory 'About Us', physical location, support, and abuse contact information.
+ */
+function getCompliantEmailFooter(pName: string): string {
+  return `
+    <!-- Zoho CPaaS & Anti-Spam Compliant Legal Footer -->
+    <div style="background:#f8fafc;padding:20px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:11px;color:#94a3b8;line-height:1.6;">
+      <p style="margin:0 0 4px 0;font-weight:700;color:#64748b;">${pName} • Powered by <a href="https://tenopilot.com" style="color:#c2652a;text-decoration:none;font-weight:600;">TenoPilot.com</a></p>
+      <p style="margin:0 0 4px 0;color:#64748b;">Cloud Operating System for PGs, Hostels & Co-Living Spaces • Bangalore, Karnataka, India</p>
+      <p style="margin:0;font-size:10px;color:#94a3b8;">Support: <a href="mailto:support@tenopilot.com" style="color:#64748b;text-decoration:underline;">support@tenopilot.com</a> | Legal & Compliance: <a href="mailto:abuse@tenopilot.com" style="color:#64748b;text-decoration:underline;">abuse@tenopilot.com</a></p>
+    </div>
+  `;
 }
 
 /**
@@ -169,10 +185,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       </div>
     </div>
 
-    <!-- Footer -->
-    <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
-      Delivered securely via <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a> Operating System.
-    </div>
+    ${getCompliantEmailFooter(pName)}
   </div>
 </body>
 </html>`;
@@ -266,10 +279,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       </div>
     </div>
 
-    <!-- Footer -->
-    <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
-      Verified & Issued by ${pName} • Powered by <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a>
-    </div>
+    ${getCompliantEmailFooter(pName)}
   </div>
 </body>
 </html>`;
@@ -313,9 +323,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       </p>
     </div>
 
-    <div style="background:#f8fafc;padding:16px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
-      ${pName} Administration • Powered by <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a>
-    </div>
+    ${getCompliantEmailFooter(pName)}
   </div>
 </body>
 </html>`;
@@ -401,10 +409,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       </div>
     </div>
 
-    <!-- Footer -->
-    <div style="background:#f8fafc;padding:18px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
-      Verified & Issued by ${pName} • Powered by <a href="https://tenopilot.com" style="color:#0284c7;text-decoration:none;font-weight:600;">TenoPilot.com</a>
-    </div>
+    ${getCompliantEmailFooter(pName)}
   </div>
 </body>
 </html>`;
@@ -459,10 +464,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       </div>
     </div>
 
-    <!-- Footer -->
-    <div style="background:#f8fafc;padding:16px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:11px;color:#94a3b8;">
-      TenoPilot.com • Enterprise PG & Hostel Operating System
-    </div>
+    ${getCompliantEmailFooter("TenoPilot")}
   </div>
 </body>
 </html>`;
@@ -533,7 +535,100 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
   const senderName = payload.customCredentials?.senderName || `${pName} via TenoPilot`;
   const formattedSource = `"${senderName.replace(/"/g, '')}" <${senderEmail}>`;
 
-  // 1. Live AWS SES Dispatch
+  // 1. Live Zoho CPaaS / ZeptoMail Dispatch (Primary High-Deliverability Indian Gateway)
+  const zohoApiKey =
+    (payload.customCredentials?.apiKey?.startsWith("Zoho-") ? payload.customCredentials.apiKey : undefined) ||
+    process.env.ZOHO_CPAAS_API_KEY ||
+    process.env.ZOHO_ZEPTO_API_KEY;
+
+  if (zohoApiKey) {
+    const zohoFromEmail = process.env.ZOHO_CPAAS_FROM_EMAIL || "donotreply@tenopilot.com";
+    const zohoFromName = process.env.ZOHO_CPAAS_FROM_NAME || senderName || "TenoPilot";
+    const zohoEndpoint = process.env.ZOHO_CPAAS_ENDPOINT || "https://api.zeptomail.in/v1.1/email";
+
+    try {
+      const authHeader = zohoApiKey.startsWith("Zoho-enczapikey") ? zohoApiKey : `Zoho-enczapikey ${zohoApiKey}`;
+      const response = await fetch(zohoEndpoint, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          from: {
+            address: zohoFromEmail,
+            name: zohoFromName,
+          },
+          to: [
+            {
+              email_address: {
+                address: payload.toEmail.trim(),
+                name: payload.recipientName || "Resident",
+              },
+            },
+          ],
+          reply_to: payload.replyToEmail
+            ? [
+                {
+                  address: payload.replyToEmail.trim(),
+                  name: payload.recipientName || undefined,
+                },
+              ]
+            : undefined,
+          subject: subject,
+          htmlbody: html,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        return {
+          success: true,
+          messageId: data.request_id || `zoho-${Date.now()}`,
+          mode: "LIVE_ZOHO_CPAAS",
+          recipientEmail: payload.toEmail,
+          recipientName: payload.recipientName,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        const errorDetail =
+          data?.message ||
+          data?.error?.message ||
+          (Array.isArray(data?.error?.details) ? data.error.details.map((d: any) => d.message).join(", ") : undefined) ||
+          `Zoho CPaaS returned HTTP ${response.status}`;
+        console.warn("Zoho CPaaS Dispatch Error:", errorDetail);
+
+        if (!accessKeyId || !secretAccessKey) {
+          return {
+            success: false,
+            messageId: `err-zoho-${Date.now()}`,
+            mode: "LIVE_ZOHO_CPAAS",
+            recipientEmail: payload.toEmail,
+            recipientName: payload.recipientName,
+            error: errorDetail,
+            timestamp: new Date().toISOString(),
+          };
+        }
+      }
+    } catch (err: any) {
+      console.warn("Zoho CPaaS Dispatch Exception:", err);
+      if (!accessKeyId || !secretAccessKey) {
+        return {
+          success: false,
+          messageId: `err-zoho-${Date.now()}`,
+          mode: "LIVE_ZOHO_CPAAS",
+          recipientEmail: payload.toEmail,
+          recipientName: payload.recipientName,
+          error: err.message || "Failed to dispatch email via Zoho CPaaS",
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+  }
+
+  // 2. Live AWS SES Dispatch (Secondary / Fallback Gateway)
   if (accessKeyId && secretAccessKey) {
     try {
       const client = getSESClient(region, accessKeyId, secretAccessKey);
@@ -610,3 +705,5 @@ export type BrevoSendParams = SESSendParams;
 export type BrevoSendResult = SESSendResult;
 export const sendBrevoEmail = sendSESEmail;
 export const isBrevoQuotaError = isSESQuotaError;
+export const sendZohoEmail = sendSESEmail;
+export const sendZohoCPaaSEmail = sendSESEmail;
