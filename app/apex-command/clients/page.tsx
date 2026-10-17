@@ -275,7 +275,10 @@ export default function ApexCommandClientsPage() {
       usersSnap.docs.forEach((d) => {
         const data = { id: d.id, ...d.data() } as any;
         const email = (data.email || "").toLowerCase().trim();
-        if (d.id.startsWith("portfolio_") || !email) return;
+        // Skip users who have not completed onboarding yet
+        if (data.onboardingCompleted !== true) {
+          return;
+        }
 
         // Skip internal staff-only accounts
         if ((data.role === "admin" || data.role === "receptionist") && data.role !== "master_admin") {

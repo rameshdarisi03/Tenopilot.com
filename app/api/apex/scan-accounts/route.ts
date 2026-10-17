@@ -144,6 +144,11 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
+        // 🛡️ Founder Portal Rule: Exclude incomplete accounts where user hasn't completed onboarding yet
+        if (data.onboardingCompleted !== true) {
+          continue;
+        }
+
         const vipInvite = vipInvitesMap.get(email);
         const founderClient = founderClientsMap.get(email);
         const orgId = data.organizationId || "";
