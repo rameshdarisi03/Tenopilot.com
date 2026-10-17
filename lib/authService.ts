@@ -882,3 +882,141 @@ export async function logoutUser(): Promise<void> {
 export function subscribeToAuth(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
+
+export interface PhoneAuthResult {
+  user: User;
+  profile: AuthUserProfile;
+  isNewOrIncomplete: boolean;
+  destination: "/welcome" | "PIN_PROMPT";
+  alreadyExists?: boolean;
+}
+
+/**
+ * 📱 WhatsApp Phone Authentication & Account Resolution Engine
+ * Handles seamless credentialed sign-in / sign-up and links Firestore user record.
+ */
+export async function loginOrRegisterWithPhone(
+  phone: string,
+  authEmail: string,
+  authSecret: string,
+  displayName?: string
+): Promise<PhoneAuthResult> {
+  let user: User;
+  let isNew = false;
+
+  try {
+    const cred = await signInWithEmailAndPassword(auth, authEmail, authSecret);
+    user = cred.user;
+  } catch (err: any) {
+    if (
+      err.code === "auth/user-not-found" ||
+      err.code === "auth/invalid-credential" ||
+      err.code === "auth/wrong-password"
+    ) {
+      const createRes = await createUserWithEmailAndPassword(auth, authEmail, authSecret);
+      user = createRes.user;
+      isNew = true;
+    } else {
+      throw err;
+    }
+  }
+
+  // Retrieve user record from Firestore
+  const userDocRef = doc(db, "users", user.uid);
+  const snap = await getDoc(userDocRef);
+  let existingUserDoc = snap.exists() ? snap.data() : null;
+
+  const cleanPhone = phone.replace(/\D/g, "");
+
+  // If not found by UID, check if there's an existing profile by phone field
+  if (!existingUserDoc) {
+    try {
+      const q = query(collection(db, "users"), where("phone", "==", cleanPhone));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        existingUserDoc = qSnap.docs[0].data();
+      }
+    } catch {}
+  }
+
+  // Check if fully onboarded
+  let isFullyOnboarded = false;
+  let activeAssignedPropId = existingUserDoc?.assignedPropertyId || "";
+
+  if (existingUserDoc?.onboardingCompleted === true && activeAssignedPropId) {
+    try {
+      const propDoc = await getDoc(doc(db, "properties", activeAssignedPropId));
+      if (propDoc.exists()) {
+        isFullyOnboarded = true;
+      }
+    } catch {}
+  }
+
+  const nowIso = new Date().toISOString();
+  const trialExpiryIso = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+  const cleanName = displayName
+    ? sanitizeTitleCase(displayName)
+    : existingUserDoc?.displayName || `PG Owner (+${cleanPhone.slice(-4)})`;
+
+  if (isFullyOnboarded) {
+    const resolvedRole = existingUserDoc?.role || "master_admin";
+    const resolvedPin = existingUserDoc?.securityPin;
+    const hasPin = Boolean(existingUserDoc?.hasSetPin || resolvedPin);
+
+    const profile: AuthUserProfile = {
+      uid: user.uid,
+      email: authEmail,
+      displayName: cleanName,
+      organizationId: existingUserDoc?.organizationId || `org_${user.uid}`,
+      role: resolvedRole,
+      assignedPropertyId: activeAssignedPropId,
+      propertyName: existingUserDoc?.propertyName || "",
+      onboardingCompleted: true,
+      hasSetPin: hasPin,
+      securityPin: resolvedPin,
+      plan: existingUserDoc?.plan || "10_DAY_TRIAL",
+      subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
+    };
+
+    await setDoc(userDocRef, { ...profile, phone: cleanPhone, authProvider: "whatsapp_phone" }, { merge: true });
+
+    return {
+      user,
+      profile,
+      isNewOrIncomplete: false,
+      destination: "PIN_PROMPT",
+      alreadyExists: true,
+    };
+  }
+
+  // New or incomplete user
+  const freshProfile: AuthUserProfile = {
+    uid: user.uid,
+    email: authEmail,
+    displayName: cleanName,
+    organizationId: `org_${user.uid}`,
+    role: "master_admin",
+    assignedPropertyId: "",
+    isNewUser: true,
+    onboardingCompleted: false,
+    hasSetPin: false,
+    createdAt: existingUserDoc?.createdAt || nowIso,
+    planExpiresAt: existingUserDoc?.planExpiresAt || trialExpiryIso,
+    plan: existingUserDoc?.plan || "10_DAY_TRIAL",
+    subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
+  };
+
+  await setDoc(
+    userDocRef,
+    { ...freshProfile, phone: cleanPhone, authProvider: "whatsapp_phone" },
+    { merge: true }
+  );
+
+  return {
+    user,
+    profile: freshProfile,
+    isNewOrIncomplete: true,
+    destination: "/welcome",
+    alreadyExists: !isNew && Boolean(existingUserDoc),
+  };
+}

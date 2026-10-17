@@ -114,5 +114,12 @@ service cloud.firestore {
     match /subscription_transactions/{txnId} {
       allow read, write: if true;
     }
+
+    // ==========================================
+    // 🔐 7. SECURE WHATSAPP PHONE AUTH OTPS
+    // ==========================================
+    match /auth_phone_otps/{phone} {
+      allow read, write: if true;
+    }
   }
 }

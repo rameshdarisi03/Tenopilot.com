@@ -447,3 +447,174 @@ export async function recordOutboundDispatchLog(payload: WhatsAppSendParams, res
   }
 }
 
+export interface SendWhatsAppAuthOtpResult {
+  success: boolean;
+  messageId: string;
+  mode: "LIVE_META_API" | "SIMULATOR_SANDBOX";
+  recipientPhone: string;
+  error?: string;
+  timestamp: string;
+}
+
+/**
+ * 📲 Send WhatsApp Authentication OTP via Meta Cloud API using the approved template
+ * Default template name: user_authcode_tenopilot
+ */
+export async function sendWhatsAppAuthOtp(
+  toPhone: string,
+  otpCode: string,
+  templateName: string = process.env.WHATSAPP_AUTH_TEMPLATE_NAME || "user_authcode_tenopilot"
+): Promise<SendWhatsAppAuthOtpResult> {
+  const formattedPhone = formatIndianPhoneNumber(toPhone);
+  const metaToken = process.env.WHATSAPP_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (metaToken && phoneNumberId) {
+    const languagesToTry = [
+      process.env.WHATSAPP_AUTH_TEMPLATE_LANG || "en_US",
+      "en",
+      "en_GB",
+    ];
+
+    let lastError = "";
+
+    for (const lang of languagesToTry) {
+      try {
+        const requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: templateName,
+            language: { code: lang },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: otpCode,
+                  },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  {
+                    type: "text",
+                    text: otpCode,
+                  },
+                ],
+              },
+            ],
+          },
+        };
+
+        const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const resData = await response.json();
+
+        if (response.ok) {
+          return {
+            success: true,
+            messageId: resData.messages?.[0]?.id || `wamid-${Date.now()}`,
+            mode: "LIVE_META_API",
+            recipientPhone: formattedPhone,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
+        const errMsg = resData.error?.message || "";
+        const errCode = resData.error?.code;
+        lastError = errMsg;
+
+        // If error indicates locale mismatch, try next language
+        if (errCode === 132001 || errMsg.includes("translated language") || errMsg.includes("does not exist in")) {
+          console.warn(`Meta template '${templateName}' not found in locale '${lang}'. Trying next locale...`);
+          continue;
+        }
+
+        // If error is about button structure, attempt body-only fallback
+        if (errMsg.includes("button") || errCode === 132018) {
+          const bodyOnlyPayload = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: templateName,
+              language: { code: lang },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    {
+                      type: "text",
+                      text: otpCode,
+                    },
+                  ],
+                },
+              ],
+            },
+          };
+
+          const bodyResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${metaToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(bodyOnlyPayload),
+          });
+
+          const bodyData = await bodyResp.json();
+          if (bodyResp.ok) {
+            return {
+              success: true,
+              messageId: bodyData.messages?.[0]?.id || `wamid-${Date.now()}`,
+              mode: "LIVE_META_API",
+              recipientPhone: formattedPhone,
+              timestamp: new Date().toISOString(),
+            };
+          }
+          lastError = bodyData.error?.message || lastError;
+        }
+
+        break;
+      } catch (err: any) {
+        lastError = err.message || "Network exception contacting WhatsApp Cloud API";
+        break;
+      }
+    }
+
+    return {
+      success: false,
+      messageId: `err-${Date.now()}`,
+      mode: "LIVE_META_API",
+      recipientPhone: formattedPhone,
+      error: lastError || "Failed to deliver WhatsApp OTP via Meta Cloud API",
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // Fallback simulator for local dev without credentials
+  console.info(`[WhatsApp Simulator 🟢] Auth OTP code ${otpCode} sent to +${formattedPhone} (template: ${templateName})`);
+  return {
+    success: true,
+    messageId: `sim-otp-${Date.now()}`,
+    mode: "SIMULATOR_SANDBOX",
+    recipientPhone: formattedPhone,
+    timestamp: new Date().toISOString(),
+  };
+}
+
