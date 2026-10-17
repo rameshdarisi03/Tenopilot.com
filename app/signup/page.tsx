@@ -103,6 +103,16 @@ function SignUpPageContent() {
     }
     setHighlightTerms(false);
     setIsLoading(true);
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_portfolio_properties");
+      localStorage.removeItem("tenopilot_global_staff");
+      localStorage.removeItem("tenopilot_pin_lockout");
+      localStorage.removeItem("tenopilot_active_role");
+      localStorage.removeItem("tenopilot_session_version");
+    }
+
     try {
       const authResult = await loginWithGoogle(true);
       if (!authResult) return;

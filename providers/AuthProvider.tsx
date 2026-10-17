@@ -342,6 +342,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isAuthPage && !loading && (user || hasLocalSession) && !isEmailUnverified && isSessionUnlocked) {
+      if (pathname === "/signup") {
+        if (profile?.onboardingCompleted === true && profile.assignedPropertyId) {
+          router.replace("/home");
+        } else {
+          router.replace("/welcome");
+        }
+        return;
+      }
+
       if (profile && !hasCompletedSetup) {
         router.replace("/welcome");
       } else {

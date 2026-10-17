@@ -161,6 +161,12 @@ export async function checkAccountRegistrationStatus(email: string): Promise<Acc
   if (!cleanEmail) return { exists: false };
 
   try {
+    // 0. Check if account was explicitly purged by founder in purged_accounts
+    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
+    if (purgedDoc.exists()) {
+      return { exists: false, isPurged: true };
+    }
+
     // 1. Check in staff_accounts collection (STRICT: only if configured as admin or receptionist)
     const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
     if (staffDoc.exists()) {
@@ -190,12 +196,6 @@ export async function checkAccountRegistrationStatus(email: string): Promise<Acc
     const allStaff = staffStore.getAllGlobalStaff();
     if (allStaff.some((s) => s.email.toLowerCase() === cleanEmail)) {
       return { exists: true, isStaff: true };
-    }
-
-    // 5. Check if account was explicitly purged by founder and has NO active records
-    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
-    if (purgedDoc.exists()) {
-      return { exists: false, isPurged: true };
     }
 
     // 5. Check if they have a pending Founder VIP Invite
@@ -242,17 +242,30 @@ export async function loginWithGoogle(
     const user = result.user;
     const email = user.email?.toLowerCase() || "";
 
+    // 0. Check if account was explicitly purged by founder in purged_accounts
+    let isPurgedAccount = false;
+    try {
+      const purgedDoc = await getDoc(doc(db, "purged_accounts", email));
+      if (purgedDoc.exists()) {
+        isPurgedAccount = true;
+      }
+    } catch {}
+
     // Check if user document already exists in Cloud Firestore
     const userDocRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userDocRef);
-    const existsInDb = userSnap.exists() || (await checkIfEmailExists(email));
+    const existsInDb = !isPurgedAccount && (userSnap.exists() || (await checkIfEmailExists(email)));
 
     if (!isSignUpMode) {
       // 🔒 LOGIN MODE: Must already be an existing registered user or staff member!
       if (!existsInDb) {
         // Abort session and sign out
         await signOut(auth);
-        throw new Error("No registered account found for this Google email. Please Sign Up first to create your organization.");
+        throw new Error(
+          isPurgedAccount
+            ? "This account has been removed or purged. Please click Sign Up below to create a new property."
+            : "No registered account found for this Google email. Please Sign Up first to create your organization."
+        );
       }
 
       let profile: AuthUserProfile;
@@ -308,23 +321,62 @@ export async function loginWithGoogle(
     }
 
     // 🚀 SIGN UP MODE: Check if already registered & fully onboarded
-    if (existsInDb) {
+    if (existsInDb && !isPurgedAccount) {
+      let existingProfile: AuthUserProfile | null = null;
       if (userSnap.exists() && userSnap.data()?.onboardingCompleted === true) {
-        return { user, profile: userSnap.data() as AuthUserProfile, alreadyExists: true };
-      }
-      try {
-        const q = query(collection(db, "users"), where("email", "==", email));
-        const snap = await getDocs(q);
-        if (!snap.empty && snap.docs[0].data()?.onboardingCompleted === true) {
-          return {
-            user,
-            profile: { id: snap.docs[0].id, ...snap.docs[0].data() } as unknown as AuthUserProfile,
-            alreadyExists: true,
-          };
+        existingProfile = userSnap.data() as AuthUserProfile;
+      } else {
+        try {
+          const q = query(collection(db, "users"), where("email", "==", email));
+          const snap = await getDocs(q);
+          if (!snap.empty && snap.docs[0].data()?.onboardingCompleted === true) {
+            existingProfile = { id: snap.docs[0].id, ...snap.docs[0].data() } as unknown as AuthUserProfile;
+          }
+        } catch (e) {
+          console.warn("Notice checking existing user doc in Google sign-up:", e);
         }
-      } catch (e) {
-        console.warn("Notice checking existing user doc in Google sign-up:", e);
       }
+
+      if (existingProfile) {
+        // Verify that their assigned property actually exists in Firestore properties!
+        let hasActiveProperty = false;
+        if (existingProfile.assignedPropertyId) {
+          try {
+            const propDoc = await getDoc(doc(db, "properties", existingProfile.assignedPropertyId));
+            if (propDoc.exists()) {
+              hasActiveProperty = true;
+            }
+          } catch {}
+        }
+
+        if (hasActiveProperty) {
+          return { user, profile: existingProfile, alreadyExists: true };
+        }
+        console.log(`[GoogleSignUp] User ${email} had onboardingCompleted=true but property ${existingProfile.assignedPropertyId} was purged. Resetting for fresh onboarding.`);
+      }
+    }
+
+    // 🛡️ Wipe any stale session artifacts in localStorage on fresh Google sign-up
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tenopilot_saved_session");
+      localStorage.removeItem("tenopilot_portfolio_properties");
+      localStorage.removeItem("tenopilot_global_staff");
+      localStorage.removeItem("tenopilot_pin_lockout");
+      localStorage.removeItem("tenopilot_active_role");
+      localStorage.removeItem("tenopilot_session_version");
+    }
+
+    // If account was purged, clean up any ghost docs in users collection for this email
+    if (isPurgedAccount) {
+      try {
+        const staleQ = query(collection(db, "users"), where("email", "==", email));
+        const staleSnap = await getDocs(staleQ);
+        for (const sDoc of staleSnap.docs) {
+          if (sDoc.id !== user.uid) {
+            await deleteDoc(doc(db, "users", sDoc.id));
+          }
+        }
+      } catch {}
     }
 
     const isMasterTest = email === "isharapandey01@gmail.com";

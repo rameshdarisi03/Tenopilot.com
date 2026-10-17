@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, getDocs, collection, deleteDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, deleteDoc, setDoc, query, where } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { deleteUserFromFirebaseAuth } from "@/lib/firebaseAdminAuth";
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     let deletedDocsCount = 0;
     let deletedPhotosCount = 0;
 
-    // 1. Delete User Document: users/{userId}
+    // 1. Delete User Document: users/{userId} and all docs in users where email == cleanEmail
     if (userId) {
       try {
         await deleteDoc(doc(db, "users", userId));
@@ -30,8 +30,22 @@ export async function POST(req: NextRequest) {
         console.warn(`Failed to delete user doc ${userId}:`, e);
       }
     }
+    if (cleanEmail) {
+      try {
+        const uQ = query(collection(db, "users"), where("email", "==", cleanEmail));
+        const uSnap = await getDocs(uQ);
+        for (const uDoc of uSnap.docs) {
+          if (uDoc.id !== userId) {
+            await deleteDoc(doc(db, "users", uDoc.id));
+            deletedDocsCount++;
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to query/delete users by email ${cleanEmail}:`, e);
+      }
+    }
 
-    // 2. Delete Portfolio Document: users/portfolio_{sanitizedEmail}
+    // 2. Delete Portfolio Document: users/portfolio_{sanitizedEmail} and portfolio_properties
     if (sanitizedEmail) {
       try {
         await deleteDoc(doc(db, "users", `portfolio_${sanitizedEmail}`));
@@ -39,6 +53,25 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.warn(`Failed to delete portfolio doc portfolio_${sanitizedEmail}:`, e);
       }
+    }
+    if (cleanEmail) {
+      try {
+        const pQ = query(collection(db, "portfolio_properties"), where("ownerEmail", "==", cleanEmail));
+        const pSnap = await getDocs(pQ);
+        for (const pDoc of pSnap.docs) {
+          await deleteDoc(doc(db, "portfolio_properties", pDoc.id));
+          deletedDocsCount++;
+        }
+      } catch (e) {}
+
+      try {
+        const portQ = query(collection(db, "portfolios"), where("ownerEmail", "==", cleanEmail));
+        const portSnap = await getDocs(portQ);
+        for (const pDoc of portSnap.docs) {
+          await deleteDoc(doc(db, "portfolios", pDoc.id));
+          deletedDocsCount++;
+        }
+      } catch (e) {}
     }
 
     // 3. Delete Staff Account: staff_accounts/{email}
