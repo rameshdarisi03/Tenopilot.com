@@ -43,7 +43,7 @@ import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import { PhoneAuthModal } from "@/components/auth/PhoneAuthModal";
+import { PhoneAuthCard } from "@/components/auth/PhoneAuthCard";
 
 interface SavedSession {
   email: string;
@@ -59,8 +59,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [showBootSplash, setShowBootSplash] = useState(true);
 
-  // Auth Flow Steps: "CREDENTIALS" | "PIN_PROMPT" | "SET_OR_RESET_PIN"
-  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PIN_PROMPT" | "SET_OR_RESET_PIN">("CREDENTIALS");
+  // Auth Flow Steps: "CREDENTIALS" | "PHONE" | "PIN_PROMPT" | "SET_OR_RESET_PIN"
+  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PHONE" | "PIN_PROMPT" | "SET_OR_RESET_PIN">("CREDENTIALS");
   const [savedSession, setSavedSession] = useState<SavedSession | null>(null);
 
   // Form Inputs
@@ -69,7 +69,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPhoneAuthModal, setShowPhoneAuthModal] = useState(false);
 
   // 6-Digit PIN Keyboard & Quick Unlock State
   const [pinValue, setPinValue] = useState("");
@@ -1050,6 +1049,8 @@ export default function LoginPage() {
                     : "Set Your 6-Digit MPIN"
                   : authStep === "PIN_PROMPT"
                   ? "Enter 6-Digit MPIN"
+                  : authStep === "PHONE"
+                  ? "Continue with Phone"
                   : "Welcome to TenoPilot.com"}
               </h1>
               <p className="text-xs text-gray-500 font-medium">
@@ -1059,6 +1060,8 @@ export default function LoginPage() {
                     : "Create and confirm your personal 6-digit MPIN for rapid device unlock"
                   : authStep === "PIN_PROMPT"
                   ? "Enter your 6-digit MPIN to unlock workspace"
+                  : authStep === "PHONE"
+                  ? "Verify your mobile number via WhatsApp OTP to sign in"
                   : "Sign in to manage your properties & residents"}
               </p>
             </div>
@@ -1133,7 +1136,7 @@ export default function LoginPage() {
                 {/* Continue with Phone Number */}
                 <button
                   type="button"
-                  onClick={() => setShowPhoneAuthModal(true)}
+                  onClick={() => setAuthStep("PHONE")}
                   disabled={isLoading}
                   className="w-full py-2.5 px-4 rounded-xl border border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70 font-bold text-xs text-emerald-800 flex items-center justify-center gap-2.5 transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
                 >
@@ -1222,6 +1225,28 @@ export default function LoginPage() {
                   </Link>
                 </div>
               </div>
+            )}
+
+            {/* STEP: PHONE AUTHENTICATION VIA WHATSAPP OTP (INLINE PAGE VIEW) */}
+            {authStep === "PHONE" && (
+              <PhoneAuthCard
+                onBackToOptions={() => setAuthStep("CREDENTIALS")}
+                onSuccess={(authResult) => {
+                  if (authResult.destination === "PIN_PROMPT") {
+                    setSavedSession({
+                      email: authResult.profile.email,
+                      name: authResult.profile.displayName,
+                      role: authResult.profile.role,
+                      assignedPropertyId: authResult.profile.assignedPropertyId,
+                      securityPin: authResult.profile.securityPin,
+                    });
+                    setAuthStep("PIN_PROMPT");
+                    setPinValue("");
+                  } else {
+                    router.push(authResult.destination);
+                  }
+                }}
+              />
             )}
 
             {/* STEP 2A: SET OR RESET PERSONAL 6-DIGIT MPIN (BANKING 2-STEP DOUBLE-ENTRY) */}
@@ -1668,17 +1693,6 @@ export default function LoginPage() {
           </div>
         </div>
       )}
-
-      {/* WhatsApp Phone Authentication Modal */}
-      <PhoneAuthModal
-        isOpen={showPhoneAuthModal}
-        onClose={() => setShowPhoneAuthModal(false)}
-        onSuccessPromptPin={(sessionData) => {
-          setSavedSession(sessionData);
-          setAuthStep("PIN_PROMPT");
-          setPinValue("");
-        }}
-      />
     </>
   );
 }

@@ -29,7 +29,7 @@ import {
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { auth } from "@/lib/firebase";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
-import { PhoneAuthModal } from "@/components/auth/PhoneAuthModal";
+import { PhoneAuthCard } from "@/components/auth/PhoneAuthCard";
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -43,7 +43,7 @@ function SignUpPageContent() {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPhoneAuthModal, setShowPhoneAuthModal] = useState(false);
+  const [isPhoneMode, setIsPhoneMode] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -429,6 +429,17 @@ function SignUpPageContent() {
                 </div>
               </div>
             </div>
+          ) : isPhoneMode ? (
+            <PhoneAuthCard
+              onBackToOptions={() => setIsPhoneMode(false)}
+              onSuccess={(authResult) => {
+                if (!authResult.isNewOrIncomplete) {
+                  router.push(`/login?email=${encodeURIComponent(authResult.profile.email)}`);
+                } else {
+                  router.push("/welcome");
+                }
+              }}
+            />
           ) : (
             <div className="space-y-4">
               {/* 1. Google 1-Click Sign-Up Button */}
@@ -462,7 +473,7 @@ function SignUpPageContent() {
               {/* Continue with Phone Number */}
               <button
                 type="button"
-                onClick={() => setShowPhoneAuthModal(true)}
+                onClick={() => setIsPhoneMode(true)}
                 disabled={isLoading}
                 className="w-full py-2.5 px-4 rounded-xl border border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70 font-bold text-xs text-emerald-800 flex items-center justify-center gap-2.5 transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
               >
@@ -670,13 +681,6 @@ function SignUpPageContent() {
           </div>
         </div>
       </div>
-
-      {/* WhatsApp Phone Authentication Modal */}
-      <PhoneAuthModal
-        isOpen={showPhoneAuthModal}
-        onClose={() => setShowPhoneAuthModal(false)}
-        initialMode="SIGNUP"
-      />
     </div>
   );
 }
