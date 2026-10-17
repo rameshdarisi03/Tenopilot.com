@@ -156,62 +156,86 @@ export interface AccountStatusResult {
  * 4. founder_invites (pending VIP passes)
  * 5. local in-memory staffStore
  */
-export async function checkAccountRegistrationStatus(email: string): Promise<AccountStatusResult> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) return { exists: false };
+export async function checkAccountRegistrationStatus(identifier: string): Promise<AccountStatusResult> {
+  const clean = identifier.trim().toLowerCase();
+  if (!clean) return { exists: false };
 
   try {
-    // 0. Check if account was explicitly purged by founder in purged_accounts
-    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
-    if (purgedDoc.exists()) {
-      return { exists: false, isPurged: true };
-    }
+    if (clean.includes("@")) {
+      const cleanEmail = clean;
+      // 0. Check if account was explicitly purged by founder in purged_accounts
+      const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
+      if (purgedDoc.exists()) {
+        return { exists: false, isPurged: true };
+      }
 
-    // 1. Check in staff_accounts collection (STRICT: only if configured as admin or receptionist)
-    const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
-    if (staffDoc.exists()) {
-      const sData = staffDoc.data();
-      if (sData?.role === "admin" || sData?.role === "receptionist") {
+      // 1. Check in staff_accounts collection (STRICT: only if configured as admin or receptionist)
+      const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
+      if (staffDoc.exists()) {
+        const sData = staffDoc.data();
+        if (sData?.role === "admin" || sData?.role === "receptionist") {
+          deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+          return { exists: true, isStaff: true };
+        }
+      }
+
+      // 2. Check in users collection by email field
+      const q = query(collection(db, "users"), where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
         deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+        return { exists: true };
+      }
+
+      // 3. Check in founder_clients collection
+      const fcDoc = await getDoc(doc(db, "founder_clients", cleanEmail));
+      if (fcDoc.exists()) {
+        deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+        return { exists: true };
+      }
+
+      // 4. Check in local staff store
+      const allStaff = staffStore.getAllGlobalStaff();
+      if (allStaff.some((s) => s.email.toLowerCase() === cleanEmail)) {
         return { exists: true, isStaff: true };
       }
-    }
 
-    // 2. Check in users collection by email field
-    const q = query(collection(db, "users"), where("email", "==", cleanEmail));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
-      return { exists: true };
-    }
+      // 5. Check if they have a pending Founder VIP Invite
+      const invQ = query(
+        collection(db, "founder_invites"),
+        where("ownerEmail", "==", cleanEmail),
+        where("status", "==", "PENDING")
+      );
+      const invSnap = await getDocs(invQ);
+      if (!invSnap.empty) {
+        const invData = invSnap.docs[0].data();
+        return {
+          exists: false,
+          hasPendingVipInvite: true,
+          activationCode: invData.activationCode,
+        };
+      }
+    } else {
+      // Mobile phone number lookup
+      const cleanPhone = clean.replace(/\D/g, "");
+      if (cleanPhone.length >= 10) {
+        const pure10 = cleanPhone.slice(-10);
+        // Check users collection by phone
+        const q1 = query(collection(db, "users"), where("phone", "==", pure10));
+        const s1 = await getDocs(q1);
+        if (!s1.empty) return { exists: true };
 
-    // 3. Check in founder_clients collection
-    const fcDoc = await getDoc(doc(db, "founder_clients", cleanEmail));
-    if (fcDoc.exists()) {
-      deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
-      return { exists: true };
-    }
+        const q2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+        const s2 = await getDocs(q2);
+        if (!s2.empty) return { exists: true };
 
-    // 4. Check in local staff store
-    const allStaff = staffStore.getAllGlobalStaff();
-    if (allStaff.some((s) => s.email.toLowerCase() === cleanEmail)) {
-      return { exists: true, isStaff: true };
-    }
-
-    // 5. Check if they have a pending Founder VIP Invite
-    const invQ = query(
-      collection(db, "founder_invites"),
-      where("ownerEmail", "==", cleanEmail),
-      where("status", "==", "PENDING")
-    );
-    const invSnap = await getDocs(invQ);
-    if (!invSnap.empty) {
-      const invData = invSnap.docs[0].data();
-      return {
-        exists: false,
-        hasPendingVipInvite: true,
-        activationCode: invData.activationCode,
-      };
+        // Check staff_accounts collection
+        const staffDocs = await getDocs(collection(db, "staff_accounts"));
+        for (const d of staffDocs.docs) {
+          const sp = (d.data().phone || "").replace(/\D/g, "");
+          if (sp.endsWith(pure10)) return { exists: true, isStaff: true };
+        }
+      }
     }
   } catch (e) {
     console.warn("checkAccountRegistrationStatus error:", e);
@@ -899,7 +923,8 @@ export async function loginOrRegisterWithPhone(
   phone: string,
   authEmail: string,
   authSecret: string,
-  displayName?: string
+  displayName?: string,
+  verifiedEmail?: string
 ): Promise<PhoneAuthResult> {
   let user: User;
   let isNew = false;
@@ -939,6 +964,14 @@ export async function loginOrRegisterWithPhone(
     } catch {}
   }
 
+  // Determine clean public email (never expose synthetic phone_XXX@... to user profiles)
+  const cleanVerifiedEmail = verifiedEmail?.trim().toLowerCase() || "";
+  const existingRealEmail =
+    existingUserDoc?.email && !existingUserDoc.email.startsWith("phone_") && !existingUserDoc.email.includes("tenopilot.auth")
+      ? existingUserDoc.email
+      : "";
+  const publicEmail = cleanVerifiedEmail || existingRealEmail || "";
+
   // Check if fully onboarded
   let isFullyOnboarded = false;
   let activeAssignedPropId = existingUserDoc?.assignedPropertyId || "";
@@ -965,7 +998,7 @@ export async function loginOrRegisterWithPhone(
 
     const profile: AuthUserProfile = {
       uid: user.uid,
-      email: authEmail,
+      email: publicEmail,
       displayName: cleanName,
       organizationId: existingUserDoc?.organizationId || `org_${user.uid}`,
       role: resolvedRole,
@@ -978,7 +1011,19 @@ export async function loginOrRegisterWithPhone(
       subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
     };
 
-    await setDoc(userDocRef, { ...profile, phone: cleanPhone, authProvider: "whatsapp_phone" }, { merge: true });
+    await setDoc(
+      userDocRef,
+      {
+        ...profile,
+        email: publicEmail,
+        authEmail: authEmail,
+        emailVerified: Boolean(publicEmail),
+        phone: cleanPhone,
+        phoneVerified: true,
+        authProvider: "whatsapp_phone",
+      },
+      { merge: true }
+    );
 
     return {
       user,
@@ -992,7 +1037,7 @@ export async function loginOrRegisterWithPhone(
   // New or incomplete user
   const freshProfile: AuthUserProfile = {
     uid: user.uid,
-    email: authEmail,
+    email: publicEmail,
     displayName: cleanName,
     organizationId: `org_${user.uid}`,
     role: "master_admin",
@@ -1008,7 +1053,15 @@ export async function loginOrRegisterWithPhone(
 
   await setDoc(
     userDocRef,
-    { ...freshProfile, phone: cleanPhone, authProvider: "whatsapp_phone" },
+    {
+      ...freshProfile,
+      email: publicEmail,
+      authEmail: authEmail,
+      emailVerified: Boolean(publicEmail),
+      phone: cleanPhone,
+      phoneVerified: true,
+      authProvider: "whatsapp_phone",
+    },
     { merge: true }
   );
 

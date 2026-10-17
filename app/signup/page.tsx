@@ -17,6 +17,8 @@ import {
   RotateCcw,
   ExternalLink,
   Inbox,
+  Phone,
+  Loader2,
 } from "lucide-react";
 import {
   continueWithGoogle,
@@ -27,7 +29,8 @@ import {
   getCleanAuthErrorMessage,
 } from "@/lib/authService";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { PhoneAuthCard } from "@/components/auth/PhoneAuthCard";
 
@@ -51,6 +54,85 @@ function SignUpPageContent() {
   const [purgedActivationNotice, setPurgedActivationNotice] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [highlightTerms, setHighlightTerms] = useState(false);
+
+  // Optional Phone Linking state
+  const [phoneInput, setPhoneInput] = useState("");
+  const [verifiedPhone, setVerifiedPhone] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtpToken, setPhoneOtpToken] = useState("");
+  const [phoneOtpCode, setPhoneOtpCode] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState(false);
+  const [isCheckingPhoneOtp, setIsCheckingPhoneOtp] = useState(false);
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setPhoneCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phoneCooldown]);
+
+  const handleSendPhoneOtp = async () => {
+    setPhoneError(null);
+    const clean = phoneInput.replace(/\D/g, "");
+    if (clean.length < 10) {
+      setPhoneError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    setIsSendingPhoneOtp(true);
+    try {
+      const res = await fetch("/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: clean }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to send WhatsApp code.");
+      }
+      setPhoneOtpToken(data.verificationToken);
+      setPhoneOtpSent(true);
+      setPhoneCooldown(data.cooldownSeconds || 45);
+    } catch (err: any) {
+      setPhoneError(err.message || "Failed to send WhatsApp code.");
+    } finally {
+      setIsSendingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    setPhoneError(null);
+    const cleanOtp = phoneOtpCode.trim();
+    if (cleanOtp.length !== 6) {
+      setPhoneError("Please enter 6-digit code.");
+      return;
+    }
+    setIsCheckingPhoneOtp(true);
+    try {
+      const res = await fetch("/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phoneInput.replace(/\D/g, ""),
+          otp: cleanOtp,
+          verificationToken: phoneOtpToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Invalid OTP code.");
+      }
+      setVerifiedPhone(data.phone || phoneInput.replace(/\D/g, ""));
+      setPhoneOtpSent(false);
+      setPhoneOtpCode("");
+    } catch (err: any) {
+      setPhoneError(err.message || "Invalid OTP code.");
+    } finally {
+      setIsCheckingPhoneOtp(false);
+    }
+  };
 
   // 🔄 Smart Visibility & Polling Listener: Detects email verification cleanly without IndexedDB collisions
   useEffect(() => {
@@ -179,6 +261,30 @@ function SignUpPageContent() {
 
     try {
       const res = await registerWithEmailPassword(cleanEmail, password);
+
+      // Link verified mobile phone if user verified via WhatsApp OTP
+      if (verifiedPhone && res?.user?.uid) {
+        try {
+          await setDoc(
+            doc(db, "users", res.user.uid),
+            {
+              phone: verifiedPhone,
+              phoneVerified: true,
+            },
+            { merge: true }
+          );
+          if (typeof window !== "undefined") {
+            const sess = localStorage.getItem("tenopilot_saved_session");
+            const parsed = sess ? JSON.parse(sess) : {};
+            localStorage.setItem(
+              "tenopilot_saved_session",
+              JSON.stringify({ ...parsed, phone: verifiedPhone })
+            );
+          }
+        } catch (linkErr) {
+          console.warn("Notice saving verified phone on signup:", linkErr);
+        }
+      }
       
       // If the email is already verified (e.g. self-healed re-signup)
       if (res.user.emailVerified) {
@@ -537,6 +643,125 @@ function SignUpPageContent() {
                       className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
                     />
                   </div>
+                </div>
+
+                {/* Optional WhatsApp Mobile Number Linking */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-gray-700">
+                      WhatsApp Mobile Number <span className="text-gray-400 font-normal">(Optional)</span>
+                    </label>
+                    {verifiedPhone && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        Verified
+                      </span>
+                    )}
+                  </div>
+
+                  {verifiedPhone ? (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                      <div className="flex items-center gap-2 text-emerald-900 font-medium">
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>+91 {verifiedPhone.slice(-10)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerifiedPhone("");
+                          setPhoneOtpSent(false);
+                          setPhoneOtpCode("");
+                        }}
+                        className="text-[11px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex rounded-xl border border-gray-300 focus-within:border-[#c2652a] focus-within:ring-2 focus-within:ring-[#c2652a]/20 overflow-hidden bg-white">
+                        <div className="flex items-center gap-1 px-2.5 bg-gray-50 border-r border-gray-200 text-xs font-bold text-gray-600 select-none">
+                          <span>🇮🇳 +91</span>
+                        </div>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          placeholder="98765 43210"
+                          value={phoneInput}
+                          onChange={(e) => {
+                            setPhoneInput(e.target.value.replace(/\D/g, "").slice(0, 10));
+                            setPhoneError(null);
+                          }}
+                          disabled={phoneOtpSent || isSendingPhoneOtp}
+                          className="flex-1 py-2.5 px-3 text-xs font-semibold text-gray-900 placeholder:text-gray-400 focus:outline-hidden tracking-wider bg-transparent"
+                        />
+                        {phoneInput.length === 10 && !phoneOtpSent && (
+                          <button
+                            type="button"
+                            onClick={handleSendPhoneOtp}
+                            disabled={isSendingPhoneOtp || phoneCooldown > 0}
+                            className="px-3 bg-emerald-50 hover:bg-emerald-100 border-l border-emerald-200 text-emerald-800 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {isSendingPhoneOtp ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : phoneCooldown > 0 ? (
+                              `${phoneCooldown}s`
+                            ) : (
+                              "Verify"
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      {phoneOtpSent && (
+                        <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 animate-in fade-in">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-emerald-900 font-semibold">
+                              Enter 6-digit WhatsApp code sent to +91 {phoneInput}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPhoneOtpSent(false);
+                                setPhoneOtpCode("");
+                              }}
+                              className="text-[#c2652a] font-bold hover:underline cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="tel"
+                              maxLength={6}
+                              placeholder="123456"
+                              value={phoneOtpCode}
+                              onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, ""))}
+                              className="flex-1 py-1.5 px-3 rounded-lg border border-emerald-300 bg-white font-mono font-bold text-center tracking-widest text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifyPhoneOtp}
+                              disabled={isCheckingPhoneOtp || phoneOtpCode.length !== 6}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                            >
+                              {isCheckingPhoneOtp ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                            </button>
+                          </div>
+                          {phoneError && (
+                            <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" /> {phoneError}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-[11px] text-gray-400">
+                        Optional: Verify with WhatsApp now to link both login methods securely.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Password */}

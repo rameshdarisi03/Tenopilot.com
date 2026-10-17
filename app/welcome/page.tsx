@@ -22,6 +22,7 @@ import {
   Loader2,
   Briefcase,
   Check,
+  Mail,
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { auth, db } from "@/lib/firebase";
@@ -103,11 +104,13 @@ function WelcomeOnboardingContent() {
       }
     }
 
-    // 3. Email
-    if (user?.email) {
-      setEmail(user.email);
-    } else if (profile?.email) {
-      setEmail(profile.email);
+    // 3. Email (Never display synthetic phone_ auth strings)
+    const rawEmail = user?.email || profile?.email || "";
+    const isSynthetic = !rawEmail || rawEmail.startsWith("phone_") || rawEmail.includes("tenopilot.auth") || rawEmail.includes("@auth.tenopilot.com");
+    if (!isSynthetic && rawEmail.includes("@")) {
+      setEmail(rawEmail);
+    } else {
+      setEmail("");
     }
 
     // 4. Security PIN
@@ -196,16 +199,26 @@ function WelcomeOnboardingContent() {
     // Persist identity & PIN progress safely to Firestore
     try {
       const activeUser = auth.currentUser || user;
-      const ownerEmail = (activeUser?.email || email).toLowerCase().trim();
+      const rawActiveEmail = (activeUser?.email || "").toLowerCase().trim();
+      const isSyntheticActiveEmail =
+        !rawActiveEmail ||
+        rawActiveEmail.startsWith("phone_") ||
+        rawActiveEmail.includes("tenopilot.auth") ||
+        rawActiveEmail.includes("@auth.tenopilot.com");
+      const realOwnerEmail = !isSyntheticActiveEmail
+        ? rawActiveEmail
+        : email && !email.startsWith("phone_")
+        ? email.trim().toLowerCase()
+        : "";
       const ownerUid = activeUser?.uid;
       const cleanPhone = phone.replace(/\D/g, "");
       if (ownerUid) {
-        await syncUserSecurityPinToCloud(ownerEmail, pin, ownerUid);
+        await syncUserSecurityPinToCloud(rawActiveEmail || realOwnerEmail, pin, ownerUid);
         await setDoc(
           doc(db, "users", ownerUid),
           {
             uid: ownerUid,
-            email: ownerEmail,
+            email: realOwnerEmail,
             displayName: fullName.trim(),
             phone: cleanPhone,
             role: "master_admin",
@@ -301,14 +314,24 @@ function WelcomeOnboardingContent() {
 
     try {
       const activeUser = auth.currentUser || user;
-      const ownerEmail = (activeUser?.email || email).toLowerCase().trim();
+      const rawActiveEmail = (activeUser?.email || "").toLowerCase().trim();
+      const isSyntheticActiveEmail =
+        !rawActiveEmail ||
+        rawActiveEmail.startsWith("phone_") ||
+        rawActiveEmail.includes("tenopilot.auth") ||
+        rawActiveEmail.includes("@auth.tenopilot.com");
+      const realOwnerEmail = !isSyntheticActiveEmail
+        ? rawActiveEmail
+        : email && !email.startsWith("phone_")
+        ? email.trim().toLowerCase()
+        : "";
       const ownerUid = activeUser?.uid || `user-${Date.now()}`;
       const orgId = `org_${ownerUid}`;
       const propertyId = `prop-${Date.now()}`;
       const cleanPhone = phone.replace(/\D/g, "");
 
       // Stage 1: PIN sync
-      await syncUserSecurityPinToCloud(ownerEmail, pin, ownerUid);
+      await syncUserSecurityPinToCloud(rawActiveEmail || realOwnerEmail, pin, ownerUid);
 
       setProvisionProgress(45);
       setProvisionStatusText("🏢 Provisioning Dual-Ledger Financial Engine...");
@@ -318,7 +341,7 @@ function WelcomeOnboardingContent() {
         propertyId: propertyId,
         propertyName: cleanPropName,
         ownerName: fullName.trim(),
-        ownerEmail: ownerEmail,
+        ownerEmail: realOwnerEmail,
         ownerPhone: cleanPhone,
         city: city.trim(),
         approxBeds: 0,
@@ -352,7 +375,8 @@ function WelcomeOnboardingContent() {
         userDocRef,
         {
           uid: ownerUid,
-          email: ownerEmail,
+          email: realOwnerEmail,
+          authEmail: rawActiveEmail,
           displayName: fullName.trim(),
           phone: cleanPhone,
           role: "master_admin",
@@ -374,9 +398,11 @@ function WelcomeOnboardingContent() {
       );
 
       // Clean up any purged tombstone
-      try {
-        await deleteDoc(doc(db, "purged_accounts", ownerEmail));
-      } catch {}
+      if (realOwnerEmail) {
+        try {
+          await deleteDoc(doc(db, "purged_accounts", realOwnerEmail));
+        } catch {}
+      }
 
       // Stage 4: Update session and finish
       if (typeof window !== "undefined") {
@@ -384,11 +410,12 @@ function WelcomeOnboardingContent() {
         localStorage.setItem(
           "tenopilot_saved_session",
           JSON.stringify({
-            email: ownerEmail,
+            email: realOwnerEmail,
             name: fullName.trim(),
             role: "master_admin",
             propertyName: cleanPropName,
             assignedPropertyId: propertyId,
+            phone: cleanPhone,
             hasSetPin: true,
             securityPin: pin,
           })
@@ -584,23 +611,45 @@ function WelcomeOnboardingContent() {
                   </div>
                 </div>
 
-                {/* Email Address (Pre-populated & Verified) */}
+                {/* Email Address (Real verified email or unlinked placeholder) */}
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1.5">
-                    Registered Email Address
-                  </label>
-                  <div className="relative">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      disabled
-                      value={email || user?.email || ""}
-                      className="w-full pl-10 pr-24 py-2.5 rounded-xl border border-gray-200 bg-[#fff8f6] text-gray-600 font-mono text-xs cursor-not-allowed"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
-                      Verified
-                    </span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-bold text-gray-700">
+                      Registered Email Address
+                    </label>
+                    {email && !email.startsWith("phone_") && !email.includes("tenopilot.auth") ? (
+                      <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                        Optional
+                      </span>
+                    )}
                   </div>
+
+                  {email && !email.startsWith("phone_") && !email.includes("tenopilot.auth") ? (
+                    <div className="relative">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        disabled
+                        value={email}
+                        className="w-full pl-10 pr-24 py-2.5 rounded-xl border border-gray-200 bg-[#fff8f6] text-gray-600 font-mono text-xs cursor-not-allowed"
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        disabled
+                        placeholder="Not linked yet — update anytime in Edit Profile"
+                        value=""
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 text-xs cursor-not-allowed italic"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* WhatsApp Mobile Number */}

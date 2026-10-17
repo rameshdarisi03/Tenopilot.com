@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   Loader2,
   ArrowLeft,
+  Mail,
+  CheckCircle2,
 } from "lucide-react";
 import { loginOrRegisterWithPhone } from "@/lib/authService";
 
@@ -30,6 +32,17 @@ export function PhoneAuthCard({
   const [phoneNumber, setPhoneNumber] = useState("");
   const [formattedPhone, setFormattedPhone] = useState("");
 
+  // Optional Email Linking state
+  const [emailInput, setEmailInput] = useState("");
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpToken, setEmailOtpToken] = useState("");
+  const [emailOtpCode, setEmailOtpCode] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSendingEmailOtp, setIsSendingEmailOtp] = useState(false);
+  const [isCheckingEmailOtp, setIsCheckingEmailOtp] = useState(false);
+  const [emailCooldown, setEmailCooldown] = useState(0);
+
   // OTP inputs (6 individual boxes)
   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -46,7 +59,7 @@ export function PhoneAuthCard({
     phoneInputRef.current?.focus();
   }, []);
 
-  // Cooldown countdown timer
+  // Cooldown countdown timers
   useEffect(() => {
     if (cooldown <= 0) return;
     const interval = setInterval(() => {
@@ -54,6 +67,76 @@ export function PhoneAuthCard({
     }, 1000);
     return () => clearInterval(interval);
   }, [cooldown]);
+
+  useEffect(() => {
+    if (emailCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setEmailCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [emailCooldown]);
+
+  // Email OTP Handlers
+  const handleSendEmailOtp = async () => {
+    setEmailError(null);
+    const clean = emailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!clean || !emailRegex.test(clean)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    setIsSendingEmailOtp(true);
+    try {
+      const res = await fetch("/api/auth/email/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: clean }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to send verification email.");
+      }
+      setEmailOtpToken(data.verificationToken);
+      setEmailOtpSent(true);
+      setEmailCooldown(data.cooldownSeconds || 45);
+    } catch (err: any) {
+      setEmailError(err.message || "Failed to send verification email.");
+    } finally {
+      setIsSendingEmailOtp(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    setEmailError(null);
+    const cleanOtp = emailOtpCode.trim();
+    if (cleanOtp.length !== 6) {
+      setEmailError("Please enter 6-digit code.");
+      return;
+    }
+    setIsCheckingEmailOtp(true);
+    try {
+      const res = await fetch("/api/auth/email/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailInput.trim().toLowerCase(),
+          otp: cleanOtp,
+          verificationToken: emailOtpToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Invalid OTP code.");
+      }
+      setVerifiedEmail(emailInput.trim().toLowerCase());
+      setEmailOtpSent(false);
+      setEmailOtpCode("");
+    } catch (err: any) {
+      setEmailError(err.message || "Invalid OTP code.");
+    } finally {
+      setIsCheckingEmailOtp(false);
+    }
+  };
 
   // Auto-focus first digit when entering OTP step
   useEffect(() => {
@@ -235,17 +318,19 @@ export function PhoneAuthCard({
         throw new Error(verifyData.message || "Invalid OTP code.");
       }
 
-      // Authenticate into Firebase with verified credentials
+      // Authenticate into Firebase with verified credentials & optional verified email
       const authResult = await loginOrRegisterWithPhone(
         verifyData.phone,
         verifyData.authEmail,
-        verifyData.authSecret
+        verifyData.authSecret,
+        undefined,
+        verifiedEmail || undefined
       );
 
       // Save local session
       if (typeof window !== "undefined") {
         const sessionPayload = {
-          email: authResult.profile.email,
+          email: verifiedEmail || (authResult.profile.email && !authResult.profile.email.startsWith("phone_") ? authResult.profile.email : ""),
           name: authResult.profile.displayName,
           role: authResult.profile.role,
           assignedPropertyId: authResult.profile.assignedPropertyId || "",
@@ -322,6 +407,121 @@ export function PhoneAuthCard({
             <p className="text-[11px] text-gray-400 mt-1.5">
               We will send your 6-digit one-time code to WhatsApp.
             </p>
+          </div>
+
+          {/* Optional Email Address Linking */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-gray-700">
+                Email Address <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              {verifiedEmail && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Verified
+                </span>
+              )}
+            </div>
+
+            {verifiedEmail ? (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                <div className="flex items-center gap-2 text-emerald-900 font-medium">
+                  <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{verifiedEmail}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifiedEmail("");
+                    setEmailOtpSent(false);
+                    setEmailOtpCode("");
+                  }}
+                  className="text-[11px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex rounded-xl border border-gray-300 focus-within:border-[#c2652a] focus-within:ring-2 focus-within:ring-[#c2652a]/20 overflow-hidden bg-white">
+                  <input
+                    type="email"
+                    placeholder="owner@property.com"
+                    value={emailInput}
+                    onChange={(e) => {
+                      setEmailInput(e.target.value);
+                      setEmailError(null);
+                    }}
+                    disabled={emailOtpSent || isSendingEmailOtp}
+                    className="flex-1 py-2.5 px-3 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-hidden bg-transparent"
+                  />
+                  {emailInput.trim().includes("@") && !emailOtpSent && (
+                    <button
+                      type="button"
+                      onClick={handleSendEmailOtp}
+                      disabled={isSendingEmailOtp || emailCooldown > 0}
+                      className="px-3 bg-amber-50 hover:bg-amber-100 border-l border-amber-200 text-[#964407] font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSendingEmailOtp ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : emailCooldown > 0 ? (
+                        `${emailCooldown}s`
+                      ) : (
+                        "Verify"
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* If Email OTP sent, show 6-digit input inline */}
+                {emailOtpSent && (
+                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-amber-900 font-semibold">
+                        Enter 6-digit code sent to {emailInput}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailOtpSent(false);
+                          setEmailOtpCode("");
+                        }}
+                        className="text-[#c2652a] font-bold hover:underline cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="tel"
+                        maxLength={6}
+                        placeholder="123456"
+                        value={emailOtpCode}
+                        onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ""))}
+                        className="flex-1 py-1.5 px-3 rounded-lg border border-amber-300 bg-white font-mono font-bold text-center tracking-widest text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyEmailOtp}
+                        disabled={isCheckingEmailOtp || emailOtpCode.length !== 6}
+                        className="px-3 py-1.5 rounded-lg bg-[#c2652a] hover:bg-[#964407] text-white font-bold text-xs disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                      >
+                        {isCheckingEmailOtp ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                      </button>
+                    </div>
+                    {emailError && (
+                      <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> {emailError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-[11px] text-gray-400">
+                  Optional: Link your email now to allow signing in with either WhatsApp or Email/Google.
+                </p>
+              </div>
+            )}
           </div>
 
           <button

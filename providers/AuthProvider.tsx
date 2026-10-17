@@ -38,7 +38,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   updateProfileName: (newName: string) => Promise<void>;
-  updateProfileDetails: (details: { displayName?: string; phone?: string }) => Promise<void>;
+  updateProfileDetails: (details: { displayName?: string; phone?: string; email?: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -145,6 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           (snap) => {
             if (snap.exists()) {
               const data = snap.data() as UserProfile;
+              if (data.email && (data.email.startsWith("phone_") || data.email.includes("tenopilot.auth"))) {
+                data.email = "";
+              }
               data.displayName = sanitizeTitleCase(data.displayName || resolvedName);
               if (!data.phone && savedSessionPhone) {
                 data.phone = savedSessionPhone;
@@ -512,18 +515,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfileDetails = async ({
     displayName,
     phone,
+    email,
   }: {
     displayName?: string;
     phone?: string;
+    email?: string;
   }) => {
     const cleanName = displayName !== undefined ? sanitizeTitleCase(displayName) : undefined;
     const cleanPhone = phone !== undefined ? phone.trim() : undefined;
+    const cleanEmail = email !== undefined ? email.trim().toLowerCase() : undefined;
 
     if (profile) {
       const updated: UserProfile = {
         ...profile,
         ...(cleanName !== undefined && cleanName !== "" ? { displayName: cleanName } : {}),
         ...(cleanPhone !== undefined ? { phone: cleanPhone } : {}),
+        ...(cleanEmail !== undefined ? { email: cleanEmail } : {}),
       };
       setProfile(updated);
 
@@ -535,6 +542,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const parsed = JSON.parse(saved);
             if (cleanName) parsed.name = cleanName;
             if (cleanPhone !== undefined) parsed.phone = cleanPhone;
+            if (cleanEmail !== undefined) parsed.email = cleanEmail;
             localStorage.setItem("tenopilot_saved_session", JSON.stringify(parsed));
           } catch {}
         }
@@ -547,7 +555,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             updatedAt: new Date().toISOString(),
           };
           if (cleanName) updatePayload.displayName = cleanName;
-          if (cleanPhone !== undefined) updatePayload.phone = cleanPhone;
+          if (cleanPhone !== undefined) {
+            updatePayload.phone = cleanPhone;
+            updatePayload.phoneVerified = true;
+          }
+          if (cleanEmail !== undefined) {
+            updatePayload.email = cleanEmail;
+            updatePayload.emailVerified = true;
+          }
           await setDoc(userDocRef, updatePayload, { merge: true });
         } catch (e) {
           console.warn("Update profile details Firestore error:", e);
