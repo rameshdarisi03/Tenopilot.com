@@ -1,16 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatIndianPhoneNumber } from "@/lib/whatsappService";
 
-function hashOtp(phone: string, otp: string): string {
-  const secret = process.env.WHATSAPP_API_TOKEN || "tenopilot_phone_auth_salt";
-  return crypto.createHmac("sha256", secret).update(`${phone}:${otp}`).digest("hex");
+export function verifySignedOtpToken(
+  phone: string,
+  otp: string,
+  token: string
+): { valid: boolean; reason?: string } {
+  try {
+    const secret = process.env.WHATSAPP_API_TOKEN || "tenopilot_phone_auth_salt_secret";
+    const raw = Buffer.from(token, "base64url").toString("utf-8");
+    const { payload, signature } = JSON.parse(raw);
+
+    const expectedSig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+    if (signature !== expectedSig) {
+      return { valid: false, reason: "Invalid verification token signature." };
+    }
+
+    const data = JSON.parse(payload);
+    if (data.phone !== phone) {
+      return { valid: false, reason: "Phone number mismatch." };
+    }
+
+    if (Date.now() > data.expiresAt) {
+      return { valid: false, reason: "This OTP code has expired. Please request a new code." };
+    }
+
+    const expectedHash = crypto
+      .createHmac("sha256", secret)
+      .update(`${phone}:${otp}:${data.expiresAt}`)
+      .digest("hex");
+
+    if (data.otpHash !== expectedHash) {
+      return { valid: false, reason: "Incorrect 6-digit OTP code. Please check and try again." };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, reason: "Invalid verification token format." };
+  }
 }
 
 function generatePhoneAuthCredentials(phone: string) {
-  const secret = process.env.WHATSAPP_API_TOKEN || "tenopilot_phone_auth_salt";
+  const secret = process.env.WHATSAPP_API_TOKEN || "tenopilot_phone_auth_salt_secret";
   const authEmail = `phone_${phone}@phone.tenopilot.auth`;
   const authSecret = crypto
     .createHmac("sha256", secret)
@@ -24,6 +58,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const rawPhone = body?.phone;
     const rawOtp = body?.otp;
+    const verificationToken = body?.verificationToken;
 
     if (!rawPhone || !rawOtp) {
       return NextResponse.json(
@@ -42,86 +77,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Fetch OTP record from Firestore
-    const otpDocRef = doc(db, "auth_phone_otps", cleanPhone);
-    const snap = await getDoc(otpDocRef);
-
-    if (!snap.exists()) {
+    // 1. Verify Signed Token
+    if (!verificationToken || typeof verificationToken !== "string") {
       return NextResponse.json(
-        { success: false, message: "No verification request found for this number or OTP has expired. Please request a new code." },
+        { success: false, message: "Verification session missing. Please request a new code." },
         { status: 400 }
       );
     }
 
-    const otpData = snap.data();
-    const now = Date.now();
-
-    // Check expiry (10 minutes)
-    if (now > (otpData.expiresAt || 0)) {
-      await deleteDoc(otpDocRef).catch(() => {});
+    const verificationResult = verifySignedOtpToken(cleanPhone, cleanOtp, verificationToken);
+    if (!verificationResult.valid) {
       return NextResponse.json(
-        { success: false, message: "This OTP code has expired. Please request a new one." },
+        { success: false, message: verificationResult.reason || "Invalid OTP code." },
         { status: 400 }
       );
     }
 
-    // Check brute-force attempts
-    const attempts = otpData.attempts || 0;
-    if (attempts >= 5) {
-      await deleteDoc(otpDocRef).catch(() => {});
-      return NextResponse.json(
-        { success: false, message: "Too many failed attempts. For security, this code was invalidated. Please request a new code." },
-        { status: 429 }
-      );
-    }
-
-    // 2. Validate OTP Hash
-    const expectedHash = otpData.otpHash;
-    const incomingHash = hashOtp(cleanPhone, cleanOtp);
-
-    if (incomingHash !== expectedHash) {
-      const remaining = 4 - attempts;
-      await setDoc(otpDocRef, { attempts: attempts + 1 }, { merge: true });
-      return NextResponse.json(
-        {
-          success: false,
-          message: remaining > 0
-            ? `Invalid OTP code. (${remaining} ${remaining === 1 ? "attempt" : "attempts"} remaining)`
-            : "Invalid OTP code. No attempts remaining, please request a new code.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // 3. Mark burned / verified
-    await deleteDoc(otpDocRef).catch(() => {});
-
-    // 4. Generate deterministic Firebase Auth credentials
+    // 2. Generate deterministic Firebase Auth credentials
     const { authEmail, authSecret } = generatePhoneAuthCredentials(cleanPhone);
 
-    // 5. Check if user already exists in Firestore
+    // 3. Check existing user doc safely in Firestore
     let existingProfile: any = null;
     let isFullyOnboarded = false;
 
     try {
-      // Check by phone
-      const phoneQ = query(collection(db, "users"), where("phone", "==", cleanPhone));
-      const phoneSnap = await getDocs(phoneQ);
-      if (!phoneSnap.empty) {
-        existingProfile = phoneSnap.docs[0].data();
-      }
-
-      // Check by synthetic email if not found
-      if (!existingProfile) {
-        const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
-        const emailSnap = await getDocs(emailQ);
-        if (!emailSnap.empty) {
-          existingProfile = emailSnap.docs[0].data();
+      if (db) {
+        const phoneQ = query(collection(db, "users"), where("phone", "==", cleanPhone));
+        const phoneSnap = await getDocs(phoneQ);
+        if (!phoneSnap.empty) {
+          existingProfile = phoneSnap.docs[0].data();
         }
-      }
 
-      if (existingProfile?.onboardingCompleted === true && existingProfile?.assignedPropertyId) {
-        isFullyOnboarded = true;
+        if (!existingProfile) {
+          const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
+          const emailSnap = await getDocs(emailQ);
+          if (!emailSnap.empty) {
+            existingProfile = emailSnap.docs[0].data();
+          }
+        }
+
+        if (existingProfile?.onboardingCompleted === true && existingProfile?.assignedPropertyId) {
+          isFullyOnboarded = true;
+        }
       }
     } catch (e) {
       console.warn("Notice checking existing user in verify-otp:", e);

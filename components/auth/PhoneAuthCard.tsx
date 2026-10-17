@@ -34,10 +34,10 @@ export function PhoneAuthCard({
   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Feedback & timing states
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState<number>(0);
+  const [verificationToken, setVerificationToken] = useState<string>("");
 
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -93,6 +93,10 @@ export function PhoneAuthCard({
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Failed to send WhatsApp code.");
+      }
+
+      if (data.verificationToken) {
+        setVerificationToken(data.verificationToken);
       }
 
       setFormattedPhone(data.phone);
@@ -184,6 +188,7 @@ export function PhoneAuthCard({
         body: JSON.stringify({
           phone: formattedPhone || phoneNumber,
           otp: codeToVerify,
+          verificationToken: verificationToken,
         }),
       });
 
