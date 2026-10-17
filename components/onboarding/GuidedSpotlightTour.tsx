@@ -113,6 +113,22 @@ export function GuidedSpotlightTour({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, currentStepIndex, steps.length, onClose, onComplete]);
 
+  // Dynamically measured card dimensions to prevent any clipping on mobile
+  const [tooltipDimensions, setTooltipDimensions] = useState<{ width: number; height: number }>({
+    width: 360,
+    height: 220,
+  });
+
+  // Measure tooltip size dynamically whenever step changes or window resizes
+  useEffect(() => {
+    if (tooltipRef.current) {
+      const rect = tooltipRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setTooltipDimensions({ width: rect.width, height: rect.height });
+      }
+    }
+  }, [currentStepIndex, isOpen, targetRect]);
+
   if (!isOpen || !currentStep) return null;
 
   const isFirstStep = currentStepIndex === 0;
@@ -132,22 +148,6 @@ export function GuidedSpotlightTour({
       setCurrentStepIndex((prev) => prev - 1);
     }
   };
-
-  // Dynamically measured card dimensions to prevent any clipping on mobile
-  const [tooltipDimensions, setTooltipDimensions] = useState<{ width: number; height: number }>({
-    width: 360,
-    height: 220,
-  });
-
-  // Measure tooltip size dynamically whenever step changes or window resizes
-  useEffect(() => {
-    if (tooltipRef.current) {
-      const rect = tooltipRef.current.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setTooltipDimensions({ width: rect.width, height: rect.height });
-      }
-    }
-  }, [currentStepIndex, isOpen, targetRect]);
 
   // Determine tooltip placement: smart viewport-aware positioning
   let tooltipTop = 0;

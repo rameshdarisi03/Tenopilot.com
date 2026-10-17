@@ -52,6 +52,27 @@ function WelcomeOnboardingContent() {
   const [hasInitializedPhone, setHasInitializedPhone] = useState(false);
   const [hasInitializedName, setHasInitializedName] = useState(false);
 
+  // Dual-channel linking states for onboarding
+  const [emailInput, setEmailInput] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpToken, setEmailOtpToken] = useState("");
+  const [emailOtpCode, setEmailOtpCode] = useState("");
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSendingEmailOtp, setIsSendingEmailOtp] = useState(false);
+  const [isCheckingEmailOtp, setIsCheckingEmailOtp] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtpToken, setPhoneOtpToken] = useState("");
+  const [phoneOtpCode, setPhoneOtpCode] = useState("");
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState(false);
+  const [isCheckingPhoneOtp, setIsCheckingPhoneOtp] = useState(false);
+  const [verifiedPhone, setVerifiedPhone] = useState("");
+
   // Step 2: 6-Digit MPIN
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -163,19 +184,191 @@ function WelcomeOnboardingContent() {
     }
   }, [user, profile, router]);
 
+  // Cooldown countdown timers
+  useEffect(() => {
+    if (emailCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setEmailCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [emailCooldown]);
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setPhoneCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phoneCooldown]);
+
+  // Email OTP Handlers (for phone-authenticated users linking email)
+  const handleSendEmailOtp = async () => {
+    setEmailError(null);
+    const clean = emailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!clean || !emailRegex.test(clean)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    setIsSendingEmailOtp(true);
+    try {
+      const res = await fetch("/api/auth/email/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: clean }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to send verification email.");
+      }
+      setEmailOtpToken(data.verificationToken);
+      setEmailOtpSent(true);
+      setEmailCooldown(data.cooldownSeconds || 45);
+    } catch (err: any) {
+      setEmailError(err.message || "Failed to send verification email.");
+    } finally {
+      setIsSendingEmailOtp(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    setEmailError(null);
+    const cleanOtp = emailOtpCode.trim();
+    if (cleanOtp.length !== 6) {
+      setEmailError("Please enter 6-digit code.");
+      return;
+    }
+    setIsCheckingEmailOtp(true);
+    try {
+      const res = await fetch("/api/auth/email/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailInput.trim().toLowerCase(),
+          otp: cleanOtp,
+          verificationToken: emailOtpToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Invalid OTP code.");
+      }
+      const verified = emailInput.trim().toLowerCase();
+      setVerifiedEmail(verified);
+      setEmail(verified);
+      setEmailOtpSent(false);
+      setEmailOtpCode("");
+
+      // Link immediately to Firestore & localStorage
+      const activeUid = auth.currentUser?.uid || user?.uid || profile?.uid;
+      if (activeUid) {
+        await setDoc(doc(db, "users", activeUid), { email: verified, emailVerified: true }, { merge: true });
+        if (typeof window !== "undefined") {
+          const sess = localStorage.getItem("tenopilot_saved_session");
+          const parsed = sess ? JSON.parse(sess) : {};
+          localStorage.setItem("tenopilot_saved_session", JSON.stringify({ ...parsed, email: verified }));
+        }
+      }
+    } catch (err: any) {
+      setEmailError(err.message || "Invalid OTP code.");
+    } finally {
+      setIsCheckingEmailOtp(false);
+    }
+  };
+
+  // Phone OTP Handlers (for email-authenticated users linking phone)
+  const handleSendPhoneOtp = async () => {
+    setPhoneError(null);
+    const clean = phoneInput.replace(/\D/g, "");
+    if (clean.length < 10) {
+      setPhoneError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    setIsSendingPhoneOtp(true);
+    try {
+      const res = await fetch("/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: clean }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to send WhatsApp code.");
+      }
+      setPhoneOtpToken(data.verificationToken);
+      setPhoneOtpSent(true);
+      setPhoneCooldown(data.cooldownSeconds || 45);
+    } catch (err: any) {
+      setPhoneError(err.message || "Failed to send WhatsApp code.");
+    } finally {
+      setIsSendingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    setPhoneError(null);
+    const cleanOtp = phoneOtpCode.trim();
+    if (cleanOtp.length !== 6) {
+      setPhoneError("Please enter 6-digit code.");
+      return;
+    }
+    setIsCheckingPhoneOtp(true);
+    try {
+      const res = await fetch("/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phoneInput.replace(/\D/g, ""),
+          otp: cleanOtp,
+          verificationToken: phoneOtpToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Invalid OTP code.");
+      }
+      const verified = data.phone || phoneInput.replace(/\D/g, "");
+      setVerifiedPhone(verified);
+      setPhone(cleanIndianMobileNumber(verified));
+      setPhoneOtpSent(false);
+      setPhoneOtpCode("");
+
+      // Link immediately to Firestore & localStorage
+      const activeUid = auth.currentUser?.uid || user?.uid || profile?.uid;
+      if (activeUid) {
+        await setDoc(doc(db, "users", activeUid), { phone: verified, phoneVerified: true }, { merge: true });
+        if (typeof window !== "undefined") {
+          const sess = localStorage.getItem("tenopilot_saved_session");
+          const parsed = sess ? JSON.parse(sess) : {};
+          localStorage.setItem("tenopilot_saved_session", JSON.stringify({ ...parsed, phone: verified }));
+        }
+      }
+    } catch (err: any) {
+      setPhoneError(err.message || "Invalid OTP code.");
+    } finally {
+      setIsCheckingPhoneOtp(false);
+    }
+  };
+
   // Step 1 Validation -> Move to Step 2
   const handleProceedToStep2 = () => {
     setError(null);
     const cleanName = fullName.trim();
-    const cleanPhone = phone.replace(/\D/g, "");
 
     if (!cleanName) {
       setError("Please enter your full name.");
       return;
     }
 
-    if (cleanPhone.length < 10) {
-      setError("Please enter a valid 10-digit WhatsApp mobile number.");
+    // If user started typing an optional email but didn't verify it:
+    if (emailInput.trim() && !verifiedEmail) {
+      setError("Please verify your email address using the 6-digit code, or clear the email field to proceed.");
+      return;
+    }
+
+    // If user started typing an optional phone but didn't verify it:
+    if (phoneInput.trim() && !verifiedPhone) {
+      setError("Please verify your mobile number with WhatsApp OTP, or clear the phone field to proceed.");
       return;
     }
 
@@ -611,80 +804,302 @@ function WelcomeOnboardingContent() {
                   </div>
                 </div>
 
-                {/* Email Address (Real verified email or unlinked placeholder) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block font-bold text-gray-700">
-                      Registered Email Address
-                    </label>
-                    {email && !email.startsWith("phone_") && !email.includes("tenopilot.auth") ? (
-                      <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
-                        Verified
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
-                        Optional
-                      </span>
-                    )}
-                  </div>
+                {/* 
+                  DUAL-CHANNEL ONBOARDING LINKING:
+                  - If signed up via Phone: Phone is verified. Email Address is the OPTIONAL field with OTP verification right below name!
+                  - If signed up via Email: Email is verified. WhatsApp Mobile is the OPTIONAL field with OTP verification right below name!
+                */}
+                {Boolean(phone && (!email || email.startsWith("phone_") || email.includes("tenopilot.auth") || email.includes("@auth.tenopilot.com"))) ? (
+                  <>
+                    {/* Optional Email Linking for Phone Users */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block font-bold text-gray-700">
+                          Email Address <span className="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                        {verifiedEmail || (email && !email.startsWith("phone_") && !email.includes("tenopilot.auth") && !email.includes("@auth.tenopilot.com")) ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                            Optional
+                          </span>
+                        )}
+                      </div>
 
-                  {email && !email.startsWith("phone_") && !email.includes("tenopilot.auth") ? (
-                    <div className="relative">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="email"
-                        disabled
-                        value={email}
-                        className="w-full pl-10 pr-24 py-2.5 rounded-xl border border-gray-200 bg-[#fff8f6] text-gray-600 font-mono text-xs cursor-not-allowed"
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        disabled
-                        placeholder="Not linked yet — update anytime in Edit Profile"
-                        value=""
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 text-xs cursor-not-allowed italic"
-                      />
-                    </div>
-                  )}
-                </div>
+                      {verifiedEmail || (email && !email.startsWith("phone_") && !email.includes("tenopilot.auth") && !email.includes("@auth.tenopilot.com")) ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                          <div className="flex items-center gap-2 text-emerald-900 font-medium font-mono">
+                            <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{verifiedEmail || email}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVerifiedEmail("");
+                              setEmail("");
+                              setEmailInput("");
+                              setEmailOtpSent(false);
+                              setEmailOtpCode("");
+                            }}
+                            className="text-[11px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex rounded-xl border border-gray-300 focus-within:border-[#c2652a] focus-within:ring-2 focus-within:ring-[#c2652a]/20 overflow-hidden bg-white">
+                            <div className="flex items-center pl-3 text-gray-400">
+                              <Mail className="w-4 h-4" />
+                            </div>
+                            <input
+                              type="email"
+                              placeholder="owner@property.com"
+                              value={emailInput}
+                              onChange={(e) => {
+                                setEmailInput(e.target.value);
+                                setEmailError(null);
+                              }}
+                              disabled={emailOtpSent || isSendingEmailOtp}
+                              className="flex-1 py-2.5 px-3 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-hidden bg-transparent"
+                            />
+                            {emailInput.trim().includes("@") && !emailOtpSent && (
+                              <button
+                                type="button"
+                                onClick={handleSendEmailOtp}
+                                disabled={isSendingEmailOtp || emailCooldown > 0}
+                                className="px-3 bg-amber-50 hover:bg-amber-100 border-l border-amber-200 text-[#964407] font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                {isSendingEmailOtp ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : emailCooldown > 0 ? (
+                                  `${emailCooldown}s`
+                                ) : (
+                                  "Verify"
+                                )}
+                              </button>
+                            )}
+                          </div>
 
-                {/* WhatsApp Mobile Number */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1.5">
-                    WhatsApp Mobile Number *
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex items-center justify-center px-3 rounded-xl border border-gray-300 bg-[#fff8f6] text-[#201a17] font-mono text-xs font-bold shrink-0">
-                      🇮🇳 +91
+                          {emailOtpSent && (
+                            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-amber-900 font-semibold">
+                                  Enter 6-digit code sent to {emailInput}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEmailOtpSent(false);
+                                    setEmailOtpCode("");
+                                  }}
+                                  className="text-[#c2652a] font-bold hover:underline cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="tel"
+                                  maxLength={6}
+                                  placeholder="123456"
+                                  value={emailOtpCode}
+                                  onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ""))}
+                                  className="flex-1 py-1.5 px-3 rounded-lg border border-amber-300 bg-white font-mono font-bold text-center tracking-widest text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyEmailOtp}
+                                  disabled={isCheckingEmailOtp || emailOtpCode.length !== 6}
+                                  className="px-3 py-1.5 rounded-lg bg-[#c2652a] hover:bg-[#964407] text-white font-bold text-xs disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                                >
+                                  {isCheckingEmailOtp ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                                </button>
+                              </div>
+                              {emailError && (
+                                <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" /> {emailError}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <p className="text-[10px] text-gray-400">
+                            Optional: Verify email now to allow logging in with either WhatsApp or Email. You can also do this anytime in Edit Profile.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <div className="relative flex-1">
-                      <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="tel"
-                        maxLength={10}
-                        required
-                        value={phone}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          if (val.length > 10 || val.startsWith("91") || val.startsWith("0")) {
-                            setPhone(cleanIndianMobileNumber(val));
-                          } else {
-                            setPhone(val);
-                          }
-                        }}
-                        placeholder="9876543210"
-                        className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
-                      />
+
+                    {/* Verified WhatsApp Mobile Number */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block font-bold text-gray-700">
+                          WhatsApp Mobile Number
+                        </label>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Verified
+                        </span>
+                      </div>
+                      <div className="flex items-center p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                        <div className="flex items-center gap-2 text-emerald-900 font-medium font-mono">
+                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>+91 {phone.slice(-10)}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Used for sending instant tenant PDF receipts &amp; admin login security alerts
-                  </p>
-                </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Optional WhatsApp Mobile Number for Email Users */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block font-bold text-gray-700">
+                          WhatsApp Mobile Number <span className="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                        {verifiedPhone || phone ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                            Optional
+                          </span>
+                        )}
+                      </div>
+
+                      {verifiedPhone || phone ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                          <div className="flex items-center gap-2 text-emerald-900 font-medium font-mono">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>+91 {(verifiedPhone || phone).slice(-10)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVerifiedPhone("");
+                              setPhone("");
+                              setPhoneInput("");
+                              setPhoneOtpSent(false);
+                              setPhoneOtpCode("");
+                            }}
+                            className="text-[11px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex rounded-xl border border-gray-300 focus-within:border-[#c2652a] focus-within:ring-2 focus-within:ring-[#c2652a]/20 overflow-hidden bg-white">
+                            <div className="flex items-center gap-1 px-2.5 bg-gray-50 border-r border-gray-200 text-xs font-bold text-gray-600 select-none">
+                              <span>🇮🇳 +91</span>
+                            </div>
+                            <input
+                              type="tel"
+                              inputMode="numeric"
+                              maxLength={10}
+                              placeholder="98765 43210"
+                              value={phoneInput}
+                              onChange={(e) => {
+                                setPhoneInput(e.target.value.replace(/\D/g, "").slice(0, 10));
+                                setPhoneError(null);
+                              }}
+                              disabled={phoneOtpSent || isSendingPhoneOtp}
+                              className="flex-1 py-2.5 px-3 text-xs font-semibold text-gray-900 placeholder:text-gray-400 focus:outline-hidden tracking-wider bg-transparent"
+                            />
+                            {phoneInput.length === 10 && !phoneOtpSent && (
+                              <button
+                                type="button"
+                                onClick={handleSendPhoneOtp}
+                                disabled={isSendingPhoneOtp || phoneCooldown > 0}
+                                className="px-3 bg-emerald-50 hover:bg-emerald-100 border-l border-emerald-200 text-emerald-800 font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                {isSendingPhoneOtp ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : phoneCooldown > 0 ? (
+                                  `${phoneCooldown}s`
+                                ) : (
+                                  "Verify"
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          {phoneOtpSent && (
+                            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 animate-in fade-in">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-emerald-900 font-semibold">
+                                  Enter 6-digit WhatsApp code sent to +91 {phoneInput}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPhoneOtpSent(false);
+                                    setPhoneOtpCode("");
+                                  }}
+                                  className="text-[#c2652a] font-bold hover:underline cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="tel"
+                                  maxLength={6}
+                                  placeholder="123456"
+                                  value={phoneOtpCode}
+                                  onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, ""))}
+                                  className="flex-1 py-1.5 px-3 rounded-lg border border-emerald-300 bg-white font-mono font-bold text-center tracking-widest text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyPhoneOtp}
+                                  disabled={isCheckingPhoneOtp || phoneOtpCode.length !== 6}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                                >
+                                  {isCheckingPhoneOtp ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                                </button>
+                              </div>
+                              {phoneError && (
+                                <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" /> {phoneError}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <p className="text-[10px] text-gray-400">
+                            Optional: Verify with WhatsApp now to receive tenant receipts &amp; enable phone login. You can also do this anytime in Edit Profile.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Verified Registered Email */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block font-bold text-gray-700">
+                          Registered Email Address
+                        </label>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Verified
+                        </span>
+                      </div>
+                      <div className="flex items-center p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 text-xs">
+                        <div className="flex items-center gap-2 text-emerald-900 font-medium font-mono">
+                          <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{email}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Continue to Step 2 Button */}
                 <button
