@@ -28,6 +28,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { provisionNewPropertyWorkspace } from "@/lib/accountInitializer";
 import { syncUserSecurityPinToCloud, sanitizeTitleCase } from "@/lib/authService";
+import { cleanIndianMobileNumber } from "@/lib/whatsappService";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { getStoredPlatformConfig } from "@/lib/platformConfig";
 
@@ -47,6 +48,8 @@ function WelcomeOnboardingContent() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [hasInitializedPhone, setHasInitializedPhone] = useState(false);
+  const [hasInitializedName, setHasInitializedName] = useState(false);
 
   // Step 2: 6-Digit MPIN
   const [pin, setPin] = useState("");
@@ -66,27 +69,53 @@ function WelcomeOnboardingContent() {
   const [provisionProgress, setProvisionProgress] = useState(0);
   const [provisionStatusText, setProvisionStatusText] = useState("Preparing your workspace...");
 
-  // Pre-fill user details from AuthProvider / Firebase
+  // Pre-fill user details from AuthProvider / Firebase (Once on initial load, never override user edits)
   useEffect(() => {
-    if (profile) {
-      if (profile.displayName && profile.displayName !== "Property Owner" && !fullName) {
-        setFullName(sanitizeTitleCase(profile.displayName));
+    // 1. Full Name Resolution: Only pre-fill genuine names, never dummy fallback names
+    if (!hasInitializedName) {
+      const candidateName = profile?.displayName || user?.displayName || "";
+      const isPlaceholder =
+        !candidateName ||
+        candidateName === "Property Owner" ||
+        candidateName.toLowerCase().startsWith("pg owner") ||
+        candidateName.toLowerCase().startsWith("phone_") ||
+        candidateName.includes("@auth.tenopilot.com");
+
+      if (!isPlaceholder) {
+        setFullName(sanitizeTitleCase(candidateName));
       }
-      if (profile.phone && !phone) {
-        setPhone(profile.phone);
-      }
-      if (profile.securityPin && !pin) {
-        setPin(profile.securityPin);
-        setConfirmPin(profile.securityPin);
+      if (profile || user) {
+        setHasInitializedName(true);
       }
     }
-    if (user) {
-      setEmail(user.email || "");
-      if (user.displayName && user.displayName !== "Property Owner" && !fullName) {
-        setFullName(sanitizeTitleCase(user.displayName));
+
+    // 2. Phone Number Resolution: Clean to pure 10 digits
+    if (!hasInitializedPhone) {
+      const candidatePhone = profile?.phone || (typeof window !== "undefined" ? JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}").phone : "");
+      if (candidatePhone) {
+        const pure10 = cleanIndianMobileNumber(candidatePhone);
+        if (pure10) {
+          setPhone(pure10);
+        }
+      }
+      if (profile || user) {
+        setHasInitializedPhone(true);
       }
     }
-  }, [user, profile, fullName, phone, pin]);
+
+    // 3. Email
+    if (user?.email) {
+      setEmail(user.email);
+    } else if (profile?.email) {
+      setEmail(profile.email);
+    }
+
+    // 4. Security PIN
+    if (profile?.securityPin && !pin) {
+      setPin(profile.securityPin);
+      setConfirmPin(profile.securityPin);
+    }
+  }, [user, profile, hasInitializedName, hasInitializedPhone, pin]);
 
   // 🛡️ Proactively redirect staff members and already onboarded owners away from welcome wizard
   useEffect(() => {
@@ -590,7 +619,14 @@ function WelcomeOnboardingContent() {
                         maxLength={10}
                         required
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          if (val.length > 10 || val.startsWith("91") || val.startsWith("0")) {
+                            setPhone(cleanIndianMobileNumber(val));
+                          } else {
+                            setPhone(val);
+                          }
+                        }}
                         placeholder="9876543210"
                         className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                       />

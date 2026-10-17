@@ -57,6 +57,24 @@ export function formatIndianPhoneNumber(phone: string): string {
   return digits;
 }
 
+/**
+ * 🇮🇳 Strips any leading +91 or 91 country code and leading zeros to return a clean 10-digit Indian mobile number
+ */
+export function cleanIndianMobileNumber(phone: string): string {
+  if (!phone) return "";
+  let digits = phone.replace(/\D/g, "");
+  while (digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+  if (digits.length === 12 && digits.startsWith("91")) {
+    digits = digits.slice(2);
+  }
+  if (digits.length === 14 && digits.startsWith("9191")) {
+    digits = digits.slice(4);
+  }
+  return digits.slice(-10);
+}
+
 export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string {
   const pName = payload.propertyName || "TenoPilot PG & Living";
   const p = payload.params || {};

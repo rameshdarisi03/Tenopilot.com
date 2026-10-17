@@ -956,7 +956,7 @@ export async function loginOrRegisterWithPhone(
   const trialExpiryIso = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
   const cleanName = displayName
     ? sanitizeTitleCase(displayName)
-    : existingUserDoc?.displayName || `PG Owner (+${cleanPhone.slice(-4)})`;
+    : existingUserDoc?.displayName || "";
 
   if (isFullyOnboarded) {
     const resolvedRole = existingUserDoc?.role || "master_admin";

@@ -122,13 +122,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           savedSessionRole ||
           (email.includes("receptionist") ? "receptionist" : "master_admin");
 
+        const isPhoneEmail = email.startsWith("phone_") || email.endsWith("@auth.tenopilot.com");
         const resolvedName =
           staffAccountDoc?.name ||
           staffMatch?.name ||
           savedSessionName ||
           currentUser.displayName ||
-          sanitizeTitleCase(email.split("@")[0]) ||
-          "Property Owner";
+          (isPhoneEmail ? "" : sanitizeTitleCase(email.split("@")[0])) ||
+          "";
 
         const resolvedProp =
           staffAccountDoc?.assignedPropertyId ||
