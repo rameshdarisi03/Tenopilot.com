@@ -19,6 +19,7 @@ import {
   Inbox,
 } from "lucide-react";
 import {
+  continueWithGoogle,
   loginWithGoogle,
   registerWithEmailPassword,
   sendUserEmailVerification,
@@ -114,15 +115,15 @@ function SignUpPageContent() {
     }
 
     try {
-      const authResult = await loginWithGoogle(true);
+      const authResult = await continueWithGoogle();
       if (!authResult) return;
 
-      // If this Google account already exists and completed setup, redirect to login to enter PIN
-      if (authResult.alreadyExists) {
+      // If this Google account already exists and completed setup, redirect to login to enter MPIN
+      if (!authResult.isNewOrIncomplete) {
         if (typeof window !== "undefined") {
           sessionStorage.setItem(
             "tenopilot_revoked_notice",
-            "✓ Welcome back! An account already exists for this Google email. Please enter your 4-digit PIN to sign in."
+            "✓ Welcome back! An account already exists for this Google email. Please enter your 6-digit MPIN to sign in."
           );
         }
         router.push(`/login?email=${encodeURIComponent(authResult.user.email || "")}`);

@@ -26,6 +26,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import {
+  continueWithGoogle,
   loginWithGoogle,
   loginWithEmailPassword,
   sendPasswordReset,
@@ -451,16 +452,29 @@ export default function LoginPage() {
     }
   };
 
-  // Handle Step 1: Sign in with Google (Strict Login Mode)
+  // Handle Step 1: Sign in with Google (Unified Continue with Google)
   const handleGoogleSignIn = async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const result = await loginWithGoogle(false); // isSignUpMode = false
+      const result = await continueWithGoogle();
       if (!result) return;
 
       // Master verification passed! Immediately clear any lockout freeze
       clearLockout();
+
+      // If new, incomplete, or re-signing up after account purge -> route directly to Onboarding!
+      if (result.isNewOrIncomplete) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("tenopilot_saved_session");
+          localStorage.removeItem("tenopilot_portfolio_properties");
+          localStorage.removeItem("tenopilot_pin_lockout");
+          portfolioStore.clear();
+          sessionStorage.setItem("tenopilot_session_unlocked", "true");
+        }
+        router.push("/welcome");
+        return;
+      }
 
       const userEmail = result.user.email?.toLowerCase() || "";
       const allStaff = staffStore.getAllGlobalStaff();
@@ -519,10 +533,10 @@ export default function LoginPage() {
     }
   };
 
-  // Handle Setting / Resetting Personal 6-Digit PIN (Banking Double-Entry Execution)
+  // Handle Setting / Resetting Personal 6-Digit MPIN (Banking Double-Entry Execution)
   const handleSavePersonalPin = async (finalPin: string) => {
     if (finalPin.length !== 6) {
-      setPinMismatchError("Please enter a valid 6-digit security PIN.");
+      setPinMismatchError("Please enter a valid 6-digit MPIN.");
       return;
     }
 
@@ -873,18 +887,18 @@ export default function LoginPage() {
         }
         setError("🔒 Account locked due to 5 incorrect attempts. Please wait 15 minutes or verify with password/Google.");
       } else {
-        setError(`Incorrect 6-digit PIN. (${5 - newAttempts} attempts remaining)`);
+        setError(`Incorrect 6-digit MPIN. (${5 - newAttempts} attempts remaining)`);
       }
     }
   };
 
-  // Handle 1-Click Google Verification to Reset PIN (For Google/Gmail Users)
+  // Handle 1-Click Google Verification to Reset MPIN (For Google/Gmail Users)
   const handleVerifyWithGoogleForPinReset = async () => {
     setVerifyPasswordError(null);
     setIsVerifyingPassword(true);
 
     try {
-      const result = await loginWithGoogle(false);
+      const result = await continueWithGoogle();
       if (!result) return;
 
       const googleEmail = result.user.email?.toLowerCase() || "";
@@ -1030,19 +1044,19 @@ export default function LoginPage() {
               <h1 className="font-serif font-bold text-3xl sm:text-4xl text-[#201a17] tracking-tight">
                 {authStep === "SET_OR_RESET_PIN"
                   ? isResetMode
-                    ? "Reset Security PIN"
-                    : "Set Your Security PIN"
+                    ? "Reset 6-Digit MPIN"
+                    : "Set Your 6-Digit MPIN"
                   : authStep === "PIN_PROMPT"
-                  ? "Enter Security PIN"
+                  ? "Enter 6-Digit MPIN"
                   : "Welcome to TenoPilot.com"}
               </h1>
               <p className="text-xs text-gray-500 font-medium">
                 {authStep === "SET_OR_RESET_PIN"
                   ? isResetMode
-                    ? "Create and confirm your new 6-digit PIN for rapid device unlock"
-                    : "Create and confirm your personal 6-digit PIN for rapid device unlock"
+                    ? "Create and confirm your new 6-digit MPIN for rapid device unlock"
+                    : "Create and confirm your personal 6-digit MPIN for rapid device unlock"
                   : authStep === "PIN_PROMPT"
-                  ? "Enter your 6-digit access code to unlock workspace"
+                  ? "Enter your 6-digit MPIN to unlock workspace"
                   : "Sign in to manage your properties & residents"}
               </p>
             </div>
@@ -1195,7 +1209,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* STEP 2A: SET OR RESET PERSONAL 6-DIGIT PIN (BANKING 2-STEP DOUBLE-ENTRY) */}
+            {/* STEP 2A: SET OR RESET PERSONAL 6-DIGIT MPIN (BANKING 2-STEP DOUBLE-ENTRY) */}
             {authStep === "SET_OR_RESET_PIN" && (
               <div className="space-y-5 bg-orange-50/50 p-6 rounded-3xl border border-orange-200 text-center animate-in fade-in shadow-xs">
                 {/* Mode & Step Badges */}
@@ -1204,16 +1218,16 @@ export default function LoginPage() {
                     isResetMode ? "bg-amber-100 text-amber-800 border border-amber-300" : "bg-orange-100 text-[#c2652a] border border-orange-200"
                   }`}>
                     {isResetMode ? <RotateCcw className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
-                    <span>{isResetMode ? "🔄 Reset PIN" : "🔑 Set New PIN"}</span>
+                    <span>{isResetMode ? "🔄 Reset MPIN" : "🔑 Set New MPIN"}</span>
                   </span>
 
                   <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
                     <span className={`px-2.5 py-0.5 rounded-full transition-colors ${pinCreationStep === "ENTER" ? "bg-[#c2652a] text-white font-bold shadow-2xs" : "bg-gray-200 text-gray-700"}`}>
-                      1. Enter PIN
+                      1. Enter MPIN
                     </span>
                     <span className="text-gray-400">→</span>
                     <span className={`px-2.5 py-0.5 rounded-full transition-colors ${pinCreationStep === "CONFIRM" ? "bg-[#c2652a] text-white font-bold shadow-2xs" : "bg-gray-200 text-gray-700"}`}>
-                      2. Confirm PIN
+                      2. Confirm MPIN
                     </span>
                   </div>
                 </div>
@@ -1222,14 +1236,14 @@ export default function LoginPage() {
                   <h2 className="font-serif font-bold text-xl text-gray-900">
                     {pinCreationStep === "ENTER"
                       ? isResetMode
-                        ? "Enter New 6-Digit PIN"
+                        ? "Enter New 6-Digit MPIN"
                         : `Welcome, ${savedSession?.name || "Team Member"}! 🎉`
-                      : "Confirm New 6-Digit PIN"}
+                      : "Confirm New 6-Digit MPIN"}
                   </h2>
                   <p className="text-xs text-gray-600">
                     {pinCreationStep === "ENTER"
-                      ? "Choose a memorable 6-digit PIN for rapid device unlock."
-                      : "Re-enter the exact same 6-digit PIN to confirm and activate."}
+                      ? "Choose a memorable 6-digit MPIN for rapid device unlock."
+                      : "Re-enter the exact same 6-digit MPIN to confirm and activate."}
                   </p>
                 </div>
 
@@ -1243,11 +1257,11 @@ export default function LoginPage() {
                 {isPinMatching && (
                   <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-bold flex items-center justify-center gap-2 animate-in fade-in">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>PINs match! Saving securely to cloud...</span>
+                    <span>MPINs match! Saving securely to cloud...</span>
                   </div>
                 )}
 
-                {/* STEP 1: ENTER PIN */}
+                {/* STEP 1: ENTER MPIN */}
                 {pinCreationStep === "ENTER" && (
                   <div className="space-y-4">
                     <div>
@@ -1290,13 +1304,13 @@ export default function LoginPage() {
                       }}
                       className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                     >
-                      <span>Next: Confirm PIN</span>
+                      <span>Next: Confirm MPIN</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 )}
 
-                {/* STEP 2: CONFIRM PIN */}
+                {/* STEP 2: CONFIRM MPIN */}
                 {pinCreationStep === "CONFIRM" && (
                   <div className="space-y-4">
                     <div>
@@ -1321,7 +1335,7 @@ export default function LoginPage() {
                               }, 350);
                             } else {
                               setIsPinMatching(false);
-                              setPinMismatchError("PINs do not match. Please re-enter.");
+                              setPinMismatchError("MPINs do not match. Please re-enter.");
                               setTimeout(() => {
                                 setConfirmPinValue("");
                               }, 1200);
@@ -1348,7 +1362,7 @@ export default function LoginPage() {
                         }}
                         className="flex-1 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer transition-all active:scale-98"
                       >
-                        ← Change PIN
+                        ← Change MPIN
                       </button>
 
                       <button
@@ -1360,12 +1374,12 @@ export default function LoginPage() {
                             handleSavePersonalPin(confirmPinValue);
                           } else {
                             setIsPinMatching(false);
-                            setPinMismatchError("PINs do not match. Please re-enter.");
+                            setPinMismatchError("MPINs do not match. Please re-enter.");
                           }
                         }}
                         className="flex-1 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                       >
-                        <span>{isLoading ? "Saving PIN..." : "Confirm & Save"}</span>
+                        <span>{isLoading ? "Saving MPIN..." : "Confirm & Save"}</span>
                         <Sparkles className="w-4 h-4" />
                       </button>
                     </div>
@@ -1404,7 +1418,7 @@ export default function LoginPage() {
                 {/* Direct 6-Digit Keyboard Input with Auto-Submit */}
                 <div className="space-y-2 max-w-xs mx-auto">
                   <label className="block text-xs font-bold text-gray-600">
-                    Enter 6-Digit Security PIN
+                    Enter 6-Digit MPIN
                   </label>
                   <input
                     ref={pinInputRef}
@@ -1440,7 +1454,7 @@ export default function LoginPage() {
                     className="text-[#c2652a] hover:underline cursor-pointer flex items-center gap-1"
                   >
                     <Key className="w-3.5 h-3.5" />
-                    <span>Forgot PIN? Reset Security PIN</span>
+                    <span>Forgot MPIN? Reset 6-Digit MPIN</span>
                   </button>
 
                   <span className="hidden sm:inline text-gray-300">•</span>
@@ -1491,7 +1505,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2 text-gray-900">
                 <ShieldCheck className="w-5 h-5 text-[#c2652a]" />
-                <h3 className="font-serif font-bold text-base">Reset Security PIN</h3>
+                <h3 className="font-serif font-bold text-base">Reset 6-Digit MPIN</h3>
               </div>
               <button
                 type="button"
@@ -1506,7 +1520,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-gray-500 text-[11px] leading-relaxed">
-              Verify your identity to reset your 6-digit Security PIN for{" "}
+              Verify your identity to reset your 6-digit MPIN for{" "}
               <strong className="text-gray-800 font-semibold">{savedSession?.email || email}</strong>.
             </p>
 
@@ -1581,7 +1595,7 @@ export default function LoginPage() {
                     disabled={isVerifyingPassword || !verifyPasswordForPin}
                     className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 cursor-pointer"
                   >
-                    {isVerifyingPassword ? "Verifying..." : "Verify & Set PIN"}
+                    {isVerifyingPassword ? "Verifying..." : "Verify & Set MPIN"}
                   </button>
                 </div>
               </form>

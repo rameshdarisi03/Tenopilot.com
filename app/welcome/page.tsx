@@ -38,7 +38,7 @@ function WelcomeOnboardingContent() {
 
   // Progressive Micro-Steps:
   // 1 = Tell us about yourself (Role, Name, WhatsApp)
-  // 2 = Set 6-Digit Security PIN (Banking PIN setup)
+  // 2 = Set 6-Digit MPIN (Banking MPIN setup)
   // 3 = Let's setup your first property (Name, Category, 1-Tap Location)
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
@@ -48,7 +48,7 @@ function WelcomeOnboardingContent() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
-  // Step 2: Security PIN
+  // Step 2: 6-Digit MPIN
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [showPin, setShowPin] = useState(false);
@@ -155,12 +155,12 @@ function WelcomeOnboardingContent() {
     setError(null);
 
     if (pin.length !== 6 || !/^\d{6}$/.test(pin)) {
-      setError("Please set a 6-digit numeric security PIN.");
+      setError("Please set a 6-digit numeric MPIN.");
       return;
     }
 
     if (pin !== confirmPin) {
-      setError("PINs do not match. Please re-enter your 6-digit PIN.");
+      setError("MPINs do not match. Please re-enter your 6-digit MPIN.");
       return;
     }
 
@@ -268,7 +268,7 @@ function WelcomeOnboardingContent() {
 
     setIsSubmitting(true);
     setProvisionProgress(15);
-    setProvisionStatusText("🔐 Encrypting 6-Digit Banking Security PIN...");
+    setProvisionStatusText("🔐 Encrypting 6-Digit Banking MPIN...");
 
     try {
       const activeUser = auth.currentUser || user;
@@ -405,7 +405,7 @@ function WelcomeOnboardingContent() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-[#201a17]">
               {step === 1 && "Tell us about yourself"}
-              {step === 2 && "Set Your Security PIN"}
+              {step === 2 && "Set Your 6-Digit MPIN"}
               {step === 3 && "Let's setup your first property"}
             </h1>
             <p className="text-xs text-gray-500 font-medium mt-1">
@@ -421,7 +421,7 @@ function WelcomeOnboardingContent() {
               <span>Step {step} of 3</span>
               <span className="text-[#964407] font-extrabold">
                 {step === 1 && "Profile & WhatsApp"}
-                {step === 2 && "6-Digit Security PIN"}
+                {step === 2 && "6-Digit Banking MPIN"}
                 {step === 3 && "Property & Location"}
               </span>
             </div>
@@ -610,27 +610,27 @@ function WelcomeOnboardingContent() {
                   onClick={handleProceedToStep2}
                   className="w-full py-3.5 mt-2 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
                 >
-                  <span>Continue to Security PIN</span>
+                  <span>Continue to Set MPIN</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            {/* STEP 2: 6-Digit Banking PIN */}
+            {/* STEP 2: 6-Digit Banking MPIN */}
             {step === 2 && (
               <div className="space-y-5 text-xs animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-start gap-2.5">
                   <Lock className="w-4 h-4 text-[#964407] shrink-0 mt-0.5" />
                   <p className="text-[11px] text-amber-900 leading-relaxed font-medium">
-                    Your 6-digit PIN provides rapid 1-tap authentication on your phone or tablet without typing long passwords every time.
+                    Your 6-digit MPIN provides rapid 1-tap authentication on your phone or tablet without typing long passwords every time.
                   </p>
                 </div>
 
                 <div className="space-y-4">
-                  {/* Enter PIN */}
+                  {/* Enter MPIN */}
                   <div>
                     <label className="block font-bold text-gray-700 mb-1.5">
-                      Create 6-Digit PIN *
+                      Create 6-Digit MPIN *
                     </label>
                     <div className="relative">
                       <input
@@ -641,13 +641,13 @@ function WelcomeOnboardingContent() {
                         required
                         value={pin}
                         onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-                        placeholder="Enter 6-digit PIN"
+                        placeholder="Enter 6-digit MPIN"
                         className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-mono tracking-widest text-base font-bold text-center focus:ring-2 focus:ring-[#c2652a] focus:border-transparent"
                       />
                       <button
                         type="button"
                         tabIndex={-1}
-                        aria-label={showPin ? "Hide PIN" : "Show PIN"}
+                        aria-label={showPin ? "Hide MPIN" : "Show MPIN"}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -660,10 +660,10 @@ function WelcomeOnboardingContent() {
                     </div>
                   </div>
 
-                  {/* Confirm PIN */}
+                  {/* Confirm MPIN */}
                   <div>
                     <label className="block font-bold text-gray-700 mb-1.5">
-                      Confirm 6-Digit PIN *
+                      Confirm 6-Digit MPIN *
                     </label>
                     <div className="relative">
                       <input
@@ -674,13 +674,13 @@ function WelcomeOnboardingContent() {
                         required
                         value={confirmPin}
                         onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
-                        placeholder="Re-enter 6-digit PIN"
+                        placeholder="Re-enter 6-digit MPIN"
                         className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-mono tracking-widest text-base font-bold text-center focus:ring-2 focus:ring-[#c2652a] focus:border-transparent"
                       />
                       <button
                         type="button"
                         tabIndex={-1}
-                        aria-label={showConfirmPin ? "Hide PIN" : "Show PIN"}
+                        aria-label={showConfirmPin ? "Hide MPIN" : "Show MPIN"}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
