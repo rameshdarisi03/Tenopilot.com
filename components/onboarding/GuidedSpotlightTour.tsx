@@ -133,36 +133,67 @@ export function GuidedSpotlightTour({
     }
   };
 
-  // Determine tooltip placement: top or bottom of target
+  // Dynamically measured card dimensions to prevent any clipping on mobile
+  const [tooltipDimensions, setTooltipDimensions] = useState<{ width: number; height: number }>({
+    width: 360,
+    height: 220,
+  });
+
+  // Measure tooltip size dynamically whenever step changes or window resizes
+  useEffect(() => {
+    if (tooltipRef.current) {
+      const rect = tooltipRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setTooltipDimensions({ width: rect.width, height: rect.height });
+      }
+    }
+  }, [currentStepIndex, isOpen, targetRect]);
+
+  // Determine tooltip placement: smart viewport-aware positioning
   let tooltipTop = 0;
   let tooltipLeft = 0;
   const padding = 10;
+  const margin = 16;
   const windowWidth = typeof window !== "undefined" ? window.innerWidth : 1000;
   const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+  const cardHeight = tooltipDimensions.height || 220;
+  const cardWidth = Math.min(380, windowWidth - margin * 2);
 
   if (targetRect) {
     const spaceBelow = windowHeight - targetRect.bottom;
-    const preferTop = currentStep.placement === "top" || spaceBelow < 280;
+    const spaceAbove = targetRect.top;
 
-    if (preferTop) {
-      tooltipTop = Math.max(16, targetRect.top - 240);
+    // Prefer placement based on available space
+    let placeTop = false;
+    if (currentStep.placement === "top") {
+      placeTop = spaceAbove >= cardHeight + margin || spaceAbove > spaceBelow;
     } else {
-      tooltipTop = Math.min(windowHeight - 240, targetRect.bottom + padding + 6);
+      placeTop = spaceBelow < cardHeight + margin && spaceAbove > spaceBelow;
     }
 
+    if (placeTop) {
+      // Place above target
+      tooltipTop = Math.max(margin, targetRect.top - cardHeight - padding - 6);
+    } else {
+      // Place below target
+      tooltipTop = Math.min(windowHeight - cardHeight - margin, targetRect.bottom + padding + 6);
+    }
+
+    // Safety clamp top inside screen bounds
+    tooltipTop = Math.max(margin, Math.min(windowHeight - cardHeight - margin, tooltipTop));
+
     // Centered or clamped horizontally
-    const cardWidth = Math.min(380, windowWidth - 32);
     tooltipLeft = Math.max(
-      16,
+      margin,
       Math.min(
-        windowWidth - cardWidth - 16,
+        windowWidth - cardWidth - margin,
         targetRect.left + targetRect.width / 2 - cardWidth / 2
       )
     );
   } else {
     // Fallback: center in viewport
-    tooltipTop = windowHeight / 2 - 120;
-    tooltipLeft = Math.max(16, (windowWidth - Math.min(380, windowWidth - 32)) / 2);
+    tooltipTop = Math.max(margin, (windowHeight - cardHeight) / 2);
+    tooltipLeft = Math.max(margin, (windowWidth - cardWidth) / 2);
   }
 
   const StepIcon = currentStep.icon || Sparkles;
@@ -219,8 +250,9 @@ export function GuidedSpotlightTour({
       {/* Floating Interactive Tooltip Card */}
       <div
         ref={tooltipRef}
-        className="fixed z-50 w-full max-w-[380px] p-5 sm:p-6 bg-white border border-[#d7c2b9] rounded-3xl shadow-2xl transition-all duration-300 animate-in zoom-in-95"
+        className="fixed z-50 w-full max-w-[calc(100vw-32px)] sm:max-w-[380px] p-5 sm:p-6 bg-white border border-[#d7c2b9] rounded-3xl shadow-2xl transition-all duration-300 animate-in zoom-in-95"
         style={{
+          width: `${cardWidth}px`,
           top: `${tooltipTop}px`,
           left: `${tooltipLeft}px`,
         }}
