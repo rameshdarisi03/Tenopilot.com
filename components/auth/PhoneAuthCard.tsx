@@ -110,7 +110,7 @@ export function PhoneAuthCard({
     }
   };
 
-  // 2. Handle OTP digit typing
+  // 2. Handle OTP digit typing or multi-digit paste via input
   const handleDigitChange = (index: number, value: string) => {
     const clean = value.replace(/\D/g, "");
     if (!clean) {
@@ -118,6 +118,18 @@ export function PhoneAuthCard({
       next[index] = "";
       setOtpDigits(next);
       return;
+    }
+
+    // If browser/keyboard pasted multiple digits into the single input field
+    if (clean.length > 1) {
+      const sixDigits = clean.length === 6 ? clean : (clean.match(/\b\d{6}\b/) ? clean.match(/\b\d{6}\b/)![0] : clean.slice(0, 6));
+      if (sixDigits.length === 6) {
+        const next = sixDigits.split("");
+        setOtpDigits(next);
+        otpRefs.current[5]?.focus();
+        executeVerifyOtp(sixDigits);
+        return;
+      }
     }
 
     const next = [...otpDigits];
@@ -143,30 +155,56 @@ export function PhoneAuthCard({
     }
   };
 
-  // Handle Paste
+  // Handle Direct Input Paste (e.g. Long-press Paste in an OTP box)
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length === 6) {
-      const next = pasted.split("");
+    const raw = e.clipboardData.getData("text") || "";
+    // Match isolated 6 digits or extract first 6 digits
+    const match = raw.match(/\b\d{6}\b/) || raw.replace(/\D/g, "").slice(0, 6);
+    const code = typeof match === "string" ? match : (match ? match[0] : "");
+
+    if (code && code.length === 6) {
+      const next = code.split("");
       setOtpDigits(next);
       otpRefs.current[5]?.focus();
-      executeVerifyOtp(pasted);
+      executeVerifyOtp(code);
+    } else {
+      setError("Please paste a valid 6-digit WhatsApp code.");
     }
   };
 
   // 1-Click Clipboard Paste button
   const handleClipboardPasteBtn = async () => {
     try {
+      setError(null);
       const text = await navigator.clipboard.readText();
-      const digits = text.replace(/\D/g, "").slice(0, 6);
-      if (digits.length === 6) {
-        setOtpDigits(digits.split(""));
-        executeVerifyOtp(digits);
-      } else {
-        setError("Clipboard does not contain a 6-digit code. Please paste manually.");
+      if (!text) {
+        setError("Clipboard is empty. Please tap Copy Code in WhatsApp first.");
+        return;
       }
-    } catch {
+
+      // 1. Try finding exact 6-digit pattern in clipboard message (e.g. "Your code is 123456" or direct "123456")
+      const match = text.match(/\b\d{6}\b/);
+      let sixDigitCode = match ? match[0] : "";
+
+      // 2. Fallback: strip non-digits and check if at least 6 digits exist
+      if (!sixDigitCode) {
+        const onlyDigits = text.replace(/\D/g, "");
+        if (onlyDigits.length >= 6) {
+          sixDigitCode = onlyDigits.slice(0, 6);
+        }
+      }
+
+      if (sixDigitCode && sixDigitCode.length === 6) {
+        const next = sixDigitCode.split("");
+        setOtpDigits(next);
+        otpRefs.current[5]?.focus();
+        executeVerifyOtp(sixDigitCode);
+      } else {
+        setError("Clipboard does not contain a 6-digit code. Please copy the code from WhatsApp.");
+      }
+    } catch (clipErr) {
+      console.warn("Clipboard access warning:", clipErr);
       setError("Please allow clipboard access or type the code manually.");
     }
   };
