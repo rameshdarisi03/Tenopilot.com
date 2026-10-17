@@ -578,7 +578,7 @@ function WelcomeOnboardingContent() {
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Ramesh Darisi"
+                      placeholder="e.g. Rajesh Kumar"
                       className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                     />
                   </div>
@@ -765,7 +765,7 @@ function WelcomeOnboardingContent() {
                       required
                       value={propertyName}
                       onChange={(e) => setPropertyName(e.target.value)}
-                      placeholder="e.g. Ramesh Luxury PG"
+                      placeholder="e.g. Arihant Coliving"
                       className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-gray-300 bg-white text-[#201a17] placeholder-gray-400 font-medium focus:ring-2 focus:ring-[#c2652a] focus:border-transparent text-xs"
                     />
                   </div>
@@ -867,10 +867,10 @@ function WelcomeOnboardingContent() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
+                    className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#c2652a] via-[#b85b20] to-[#964407] hover:opacity-95 text-white font-bold text-xs shadow-md shadow-[#c2652a]/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Launch Property Workspace ➔</span>
+                    <span>Launch Property Workspace</span>
+                    <ArrowRight className="w-4 h-4 shrink-0" />
                   </button>
                 </div>
               </form>
