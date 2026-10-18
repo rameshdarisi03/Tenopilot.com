@@ -636,6 +636,23 @@ function WelcomeOnboardingContent() {
         } catch {}
       }
 
+      // Stage 3.8: Dispatch Omni-Channel Welcome Notifications (Email + WhatsApp)
+      try {
+        fetch("/api/auth/welcome-dispatch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ownerName: fullName.trim(),
+            propertyName: cleanPropName,
+            ownerEmail: realOwnerEmail,
+            ownerPhone: cleanPhone,
+            propertyId: propertyId,
+          }),
+        }).catch((err) => console.warn("Welcome dispatch notification non-blocking warning:", err));
+      } catch (welcomeErr) {
+        console.warn("Welcome notification notice:", welcomeErr);
+      }
+
       // Stage 4: Update session and finish
       if (typeof window !== "undefined") {
         sessionStorage.setItem("tenopilot_session_unlocked", "true");

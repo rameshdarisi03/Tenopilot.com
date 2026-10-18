@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { calculateStackedExpiry } from "@/lib/subscriptionEngine";
+import { sendSESEmail } from "@/lib/sesService";
+import { sendWhatsAppMessage, formatIndianPhoneNumber } from "@/lib/whatsappService";
 
 export async function POST(req: NextRequest) {
   try {
@@ -126,6 +128,10 @@ export async function POST(req: NextRequest) {
     let currentExpiryIso: string | null = null;
     let existingMaxProperties = 1;
     let existingExtensionPacks = 0;
+    let customerName = "Property Partner";
+    let customerPhone = "";
+    let customerPropName = "TenoPilot Coliving";
+    let customerPropId = propertyId || "";
 
     if (userId) {
       try {
@@ -141,12 +147,16 @@ export async function POST(req: NextRequest) {
           if (uData?.tenantExtensionPacks !== undefined) {
             existingExtensionPacks = Number(uData.tenantExtensionPacks) || 0;
           }
+          if (uData?.displayName || uData?.name) customerName = uData.displayName || uData.name;
+          if (uData?.phone) customerPhone = uData.phone;
+          if (uData?.propertyName || uData?.pgName) customerPropName = uData.propertyName || uData.pgName;
+          if (uData?.assignedPropertyId) customerPropId = uData.assignedPropertyId;
         }
       } catch (e) {
         console.warn("Notice checking existing expiry:", e);
       }
     }
-    if ((!currentExpiryIso || existingMaxProperties === 1) && cleanEmail) {
+    if ((!currentExpiryIso || existingMaxProperties === 1 || !customerPhone) && cleanEmail) {
       try {
         const q = query(collection(db, "users"), where("email", "==", cleanEmail));
         const snap = await getDocs(q);
@@ -159,6 +169,10 @@ export async function POST(req: NextRequest) {
           if (uData?.tenantExtensionPacks !== undefined) {
             existingExtensionPacks = Number(uData.tenantExtensionPacks) || 0;
           }
+          if (uData?.displayName || uData?.name) customerName = uData.displayName || uData.name;
+          if (uData?.phone) customerPhone = uData.phone;
+          if (uData?.propertyName || uData?.pgName) customerPropName = uData.propertyName || uData.pgName;
+          if (uData?.assignedPropertyId) customerPropId = uData.assignedPropertyId;
         }
       } catch (e) {
         console.warn("User email lookup for expiry notice:", e);
@@ -347,6 +361,51 @@ export async function POST(req: NextRequest) {
         }
       } catch (wErr) {
         console.warn("Notice provisioning Pro WhatsApp welcome bonus credits:", wErr);
+      }
+
+      // 5. Deliver Luxury Subscription Tax Invoice (PDF + Email + WhatsApp)
+      try {
+        const invoiceNumber = receiptNumber || `INV-${Date.now().toString().slice(-6)}`;
+        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
+        const validityPeriodStr = `${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} - ${new Date(expiryIso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
+        const invoicePdfUrl = `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNumber)}&ownerName=${encodeURIComponent(customerName)}&propertyName=${encodeURIComponent(customerPropName)}&ownerEmail=${encodeURIComponent(cleanEmail)}&ownerPhone=${encodeURIComponent(customerPhone)}&planName=${encodeURIComponent(resolvedPlan)}&amount=${amountPaid}&validityPeriod=${encodeURIComponent(validityPeriodStr)}`;
+
+        // Dispatch Email Invoice
+        if (cleanEmail && cleanEmail.includes("@")) {
+          sendSESEmail({
+            toEmail: cleanEmail,
+            recipientName: customerName,
+            propertyId: customerPropId || "platform",
+            propertyName: customerPropName,
+            type: "SUBSCRIPTION_INVOICE",
+            params: {
+              receiptId: invoiceNumber,
+              receiptUrl: invoicePdfUrl,
+              amount: amountPaid,
+              planName: resolvedPlan,
+              validityPeriod: validityPeriodStr,
+            },
+          }).catch((err) => console.warn("Invoice email dispatch notice:", err));
+        }
+
+        // Dispatch WhatsApp Invoice
+        if (customerPhone && customerPhone.length >= 10) {
+          sendWhatsAppMessage({
+            toPhone: formatIndianPhoneNumber(customerPhone),
+            recipientName: customerName,
+            propertyId: customerPropId || "platform",
+            propertyName: customerPropName,
+            type: "SUBSCRIPTION_INVOICE",
+            params: {
+              receiptId: invoiceNumber,
+              receiptUrl: invoicePdfUrl,
+              amount: amountPaid,
+              planName: resolvedPlan,
+            },
+          }).catch((err) => console.warn("Invoice WhatsApp dispatch notice:", err));
+        }
+      } catch (invErr) {
+        console.warn("Invoice delivery notice:", invErr);
       }
     }
 

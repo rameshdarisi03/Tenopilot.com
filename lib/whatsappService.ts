@@ -7,7 +7,7 @@ export interface WhatsAppSendParams {
   propertyId: string;
   propertyName?: string;
   occupantId?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
@@ -26,6 +26,8 @@ export interface WhatsAppSendParams {
     complaintTitle?: string;
     complaintStatus?: string;
     customMessage?: string;
+    recipientEmail?: string;
+    planName?: string;
   };
 }
 
@@ -173,6 +175,65 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `You and your friends are always welcome back at ${pName}! Keep in touch!\n\n` +
         `Warm regards,\n` +
         `*${pName} Management*${p.managerPhone ? `\n📞 ${p.managerPhone}` : ""}`
+      );
+    }
+
+    case "OWNER_WELCOME": {
+      const ownerName = payload.recipientName || "Property Owner";
+      const propName = payload.propertyName || "Your Property";
+      const ownerPhone = p.managerPhone || payload.toPhone || "";
+      const ownerEmail = p.recipientEmail || "";
+
+      return (
+        `*TenoPilot.com* 🚀\n` +
+        `The Intelligent Operating System for Coliving & Student Housing\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `✨ *Welcome to TenoPilot, ${ownerName}!* \n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Congratulations! *${propName}* is officially ready and live 🎉🥳\n\n` +
+        `We built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.\n\n` +
+        `🎁 *YOUR VIP PRO TRIAL IS ACTIVE:*\n` +
+        `• *Full Access*: +10-Day Complimentary Access to all Pro features\n` +
+        `• *Property*: ${propName}\n` +
+        `• *FastTrack Migration*: 1-Click AI paper register / diary scanner\n` +
+        `• *Automated Reminders*: WhatsApp digital invoices & check-in KYC\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👉 *Open Your Workspace*\n` +
+        `https://tenopilot.com/login\n\n` +
+        `🔐 *Quick Login Tip*:\n` +
+        `Log in directly with your registered mobile number (*${ownerPhone}*)${ownerEmail ? ` or email (*${ownerEmail}*)` : ""} anytime. Enter your 6-digit MPIN to unlock your workspace.\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Need assistance setting up your room layout or migrating your paper registers?\n` +
+        `Tap reply or call our Founder Support Desk directly at *+91 92066 51295*.\n\n` +
+        `Welcome aboard,\n` +
+        `*Team TenoPilot* 🏢✨`
+      );
+    }
+
+    case "SUBSCRIPTION_INVOICE": {
+      const ownerName = payload.recipientName || "Property Partner";
+      const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
+      const planName = p.planName || p.bankLabel || "Annual Pro Flight Deck";
+      const invoiceUrl = p.receiptUrl || "";
+      const amountStr = p.amount ? `₹${Number(p.amount).toLocaleString("en-IN")}` : "";
+
+      return (
+        `*TenoPilot.com* 🚀\n` +
+        `Tax Invoice #${invoiceNo}\n\n` +
+        `Dear *${ownerName}*,\n\n` +
+        `Thank you for your partnership! Your *${planName}* subscription for *${pName}* has been successfully activated and verified. 🎉\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🧾 *Invoice Number*: ${invoiceNo}\n` +
+        `🏢 *Property*: ${pName}\n` +
+        `📦 *Plan Level*: ${planName}\n` +
+        (amountStr ? `💰 *Amount Paid*: ${amountStr}\n` : "") +
+        `✅ *Status*: PAID & VERIFIED\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        (invoiceUrl ? `📄 *Download Official Tax Invoice (PDF)*:\n${invoiceUrl}\n\n` : "") +
+        `Your property workspace is active with full enterprise features.\n\n` +
+        `For billing queries or support, reach us anytime on WhatsApp: +91 92066 51295.\n\n` +
+        `Warm regards,\n` +
+        `*TenoPilot Technologies Finance Desk*`
       );
     }
 

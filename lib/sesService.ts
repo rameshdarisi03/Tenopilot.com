@@ -9,7 +9,7 @@ export interface SESSendParams {
   propertyId: string;
   propertyName?: string;
   replyToEmail?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "CUSTOM";
   params?: {
     otpCode?: string;
     roomNumber?: string;
@@ -27,6 +27,8 @@ export interface SESSendParams {
     onboardUrl?: string;
     customSubject?: string;
     customBody?: string;
+    planName?: string;
+    validityPeriod?: string;
   };
   customCredentials?: {
     accessKeyId?: string;
@@ -470,6 +472,194 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </html>`;
 
       const text = `Your TenoPilot Verification Code is: ${otpCode}\n\nThis code expires in 10 minutes.\nIf you did not request this code, please ignore this email.\n\nTenoPilot.com Security Team`;
+      return { subject, html, text };
+    }
+
+    case "OWNER_WELCOME": {
+      const ownerName = payload.recipientName || "Property Owner";
+      const subject = `✨ Welcome to TenoPilot, ${ownerName}! ${pName} is ready and live 🎉🥳`;
+      const ownerPhone = p.managerPhone || "";
+      const ownerEmail = payload.toEmail || "";
+
+      const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:28px 12px;background-color:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c140e;-webkit-font-smoothing:antialiased;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e8dfd8;box-shadow:0 12px 36px rgba(28,20,14,0.08);">
+    
+    <!-- Top Terracotta Header Banner -->
+    <div style="background:linear-gradient(135deg,#1c140e 0%,#2d1d13 60%,#c2652a 100%);padding:36px 28px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(194,101,42,0.25);padding:6px 16px;border-radius:30px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.2);">
+        🚀 FLIGHT DECK ACTIVATED
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">TenoPilot.com</h1>
+      <p style="margin:0;color:#f3d7c3;font-size:13px;">The Intelligent Operating System for Coliving & Student Housing</p>
+    </div>
+
+    <!-- Main Content -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#1c140e;">Dear <strong>${ownerName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 18px 0;line-height:1.65;">
+        Congratulations! <strong>${pName}</strong> is officially ready and live 🎉🥳
+      </p>
+
+      <p style="font-size:14px;color:#5a534c;margin:0 0 24px 0;line-height:1.65;">
+        We built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.
+      </p>
+
+      <!-- VIP Pro Trial Card -->
+      <div style="background:#fcfaf7;border-radius:18px;padding:22px;margin-bottom:24px;border:1px solid #ede5de;">
+        <h3 style="margin:0 0 14px 0;font-size:13px;font-weight:800;color:#c2652a;text-transform:uppercase;letter-spacing:0.5px;">
+          🎁 YOUR VIP PRO TRIAL IS ACTIVE:
+        </h3>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;line-height:1.7;">
+          <tr>
+            <td style="padding:4px 0;color:#7b746c;width:24px;">•</td>
+            <td style="padding:4px 0;color:#1c140e;"><strong>Full Access</strong>: +10-Day Complimentary Access to all Pro features</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;color:#7b746c;">•</td>
+            <td style="padding:4px 0;color:#1c140e;"><strong>Property</strong>: ${pName}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;color:#7b746c;">•</td>
+            <td style="padding:4px 0;color:#1c140e;"><strong>FastTrack Migration</strong>: 1-Click AI paper register / diary scanner</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0;color:#7b746c;">•</td>
+            <td style="padding:4px 0;color:#1c140e;"><strong>Automated Reminders</strong>: WhatsApp digital invoices & check-in KYC</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- CTA Button -->
+      <div style="text-align:center;margin:28px 0;">
+        <a href="https://tenopilot.com/login" style="display:inline-block;padding:14px 36px;background:#c2652a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(194,101,42,0.35);">
+          👉 Open Your Workspace
+        </a>
+      </div>
+
+      <!-- Quick Login Tip -->
+      <div style="background:#f8fafc;border-radius:12px;padding:14px 18px;margin-bottom:24px;border:1px solid #e2e8f0;font-size:12.5px;color:#475569;line-height:1.6;">
+        🔐 <strong>Quick Login Tip:</strong><br/>
+        Log in directly with your registered mobile number (${ownerPhone || "your phone"})${ownerEmail ? ` or email (${ownerEmail})` : ""} anytime. Enter your 6-digit MPIN to unlock your workspace.
+      </div>
+
+      <!-- Assistance / Desk Note -->
+      <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.6;">
+        Need assistance setting up your room layout or migrating your paper registers?<br/>
+        Tap reply or call our Founder Support Desk directly at <a href="https://wa.me/919206651295" style="color:#c2652a;font-weight:700;text-decoration:none;">+91 92066 51295</a>.
+      </p>
+
+      <div style="border-top:1px solid #f0eae4;padding-top:18px;margin-top:20px;">
+        <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Welcome aboard,</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#1c140e;">Team TenoPilot 🏢✨</p>
+      </div>
+    </div>
+
+    ${getCompliantEmailFooter("TenoPilot")}
+  </div>
+</body>
+</html>`;
+
+      const text = `TenoPilot.com 🚀\nThe Intelligent Operating System for Coliving & Student Housing\n\nWelcome to TenoPilot, ${ownerName}!\n\nCongratulations! ${pName} is officially ready and live 🎉🥳\n\nWe built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.\n\nYOUR VIP PRO TRIAL IS ACTIVE:\n• Full Access: +10-Day Complimentary Access to all Pro features\n• Property: ${pName}\n• FastTrack Migration: 1-Click AI paper register / diary scanner\n• Automated Reminders: WhatsApp digital invoices & check-in KYC\n\n👉 Open Your Workspace:\nhttps://tenopilot.com/login\n\nQuick Login Tip:\nLog in directly with your registered mobile number (${ownerPhone})${ownerEmail ? ` or email (${ownerEmail})` : ""} anytime. Enter your 6-digit MPIN to unlock your workspace.\n\nNeed assistance setting up your room layout or migrating your paper registers?\nTap reply or call our Founder Support Desk directly at +91 92066 51295.\n\nWelcome aboard,\nTeam TenoPilot 🏢✨`;
+
+      return { subject, html, text };
+    }
+
+    case "SUBSCRIPTION_INVOICE": {
+      const ownerName = payload.recipientName || "Property Partner";
+      const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
+      const planName = p.planName || p.bankLabel || "Annual Pro Flight Deck";
+      const subject = `🧾 Tax Invoice #${invoiceNo} — TenoPilot Subscription Activated for ${pName}`;
+      const amountStr = p.amount ? `₹${Number(p.amount).toLocaleString("en-IN")}` : "";
+      const invoiceUrl = p.receiptUrl || "";
+
+      const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:28px 12px;background-color:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c140e;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e8dfd8;box-shadow:0 12px 36px rgba(28,20,14,0.08);">
+    
+    <!-- Top Header -->
+    <div style="background:linear-gradient(135deg,#1c140e 0%,#2d1d13 60%,#c2652a 100%);padding:36px 28px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(5,150,105,0.25);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(167,243,208,0.4);color:#a7f3d0;">
+        ✅ SUBSCRIPTION ACTIVATED & VERIFIED
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;">Tax Invoice #${invoiceNo}</h1>
+      <p style="margin:0;color:#f3d7c3;font-size:13px;">${pName} • ${planName}</p>
+    </div>
+
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;">Dear <strong>${ownerName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#5a534c;margin:0 0 24px 0;line-height:1.65;">
+        Thank you for your partnership! Your <strong>${planName}</strong> subscription for <strong>${pName}</strong> has been successfully approved and activated.
+      </p>
+
+      <!-- Invoice Summary Card -->
+      <div style="background:#fcfaf7;border-radius:18px;padding:22px;margin-bottom:24px;border:1px solid #ede5de;">
+        <table style="width:100%;font-size:13.5px;border-collapse:collapse;">
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Invoice Number:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;font-family:monospace;color:#1c140e;">#${invoiceNo}</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Property:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">${pName}</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Plan Tier:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#c2652a;">${planName}</td>
+          </tr>
+          ${amountStr ? `
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Amount Paid:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:900;font-size:16px;color:#059669;">${amountStr}</td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding:8px 0 0 0;color:#7b746c;">Payment Status:</td>
+            <td style="padding:8px 0 0 0;text-align:right;font-weight:700;color:#059669;">PAID & VERIFIED</td>
+          </tr>
+        </table>
+      </div>
+
+      ${invoiceUrl ? `
+      <!-- Download Button -->
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${invoiceUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background:#c2652a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(194,101,42,0.35);">
+          📄 Download Official Tax Invoice (PDF)
+        </a>
+      </div>` : ""}
+
+      <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.6;">
+        This document serves as your official digital tax invoice under the Information Technology Act, 2000 and is valid for company accounts and Input Tax Credit (ITC).
+      </p>
+
+      <div style="border-top:1px solid #f0eae4;padding-top:18px;margin-top:20px;">
+        <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Warm regards,</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#1c140e;">TenoPilot Technologies Finance Desk</p>
+        <p style="margin:2px 0 0 0;font-size:12px;color:#64748b;">billing@tenopilot.com | +91 92066 51295</p>
+      </div>
+    </div>
+
+    ${getCompliantEmailFooter("TenoPilot")}
+  </div>
+</body>
+</html>`;
+
+      const text = `Tax Invoice #${invoiceNo}\n\nDear ${ownerName},\n\nThank you for your partnership! Your ${planName} subscription for ${pName} has been successfully activated and verified.\n\nInvoice No: #${invoiceNo}\nProperty: ${pName}\nPlan: ${planName}\n${amountStr ? `Amount Paid: ${amountStr}\n` : ""}Status: PAID & VERIFIED\n\n${invoiceUrl ? `Download Official Tax Invoice PDF: ${invoiceUrl}\n\n` : ""}For queries, reach us at billing@tenopilot.com or WhatsApp +91 92066 51295.\n\nTenoPilot Technologies Finance Desk`;
+
       return { subject, html, text };
     }
 
