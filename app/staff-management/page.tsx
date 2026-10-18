@@ -31,6 +31,8 @@ import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { reauthenticateCurrentAccount, provisionStaffFirebaseAccount, syncUserSecurityPinToCloud } from "@/lib/authService";
+import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function StaffManagementPage() {
   const router = useRouter();
@@ -67,6 +69,15 @@ export default function StaffManagementPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
+
+  // Staff Password Management (Visible to Master Admin & Admin per Hierarchy)
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [copiedStaffId, setCopiedStaffId] = useState<string | null>(null);
+  const [editPasswordMember, setEditPasswordMember] = useState<StaffMember | null>(null);
+  const [updatedPasswordValue, setUpdatedPasswordValue] = useState("");
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isUpdatingStaffPassword, setIsUpdatingStaffPassword] = useState(false);
+  const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
 
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
 
@@ -137,8 +148,24 @@ export default function StaffManagementPage() {
       setRole("admin");
     }
 
-    const refreshStaff = () => {
-      setStaffList(staffStore.getAllGlobalStaff());
+    const refreshStaff = async () => {
+      const all = staffStore.getAllGlobalStaff();
+      try {
+        const staffDocs = await getDocs(collection(db, "staff_accounts"));
+        const pwMap = new Map<string, string>();
+        staffDocs.forEach((d) => {
+          const data = d.data();
+          if (data.password) pwMap.set(d.id.toLowerCase(), data.password);
+        });
+
+        const merged = all.map((s) => ({
+          ...s,
+          password: pwMap.get(s.email.toLowerCase()) || s.password || "Pass@1234",
+        }));
+        setStaffList(merged);
+      } catch {
+        setStaffList(all);
+      }
     };
 
     refreshStaff();
@@ -149,6 +176,29 @@ export default function StaffManagementPage() {
       unsubscribe();
     };
   }, [router, profile]);
+
+  const handleSaveStaffPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPasswordMember) return;
+    if (updatedPasswordValue.length < 6) {
+      setEditPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setIsUpdatingStaffPassword(true);
+    setEditPasswordError(null);
+
+    try {
+      await staffStore.updateStaffPassword(editPasswordMember.id, updatedPasswordValue);
+      setSuccessMessage(`✅ Desk password for ${editPasswordMember.name} updated to: ${updatedPasswordValue}`);
+      setEditPasswordMember(null);
+      setUpdatedPasswordValue("");
+    } catch (err: any) {
+      setEditPasswordError(err?.message || "Failed to update staff password.");
+    } finally {
+      setIsUpdatingStaffPassword(false);
+    }
+  };
 
   const handleGenerateRandomPassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";
@@ -555,18 +605,77 @@ export default function StaffManagementPage() {
                             </button>
                           </>
                         ) : (
-                          <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 flex items-center gap-1.5">
-                            {member.hasSetPin ? (
-                              <>
-                                <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                                <span className="text-emerald-700 font-bold">PIN: Active (Staff Managed)</span>
-                              </>
-                            ) : (
-                              <>
-                                <Key className="w-3.5 h-3.5 text-amber-600" />
-                                <span className="text-amber-700 font-bold">PIN: Pending (1st Login)</span>
-                              </>
-                            )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Staff Desk Password Badge (Always visible to Master Admin & Admin) */}
+                            <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-xs flex items-center gap-1.5 shadow-2xs">
+                              <Key className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="text-[11px] font-bold text-amber-800">Pass:</span>
+                              <span className="font-mono font-black text-amber-950 text-xs">
+                                {visiblePasswords[member.id] ? (member.password || "Pass@1234") : "••••••••"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setVisiblePasswords((prev) => ({
+                                    ...prev,
+                                    [member.id]: !prev[member.id],
+                                  }))
+                                }
+                                className="p-1 hover:text-amber-950 text-amber-700 transition-colors cursor-pointer"
+                                title={visiblePasswords[member.id] ? "Hide password" : "Show password"}
+                              >
+                                {visiblePasswords[member.id] ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(member.password || "Pass@1234");
+                                  setCopiedStaffId(member.id);
+                                  setTimeout(() => setCopiedStaffId(null), 2000);
+                                }}
+                                className="p-1 hover:text-amber-950 text-amber-700 transition-colors cursor-pointer"
+                                title="Copy password to clipboard"
+                              >
+                                {copiedStaffId === member.id ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              {(activeRole === "master_admin" || (activeRole === "admin" && member.role === "receptionist")) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditPasswordMember(member);
+                                    setUpdatedPasswordValue(member.password || "");
+                                    setShowEditPassword(false);
+                                    setEditPasswordError(null);
+                                  }}
+                                  className="ml-1 px-2 py-0.5 rounded-md bg-amber-200/70 hover:bg-amber-300 text-[#964407] font-bold text-[10px] transition-colors cursor-pointer active:scale-95"
+                                  title="Change staff password"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 flex items-center gap-1.5">
+                              {member.hasSetPin ? (
+                                <>
+                                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="text-emerald-700 font-bold">PIN: Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Key className="w-3.5 h-3.5 text-amber-600" />
+                                  <span className="text-amber-700 font-bold">PIN: Pending</span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )}
 
@@ -955,6 +1064,103 @@ export default function StaffManagementPage() {
             </div>
           );
         })()}
+
+        {/* MODAL 3: Update Staff Password Modal (Master Admin & Admin Hierarchy) */}
+        {editPasswordMember && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-amber-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
+              <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
+                    <Key className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Update Staff Password
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      {editPasswordMember.name} • {editPasswordMember.role === "admin" ? "Property Admin" : "Desk Receptionist"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditPasswordMember(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveStaffPassword} className="space-y-4">
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs leading-relaxed">
+                  💡 <strong>Staff Credentials Policy:</strong> As Master Admin / Admin, you directly control staff desk passwords. Changes take effect immediately. Hand over this new password to the staff member for their next sign in.
+                </div>
+
+                {editPasswordError && (
+                  <div className="p-3 bg-rose-100 border border-rose-300 rounded-xl text-rose-900 font-bold">
+                    {editPasswordError}
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-gray-700">New Password *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";
+                        let res = "";
+                        for (let i = 0; i < 10; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setUpdatedPasswordValue(res);
+                      }}
+                      className="text-[10px] font-bold text-[#c2652a] hover:underline cursor-pointer"
+                    >
+                      🎲 Generate Random
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showEditPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={updatedPasswordValue}
+                      onChange={(e) => setUpdatedPasswordValue(e.target.value)}
+                      placeholder="Enter new password (min 6 characters)"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-800 cursor-pointer"
+                    >
+                      {showEditPassword ? <EyeOff className="w-4 h-4 text-[#c2652a]" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
+                  <button
+                    type="button"
+                    onClick={() => setEditPasswordMember(null)}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingStaffPassword || updatedPasswordValue.length < 6}
+                    className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    {isUpdatingStaffPassword ? "Updating..." : "Save New Password"}
+                    <Key className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

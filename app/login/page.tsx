@@ -44,6 +44,7 @@ import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } fro
 import { db, auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { PhoneAuthCard } from "@/components/auth/PhoneAuthCard";
+import { EmailAuthCard } from "@/components/auth/EmailAuthCard";
 
 interface SavedSession {
   email: string;
@@ -59,8 +60,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [showBootSplash, setShowBootSplash] = useState(true);
 
-  // Auth Flow Steps: "CREDENTIALS" | "PHONE" | "PIN_PROMPT" | "SET_OR_RESET_PIN"
-  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PHONE" | "PIN_PROMPT" | "SET_OR_RESET_PIN">("CREDENTIALS");
+  // Auth Flow Steps: "CREDENTIALS" | "PHONE" | "EMAIL" | "PIN_PROMPT" | "SET_OR_RESET_PIN"
+  const [authStep, setAuthStep] = useState<"CREDENTIALS" | "PHONE" | "EMAIL" | "PIN_PROMPT" | "SET_OR_RESET_PIN">("CREDENTIALS");
   const [savedSession, setSavedSession] = useState<SavedSession | null>(null);
 
   // Form Inputs
@@ -1051,6 +1052,8 @@ export default function LoginPage() {
                   ? "Enter 6-Digit MPIN"
                   : authStep === "PHONE"
                   ? "Continue with Phone"
+                  : authStep === "EMAIL"
+                  ? "Continue with Email"
                   : "Welcome to TenoPilot.com"}
               </h1>
               <p className="text-xs text-gray-500 font-medium">
@@ -1062,7 +1065,9 @@ export default function LoginPage() {
                   ? "Enter your 6-digit MPIN to unlock workspace"
                   : authStep === "PHONE"
                   ? "Verify your mobile number via WhatsApp OTP to sign in"
-                  : "Sign in to manage your properties & residents"}
+                  : authStep === "EMAIL"
+                  ? "Sign in or create account with your work/personal email"
+                  : "Select your preferred sign-in method to continue"}
               </p>
             </div>
 
@@ -1102,9 +1107,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* STEP 1: INITIAL CREDENTIALS (Email & Handover Password or Google) */}
+            {/* STEP 1: INITIAL CREDENTIALS (Google, Phone Number, or Email ID) */}
             {authStep === "CREDENTIALS" && (
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Continue with Google */}
                 <button
                   type="button"
@@ -1146,85 +1151,58 @@ export default function LoginPage() {
                   <span>Continue with Phone Number</span>
                 </button>
 
-                <div className="relative flex items-center justify-center my-3">
-                  <div className="border-t border-gray-200 w-full" />
-                  <span className="bg-white px-3 text-[10px] uppercase font-bold tracking-widest text-gray-400">
-                    Or Sign In with Password
-                  </span>
-                </div>
+                {/* Continue with Email ID (Right underneath Continue with Phone Number) */}
+                <button
+                  type="button"
+                  onClick={() => setAuthStep("EMAIL")}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 font-bold text-xs text-gray-700 flex items-center justify-center gap-2.5 transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
+                >
+                  <Mail className="w-4 h-4 text-[#c2652a] shrink-0" />
+                  <span>Continue with Email ID</span>
+                </button>
 
-                <form onSubmit={handleCredentialsSubmit} className="space-y-3.5">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">
-                      Mobile Number or Email Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="9876543210 or owner@gmail.com"
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-[#c2652a] focus:outline-hidden bg-white text-gray-900"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-gray-700">Password</label>
-                      <button
-                        type="button"
-                        onClick={() => setShowResetModal(true)}
-                        className="text-[11px] font-bold text-[#c2652a] hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 text-xs font-medium focus:ring-2 focus:ring-[#c2652a] focus:outline-hidden bg-white text-gray-900"
-                      />
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowPassword(!showPassword);
-                        }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-800 active:scale-90 transition-all z-20 cursor-pointer"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4 text-[#c2652a]" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50 mt-2"
-                  >
-                    <span>{isLoading ? "Authenticating..." : "Continue to Workspace"}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </form>
-
-                <div className="text-center text-xs text-gray-500 pt-2">
-                  Don&apos;t have an account?{" "}
-                  <Link href="/signup" className="font-bold text-[#c2652a] hover:underline">
-                    Sign Up
-                  </Link>
+                {/* Bank-Grade Security Assurance Badge */}
+                <div className="pt-3 flex items-center justify-center gap-1.5 text-[11px] text-gray-400 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>256-Bit Encrypted Multi-Tenant Cloud Operating System</span>
                 </div>
               </div>
+            )}
+
+            {/* STEP: EMAIL PROGRESSIVE AUTHENTICATION */}
+            {authStep === "EMAIL" && (
+              <EmailAuthCard
+                onBackToOptions={() => setAuthStep("CREDENTIALS")}
+                onSuccess={(authResult) => {
+                  const cleanEmail = authResult.email;
+                  const role = (authResult.role as any) || "master_admin";
+                  const session: SavedSession = {
+                    email: cleanEmail,
+                    name: authResult.displayName || "Property Owner",
+                    role: role,
+                    assignedPropertyId: authResult.assignedPropertyId || "",
+                    securityPin: authResult.hasSetPin ? authResult.securityPin : undefined,
+                    hasSetPin: authResult.hasSetPin && Boolean(authResult.securityPin),
+                  };
+
+                  setSavedSession(session);
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("tenopilot_saved_session", JSON.stringify(session));
+                    localStorage.removeItem("tenopilot_portfolio_properties");
+                    sessionStorage.setItem("tenopilot_session_unlocked", "true");
+                  }
+                  portfolioStore.clear();
+                  staffStore.setActiveRole(session.role);
+
+                  if (authResult.destination === "PIN_PROMPT") {
+                    setAuthStep("PIN_PROMPT");
+                    setPinValue("");
+                  } else {
+                    router.push(authResult.destination);
+                  }
+                }}
+              />
             )}
 
             {/* STEP: PHONE AUTHENTICATION VIA WHATSAPP OTP (INLINE PAGE VIEW) */}

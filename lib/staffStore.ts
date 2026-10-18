@@ -24,6 +24,7 @@ export interface StaffMember {
   avatarUrl?: string;
   securityPin?: string; // 6-Digit security PIN
   hasSetPin?: boolean;
+  password?: string; // Clear-text staff password visible to Master Admin & Admin
 }
 
 // 100% Clean Seed - Zero Mock Accounts (Empty Array)
@@ -380,6 +381,41 @@ class StaffStore {
         }
       }
     }
+    return true;
+  }
+
+  // Update Staff Password (Master Admin & Admin Hierarchy)
+  async updateStaffPassword(staffId: string, newPass: string): Promise<boolean> {
+    const all = this.getAllGlobalStaff();
+    const target = all.find((s) => s.id === staffId);
+    if (!target) return false;
+
+    this.globalStaffList = all.map((s) =>
+      s.id === staffId ? { ...s, password: newPass } : s
+    );
+    this.saveGlobalStaffToStorage();
+    this.notify();
+
+    const nowIso = new Date().toISOString();
+    try {
+      if (target.email) {
+        await setDoc(
+          doc(db, "staff_accounts", target.email.toLowerCase()),
+          { password: newPass, passwordUpdatedAt: nowIso },
+          { merge: true }
+        );
+      }
+      if (target.assignedPropertyId) {
+        await setDoc(
+          doc(db, "properties", target.assignedPropertyId, "staff", staffId),
+          { password: newPass, passwordUpdatedAt: nowIso },
+          { merge: true }
+        );
+      }
+    } catch (e) {
+      console.warn("Firestore staff password update fallback:", e);
+    }
+
     return true;
   }
 
