@@ -136,6 +136,65 @@ function toDateInputValue(dateStr?: string): string {
   return new Date().toISOString().split("T")[0];
 }
 
+// Helper: Parse any phone number into country code (e.g. +91) and national number (e.g. 9206651295)
+function parsePhoneAndCountryCode(rawPhone?: string, existingCountryCode?: string): { countryCode: string; nationalNumber: string } {
+  if (!rawPhone && !existingCountryCode) {
+    return { countryCode: "+91", nationalNumber: "" };
+  }
+
+  // If explicit countryCode exists on occupant
+  if (existingCountryCode) {
+    const cleanCc = existingCountryCode.trim().startsWith("+")
+      ? existingCountryCode.trim()
+      : `+${existingCountryCode.trim()}`;
+    let national = (rawPhone || "").trim();
+    if (national.startsWith(cleanCc)) {
+      national = national.slice(cleanCc.length).trim();
+    } else if (national.startsWith(cleanCc.replace("+", ""))) {
+      national = national.slice(cleanCc.length - 1).trim();
+    }
+    return {
+      countryCode: cleanCc,
+      nationalNumber: national.replace(/\D/g, ""),
+    };
+  }
+
+  const trimmed = (rawPhone || "").trim();
+
+  // If starts with + (e.g. "+91 9206651295" or "+919206651295" or "+1 5551234567")
+  if (trimmed.startsWith("+")) {
+    const parts = trimmed.split(/\s+/);
+    if (parts.length >= 2) {
+      const cc = parts[0].startsWith("+") ? parts[0] : `+${parts[0]}`;
+      const national = parts.slice(1).join("").replace(/\D/g, "");
+      return { countryCode: cc, nationalNumber: national };
+    }
+
+    // No space between + and digits: e.g. "+919206651295"
+    const digitsOnly = trimmed.slice(1).replace(/\D/g, "");
+    if (digitsOnly.length > 10) {
+      const national = digitsOnly.slice(-10);
+      const ccDigits = digitsOnly.slice(0, -10);
+      return { countryCode: `+${ccDigits}`, nationalNumber: national };
+    } else {
+      return { countryCode: "+91", nationalNumber: digitsOnly };
+    }
+  }
+
+  const allDigits = trimmed.replace(/\D/g, "");
+  if (allDigits.length === 12 && allDigits.startsWith("91")) {
+    return { countryCode: "+91", nationalNumber: allDigits.slice(2) };
+  }
+
+  if (allDigits.length > 10) {
+    const national = allDigits.slice(-10);
+    const ccDigits = allDigits.slice(0, -10);
+    return { countryCode: `+${ccDigits}`, nationalNumber: national };
+  }
+
+  return { countryCode: "+91", nationalNumber: allDigits };
+}
+
 export default function IndividualTenantProfilePage({
   params,
 }: {
@@ -187,7 +246,9 @@ export default function IndividualTenantProfilePage({
     if (existing) {
       setOccupantState(existing);
       setEditName(existing.name);
-      setEditPhone(existing.phone);
+      const parsed = parsePhoneAndCountryCode(existing.phone, existing.countryCode);
+      setEditCountryCode(parsed.countryCode);
+      setEditPhone(parsed.nationalNumber);
       setEditEmail(existing.email || "");
       setEditJoiningDate(toDateInputValue(existing.joiningDate));
       setEditRent(existing.rentAmount);
@@ -204,7 +265,9 @@ export default function IndividualTenantProfilePage({
       if (updated) {
         setOccupantState(updated);
         setEditName(updated.name);
-        setEditPhone(updated.phone);
+        const parsed = parsePhoneAndCountryCode(updated.phone, updated.countryCode);
+        setEditCountryCode(parsed.countryCode);
+        setEditPhone(parsed.nationalNumber);
         setEditEmail(updated.email || "");
         setEditJoiningDate(toDateInputValue(updated.joiningDate));
         setEditRent(updated.rentAmount);
@@ -224,7 +287,9 @@ export default function IndividualTenantProfilePage({
         if (updated) {
           setOccupantState(updated);
           setEditName(updated.name);
-          setEditPhone(updated.phone);
+          const parsed = parsePhoneAndCountryCode(updated.phone, updated.countryCode);
+          setEditCountryCode(parsed.countryCode);
+          setEditPhone(parsed.nationalNumber);
           setEditEmail(updated.email || "");
           setEditJoiningDate(toDateInputValue(updated.joiningDate));
           setEditRent(updated.rentAmount);
@@ -432,8 +497,10 @@ export default function IndividualTenantProfilePage({
   } | null>(null);
 
   // Edit Profile Form Inputs
+  const initialParsedPhone = parsePhoneAndCountryCode(occupantState?.phone, occupantState?.countryCode);
   const [editName, setEditName] = useState<string>(occupantState?.name || "");
-  const [editPhone, setEditPhone] = useState<string>(occupantState?.phone || "");
+  const [editCountryCode, setEditCountryCode] = useState<string>(initialParsedPhone.countryCode);
+  const [editPhone, setEditPhone] = useState<string>(initialParsedPhone.nationalNumber);
   const [editEmail, setEditEmail] = useState<string>(occupantState?.email || "");
   const [editJoiningDate, setEditJoiningDate] = useState<string>(
     toDateInputValue(occupantState?.joiningDate)
@@ -1370,7 +1437,9 @@ export default function IndividualTenantProfilePage({
   const handleOpenEditProfileModal = () => {
     if (!occupantState) return;
     setEditName(occupantState.name);
-    setEditPhone(occupantState.phone);
+    const parsed = parsePhoneAndCountryCode(occupantState.phone, occupantState.countryCode);
+    setEditCountryCode(parsed.countryCode);
+    setEditPhone(parsed.nationalNumber);
     setEditEmail(occupantState.email);
     setEditJoiningDate(toDateInputValue(occupantState.joiningDate));
     setEditCustomDueDay(
@@ -1399,10 +1468,17 @@ export default function IndividualTenantProfilePage({
       propertySettings
     );
 
+    const cleanCc = editCountryCode.trim().startsWith("+")
+      ? editCountryCode.trim()
+      : `+${editCountryCode.trim() || "91"}`;
+    const cleanNationalPhone = editPhone.trim().replace(/\D/g, "");
+    const fullPhoneNumber = `${cleanCc} ${cleanNationalPhone}`;
+
     const updated: Occupant = {
       ...occupantState,
       name: editName.trim(),
-      phone: editPhone.trim(),
+      phone: fullPhoneNumber,
+      countryCode: cleanCc,
       email: editEmail.trim(),
       joiningDate: formattedJoiningDate,
       dueDay: effectiveDueDay,
@@ -4046,13 +4122,36 @@ export default function IndividualTenantProfilePage({
                     <label className="block font-bold text-gray-700 mb-1">
                       Mobile Number *
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editCountryCode}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (val === "" || val === "+") {
+                            setEditCountryCode(val);
+                          } else if (val.startsWith("+")) {
+                            setEditCountryCode(`+${val.slice(1).replace(/\D/g, "").slice(0, 4)}`);
+                          } else {
+                            setEditCountryCode(`+${val.replace(/\D/g, "").slice(0, 4)}`);
+                          }
+                        }}
+                        placeholder="+91"
+                        className="w-16 sm:w-20 px-2.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] shrink-0 bg-gray-50"
+                        title="Country dial code (default +91)"
+                      />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="9206651295"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                        className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      Country dial code is separated to prevent accidental deletion.
+                    </span>
                   </div>
 
                   <div>

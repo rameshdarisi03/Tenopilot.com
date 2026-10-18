@@ -451,6 +451,7 @@ export default function OnboardGuestPage({
       id: newId,
       name: fullName.trim(),
       phone: fullPhoneNumber,
+      countryCode: countryCode.trim() || "+91",
       email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@guest.com`,
       stayType: "Guest",
       lifecycleStatus: initialLifecycleStatus,

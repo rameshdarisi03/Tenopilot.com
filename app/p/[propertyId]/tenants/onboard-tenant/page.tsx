@@ -553,6 +553,7 @@ export default function OnboardTenantPage({
       id: newId,
       name: fullName.trim(),
       phone: fullPhoneNumber,
+      countryCode: countryCode.trim() || "+91",
       email: email.trim() || `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
       stayType: "Tenant",
       lifecycleStatus: initialLifecycleStatus,

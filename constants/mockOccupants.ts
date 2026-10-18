@@ -36,6 +36,7 @@ export interface Occupant {
   name: string;
   avatar: string;
   phone: string;
+  countryCode?: string;
   email: string;
   stayType: "Tenant" | "Guest";
   roomNumber: string;
