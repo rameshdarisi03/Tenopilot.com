@@ -161,7 +161,32 @@ export async function checkAccountRegistrationStatus(identifier: string, exclude
   if (!clean) return { exists: false };
 
   try {
-    if (clean.includes("@")) {
+    // Check if currently authenticated with Firebase and document exists in users collection
+    if (auth.currentUser) {
+      try {
+        const currentUserDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        if (currentUserDoc.exists()) {
+          const uData = currentUserDoc.data();
+          const uEmail = (uData?.email || "").toLowerCase().trim();
+          const uPhone = (uData?.phone || "").replace(/\D/g, "");
+          const idPhone = clean.replace(/\D/g, "");
+          if (
+            uEmail === clean ||
+            (idPhone.length >= 10 && uPhone.endsWith(idPhone.slice(-10))) ||
+            clean.includes(auth.currentUser.uid)
+          ) {
+            return { exists: true };
+          }
+        }
+      } catch {}
+    }
+
+    const isSyntheticPhoneEmail =
+      clean.startsWith("phone_") ||
+      clean.endsWith("@auth.tenopilot.com") ||
+      clean.includes("auth.tenopilot");
+
+    if (clean.includes("@") && !isSyntheticPhoneEmail) {
       const cleanEmail = clean;
       // 0. Check if account was explicitly purged by founder in purged_accounts
       const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));

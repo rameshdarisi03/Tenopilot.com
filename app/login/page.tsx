@@ -115,6 +115,7 @@ export default function LoginPage() {
 
   // Check for saved local device session on mount (Fintech Quick Unlock + Cloud Revalidation)
   useEffect(() => {
+    setError(null);
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get("verified") === "true") {
@@ -131,7 +132,7 @@ export default function LoginPage() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved) as SavedSession;
-          if (!parsed.email || typeof parsed.email !== "string" || !parsed.email.includes("@")) {
+          if (!parsed.email || typeof parsed.email !== "string" || (!parsed.email.includes("@") && !parsed.email.startsWith("phone_"))) {
             // Corrupt or legacy session schema -> self heal
             localStorage.removeItem("tenopilot_saved_session");
             setSavedSession(null);
@@ -157,7 +158,7 @@ export default function LoginPage() {
                 if (!isMasterDemo) {
                   const regStatus = await checkAccountRegistrationStatus(cleanEmail);
                   if (!regStatus.exists) {
-                    // 🛑 ACCOUNT PURGED OR DELETED: Wipe stale localStorage and revert to login credentials!
+                    // 🛑 ACCOUNT PURGED OR DELETED: Silently wipe stale localStorage and revert to login credentials!
                     console.warn(`[Login] Stale cached session detected for non-existent/purged email: ${cleanEmail}. Purging localStorage.`);
                     localStorage.removeItem("tenopilot_saved_session");
                     localStorage.removeItem("tenopilot_portfolio_properties");
@@ -165,11 +166,7 @@ export default function LoginPage() {
                     setSavedSession(null);
                     setAuthStep("CREDENTIALS");
                     try { await signOut(auth); } catch {}
-                    setError(
-                      regStatus.isPurged
-                        ? "This account has been removed or purged. Please click Sign Up below to create a new property."
-                        : `No active TenoPilot account found for this email. Please click Sign Up below to start your ${getStoredPlatformConfig().trialDays}-day free trial.`
-                    );
+                    setError(null);
                     return;
                   }
                 }
