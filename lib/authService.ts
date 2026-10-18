@@ -698,7 +698,7 @@ export async function provisionStaffFirebaseAccount(staff: {
     id: staff.id || staffUid,
     name: staff.name.trim(),
     email: cleanEmail,
-    phone: staff.phone.trim() || "+91 98000 00000",
+    phone: staff.phone ? staff.phone.trim() : "",
     role: staff.role,
     assignedPropertyId: staff.assignedPropertyId,
     assignedPropertyIds: assignedIds,

@@ -646,22 +646,25 @@ export default function StaffManagementPage() {
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
                               </button>
-                              {(activeRole === "master_admin" || (activeRole === "admin" && member.role === "receptionist")) && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditPasswordMember(member);
-                                    setUpdatedPasswordValue(member.password || "");
-                                    setShowEditPassword(false);
-                                    setEditPasswordError(null);
-                                  }}
-                                  className="ml-1 px-2 py-0.5 rounded-md bg-amber-200/70 hover:bg-amber-300 text-[#964407] font-bold text-[10px] transition-colors cursor-pointer active:scale-95"
-                                  title="Change staff password"
-                                >
-                                  Edit
-                                </button>
-                              )}
                             </div>
+
+                            {/* Prominent Change Password Action Button */}
+                            {(activeRole === "master_admin" || (activeRole === "admin" && member.role === "receptionist")) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditPasswordMember(member);
+                                  setUpdatedPasswordValue(member.password || "");
+                                  setShowEditPassword(false);
+                                  setEditPasswordError(null);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-orange-100/90 hover:bg-orange-200 border border-orange-200 text-[#964407] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                title="Change or reset password in case it gets compromised"
+                              >
+                                <Lock className="w-3.5 h-3.5 text-[#c2652a]" />
+                                <span>Change Password</span>
+                              </button>
+                            )}
 
                             <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 flex items-center gap-1.5">
                               {member.hasSetPin ? (
@@ -717,34 +720,21 @@ export default function StaffManagementPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Saikumar Reddy"
+                  placeholder="e.g. Your Name"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Work Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@property.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
-                  />
-                </div>
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Work Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="staffname@property.com"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
+                />
               </div>
 
               {/* Role Selection */}
@@ -861,6 +851,12 @@ export default function StaffManagementPage() {
                 <p className="text-[10px] text-gray-500 mt-1">
                   💡 Hand over this email and password to the staff member. Upon login, they will set their personal 6-digit PIN.
                 </p>
+                <div className="flex items-center gap-2 p-2.5 bg-amber-50/80 border border-amber-200/90 rounded-xl text-amber-900 text-[11px] mt-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Security Protection:</strong> If credentials are ever compromised or forgotten, you can instantly change or generate a new password anytime from the <strong>Team Directory</strong>.
+                  </span>
+                </div>
               </div>
 
               <div className="pt-3">
@@ -1076,7 +1072,7 @@ export default function StaffManagementPage() {
                   </div>
                   <div>
                     <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Update Staff Password
+                      Change Staff Password
                     </h3>
                     <p className="text-[11px] text-gray-500 font-medium">
                       {editPasswordMember.name} • {editPasswordMember.role === "admin" ? "Property Admin" : "Desk Receptionist"}
@@ -1094,7 +1090,7 @@ export default function StaffManagementPage() {
 
               <form onSubmit={handleSaveStaffPassword} className="space-y-4">
                 <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs leading-relaxed">
-                  💡 <strong>Staff Credentials Policy:</strong> As Master Admin / Admin, you directly control staff desk passwords. Changes take effect immediately. Hand over this new password to the staff member for their next sign in.
+                  🛡️ <strong>Security Reset:</strong> If this account password was compromised, leaked, or forgotten, update it below. Changes take effect immediately in Firebase Authentication and cloud records.
                 </div>
 
                 {editPasswordError && (
