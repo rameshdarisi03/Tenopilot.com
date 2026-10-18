@@ -1463,31 +1463,20 @@ export default function SubscriptionBillingPage() {
                   </p>
                 </div>
                 <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedInvoiceForModal({
-                        invoiceNumber: "INV-TP-SAMPLE-2026",
-                        date: new Date().toISOString(),
-                        customerName: profile?.displayName || "Ramesh Darisi",
-                        customerEmail: profile?.email || "",
-                        customerPhone: profile?.phone || "",
-                        propertyName: profile?.propertyName || "Ramesh Residencies",
-                        propertyLocation: (profile as any)?.city ? `${(profile as any).city}, India` : "Bengaluru, Karnataka, India",
-                        plan: "PRO_MONTHLY",
-                        durationDays: 30,
-                        amount: 999,
-                        paymentMode: "Razorpay / UPI (Sample Preview)",
-                        receiptNumber: "REC-SAMPLE",
-                        notes: "Preview Sample GST Tax Invoice for TenoPilot Pro",
-                        status: "SAMPLE",
-                      });
-                    }}
+                  <a
+                    href={`/api/subscription/invoice/pdf?invoiceNo=INV-TP-SAMPLE-2026&ownerName=${encodeURIComponent(
+                      profile?.displayName || "Ramesh Darisi"
+                    )}&propertyName=${encodeURIComponent(
+                      profile?.propertyName || "Ramesh Residencies"
+                    )}&amount=999`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="px-4 py-2 rounded-xl bg-white border border-[#d7c2b9] hover:bg-gray-50 text-gray-800 font-bold text-xs shadow-2xs transition-all active:scale-95 inline-flex items-center gap-1.5 cursor-pointer"
+                    title="View Sample GST Tax Invoice PDF"
                   >
                     <Eye className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Preview Sample GST Tax Invoice</span>
-                  </button>
+                    <span>Preview Sample Tax Invoice (PDF)</span>
+                  </a>
                 </div>
               </div>
             ) : (
@@ -1594,46 +1583,27 @@ export default function SubscriptionBillingPage() {
                           </td>
                           <td className="py-3 px-3 text-right">
                             <div className="flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedInvoiceForModal({
-                                    invoiceNumber: tx.invoiceNumber,
-                                    date: tx.createdAt || tx.date || new Date().toISOString(),
-                                    customerName: tx.customerName || profile?.displayName || "Ramesh Darisi",
-                                    customerEmail: tx.customerEmail || profile?.email || "",
-                                    customerPhone: tx.customerPhone || profile?.phone || "",
-                                    propertyName: tx.propertyName || profile?.propertyName || "Ramesh Residencies",
-                                    propertyLocation: tx.propertyLocation || ((profile as any)?.city ? `${(profile as any).city}, India` : "Bengaluru, Karnataka, India"),
-                                    plan: tx.plan || "PRO_MONTHLY",
-                                    durationDays: tx.durationDays || (tx.plan === "PRO_ANNUAL" ? 365 : 30),
-                                    planExpiresAt: tx.planExpiresAt || null,
-                                    creditsAdded: tx.creditsAdded || (isCreditPack ? 750 : null),
-                                    amount: Number(tx.amountPaid || tx.amount || 999),
-                                    paymentMode: tx.paymentMode || "UPI / Razorpay (Verified)",
-                                    receiptNumber: tx.receiptNumber || tx.id,
-                                    receiptUrl: tx.receiptUrl || tx.screenshotUrl || null,
-                                    notes: tx.notes || "Official Tax Invoice issued by TenoPilot",
-                                    activatedBy: tx.activatedBy || "System Gateway",
-                                    status: tx.status || "COMPLETED",
-                                  });
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-[#201a17] hover:bg-[#342924] text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs active:scale-95"
-                                title="View Full Interactive Tax Invoice"
-                              >
-                                <Eye className="w-3 h-3 text-amber-400" />
-                                <span>View</span>
-                              </button>
-
                               <a
                                 href={pdfDownloadUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-lg bg-[#201a17] hover:bg-[#342924] text-white font-bold text-[10.5px] flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs active:scale-95"
+                                title="View Official GST Tax Invoice PDF"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-amber-400" />
+                                <span>View (PDF)</span>
+                              </a>
+
+                              <a
+                                href={pdfDownloadUrl}
+                                download={`TenoPilot_Invoice_${tx.invoiceNumber}.pdf`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors active:scale-95"
-                                title="Download Official Tax Invoice PDF"
+                                title="Direct Download Official Tax Invoice PDF"
                               >
                                 <Download className="w-3 h-3 text-emerald-600" />
-                                <span>PDF</span>
+                                <span className="hidden sm:inline">Download</span>
                               </a>
 
                               {tx.receiptUrl && (
