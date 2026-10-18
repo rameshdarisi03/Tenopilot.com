@@ -28,7 +28,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { provisionNewPropertyWorkspace } from "@/lib/accountInitializer";
-import { syncUserSecurityPinToCloud, sanitizeTitleCase } from "@/lib/authService";
+import { syncUserSecurityPinToCloud, sanitizeTitleCase, checkAccountRegistrationStatus } from "@/lib/authService";
 import { cleanIndianMobileNumber } from "@/lib/whatsappService";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { getStoredPlatformConfig } from "@/lib/platformConfig";
@@ -210,8 +210,17 @@ function WelcomeOnboardingContent() {
       setEmailError("Please enter a valid email address.");
       return;
     }
+    const activeUid = auth.currentUser?.uid || user?.uid || profile?.uid || "";
+
     setIsSendingEmailOtp(true);
     try {
+      // 🛡️ Pre-Flight Collision Check: Ensure email is not already registered with another user or staff account
+      const collisionCheck = await checkAccountRegistrationStatus(clean, activeUid);
+      if (collisionCheck.exists) {
+        setEmailError("⚠️ This email address is already registered with another TenoPilot account. Please use a different email or sign in with that account.");
+        return;
+      }
+
       const res = await fetch("/api/auth/email/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,8 +293,18 @@ function WelcomeOnboardingContent() {
       setPhoneError("Please enter a valid 10-digit mobile number.");
       return;
     }
+
+    const activeUid = auth.currentUser?.uid || user?.uid || profile?.uid || "";
+
     setIsSendingPhoneOtp(true);
     try {
+      // 🛡️ Pre-Flight Collision Check: Ensure mobile number is not already registered with another user or staff account
+      const collisionCheck = await checkAccountRegistrationStatus(clean, activeUid);
+      if (collisionCheck.exists) {
+        setPhoneError("⚠️ This mobile number is already registered with another TenoPilot account. Please enter a different mobile number or sign in with that account.");
+        return;
+      }
+
       const res = await fetch("/api/auth/phone/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

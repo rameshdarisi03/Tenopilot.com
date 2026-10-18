@@ -156,7 +156,7 @@ export interface AccountStatusResult {
  * 4. founder_invites (pending VIP passes)
  * 5. local in-memory staffStore
  */
-export async function checkAccountRegistrationStatus(identifier: string): Promise<AccountStatusResult> {
+export async function checkAccountRegistrationStatus(identifier: string, excludeUid?: string): Promise<AccountStatusResult> {
   const clean = identifier.trim().toLowerCase();
   if (!clean) return { exists: false };
 
@@ -183,8 +183,16 @@ export async function checkAccountRegistrationStatus(identifier: string): Promis
       const q = query(collection(db, "users"), where("email", "==", cleanEmail));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
-        return { exists: true };
+        if (excludeUid) {
+          const isOther = snap.docs.some((d) => d.id !== excludeUid && d.data()?.uid !== excludeUid);
+          if (isOther) {
+            deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+            return { exists: true };
+          }
+        } else {
+          deleteDoc(doc(db, "purged_accounts", cleanEmail)).catch(() => {});
+          return { exists: true };
+        }
       }
 
       // 3. Check in founder_clients collection
@@ -223,11 +231,25 @@ export async function checkAccountRegistrationStatus(identifier: string): Promis
         // Check users collection by phone
         const q1 = query(collection(db, "users"), where("phone", "==", pure10));
         const s1 = await getDocs(q1);
-        if (!s1.empty) return { exists: true };
+        if (!s1.empty) {
+          if (excludeUid) {
+            const isOther = s1.docs.some((d) => d.id !== excludeUid && d.data()?.uid !== excludeUid);
+            if (isOther) return { exists: true };
+          } else {
+            return { exists: true };
+          }
+        }
 
         const q2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
         const s2 = await getDocs(q2);
-        if (!s2.empty) return { exists: true };
+        if (!s2.empty) {
+          if (excludeUid) {
+            const isOther = s2.docs.some((d) => d.id !== excludeUid && d.data()?.uid !== excludeUid);
+            if (isOther) return { exists: true };
+          } else {
+            return { exists: true };
+          }
+        }
 
         // Check staff_accounts collection
         const staffDocs = await getDocs(collection(db, "staff_accounts"));
