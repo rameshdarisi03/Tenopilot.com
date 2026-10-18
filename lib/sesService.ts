@@ -513,18 +513,14 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         We built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.
       </p>
 
-      <!-- VIP Pro Trial Card -->
+      <!-- Workspace Highlights Card -->
       <div style="background:#fcfaf7;border-radius:18px;padding:22px;margin-bottom:24px;border:1px solid #ede5de;">
         <h3 style="margin:0 0 14px 0;font-size:13px;font-weight:800;color:#c2652a;text-transform:uppercase;letter-spacing:0.5px;">
-          🎁 YOUR VIP PRO TRIAL IS ACTIVE:
+          🏢 YOUR WORKSPACE HIGHLIGHTS:
         </h3>
         <table style="width:100%;font-size:13px;border-collapse:collapse;line-height:1.7;">
           <tr>
             <td style="padding:4px 0;color:#7b746c;width:24px;">•</td>
-            <td style="padding:4px 0;color:#1c140e;"><strong>Full Access</strong>: +10-Day Complimentary Access to all Pro features</td>
-          </tr>
-          <tr>
-            <td style="padding:4px 0;color:#7b746c;">•</td>
             <td style="padding:4px 0;color:#1c140e;"><strong>Property</strong>: ${pName}</td>
           </tr>
           <tr>
@@ -568,7 +564,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `TenoPilot.com 🚀\nThe Intelligent Operating System for Coliving & Student Housing\n\nWelcome to TenoPilot, ${ownerName}!\n\nCongratulations! ${pName} is officially ready and live 🎉🥳\n\nWe built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.\n\nYOUR VIP PRO TRIAL IS ACTIVE:\n• Full Access: +10-Day Complimentary Access to all Pro features\n• Property: ${pName}\n• FastTrack Migration: 1-Click AI paper register / diary scanner\n• Automated Reminders: WhatsApp digital invoices & check-in KYC\n\n👉 Open Your Workspace:\nhttps://tenopilot.com/login\n\nQuick Login Tip:\nLog in directly with your registered mobile number (${ownerPhone})${ownerEmail ? ` or email (${ownerEmail})` : ""} anytime. Enter your 6-digit MPIN to unlock your workspace.\n\nNeed assistance setting up your room layout or migrating your paper registers?\nTap reply or call our Founder Support Desk directly at +91 92066 51295.\n\nWelcome aboard,\nTeam TenoPilot 🏢✨`;
+      const text = `TenoPilot.com 🚀\nThe Intelligent Operating System for Coliving & Student Housing\n\nWelcome to TenoPilot, ${ownerName}!\n\nCongratulations! ${pName} is officially ready and live 🎉\n\nWe built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.\n\nYOUR WORKSPACE HIGHLIGHTS:\n• Property: ${pName}\n• FastTrack Migration: 1-Click AI paper register / diary scanner\n• Automated Reminders: WhatsApp digital invoices & check-in KYC\n\n👉 Open Your Workspace:\nhttps://tenopilot.com/login\n\nQuick Login Tip:\nLog in directly with your registered mobile number (${ownerPhone})${ownerEmail ? ` or email (${ownerEmail})` : ""} anytime to access your property dashboard.\n\nNeed assistance setting up your room layout or migrating your paper registers?\nTap reply or call our Founder Support Desk directly at +91 92066 51295.\n\nWelcome aboard,\nTeam TenoPilot 🏢✨`;
 
       return { subject, html, text };
     }
@@ -594,17 +590,17 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
     <!-- Top Header -->
     <div style="background:linear-gradient(135deg,#1c140e 0%,#2d1d13 60%,#c2652a 100%);padding:36px 28px;text-align:center;color:#ffffff;">
       <div style="display:inline-block;background:rgba(5,150,105,0.25);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(167,243,208,0.4);color:#a7f3d0;">
-        ✅ SUBSCRIPTION ACTIVATED & VERIFIED
+        🎉 WELCOME TO TENOPILOT PRO
       </div>
-      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;">Tax Invoice #${invoiceNo}</h1>
-      <p style="margin:0;color:#f3d7c3;font-size:13px;">${pName} • ${planName}</p>
+      <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;">Congratulations, ${ownerName}!</h1>
+      <p style="margin:0;color:#f3d7c3;font-size:13px;">${pName} • ${planName} Activated</p>
     </div>
 
     <div style="padding:32px 28px;">
       <p style="font-size:16px;margin:0 0 16px 0;">Dear <strong>${ownerName}</strong>,</p>
       
       <p style="font-size:14px;color:#5a534c;margin:0 0 24px 0;line-height:1.65;">
-        Thank you for your partnership! Your <strong>${planName}</strong> subscription for <strong>${pName}</strong> has been successfully approved and activated.
+        Welcome to <strong>TenoPilot Pro</strong>! Your subscription for <strong>${pName}</strong> (${planName}) has been officially activated. Attached is your official Tax Invoice & Payment Receipt for your records.
       </p>
 
       <!-- Invoice Summary Card -->
@@ -658,7 +654,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `Tax Invoice #${invoiceNo}\n\nDear ${ownerName},\n\nThank you for your partnership! Your ${planName} subscription for ${pName} has been successfully activated and verified.\n\nInvoice No: #${invoiceNo}\nProperty: ${pName}\nPlan: ${planName}\n${amountStr ? `Amount Paid: ${amountStr}\n` : ""}Status: PAID & VERIFIED\n\n${invoiceUrl ? `Download Official Tax Invoice PDF: ${invoiceUrl}\n\n` : ""}For queries, reach us at billing@tenopilot.com or WhatsApp +91 92066 51295.\n\nTenoPilot Technologies Finance Desk`;
+      const text = `TenoPilot.com 🚀\n\nCongratulations, ${ownerName}! 🎉\n\nWelcome to TenoPilot Pro! Your subscription for ${pName} (${planName}) has been successfully activated.\n\nAttached is your official Tax Invoice & Payment Receipt (#${invoiceNo}) for your records.\n\n${invoiceUrl ? `Download Official Tax Invoice PDF: ${invoiceUrl}\n\n` : ""}We are thrilled to partner with you to put your coliving operations on autopilot. If you need any assistance, reach our Founder Support Desk at +91 92066 51295.\n\nWarm regards,\nTeam TenoPilot 🏢✨`;
 
       return { subject, html, text };
     }
