@@ -974,14 +974,25 @@ export async function loginOrRegisterWithPhone(
   let existingUserDoc = snap.exists() ? snap.data() : null;
 
   const cleanPhone = phone.replace(/\D/g, "");
+  const pure10 = cleanPhone.slice(-10);
 
   // If not found by UID, check if there's an existing profile by phone field
   if (!existingUserDoc) {
     try {
-      const q = query(collection(db, "users"), where("phone", "==", cleanPhone));
-      const qSnap = await getDocs(q);
-      if (!qSnap.empty) {
-        existingUserDoc = qSnap.docs[0].data();
+      // 1. Try 10-digit format (e.g. 9206651295)
+      const q1 = query(collection(db, "users"), where("phone", "==", pure10));
+      const qSnap1 = await getDocs(q1);
+      if (!qSnap1.empty) {
+        const onboardedDoc = qSnap1.docs.find((d) => d.data()?.onboardingCompleted === true);
+        existingUserDoc = onboardedDoc ? onboardedDoc.data() : qSnap1.docs[0].data();
+      } else {
+        // 2. Try 12-digit format (e.g. 919206651295)
+        const q2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+        const qSnap2 = await getDocs(q2);
+        if (!qSnap2.empty) {
+          const onboardedDoc = qSnap2.docs.find((d) => d.data()?.onboardingCompleted === true);
+          existingUserDoc = onboardedDoc ? onboardedDoc.data() : qSnap2.docs[0].data();
+        }
       }
     } catch {}
   }
@@ -1040,7 +1051,7 @@ export async function loginOrRegisterWithPhone(
         email: publicEmail,
         authEmail: authEmail,
         emailVerified: Boolean(publicEmail),
-        phone: cleanPhone,
+        phone: pure10,
         phoneVerified: true,
         authProvider: "whatsapp_phone",
       },
@@ -1080,7 +1091,7 @@ export async function loginOrRegisterWithPhone(
       email: publicEmail,
       authEmail: authEmail,
       emailVerified: Boolean(publicEmail),
-      phone: cleanPhone,
+      phone: pure10,
       phoneVerified: true,
       authProvider: "whatsapp_phone",
     },

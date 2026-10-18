@@ -242,21 +242,25 @@ export function PhoneAuthCard({
         verifyData.phone,
         verifyData.authEmail,
         verifyData.authSecret,
-        undefined,
-        undefined
+        verifyData.existingProfile?.displayName,
+        verifyData.existingProfile?.email
       );
 
       // Save local session
       if (typeof window !== "undefined") {
+        const realEmail =
+          authResult.profile.email && !authResult.profile.email.startsWith("phone_")
+            ? authResult.profile.email
+            : verifyData.existingProfile?.email || "";
         const sessionPayload = {
-          email: authResult.profile.email && !authResult.profile.email.startsWith("phone_") ? authResult.profile.email : "",
-          name: authResult.profile.displayName,
+          email: realEmail,
+          name: authResult.profile.displayName || verifyData.existingProfile?.displayName || "",
           role: authResult.profile.role,
-          assignedPropertyId: authResult.profile.assignedPropertyId || "",
-          propertyName: authResult.profile.propertyName || "",
+          assignedPropertyId: authResult.profile.assignedPropertyId || verifyData.existingProfile?.assignedPropertyId || "",
+          propertyName: authResult.profile.propertyName || verifyData.existingProfile?.propertyName || "",
           phone: verifyData.phone,
-          securityPin: authResult.profile.securityPin || "",
-          hasSetPin: authResult.profile.hasSetPin || false,
+          securityPin: authResult.profile.securityPin || verifyData.existingProfile?.securityPin || "",
+          hasSetPin: authResult.profile.hasSetPin || Boolean(verifyData.existingProfile?.securityPin),
         };
         localStorage.setItem("tenopilot_saved_session", JSON.stringify(sessionPayload));
       }

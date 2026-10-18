@@ -102,12 +102,27 @@ export async function POST(req: NextRequest) {
 
     try {
       if (db) {
-        const phoneQ = query(collection(db, "users"), where("phone", "==", cleanPhone));
-        const phoneSnap = await getDocs(phoneQ);
-        if (!phoneSnap.empty) {
-          existingProfile = phoneSnap.docs[0].data();
+        const pure10 = cleanPhone.replace(/\D/g, "").slice(-10);
+
+        // 1. Try 10-digit format (e.g. 9206651295)
+        const phoneQ1 = query(collection(db, "users"), where("phone", "==", pure10));
+        const phoneSnap1 = await getDocs(phoneQ1);
+        if (!phoneSnap1.empty) {
+          const onboardedDoc = phoneSnap1.docs.find((d) => d.data()?.onboardingCompleted === true);
+          existingProfile = onboardedDoc ? onboardedDoc.data() : phoneSnap1.docs[0].data();
         }
 
+        // 2. Try 12-digit format (e.g. 919206651295)
+        if (!existingProfile) {
+          const phoneQ2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+          const phoneSnap2 = await getDocs(phoneQ2);
+          if (!phoneSnap2.empty) {
+            const onboardedDoc = phoneSnap2.docs.find((d) => d.data()?.onboardingCompleted === true);
+            existingProfile = onboardedDoc ? onboardedDoc.data() : phoneSnap2.docs[0].data();
+          }
+        }
+
+        // 3. Fallback to authEmail
         if (!existingProfile) {
           const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
           const emailSnap = await getDocs(emailQ);
