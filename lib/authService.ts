@@ -347,12 +347,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
     } else if (!isPurgedAccount && existingUserDoc?.onboardingCompleted === true) {
       activeAssignedPropId = existingUserDoc.assignedPropertyId || "";
       if (activeAssignedPropId) {
-        try {
-          const propDoc = await getDoc(doc(db, "properties", activeAssignedPropId));
-          if (propDoc.exists()) {
-            isFullyOnboarded = true;
-          }
-        } catch {}
+        isFullyOnboarded = true;
       }
     }
 
@@ -1010,12 +1005,7 @@ export async function loginOrRegisterWithPhone(
   let activeAssignedPropId = existingUserDoc?.assignedPropertyId || "";
 
   if (existingUserDoc?.onboardingCompleted === true && activeAssignedPropId) {
-    try {
-      const propDoc = await getDoc(doc(db, "properties", activeAssignedPropId));
-      if (propDoc.exists()) {
-        isFullyOnboarded = true;
-      }
-    } catch {}
+    isFullyOnboarded = true;
   }
 
   const nowIso = new Date().toISOString();

@@ -560,6 +560,26 @@ function WelcomeOnboardingContent() {
         securityPin: pin,
       });
 
+      // Ensure root property document exists in Firestore
+      try {
+        await setDoc(
+          doc(db, "properties", propertyId),
+          {
+            id: propertyId,
+            name: cleanPropName,
+            propertyName: cleanPropName,
+            ownerEmail: realOwnerEmail,
+            ownerPhone: cleanPhone,
+            city: city.trim(),
+            status: "Active",
+            createdAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn("Notice: root property doc creation:", err);
+      }
+
       setProvisionProgress(75);
       setProvisionStatusText(`🎁 Activating ${platformConfig.trialDays}-Day Pro Trial & WhatsApp Credits...`);
 
