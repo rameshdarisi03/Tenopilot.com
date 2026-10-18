@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import {
@@ -58,8 +59,20 @@ export default function PropertySettingsPage({
   params: Promise<{ propertyId: string }>;
 }) {
   const resolvedParams = use(params);
-  const propertyId = resolvedParams?.propertyId || "sunshine-pg";
+  const router = useRouter();
   const { profile } = useAuth();
+
+  let targetId = resolvedParams?.propertyId || "";
+  if (!targetId || targetId === "settings" || targetId === "undefined") {
+    targetId = profile?.assignedPropertyId || "prop-1792314481132";
+  }
+  const propertyId = targetId;
+
+  useEffect(() => {
+    if (resolvedParams?.propertyId === "settings" || resolvedParams?.propertyId === "undefined" || !resolvedParams?.propertyId) {
+      router.replace(`/p/${propertyId}/settings`);
+    }
+  }, [resolvedParams?.propertyId, propertyId, router]);
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

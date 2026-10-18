@@ -53,6 +53,11 @@ export function PropertyHeader({
     } catch {}
   }
 
+  const effectivePropertyId =
+    (propertyId && propertyId !== "undefined" && propertyId !== "")
+      ? propertyId
+      : (profile?.assignedPropertyId || savedSessionData?.assignedPropertyId || "prop-1792314481132");
+
   const displayName = profile?.displayName || savedSessionData?.name || "Property Owner";
   const userEmail = profile?.email || savedSessionData?.email || "owner@tenopilot.com";
   const userInitials = displayName.split(" ").map((n: string) => n.charAt(0)).join("").toUpperCase().slice(0, 2) || "PO";
@@ -61,15 +66,15 @@ export function PropertyHeader({
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!propertyId) {
+    if (!effectivePropertyId) {
       setComplaints([]);
       return;
     }
-    const unsubscribe = subscribeToComplaints(propertyId, (list) => {
+    const unsubscribe = subscribeToComplaints(effectivePropertyId, (list) => {
       setComplaints(list || []);
     });
     return () => unsubscribe();
-  }, [propertyId]);
+  }, [effectivePropertyId]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -95,7 +100,7 @@ export function PropertyHeader({
   }, [isMobileSearchExpanded]);
 
   // Compute real-time notification alerts from complaints & occupantStore per property scope
-  const occupants = occupantStore.getOccupants(propertyId);
+  const occupants = occupantStore.getOccupants(effectivePropertyId);
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
   const overdueOccupants = occupants.filter((o) => o.daysDiff <= 0 && o.lifecycleStatus !== "Past");
   const pendingKycOccupants = occupants.filter((o) => !o.kycVerified && o.lifecycleStatus !== "Past");
@@ -166,7 +171,7 @@ export function PropertyHeader({
             </button>
 
             <Link
-              href={profile?.role === "receptionist" ? `/p/${propertyId}/overview` : "/home"}
+              href={profile?.role === "receptionist" ? `/p/${effectivePropertyId}/overview` : "/home"}
               className="shrink-0 cursor-pointer"
               title={profile?.role === "receptionist" ? "Front Desk Dashboard" : "Return to Multi-Property Portfolio Welcome Screen"}
             >
@@ -218,7 +223,7 @@ export function PropertyHeader({
 
           {/* Center: AI Copilot Omnibar (Desktop / Tablet) */}
           <div className="flex-1 max-w-sm lg:max-w-md hidden md:block mx-1">
-            <PropertyAiOmnibar propertyId={propertyId} />
+            <PropertyAiOmnibar propertyId={effectivePropertyId} />
           </div>
 
           {/* Right: Actions, Mobile Search Trigger, Notification Bell & Avatar */}
@@ -279,7 +284,7 @@ export function PropertyHeader({
                 {/* 0. Subscription Renewal & Grace Notice */}
                 {sub.notificationMessage && (
                   <Link
-                    href={`/p/${propertyId}/subscription`}
+                    href={`/p/${effectivePropertyId}/subscription`}
                     onClick={() => setShowNotifications(false)}
                     className={`block p-3 rounded-xl border transition-all ${
                       sub.inGracePeriod
@@ -315,7 +320,7 @@ export function PropertyHeader({
                 {openComplaints.slice(0, 3).map((c) => (
                   <Link
                     key={c.id}
-                    href={`/p/${propertyId}/complaints`}
+                    href={`/p/${effectivePropertyId}/complaints`}
                     onClick={() => setShowNotifications(false)}
                     className="pt-2 block hover:bg-amber-50/50 p-2 rounded-xl transition-colors"
                   >
@@ -338,7 +343,7 @@ export function PropertyHeader({
                 {overdueOccupants.map((o) => (
                   <Link
                     key={o.id}
-                    href={`/p/${propertyId}/tenants/${o.id}`}
+                    href={`/p/${effectivePropertyId}/tenants/${o.id}`}
                     onClick={() => setShowNotifications(false)}
                     className="pt-2 block hover:bg-red-50/50 p-2 rounded-xl transition-colors"
                   >
@@ -361,7 +366,7 @@ export function PropertyHeader({
                 {pendingKycOccupants.slice(0, 3).map((o) => (
                   <Link
                     key={o.id}
-                    href={`/p/${propertyId}/tenants/${o.id}`}
+                    href={`/p/${effectivePropertyId}/tenants/${o.id}`}
                     onClick={() => setShowNotifications(false)}
                     className="pt-2 block hover:bg-blue-50/50 p-2 rounded-xl transition-colors"
                   >
@@ -395,7 +400,7 @@ export function PropertyHeader({
         {/* ⏳ Dynamic Subscription Lifecycle Badge (Master Admin Only) */}
         {profile?.role === "master_admin" && (
           <Link
-            href={`/p/${propertyId}/subscription`}
+            href={`/p/${effectivePropertyId}/subscription`}
             className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-2xs border transition-all hover:scale-[1.02] cursor-pointer ${
               sub.status === "ACTIVE_PRO"
                 ? "bg-emerald-50 text-emerald-900 border-emerald-300"
@@ -462,7 +467,7 @@ export function PropertyHeader({
               <div className="space-y-1">
                 {/* 💳 SUBSCRIPTION & BILLING */}
                 <Link
-                  href={`/p/${propertyId}/subscription`}
+                  href={`/p/${effectivePropertyId}/subscription`}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-amber-50 text-[#964407] font-bold transition-colors"
                 >
@@ -488,18 +493,18 @@ export function PropertyHeader({
                 </button>
 
                 <Link
-                  href={`/p/${propertyId}/settings`}
+                  href={`/p/${effectivePropertyId}/settings`}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <Settings className="w-3.5 h-3.5 text-gray-600" /> Global Settings
+                    <Settings className="w-3.5 h-3.5 text-gray-600" /> Settings
                   </span>
                   <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
                 </Link>
 
                 <Link
-                  href={`/p/${propertyId}/complaints`}
+                  href={`/p/${effectivePropertyId}/complaints`}
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 text-gray-700 font-bold transition-colors"
                 >
@@ -526,7 +531,7 @@ export function PropertyHeader({
 
               <div className="pt-2 border-t border-gray-100 text-[10px] text-gray-400 flex items-center justify-between">
                 <span>TenoPilot v2.1</span>
-                <span>• {propertyId}</span>
+                <span>• {effectivePropertyId}</span>
               </div>
             </div>
           )}
@@ -539,7 +544,7 @@ export function PropertyHeader({
       {/* 📱 Mobile AI Search Bar (Directly below header) */}
       {!isMobileSearchExpanded && (
         <div className="md:hidden border-t border-amber-100/70 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/40 px-3 py-1.5 shadow-2xs">
-          <PropertyAiOmnibar propertyId={propertyId} />
+          <PropertyAiOmnibar propertyId={effectivePropertyId} />
         </div>
       )}
 
@@ -547,7 +552,7 @@ export function PropertyHeader({
       <EditProfileModal
         isOpen={showEditProfileModal}
         onClose={() => setShowEditProfileModal(false)}
-        propertyId={propertyId}
+        propertyId={effectivePropertyId}
       />
     </div>
   );

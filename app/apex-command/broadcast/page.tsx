@@ -63,7 +63,7 @@ const INITIAL_BROADCASTS: BroadcastItem[] = [
     timestamp: "3 days ago",
     status: "ACTIVE",
     ctaText: "Download Forms",
-    ctaLink: "/p/settings",
+    ctaLink: "/settings",
   },
   {
     id: "bc-3",
