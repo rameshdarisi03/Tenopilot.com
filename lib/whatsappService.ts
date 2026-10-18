@@ -384,7 +384,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_owner_welcome_v1",
+            name: "pg_owner_workspace_ready",
             language: { code: "en_US" },
             components: [
               {
