@@ -828,9 +828,11 @@ export async function loginWithEmailPassword(
       return { user: result.user, email: cleanEmail };
     } catch (fbErr: any) {
       // Check if account is in staff_accounts Firestore collection
+      let isStaff = false;
       try {
         const staffDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
         if (staffDoc.exists()) {
+          isStaff = true;
           const data = staffDoc.data();
           if (data.password === pass) {
             // Password matches staff record!
@@ -841,8 +843,20 @@ export async function loginWithEmailPassword(
         console.warn("Staff credentials fallback check notice:", checkErr);
       }
 
+      if (isStaff) {
+        throw new Error("Incorrect password. Please verify the handover password provided by your property manager or owner.");
+      }
+
+      if (fbErr.code === "auth/invalid-credential" || fbErr.code === "auth/wrong-password") {
+        throw new Error("Incorrect password. Please verify your password or click 'Forgot Password' to reset your access.");
+      }
+
       // 🔍 Proactively check database to raise instant differentiated guidance
-      const regStatus = await checkAccountRegistrationStatus(cleanEmail);
+      let regStatus: any = { exists: false };
+      try {
+        regStatus = await checkAccountRegistrationStatus(cleanEmail);
+      } catch {}
+
       if (!regStatus.exists) {
         if (regStatus.isPurged) {
           throw new Error("This account has been removed or purged. Please click Sign Up below to create a new property.");
