@@ -1,4 +1,7 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, PDFFont } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import fs from "fs";
+import path from "path";
 
 export interface SubscriptionInvoiceData {
   invoiceNumber: string;
@@ -27,25 +30,56 @@ export interface SubscriptionInvoiceData {
 
 /**
  * 🧾 Generates an official, luxury TenoPilot Subscription Tax Invoice PDF buffer
- * Strictly adheres to TenoPilot Terracotta (#c2652a) branding with IT Act, 2000 digital certification.
- * Does NOT mention online/offline payment mechanisms; states "PAID & VERIFIED".
+ * Strictly adheres to TenoPilot Landing Page branding:
+ * - Official Terracotta Logo Badge (`/tenopilot_official_badge.png`)
+ * - Editorial Serif Typography (`Playfair Display`)
+ * - Modern Geometric Sans Typography (`Manrope`)
+ * - IT Act, 2000 digital certification seal
+ * - Zero mention of payment methods; states "PAID & VERIFIED"
  */
 export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInvoiceData): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]); // A4 dimensions in pt
+  pdfDoc.registerFontkit(fontkit);
+
+  const page = pdfDoc.addPage([595.28, 841.89]); // Standard A4 dimensions in pt
   const { width, height } = page.getSize();
 
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  // Load Brand Fonts with Safe StandardFont Fallback
+  let fontPlayfairBold: PDFFont;
+  let fontPlayfairItalic: PDFFont;
+  let fontManropeRegular: PDFFont;
+  let fontManropeSemiBold: PDFFont;
+  let fontManropeBold: PDFFont;
 
-  // Palette: TenoPilot Luxury Terracotta Theme
+  try {
+    const fontDir = path.join(process.cwd(), "public", "fonts");
+    const playfairBoldBytes = fs.readFileSync(path.join(fontDir, "PlayfairDisplay_Bold.ttf"));
+    const playfairItalicBytes = fs.readFileSync(path.join(fontDir, "PlayfairDisplay_Italic.ttf"));
+    const manropeRegularBytes = fs.readFileSync(path.join(fontDir, "Manrope_Regular.ttf"));
+    const manropeSemiBoldBytes = fs.readFileSync(path.join(fontDir, "Manrope_SemiBold.ttf"));
+    const manropeBoldBytes = fs.readFileSync(path.join(fontDir, "Manrope_Bold.ttf"));
+
+    fontPlayfairBold = await pdfDoc.embedFont(playfairBoldBytes);
+    fontPlayfairItalic = await pdfDoc.embedFont(playfairItalicBytes);
+    fontManropeRegular = await pdfDoc.embedFont(manropeRegularBytes);
+    fontManropeSemiBold = await pdfDoc.embedFont(manropeSemiBoldBytes);
+    fontManropeBold = await pdfDoc.embedFont(manropeBoldBytes);
+  } catch (err) {
+    console.warn("[Invoice] Fallback to standard PDF fonts:", err);
+    fontPlayfairBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    fontPlayfairItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    fontManropeRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontManropeSemiBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    fontManropeBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
+
+  // TenoPilot Luxury Palette (Matching Landing Page)
   const cTerracotta = rgb(0.76, 0.40, 0.16); // #c2652a
   const cTerracottaDark = rgb(0.59, 0.27, 0.03); // #964407
   const cEspresso = rgb(0.11, 0.08, 0.06); // #1c140e
   const cCharcoal = rgb(0.20, 0.20, 0.22); // #333336
-  const cMuted = rgb(0.48, 0.45, 0.42); // #7b746c
-  const cLightBg = rgb(0.98, 0.97, 0.95); // #faf8f5
+  const cMuted = rgb(0.44, 0.45, 0.49); // #71717a
+  const cLightBg = rgb(0.985, 0.98, 0.97); // #faf8f6
   const cBorder = rgb(0.91, 0.88, 0.85); // #e8dfd8
   const cEmerald = rgb(0.04, 0.60, 0.42); // #059669
   const cEmeraldBg = rgb(0.93, 0.98, 0.95); // #eefbf4
@@ -54,140 +88,158 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
   // 1. Top Decorative Brand Bar
   page.drawRectangle({
     x: 0,
-    y: height - 10,
+    y: height - 8,
     width: width,
-    height: 10,
+    height: 8,
     color: cTerracotta,
   });
 
-  // 2. Header Section
-  // Brand Logo Mark: [T]
-  page.drawRectangle({
-    x: 45,
-    y: height - 68,
-    width: 36,
-    height: 36,
-    color: cTerracotta,
-  });
-  page.drawText("T", {
-    x: 56,
-    y: height - 61,
-    size: 24,
-    font: fontBold,
-    color: cWhite,
-  });
+  // 2. Header Section: Official Logo Badge & Serif Wordmark
+  const badgePath = path.join(process.cwd(), "public", "tenopilot_official_badge.png");
+  let badgeW = 38;
+  if (fs.existsSync(badgePath)) {
+    try {
+      const badgeBytes = fs.readFileSync(badgePath);
+      const badgeImg = await pdfDoc.embedPng(badgeBytes);
+      const badgeH = badgeW * (badgeImg.height / badgeImg.width);
+      page.drawImage(badgeImg, {
+        x: 45,
+        y: height - 70,
+        width: badgeW,
+        height: badgeH,
+      });
+    } catch {
+      // Fallback mark if image embedding encounters an error
+      page.drawRectangle({
+        x: 45,
+        y: height - 68,
+        width: 36,
+        height: 36,
+        color: cTerracotta,
+      });
+      page.drawText("T", {
+        x: 56,
+        y: height - 61,
+        size: 24,
+        font: fontPlayfairBold,
+        color: cWhite,
+      });
+      badgeW = 36;
+    }
+  }
 
-  // Brand Name
+  // Official Wordmark in Playfair Display Bold
+  const textX = 45 + badgeW + 10;
   page.drawText("TenoPilot", {
-    x: 90,
+    x: textX,
     y: height - 50,
-    size: 20,
-    font: fontBold,
+    size: 23,
+    font: fontPlayfairBold,
     color: cEspresso,
   });
+
+  const tenoW = fontPlayfairBold.widthOfTextAtSize("TenoPilot", 23);
   page.drawText(".com", {
-    x: 178,
+    x: textX + tenoW,
     y: height - 50,
-    size: 15,
-    font: fontBold,
+    size: 23,
+    font: fontPlayfairBold,
     color: cTerracotta,
   });
+
   page.drawText("The Intelligent Operating System for Coliving & Student Housing", {
-    x: 90,
-    y: height - 65,
+    x: textX,
+    y: height - 66,
     size: 8.5,
-    font: fontRegular,
+    font: fontManropeSemiBold,
     color: cMuted,
   });
 
-  // Right Header: TAX INVOICE Label
+  // Right Header: TAX INVOICE Title & Invoice No
   const invLabel = "TAX INVOICE";
-  const invLabelWidth = fontBold.widthOfTextAtSize(invLabel, 18);
+  const invLabelW = fontPlayfairBold.widthOfTextAtSize(invLabel, 21);
   page.drawText(invLabel, {
-    x: width - 45 - invLabelWidth,
+    x: width - 45 - invLabelW,
     y: height - 50,
-    size: 18,
-    font: fontBold,
+    size: 21,
+    font: fontPlayfairBold,
     color: cEspresso,
   });
 
   const invoiceNo = data.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`;
-  const invNoWidth = fontBold.widthOfTextAtSize(invoiceNo, 10);
+  const invNoW = fontManropeBold.widthOfTextAtSize(invoiceNo, 10.5);
   page.drawText(invoiceNo, {
-    x: width - 45 - invNoWidth,
+    x: width - 45 - invNoW,
     y: height - 66,
-    size: 10,
-    font: fontBold,
+    size: 10.5,
+    font: fontManropeBold,
     color: cTerracotta,
   });
 
   // Divider Line
   page.drawLine({
-    start: { x: 45, y: height - 85 },
-    end: { x: width - 45, y: height - 85 },
+    start: { x: 45, y: height - 86 },
+    end: { x: width - 45, y: height - 86 },
     thickness: 1,
     color: cBorder,
   });
 
-  // 3. Invoice Meta Grid (Two Columns: Billed From vs Billed To)
-  const metaY = height - 105;
+  // 3. Invoice Meta Grid (Issued By vs Billed To)
+  const metaY = height - 106;
+  page.drawText("ISSUED BY:", { x: 45, y: metaY, size: 8, font: fontManropeBold, color: cTerracottaDark });
+  page.drawText("TenoPilot Technologies Private Limited", { x: 45, y: metaY - 15, size: 11, font: fontPlayfairBold, color: cEspresso });
+  page.drawText("Cyber Hills Tech Hub, Outer Ring Road", { x: 45, y: metaY - 28, size: 8.5, font: fontManropeRegular, color: cMuted });
+  page.drawText("Bengaluru, Karnataka - 560103, India", { x: 45, y: metaY - 40, size: 8.5, font: fontManropeRegular, color: cMuted });
+  page.drawText("GSTIN: 29AABCT1234F1Z9  |  PAN: AABCT1234F", { x: 45, y: metaY - 52, size: 8, font: fontManropeRegular, color: cMuted });
+  page.drawText("Email: billing@tenopilot.com  |  Web: tenopilot.com", { x: 45, y: metaY - 64, size: 8, font: fontManropeRegular, color: cMuted });
 
-  // Left: Issuer Information
-  page.drawText("ISSUED BY:", { x: 45, y: metaY, size: 8, font: fontBold, color: cTerracottaDark });
-  page.drawText("TenoPilot Technologies Private Limited", { x: 45, y: metaY - 14, size: 9.5, font: fontBold, color: cEspresso });
-  page.drawText("Cyber Hills Tech Hub, Outer Ring Road", { x: 45, y: metaY - 26, size: 8.5, font: fontRegular, color: cMuted });
-  page.drawText("Bengaluru, Karnataka - 560103, India", { x: 45, y: metaY - 37, size: 8.5, font: fontRegular, color: cMuted });
-  page.drawText("GSTIN: 29AABCT1234F1Z9  |  PAN: AABCT1234F", { x: 45, y: metaY - 48, size: 8, font: fontRegular, color: cMuted });
-  page.drawText("Email: billing@tenopilot.com  |  Web: tenopilot.com", { x: 45, y: metaY - 59, size: 8, font: fontRegular, color: cMuted });
-
-  // Right: Billed To Customer
   const rightX = 320;
-  page.drawText("BILLED TO / PROPERTY PARTNER:", { x: rightX, y: metaY, size: 8, font: fontBold, color: cTerracottaDark });
-  page.drawText(data.ownerName || "Property Owner", { x: rightX, y: metaY - 14, size: 10, font: fontBold, color: cEspresso });
-  page.drawText(`Property: ${data.propertyName || "Coliving Estate"}`, { x: rightX, y: metaY - 26, size: 9, font: fontBold, color: cTerracotta });
-  page.drawText(`Location: ${data.propertyLocation || "Bengaluru, Karnataka, India"}`, { x: rightX, y: metaY - 37, size: 8.5, font: fontRegular, color: cMuted });
-  page.drawText(`Email: ${data.ownerEmail || "N/A"}`, { x: rightX, y: metaY - 48, size: 8.5, font: fontRegular, color: cMuted });
-  page.drawText(`Phone: ${data.ownerPhone || "N/A"}`, { x: rightX, y: metaY - 59, size: 8.5, font: fontRegular, color: cMuted });
+  page.drawText("BILLED TO / PROPERTY PARTNER:", { x: rightX, y: metaY, size: 8, font: fontManropeBold, color: cTerracottaDark });
+  page.drawText(data.ownerName || "Property Owner", { x: rightX, y: metaY - 15, size: 11.5, font: fontPlayfairBold, color: cEspresso });
+  page.drawText(`Property: ${data.propertyName || "Coliving Estate"}`, { x: rightX, y: metaY - 28, size: 9.5, font: fontManropeBold, color: cTerracotta });
+  page.drawText(`Location: ${data.propertyLocation || "Bengaluru, Karnataka, India"}`, { x: rightX, y: metaY - 40, size: 8.5, font: fontManropeRegular, color: cMuted });
+  page.drawText(`Email: ${data.ownerEmail || "N/A"}`, { x: rightX, y: metaY - 52, size: 8.5, font: fontManropeRegular, color: cMuted });
+  page.drawText(`Phone: ${data.ownerPhone || "N/A"}`, { x: rightX, y: metaY - 64, size: 8.5, font: fontManropeRegular, color: cMuted });
 
-  // 4. Invoice Key Details Banner (Date, Due Date, Status)
-  const bannerY = height - 230;
+  // 4. Details Banner
+  const bannerY = height - 236;
   page.drawRectangle({
     x: 45,
     y: bannerY,
     width: width - 90,
-    height: 44,
+    height: 46,
     color: cLightBg,
     borderColor: cBorder,
     borderWidth: 1,
   });
 
   const invoiceDate = data.invoiceDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-  const validityPeriod = data.validityPeriod || "Annual Flight Deck";
+  const validityPeriod = data.validityPeriod || "18 Oct 2026 - 17 Oct 2027";
   const planLevel = data.planName || "Annual Pro Flight Deck";
 
-  page.drawText("INVOICE DATE", { x: 60, y: bannerY + 26, size: 7.5, font: fontBold, color: cMuted });
-  page.drawText(invoiceDate, { x: 60, y: bannerY + 12, size: 9.5, font: fontBold, color: cEspresso });
+  page.drawText("INVOICE DATE", { x: 60, y: bannerY + 28, size: 7.5, font: fontManropeBold, color: cMuted });
+  page.drawText(invoiceDate, { x: 60, y: bannerY + 12, size: 9.5, font: fontManropeSemiBold, color: cEspresso });
 
-  page.drawText("VALIDITY PERIOD", { x: 170, y: bannerY + 26, size: 7.5, font: fontBold, color: cMuted });
-  page.drawText(validityPeriod, { x: 170, y: bannerY + 12, size: 9.5, font: fontBold, color: cEspresso });
+  page.drawText("VALIDITY PERIOD", { x: 170, y: bannerY + 28, size: 7.5, font: fontManropeBold, color: cMuted });
+  page.drawText(validityPeriod, { x: 170, y: bannerY + 12, size: 9.5, font: fontManropeSemiBold, color: cEspresso });
 
-  page.drawText("PLAN LEVEL", { x: 330, y: bannerY + 26, size: 7.5, font: fontBold, color: cMuted });
-  page.drawText(planLevel.slice(0, 22), { x: 330, y: bannerY + 12, size: 9.5, font: fontBold, color: cTerracotta });
+  page.drawText("PLAN LEVEL", { x: 330, y: bannerY + 28, size: 7.5, font: fontManropeBold, color: cMuted });
+  page.drawText(planLevel.slice(0, 24), { x: 330, y: bannerY + 12, size: 10.5, font: fontPlayfairBold, color: cTerracotta });
 
-  // Payment Status (PAID - clean without online/offline mention)
+  // Paid Status Badge
   page.drawRectangle({
-    x: 460,
-    y: bannerY + 9,
-    width: 80,
-    height: 24,
+    x: 462,
+    y: bannerY + 10,
+    width: 78,
+    height: 25,
     color: cEmeraldBg,
     borderColor: cEmerald,
     borderWidth: 1,
   });
-  page.drawText("PAID", { x: 488, y: bannerY + 16, size: 9.5, font: fontBold, color: cEmerald });
+  page.drawText("PAID", { x: 488, y: bannerY + 17, size: 9.5, font: fontManropeBold, color: cEmerald });
 
-  // 5. Line Items Table Header
-  const tableTopY = height - 295;
+  // 5. Line Items Table
+  const tableTopY = height - 302;
   page.drawRectangle({
     x: 45,
     y: tableTopY,
@@ -196,25 +248,25 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
     color: cEspresso,
   });
 
-  page.drawText("SL", { x: 55, y: tableTopY + 8, size: 8, font: fontBold, color: cWhite });
-  page.drawText("DESCRIPTION / SERVICE ITEM", { x: 80, y: tableTopY + 8, size: 8, font: fontBold, color: cWhite });
-  page.drawText("HSN/SAC", { x: 340, y: tableTopY + 8, size: 8, font: fontBold, color: cWhite });
-  page.drawText("QTY", { x: 410, y: tableTopY + 8, size: 8, font: fontBold, color: cWhite });
-  page.drawText("AMOUNT (INR)", { x: 465, y: tableTopY + 8, size: 8, font: fontBold, color: cWhite });
+  page.drawText("SL", { x: 55, y: tableTopY + 8, size: 8, font: fontManropeBold, color: cWhite });
+  page.drawText("DESCRIPTION / SERVICE ITEM", { x: 80, y: tableTopY + 8, size: 8, font: fontManropeBold, color: cWhite });
+  page.drawText("HSN/SAC", { x: 340, y: tableTopY + 8, size: 8, font: fontManropeBold, color: cWhite });
+  page.drawText("QTY", { x: 410, y: tableTopY + 8, size: 8, font: fontManropeBold, color: cWhite });
+  page.drawText("AMOUNT (INR)", { x: 465, y: tableTopY + 8, size: 8, font: fontManropeBold, color: cWhite });
 
   const items = data.items && data.items.length > 0 ? data.items : [
     {
       sl: "01",
-      title: "TenoPilot Pro Operating System - Pro Subscription",
+      title: "TenoPilot Pro Operating System - Annual Subscription",
       subtitle: "Multi-Floor Layout Engine, Dual-Ledger Accounting, 2-Step MPIN",
       sac: "998314",
-      qty: "1 License",
+      qty: "1 Yr",
       rate: data.subtotal ? (data.subtotal * 0.85).toFixed(2) : "9,990.00",
     },
     {
       sl: "02",
       title: "Meta WhatsApp Cloud Credits Package (Growth Tier)",
-      subtitle: "Automated Rent Invoices, Payment Receipts & Check-In KYC",
+      subtitle: "1,500 High-Deliverability Automated Rent Invoices & Reminders",
       sac: "998413",
       qty: "1 Pack",
       rate: data.subtotal ? (data.subtotal * 0.15).toFixed(2) : "1,499.00",
@@ -244,12 +296,12 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
       });
     }
 
-    page.drawText(item.sl, { x: 55, y: rowY + 22, size: 8.5, font: fontBold, color: cMuted });
-    page.drawText(item.title, { x: 80, y: rowY + 22, size: 9, font: fontBold, color: cEspresso });
-    page.drawText(item.subtitle, { x: 80, y: rowY + 9, size: 7.5, font: fontRegular, color: cMuted });
-    page.drawText(item.sac, { x: 340, y: rowY + 16, size: 8.5, font: fontRegular, color: cCharcoal });
-    page.drawText(item.qty, { x: 410, y: rowY + 16, size: 8.5, font: fontRegular, color: cCharcoal });
-    page.drawText(item.rate, { x: 470, y: rowY + 16, size: 9, font: fontBold, color: cEspresso });
+    page.drawText(item.sl, { x: 55, y: rowY + 22, size: 8.5, font: fontManropeBold, color: cMuted });
+    page.drawText(item.title, { x: 80, y: rowY + 22, size: 9, font: fontManropeSemiBold, color: cEspresso });
+    page.drawText(item.subtitle, { x: 80, y: rowY + 9, size: 7.5, font: fontManropeRegular, color: cMuted });
+    page.drawText(item.sac, { x: 340, y: rowY + 16, size: 8.5, font: fontManropeRegular, color: cCharcoal });
+    page.drawText(item.qty, { x: 410, y: rowY + 16, size: 8.5, font: fontManropeRegular, color: cCharcoal });
+    page.drawText(item.rate, { x: 470, y: rowY + 16, size: 9, font: fontManropeBold, color: cEspresso });
 
     page.drawLine({
       start: { x: 45, y: rowY },
@@ -261,21 +313,21 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
     currentY = rowY;
   });
 
-  // 6. Summary & Totals Block (Right-aligned)
+  // 6. Summary & Totals Block
   const sumY = currentY - 20;
   const subtotal = data.subtotal || 11489;
   const cgst = data.cgst || (subtotal * 0.09);
   const sgst = data.sgst || (subtotal * 0.09);
   const totalAmount = data.totalAmount || (subtotal + cgst + sgst);
 
-  page.drawText("Subtotal:", { x: 360, y: sumY, size: 9, font: fontRegular, color: cMuted });
-  page.drawText(`INR ${subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY, size: 9, font: fontBold, color: cEspresso });
+  page.drawText("Subtotal:", { x: 360, y: sumY, size: 9, font: fontManropeSemiBold, color: cMuted });
+  page.drawText(`INR ${subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY, size: 9, font: fontManropeBold, color: cEspresso });
 
-  page.drawText("CGST (9.0%):", { x: 360, y: sumY - 16, size: 9, font: fontRegular, color: cMuted });
-  page.drawText(`INR ${cgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY - 16, size: 9, font: fontRegular, color: cCharcoal });
+  page.drawText("CGST (9.0%):", { x: 360, y: sumY - 16, size: 9, font: fontManropeSemiBold, color: cMuted });
+  page.drawText(`INR ${cgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY - 16, size: 9, font: fontManropeSemiBold, color: cCharcoal });
 
-  page.drawText("SGST (9.0%):", { x: 360, y: sumY - 32, size: 9, font: fontRegular, color: cMuted });
-  page.drawText(`INR ${sgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY - 32, size: 9, font: fontRegular, color: cCharcoal });
+  page.drawText("SGST (9.0%):", { x: 360, y: sumY - 32, size: 9, font: fontManropeSemiBold, color: cMuted });
+  page.drawText(`INR ${sgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY - 32, size: 9, font: fontManropeSemiBold, color: cCharcoal });
 
   // Total Box
   page.drawRectangle({
@@ -286,16 +338,16 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
     color: cTerracotta,
   });
 
-  page.drawText("TOTAL AMOUNT PAID:", { x: 350, y: sumY - 54, size: 8.5, font: fontBold, color: cWhite });
-  page.drawText(`INR ${totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 462, y: sumY - 54, size: 11, font: fontBold, color: cWhite });
+  page.drawText("TOTAL AMOUNT PAID:", { x: 350, y: sumY - 54, size: 8.5, font: fontManropeBold, color: cWhite });
+  page.drawText(`INR ${totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 462, y: sumY - 54, size: 11.5, font: fontPlayfairBold, color: cWhite });
 
-  // Amount in Words (Left)
-  page.drawText("AMOUNT IN WORDS:", { x: 45, y: sumY, size: 8, font: fontBold, color: cTerracottaDark });
-  page.drawText(data.amountInWords || "Tax Invoice Amount Paid in Full (Indian Rupees)", {
+  // Amount in Words
+  page.drawText("AMOUNT IN WORDS:", { x: 45, y: sumY, size: 8, font: fontManropeBold, color: cTerracottaDark });
+  page.drawText(data.amountInWords || "Thirteen Thousand Five Hundred Fifty Seven Indian Rupees Only", {
     x: 45,
-    y: sumY - 14,
-    size: 8.5,
-    font: fontOblique,
+    y: sumY - 15,
+    size: 9.5,
+    font: fontPlayfairItalic,
     color: cCharcoal,
   });
 
@@ -311,25 +363,25 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
     borderWidth: 1,
   });
 
-  page.drawText("AUTHENTIC DIGITAL TAX INVOICE", { x: 60, y: sealY + 44, size: 8.5, font: fontBold, color: cEspresso });
+  page.drawText("AUTHENTIC DIGITAL TAX INVOICE", { x: 60, y: sealY + 44, size: 8.5, font: fontManropeBold, color: cEspresso });
   page.drawText("Electronically generated under Information Technology Act, 2000.", {
     x: 60,
     y: sealY + 30,
     size: 7.5,
-    font: fontRegular,
+    font: fontManropeRegular,
     color: cMuted,
   });
   page.drawText("Valid for Input Tax Credit (ITC). No physical signature required.", {
     x: 60,
     y: sealY + 16,
     size: 7.5,
-    font: fontRegular,
+    font: fontManropeRegular,
     color: cMuted,
   });
 
-  page.drawText("TenoPilot Technologies Pvt Ltd", { x: 400, y: sealY + 44, size: 8, font: fontBold, color: cEspresso });
-  page.drawText("[Digitally Signed & Certified]", { x: 400, y: sealY + 30, size: 7.5, font: fontOblique, color: cEmerald });
-  page.drawText("Authorised Signatory", { x: 400, y: sealY + 16, size: 7.5, font: fontRegular, color: cMuted });
+  page.drawText("TenoPilot Technologies Pvt Ltd", { x: 390, y: sealY + 44, size: 9.5, font: fontPlayfairBold, color: cEspresso });
+  page.drawText("[Digitally Signed & Certified]", { x: 390, y: sealY + 30, size: 8, font: fontManropeBold, color: cEmerald });
+  page.drawText("Authorised Signatory", { x: 390, y: sealY + 16, size: 7.5, font: fontManropeRegular, color: cMuted });
 
   // 8. Footer
   page.drawLine({
@@ -343,14 +395,14 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
     x: 45,
     y: 30,
     size: 7.5,
-    font: fontRegular,
+    font: fontManropeRegular,
     color: cMuted,
   });
   page.drawText("TenoPilot OS - Bengaluru, India", {
-    x: width - 45 - 125,
+    x: width - 45 - 135,
     y: 30,
     size: 7.5,
-    font: fontBold,
+    font: fontManropeBold,
     color: cTerracotta,
   });
 
