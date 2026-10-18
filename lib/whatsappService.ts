@@ -27,6 +27,8 @@ export interface WhatsAppSendParams {
     complaintStatus?: string;
     customMessage?: string;
     recipientEmail?: string;
+    ownerPhone?: string;
+    ownerEmail?: string;
     planName?: string;
   };
 }
@@ -375,6 +377,33 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                   { type: "text", text: paidDateStr },
                   { type: "text", text: modeStr },
                   { type: "text", text: roomStay },
+                ],
+              },
+            ],
+          },
+        };
+      } else if (payload.type === "OWNER_WELCOME") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "Your Property";
+        const ownerPhone = p.ownerPhone || payload.toPhone || "your registered mobile";
+        const ownerEmail = p.ownerEmail || p.recipientEmail || "your registered email";
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_owner_welcome_v1",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName || "Property Owner" },
+                  { type: "text", text: pName },
+                  { type: "text", text: ownerPhone },
+                  { type: "text", text: ownerEmail },
                 ],
               },
             ],
