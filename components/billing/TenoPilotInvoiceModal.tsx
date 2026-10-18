@@ -160,6 +160,17 @@ export function TenoPilotInvoiceModal({
               <span className="hidden sm:inline">WhatsApp Invoice</span>
             </a>
 
+            <a
+              href={`/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNum)}&ownerName=${encodeURIComponent(invoice.customerName || "PG Owner")}&propertyName=${encodeURIComponent(invoice.propertyName || "TenoPilot PG")}&ownerEmail=${encodeURIComponent(invoice.customerEmail || "")}&ownerPhone=${encodeURIComponent(invoice.customerPhone || "")}&planName=${encodeURIComponent(planTitle)}&amount=${invoice.amount || 11489}&invoiceDate=${encodeURIComponent(new Date(invoice.date || Date.now()).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a04e1c] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              title="Download Official Tax Invoice PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Download PDF</span>
+            </a>
+
             <button
               type="button"
               onClick={handlePrint}

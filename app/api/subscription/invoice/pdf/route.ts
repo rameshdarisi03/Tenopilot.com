@@ -14,12 +14,26 @@ export async function GET(req: NextRequest) {
     const planName = searchParams.get("planName") || "Annual Pro Flight Deck";
     const validityPeriod = searchParams.get("validityPeriod") || "Annual Flight Deck";
     const invoiceDate = searchParams.get("invoiceDate") || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-    const rawAmount = parseFloat(searchParams.get("amount") || "11489");
+    const isInclusive = searchParams.get("inclusive") !== "false";
+    const rawAmount = parseFloat(searchParams.get("totalAmount") || searchParams.get("amount") || "11489");
+    const parsedAmount = !isNaN(rawAmount) && rawAmount > 0 ? rawAmount : 11489;
 
-    const subtotal = !isNaN(rawAmount) && rawAmount > 0 ? rawAmount : 11489;
-    const cgst = Math.round(subtotal * 0.09 * 100) / 100;
-    const sgst = Math.round(subtotal * 0.09 * 100) / 100;
-    const totalAmount = subtotal + cgst + sgst;
+    let subtotal: number;
+    let cgst: number;
+    let sgst: number;
+    let totalAmount: number;
+
+    if (isInclusive) {
+      totalAmount = parsedAmount;
+      subtotal = Math.round((totalAmount / 1.18) * 100) / 100;
+      cgst = Math.round(((totalAmount - subtotal) / 2) * 100) / 100;
+      sgst = Math.round((totalAmount - subtotal - cgst) * 100) / 100;
+    } else {
+      subtotal = parsedAmount;
+      cgst = Math.round(subtotal * 0.09 * 100) / 100;
+      sgst = Math.round(subtotal * 0.09 * 100) / 100;
+      totalAmount = Math.round((subtotal + cgst + sgst) * 100) / 100;
+    }
 
     const pdfBuffer = await generateSubscriptionInvoicePdfBuffer({
       invoiceNumber,
