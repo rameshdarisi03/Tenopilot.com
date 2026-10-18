@@ -52,6 +52,14 @@ export function PublicComplaintQrModal({
     });
   }, [propertyId]);
 
+  // Preload background image into browser memory cache for instant, zero-delay canvas exports
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const img = new Image();
+      img.src = "/images/poster-background.jpg";
+    }
+  }, []);
+
   // Robust resolver: Never display raw building IDs (e.g., "Prop 1788438308277")
   const isRawBuildingId = (val?: string) => !val || val === "Your Property" || /^prop[-_\s]?\d+/i.test(val.trim());
   
@@ -106,6 +114,7 @@ export function PublicComplaintQrModal({
       const canvas = await (html2canvas as any)(el, {
         scale: 3, // 300+ DPI equivalent sharpness
         useCORS: true,
+        allowTaint: true,
         backgroundColor: "#FAF7F2",
         logging: false,
       });
@@ -134,6 +143,7 @@ export function PublicComplaintQrModal({
       const canvas = await (html2canvas as any)(el, {
         scale: 3,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: "#FAF7F2",
         logging: false,
       });
@@ -158,86 +168,56 @@ export function PublicComplaintQrModal({
     <>
       {/* SCREEN MODAL VIEW */}
       <div
-        className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:hidden animate-in fade-in overflow-y-auto"
+        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:hidden animate-in fade-in overflow-y-auto"
         onClick={onClose}
       >
         <div
-          className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-gray-200 overflow-hidden my-auto flex flex-col md:flex-row max-h-[95vh] animate-in zoom-in-95"
+          className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-gray-200 overflow-hidden my-auto flex flex-col md:flex-row max-h-[96vh] animate-in zoom-in-95"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Left Column: Live A4 Poster Preview */}
-          <div className="flex-1 bg-neutral-100 p-4 sm:p-6 overflow-y-auto flex items-center justify-center border-b md:border-b-0 md:border-r border-gray-200">
-            {/* The Actual Scaled Poster Component */}
+          <div className="flex-1 bg-neutral-900/10 p-4 sm:p-6 overflow-y-auto flex items-center justify-center border-b md:border-b-0 md:border-r border-gray-200">
+            {/* The Actual Scaled Poster Component with Photorealistic Interior Background */}
             <div
               ref={posterRef}
-              className="w-full max-w-[390px] aspect-[1/1.414] bg-[#FAF7F2] rounded-2xl shadow-xl border border-orange-100/80 p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden text-center select-none"
+              className="w-full max-w-[400px] aspect-[1/1.414] rounded-2xl shadow-2xl border border-orange-200/60 p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden text-center select-none bg-cover bg-center"
               style={{
-                backgroundImage: `
-                  radial-gradient(circle at 10% 15%, rgba(254, 215, 170, 0.28) 0%, transparent 45%),
-                  radial-gradient(circle at 90% 85%, rgba(251, 146, 60, 0.15) 0%, transparent 45%)
-                `,
+                backgroundImage: "url('/images/poster-background.jpg')",
               }}
             >
-              {/* Decorative Subtle Wood Slat Accents (Left Edge) */}
+              {/* Subtle Ambient Radial Glow on Center to enhance text contrast */}
               <div
-                className="absolute top-0 bottom-0 left-0 w-8 opacity-25 pointer-events-none"
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(90deg, #b48c68 0px, #b48c68 4px, transparent 4px, transparent 10px)",
+                  background:
+                    "radial-gradient(ellipse at 50% 45%, rgba(255, 255, 255, 0.40) 0%, rgba(255, 255, 255, 0.05) 70%, transparent 100%)",
                 }}
               />
 
-              {/* Decorative Hanging Pendant Lamp (Top Left) */}
-              <div className="absolute -top-1 left-9 pointer-events-none opacity-85">
-                <svg width="34" height="68" viewBox="0 0 34 68" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  {/* Cord */}
-                  <line x1="17" y1="0" x2="17" y2="34" stroke="#2B2625" strokeWidth="1.5" />
-                  {/* Pendant Cone */}
-                  <path d="M7 46C7 38 12 34 17 34C22 34 27 38 27 46H7Z" fill="#2B2625" />
-                  {/* Warm Glow Bulb */}
-                  <circle cx="17" cy="48" r="3" fill="#FBBF24" />
-                  <ellipse cx="17" cy="52" rx="14" ry="7" fill="rgba(251, 191, 36, 0.22)" />
-                </svg>
-              </div>
-
-              {/* Decorative Leaf Accent (Bottom Right) */}
-              <div className="absolute -bottom-4 -right-4 pointer-events-none opacity-25">
-                <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
-                  <path
-                    d="M10 70C25 65 55 45 68 12C50 30 30 45 10 70Z"
-                    fill="#15803d"
-                  />
-                  <path
-                    d="M20 70C35 55 58 35 68 12C45 28 32 45 20 70Z"
-                    fill="#16a34a"
-                  />
-                </svg>
-              </div>
-
               {/* Top Authority Header */}
-              <div className="pt-1.5 space-y-0.5 relative z-10">
-                <p className="text-[10px] sm:text-[11px] font-extrabold tracking-[0.28em] uppercase text-[#735E54]">
+              <div className="pt-1 space-y-0.5 relative z-10">
+                <p className="text-[10px] sm:text-[11px] font-black tracking-[0.26em] uppercase text-[#3D302A] drop-shadow-xs">
                   Resident Care Desk
                 </p>
-                <p className="text-[9px] font-semibold text-[#A89286] tracking-wider">
+                <p className="text-[8.5px] font-bold text-[#6B5A51] tracking-wider drop-shadow-xs">
                   Maintenance Issues & Repairs 24/7
                 </p>
               </div>
 
               {/* Hero Hook Headline */}
-              <div className="my-1.5 relative z-10">
-                <h1 className="text-xl sm:text-2xl font-black text-[#201A18] tracking-tight leading-none">
+              <div className="my-1 relative z-10">
+                <h1 className="text-xl sm:text-2xl font-black text-[#1F1714] tracking-tight leading-none drop-shadow-xs">
                   Facing a Problem?
                 </h1>
-                <h2 className="text-xl sm:text-2xl font-black text-[#C25E2E] tracking-tight leading-tight mt-0.5">
+                <h2 className="text-xl sm:text-2xl font-black text-[#C25E2E] tracking-tight leading-tight mt-0.5 drop-shadow-xs">
                   Scan to Report It.
                 </h2>
               </div>
 
               {/* Option A Highlighted PG Name Badge (Smooth Rounded Pill, No House Symbol) */}
               <div className="my-1 relative z-10 flex justify-center">
-                <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-5 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-md shadow-orange-950/20 border border-orange-300/40 max-w-[85%]">
-                  <span className="font-extrabold text-xs sm:text-sm tracking-wide uppercase truncate block">
+                <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-5 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-lg shadow-orange-950/25 border border-white/30 max-w-[85%]">
+                  <span className="font-extrabold text-xs sm:text-sm tracking-wider uppercase truncate block">
                     {realPgName}
                   </span>
                 </div>
@@ -245,26 +225,26 @@ export function PublicComplaintQrModal({
 
               {/* QR Code Container with "Your PG Our Care" Flourish */}
               <div className="relative z-10 my-1 flex items-center justify-center">
-                <div className="bg-white p-3.5 sm:p-4 rounded-3xl shadow-xl border border-orange-100 flex flex-col items-center justify-center relative">
+                <div className="bg-white p-3.5 sm:p-4 rounded-3xl shadow-2xl border border-orange-100 flex flex-col items-center justify-center relative">
                   <QRCodeCanvas
                     id={`complaint-qr-${propertyId}`}
                     value={portalUrl}
                     size={140}
-                    fgColor="#201A18"
+                    fgColor="#1F1714"
                     bgColor="#FFFFFF"
                     level="H"
                     includeMargin={false}
                   />
 
                   {/* Whimsical Handwritten Tag Beside QR */}
-                  <div className="absolute -right-16 sm:-right-20 top-3 text-left pointer-events-none select-none">
+                  <div className="absolute -right-16 sm:-right-20 top-2 text-left pointer-events-none select-none">
                     {/* Orange Sunbeam Accents */}
                     <div className="flex gap-1 ml-3 mb-0.5">
                       <span className="w-1.5 h-0.5 bg-[#C25E2E] rotate-[-35deg] inline-block rounded-full" />
                       <span className="w-2 h-0.5 bg-[#C25E2E] rotate-[-5deg] inline-block rounded-full" />
                       <span className="w-1.5 h-0.5 bg-[#C25E2E] rotate-[35deg] inline-block rounded-full" />
                     </div>
-                    <div className="font-serif italic font-bold text-[11px] sm:text-xs text-[#201A18] leading-tight">
+                    <div className="font-serif italic font-bold text-[11px] sm:text-xs text-[#1F1714] leading-tight">
                       Your PG
                       <br />
                       <span className="text-[#C25E2E]">Our Care</span>
@@ -278,43 +258,43 @@ export function PublicComplaintQrModal({
                 <div className="flex items-center justify-center gap-1 sm:gap-2">
                   {/* Step 1 */}
                   <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/95 backdrop-blur-xs border border-orange-200 shadow-sm flex items-center justify-center relative mb-1">
                       <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C25E2E]" />
                       <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[8px] font-black flex items-center justify-center">
                         1
                       </span>
                     </div>
-                    <span className="text-[8px] sm:text-[9px] font-bold text-[#201A18] leading-tight">
+                    <span className="text-[8px] sm:text-[9px] font-bold text-[#1F1714] leading-tight drop-shadow-xs">
                       Scan with Phone Camera
                     </span>
                   </div>
 
-                  <span className="text-orange-400 font-black text-xs pb-3">›</span>
+                  <span className="text-orange-500 font-black text-xs pb-3">›</span>
 
                   {/* Step 2 */}
                   <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/95 backdrop-blur-xs border border-orange-200 shadow-sm flex items-center justify-center relative mb-1">
                       <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C25E2E]" />
                       <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[8px] font-black flex items-center justify-center">
                         2
                       </span>
                     </div>
-                    <span className="text-[8px] sm:text-[9px] font-bold text-[#201A18] leading-tight">
+                    <span className="text-[8px] sm:text-[9px] font-bold text-[#1F1714] leading-tight drop-shadow-xs">
                       Enter Mobile Number
                     </span>
                   </div>
 
-                  <span className="text-orange-400 font-black text-xs pb-3">›</span>
+                  <span className="text-orange-500 font-black text-xs pb-3">›</span>
 
                   {/* Step 3 */}
                   <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/95 backdrop-blur-xs border border-orange-200 shadow-sm flex items-center justify-center relative mb-1">
                       <ClipboardCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C25E2E]" />
                       <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[8px] font-black flex items-center justify-center">
                         3
                       </span>
                     </div>
-                    <span className="text-[8px] sm:text-[9px] font-bold text-[#201A18] leading-tight">
+                    <span className="text-[8px] sm:text-[9px] font-bold text-[#1F1714] leading-tight drop-shadow-xs">
                       Submit Your Issue
                     </span>
                   </div>
@@ -322,35 +302,35 @@ export function PublicComplaintQrModal({
               </div>
 
               {/* SLA Service Commitment Box */}
-              <div className="relative z-10 my-1 bg-[#FDF4EB] border border-[#F5DCB7] p-2.5 rounded-xl text-left flex items-center gap-2.5">
+              <div className="relative z-10 my-1 bg-white/90 backdrop-blur-xs border border-orange-200/80 p-2.5 rounded-xl text-left flex items-center gap-2.5 shadow-sm">
                 <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
                   <Clock className="w-3.5 h-3.5 text-[#C25E2E]" />
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-[9px] sm:text-[10px] font-extrabold text-[#201A18]">
+                  <p className="text-[9px] sm:text-[10px] font-extrabold text-[#1F1714]">
                     Fast • Simple • Available 24/7
                   </p>
-                  <p className="text-[8px] text-[#735E54] leading-tight">
+                  <p className="text-[8px] text-[#6B5A51] leading-tight">
                     Your complaint goes directly to the property caretaker and management team.
                   </p>
                 </div>
               </div>
 
               {/* Bottom Official TenoPilot Enterprise Branding */}
-              <div className="relative z-10 pt-1 border-t border-orange-200/60 mt-1">
-                <div className="flex items-center justify-center gap-2 text-[9px] font-extrabold tracking-[0.22em] text-[#A89286] uppercase font-sans">
+              <div className="relative z-10 pt-1 border-t border-orange-300/40 mt-1">
+                <div className="flex items-center justify-center gap-2 text-[9px] font-extrabold tracking-[0.22em] text-[#59473F] uppercase font-sans drop-shadow-xs">
                   <span>──</span>
-                  <span className="text-[#875F4B]">POWERED BY TENOPILOT</span>
+                  <span className="text-[#3D302A]">POWERED BY TENOPILOT</span>
                   <span>──</span>
                 </div>
-                <p className="text-[7.5px] text-[#A89286] font-medium mt-0.5 tracking-tight">
+                <p className="text-[7.5px] text-[#59473F] font-bold mt-0.5 tracking-tight drop-shadow-xs">
                   tenopilot.com • Instant Direct Dispatch to Property Caretaker & Management
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Actions & Configuration Panel */}
+          {/* Right Column: Actions & Controls Panel */}
           <div className="w-full md:w-80 p-5 sm:p-6 flex flex-col justify-between space-y-6 bg-white">
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -369,7 +349,7 @@ export function PublicComplaintQrModal({
               {/* Active Property Info Badge */}
               <div className="p-3 bg-orange-50/60 rounded-xl border border-orange-200/80 space-y-1">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-orange-800">
-                  Selected Property
+                  Active Property
                 </span>
                 <p className="font-extrabold text-sm text-gray-900">{realPgName}</p>
                 <p className="text-[11px] text-gray-500 font-mono truncate">{portalUrl}</p>
@@ -379,11 +359,11 @@ export function PublicComplaintQrModal({
               <div className="space-y-2 text-xs text-gray-600">
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>PG Name highlighted in rounded terracotta badge</span>
+                  <span>Photorealistic boutique interior background</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>No app required for residents (browser-based)</span>
+                  <span>PG Name highlighted in rounded terracotta pill</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -462,39 +442,27 @@ export function PublicComplaintQrModal({
       </div>
 
       {/* PRINT-ONLY CLEAN POSTER LAYOUT (Triggered on Print Poster or Ctrl+P) */}
-      <div className="hidden print:flex flex-col items-center justify-center min-h-screen p-0 bg-white text-[#201A18] font-sans">
+      <div className="hidden print:flex flex-col items-center justify-center min-h-screen p-0 bg-white text-[#1F1714] font-sans">
         <div
           ref={printPosterRef}
-          className="w-[210mm] h-[297mm] p-12 bg-[#FAF7F2] flex flex-col justify-between text-center relative overflow-hidden"
+          className="w-[210mm] h-[297mm] p-12 flex flex-col justify-between text-center relative overflow-hidden bg-cover bg-center"
           style={{
-            backgroundImage: `
-              radial-gradient(circle at 10% 15%, rgba(254, 215, 170, 0.35) 0%, transparent 45%),
-              radial-gradient(circle at 90% 85%, rgba(251, 146, 60, 0.20) 0%, transparent 45%)
-            `,
+            backgroundImage: "url('/images/poster-background.jpg')",
           }}
         >
-          {/* Decorative Wood Slats */}
-          <div
-            className="absolute top-0 bottom-0 left-0 w-16 opacity-30 pointer-events-none"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(90deg, #b48c68 0px, #b48c68 8px, transparent 8px, transparent 20px)",
-            }}
-          />
-
           {/* Top Header */}
-          <div className="pt-4 space-y-1">
-            <p className="text-base font-extrabold tracking-[0.3em] uppercase text-[#735E54]">
+          <div className="pt-4 space-y-1 relative z-10">
+            <p className="text-base font-black tracking-[0.28em] uppercase text-[#3D302A]">
               Resident Care Desk
             </p>
-            <p className="text-xs font-semibold text-[#A89286] tracking-wider">
+            <p className="text-xs font-bold text-[#6B5A51] tracking-wider">
               Maintenance Issues & Repairs 24/7
             </p>
           </div>
 
           {/* Hero Headline */}
-          <div className="my-3">
-            <h1 className="text-4xl font-black text-[#201A18] tracking-tight">
+          <div className="my-3 relative z-10">
+            <h1 className="text-4xl font-black text-[#1F1714] tracking-tight">
               Facing a Problem?
             </h1>
             <h2 className="text-4xl font-black text-[#C25E2E] tracking-tight mt-1">
@@ -503,8 +471,8 @@ export function PublicComplaintQrModal({
           </div>
 
           {/* Option A Highlighted PG Name (Rounded Pill, No House Symbol) */}
-          <div className="my-2 flex justify-center">
-            <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-10 py-3 rounded-full shadow-lg border border-orange-200 inline-block">
+          <div className="my-2 flex justify-center relative z-10">
+            <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-10 py-3 rounded-full shadow-xl border border-white/40 inline-block">
               <span className="font-extrabold text-xl tracking-wider uppercase">
                 {realPgName}
               </span>
@@ -512,19 +480,19 @@ export function PublicComplaintQrModal({
           </div>
 
           {/* QR Code Container */}
-          <div className="my-4 flex items-center justify-center">
-            <div className="bg-white p-8 rounded-3xl shadow-xl border border-orange-100 flex flex-col items-center justify-center relative">
+          <div className="my-4 flex items-center justify-center relative z-10">
+            <div className="bg-white p-8 rounded-3xl shadow-2xl border border-orange-100 flex flex-col items-center justify-center relative">
               <QRCodeCanvas
                 value={portalUrl}
                 size={260}
-                fgColor="#201A18"
+                fgColor="#1F1714"
                 bgColor="#FFFFFF"
                 level="H"
                 includeMargin={false}
               />
 
               <div className="absolute -right-28 top-8 text-left">
-                <div className="font-serif italic font-bold text-base text-[#201A18]">
+                <div className="font-serif italic font-bold text-base text-[#1F1714]">
                   Your PG
                   <br />
                   <span className="text-[#C25E2E]">Our Care</span>
@@ -534,65 +502,65 @@ export function PublicComplaintQrModal({
           </div>
 
           {/* 3 Steps */}
-          <div className="my-3 px-8">
+          <div className="my-3 px-8 relative z-10">
             <div className="flex items-center justify-center gap-8">
               <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-xs">
+                <div className="w-12 h-12 rounded-full bg-white/95 border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-sm">
                   <Camera className="w-6 h-6 text-[#C25E2E]" />
                   <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-xs font-black flex items-center justify-center">
                     1
                   </span>
                 </div>
-                <span className="text-xs font-bold text-[#201A18]">Scan with Phone Camera</span>
+                <span className="text-xs font-bold text-[#1F1714]">Scan with Phone Camera</span>
               </div>
 
-              <span className="text-orange-400 font-black text-xl pb-6">›</span>
+              <span className="text-orange-500 font-black text-xl pb-6">›</span>
 
               <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-xs">
+                <div className="w-12 h-12 rounded-full bg-white/95 border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-sm">
                   <Smartphone className="w-6 h-6 text-[#C25E2E]" />
                   <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-xs font-black flex items-center justify-center">
                     2
                   </span>
                 </div>
-                <span className="text-xs font-bold text-[#201A18]">Enter Mobile Number</span>
+                <span className="text-xs font-bold text-[#1F1714]">Enter Mobile Number</span>
               </div>
 
-              <span className="text-orange-400 font-black text-xl pb-6">›</span>
+              <span className="text-orange-500 font-black text-xl pb-6">›</span>
 
               <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-xs">
+                <div className="w-12 h-12 rounded-full bg-white/95 border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-sm">
                   <ClipboardCheck className="w-6 h-6 text-[#C25E2E]" />
                   <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-xs font-black flex items-center justify-center">
                     3
                   </span>
                 </div>
-                <span className="text-xs font-bold text-[#201A18]">Submit Your Issue</span>
+                <span className="text-xs font-bold text-[#1F1714]">Submit Your Issue</span>
               </div>
             </div>
           </div>
 
           {/* SLA Box */}
-          <div className="my-2 bg-[#FDF4EB] border border-[#F5DCB7] p-4 rounded-2xl flex items-center justify-center gap-4 max-w-lg mx-auto">
+          <div className="my-2 bg-white/90 border border-orange-200 p-4 rounded-2xl flex items-center justify-center gap-4 max-w-lg mx-auto shadow-sm relative z-10">
             <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
               <Clock className="w-5 h-5 text-[#C25E2E]" />
             </div>
             <div className="text-left">
-              <p className="text-xs font-extrabold text-[#201A18]">Fast • Simple • Available 24/7</p>
-              <p className="text-[11px] text-[#735E54]">
+              <p className="text-xs font-extrabold text-[#1F1714]">Fast • Simple • Available 24/7</p>
+              <p className="text-[11px] text-[#6B5A51]">
                 Your complaint goes directly to the property caretaker and management team.
               </p>
             </div>
           </div>
 
           {/* Footer Branding */}
-          <div className="pt-4 border-t border-orange-200 mt-2">
-            <div className="flex items-center justify-center gap-3 text-xs font-extrabold tracking-[0.25em] text-[#A89286] uppercase font-sans">
+          <div className="pt-4 border-t border-orange-300/50 mt-2 relative z-10">
+            <div className="flex items-center justify-center gap-3 text-xs font-extrabold tracking-[0.25em] text-[#59473F] uppercase font-sans">
               <span>──</span>
-              <span className="text-[#875F4B]">POWERED BY TENOPILOT</span>
+              <span className="text-[#3D302A]">POWERED BY TENOPILOT</span>
               <span>──</span>
             </div>
-            <p className="text-[10px] text-[#A89286] font-medium mt-1">
+            <p className="text-[10px] text-[#59473F] font-bold mt-1">
               tenopilot.com • Instant Direct Dispatch to Property Caretaker & Management
             </p>
           </div>
