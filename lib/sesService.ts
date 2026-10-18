@@ -41,7 +41,7 @@ export interface SESSendParams {
 export interface SESSendResult {
   success: boolean;
   messageId: string;
-  mode: "LIVE_ZOHO_CPAAS" | "LIVE_AWS_SES" | "SIMULATOR_SANDBOX";
+  mode: "LIVE_BREVO" | "LIVE_ZOHO_CPAAS" | "LIVE_AWS_SES" | "SIMULATOR_SANDBOX";
   recipientEmail: string;
   recipientName: string;
   fallbackUsed?: boolean;
@@ -535,25 +535,90 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
   const senderName = payload.customCredentials?.senderName || `${pName} via TenoPilot`;
   const formattedSource = `"${senderName.replace(/"/g, '')}" <${senderEmail}>`;
 
-  // 1. Live Zoho CPaaS / ZeptoMail Dispatch (Primary High-Deliverability Indian Gateway)
+  const activeGateway = (process.env.ACTIVE_EMAIL_GATEWAY || "BREVO").toUpperCase();
+
+  // Brevo API credentials
+  const brevoApiKey =
+    (payload.customCredentials?.apiKey?.startsWith("xkeysib-") ? payload.customCredentials.apiKey : undefined) ||
+    process.env.BREVO_API_KEY;
+  const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL || "notifications@tenopilot.com";
+  const brevoSenderName = process.env.BREVO_SENDER_NAME || senderName || "TenoPilot";
+
+  // Zoho CPaaS / ZeptoMail credentials
   const zohoApiKey =
     (payload.customCredentials?.apiKey?.startsWith("Zoho-") ? payload.customCredentials.apiKey : undefined) ||
     process.env.ZOHO_CPAAS_API_KEY ||
     process.env.ZOHO_ZEPTO_API_KEY;
+  const zohoFromEmail = process.env.ZOHO_CPAAS_FROM_EMAIL || "donotreply@tenopilot.com";
+  const zohoFromName = process.env.ZOHO_CPAAS_FROM_NAME || senderName || "TenoPilot";
+  const zohoEndpoint = process.env.ZOHO_CPAAS_ENDPOINT || "https://api.zeptomail.in/v1.1/email";
 
-  if (zohoApiKey) {
-    const zohoFromEmail = process.env.ZOHO_CPAAS_FROM_EMAIL || "donotreply@tenopilot.com";
-    const zohoFromName = process.env.ZOHO_CPAAS_FROM_NAME || senderName || "TenoPilot";
-    const zohoEndpoint = process.env.ZOHO_CPAAS_ENDPOINT || "https://api.zeptomail.in/v1.1/email";
+  // --- Gateway Dispatch Helper: Brevo REST API v3 ---
+  const executeBrevoDispatch = async (): Promise<SESSendResult | null> => {
+    if (!brevoApiKey) return null;
+    try {
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "api-key": brevoApiKey,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: {
+            name: brevoSenderName,
+            email: brevoSenderEmail,
+          },
+          to: [
+            {
+              email: payload.toEmail.trim(),
+              name: payload.recipientName || "Resident",
+            },
+          ],
+          replyTo: payload.replyToEmail
+            ? {
+                email: payload.replyToEmail.trim(),
+                name: senderName,
+              }
+            : undefined,
+          subject: subject,
+          htmlContent: html,
+          textContent: text,
+        }),
+      });
 
+      const resData = await response.json().catch(() => ({}));
+      if (response.ok) {
+        return {
+          success: true,
+          messageId: resData.messageId || `<brevo-${Date.now()}@smtp-relay.brevo.com>`,
+          mode: "LIVE_BREVO",
+          recipientEmail: payload.toEmail,
+          recipientName: payload.recipientName,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        const errorMsg = resData.message || resData.error || `Brevo HTTP ${response.status}`;
+        console.warn("Brevo API Dispatch Error:", errorMsg);
+        return null;
+      }
+    } catch (err: any) {
+      console.warn("Brevo API Exception:", err);
+      return null;
+    }
+  };
+
+  // --- Gateway Dispatch Helper: Zoho CPaaS / ZeptoMail ---
+  const executeZohoDispatch = async (): Promise<SESSendResult | null> => {
+    if (!zohoApiKey) return null;
     try {
       const authHeader = zohoApiKey.startsWith("Zoho-enczapikey") ? zohoApiKey : `Zoho-enczapikey ${zohoApiKey}`;
       const response = await fetch(zohoEndpoint, {
         method: "POST",
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "Content-Type": "application/json",
-          "Authorization": authHeader,
+          Authorization: authHeader,
         },
         body: JSON.stringify({
           from: {
@@ -582,7 +647,6 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
       });
 
       const data = await response.json().catch(() => ({}));
-
       if (response.ok) {
         return {
           success: true,
@@ -599,40 +663,19 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
           (Array.isArray(data?.error?.details) ? data.error.details.map((d: any) => d.message).join(", ") : undefined) ||
           `Zoho CPaaS returned HTTP ${response.status}`;
         console.warn("Zoho CPaaS Dispatch Error:", errorDetail);
-
-        if (!accessKeyId || !secretAccessKey) {
-          return {
-            success: false,
-            messageId: `err-zoho-${Date.now()}`,
-            mode: "LIVE_ZOHO_CPAAS",
-            recipientEmail: payload.toEmail,
-            recipientName: payload.recipientName,
-            error: errorDetail,
-            timestamp: new Date().toISOString(),
-          };
-        }
+        return null;
       }
     } catch (err: any) {
       console.warn("Zoho CPaaS Dispatch Exception:", err);
-      if (!accessKeyId || !secretAccessKey) {
-        return {
-          success: false,
-          messageId: `err-zoho-${Date.now()}`,
-          mode: "LIVE_ZOHO_CPAAS",
-          recipientEmail: payload.toEmail,
-          recipientName: payload.recipientName,
-          error: err.message || "Failed to dispatch email via Zoho CPaaS",
-          timestamp: new Date().toISOString(),
-        };
-      }
+      return null;
     }
-  }
+  };
 
-  // 2. Live AWS SES Dispatch (Secondary / Fallback Gateway)
-  if (accessKeyId && secretAccessKey) {
+  // --- Gateway Dispatch Helper: AWS SES SDK ---
+  const executeAwsSesDispatch = async (): Promise<SESSendResult | null> => {
+    if (!accessKeyId || !secretAccessKey) return null;
     try {
       const client = getSESClient(region, accessKeyId, secretAccessKey);
-
       const params: SendEmailCommandInput = {
         Source: formattedSource,
         Destination: {
@@ -670,16 +713,39 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
       };
     } catch (err: any) {
       console.warn("Amazon SES Dispatch Error:", err);
-      return {
-        success: false,
-        messageId: `err-${Date.now()}`,
-        mode: "LIVE_AWS_SES",
-        recipientEmail: payload.toEmail,
-        recipientName: payload.recipientName,
-        error: err.message || "Failed to dispatch email via Amazon SES",
-        timestamp: new Date().toISOString(),
-      };
+      return null;
     }
+  };
+
+  // Multi-Gateway Routing Pipeline:
+  // 1. If ACTIVE_EMAIL_GATEWAY === "BREVO": Brevo -> Zoho -> AWS SES
+  // 2. If ACTIVE_EMAIL_GATEWAY === "ZOHO": Zoho -> Brevo -> AWS SES
+  // 3. Otherwise: AWS SES -> Brevo -> Zoho
+  const primaryResult =
+    activeGateway === "BREVO"
+      ? await executeBrevoDispatch()
+      : activeGateway === "ZOHO"
+      ? await executeZohoDispatch()
+      : await executeAwsSesDispatch();
+
+  if (primaryResult) {
+    return primaryResult;
+  }
+
+  // Automatic Failover 1:
+  const secondaryResult =
+    activeGateway === "BREVO"
+      ? await executeZohoDispatch()
+      : await executeBrevoDispatch();
+
+  if (secondaryResult) {
+    return { ...secondaryResult, fallbackUsed: true };
+  }
+
+  // Automatic Failover 2 (AWS SES):
+  const tertiaryResult = await executeAwsSesDispatch();
+  if (tertiaryResult) {
+    return { ...tertiaryResult, fallbackUsed: true };
   }
 
   // 2. Zero-Config Simulator Sandbox Mode (Fallback if credentials omitted)
