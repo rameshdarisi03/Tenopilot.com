@@ -235,21 +235,6 @@ export function PublicComplaintQrModal({
                     level="H"
                     includeMargin={false}
                   />
-
-                  {/* Whimsical Handwritten Tag Beside QR */}
-                  <div className="absolute -right-16 sm:-right-20 top-2 text-left pointer-events-none select-none">
-                    {/* Orange Sunbeam Accents */}
-                    <div className="flex gap-1 ml-3 mb-0.5">
-                      <span className="w-1.5 h-0.5 bg-[#C25E2E] rotate-[-35deg] inline-block rounded-full" />
-                      <span className="w-2 h-0.5 bg-[#C25E2E] rotate-[-5deg] inline-block rounded-full" />
-                      <span className="w-1.5 h-0.5 bg-[#C25E2E] rotate-[35deg] inline-block rounded-full" />
-                    </div>
-                    <div className="font-serif italic font-bold text-[11px] sm:text-xs text-[#1F1714] leading-tight">
-                      Your PG
-                      <br />
-                      <span className="text-[#C25E2E]">Our Care</span>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -490,14 +475,6 @@ export function PublicComplaintQrModal({
                 level="H"
                 includeMargin={false}
               />
-
-              <div className="absolute -right-28 top-8 text-left">
-                <div className="font-serif italic font-bold text-base text-[#1F1714]">
-                  Your PG
-                  <br />
-                  <span className="text-[#C25E2E]">Our Care</span>
-                </div>
-              </div>
             </div>
           </div>
 
