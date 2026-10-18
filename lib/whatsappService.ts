@@ -402,6 +402,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
       } else if (payload.type === "SUBSCRIPTION_INVOICE") {
         const p = payload.params || {};
         const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
+        const pName = payload.propertyName || "Your Property";
         const fileName = `TenoPilot_Tax_Invoice_${invoiceNo}.pdf`;
         const origin = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
         const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
@@ -410,11 +411,32 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
-          type: "document",
-          document: {
-            link: pdfUrl,
-            filename: fileName,
-            caption: messageBody.slice(0, 1024),
+          type: "template",
+          template: {
+            name: "pg_subscription_receipt_doc",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: pdfUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName || "Property Partner" },
+                  { type: "text", text: pName },
+                  { type: "text", text: invoiceNo },
+                ],
+              },
+            ],
           },
         };
       } else {
