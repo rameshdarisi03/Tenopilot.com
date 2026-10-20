@@ -222,32 +222,42 @@ export function CheckOutSettlementModal({
             }).catch((e) => console.warn("Notice dispatching WhatsApp checkout thank you:", e));
           }
 
-          // Email Dispatch
-          if (occupant.email && !occupant.email.includes("resident.tenopilot.com")) {
-            fetch("/api/email/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                propertyId,
-                messages: [
-                  {
-                    toEmail: occupant.email,
-                    recipientName: occupant.name,
-                    propertyId,
-                    propertyName: propName,
-                    type: "CHECKOUT_THANK_YOU",
-                    params: {
-                      receiptId: receiptNoStr,
-                      receiptUrl: pdfUrl,
-                      roomNumber: roomNumber || occupant.roomNumber,
-                      bedCode: bedCode || occupant.bedCode,
-                      managerPhone: settings?.managerPhone,
+            // Email Dispatch
+            if (occupant.email && !occupant.email.includes("resident.tenopilot.com")) {
+              fetch("/api/email/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  propertyId,
+                  messages: [
+                    {
+                      toEmail: occupant.email,
+                      recipientName: occupant.name,
+                      propertyId,
+                      propertyName: propName,
+                      type: "CHECKOUT_THANK_YOU",
+                      params: {
+                        receiptId: receiptNoStr,
+                        receiptUrl: pdfUrl,
+                        amount: netRefundableAmount,
+                        initialDeposit,
+                        unpaidRent: unpaidRentDues,
+                        repairs: repairDeductions,
+                        maintenance: maintenanceExpenses,
+                        totalDeductions,
+                        netRefunded: netRefundableAmount,
+                        paidDate: todayStr,
+                        paymentMode: paymentChannel,
+                        roomNumber: roomNumber || occupant.roomNumber,
+                        bedCode: bedCode || occupant.bedCode,
+                        managerPhone: settings?.managerPhone,
+                        notes: settlementNotes.trim(),
+                      },
                     },
-                  },
-                ],
-              }),
-            }).catch((e) => console.warn("Notice dispatching Email checkout thank you:", e));
-          }
+                  ],
+                }),
+              }).catch((e) => console.warn("Notice dispatching Email checkout thank you:", e));
+            }
         } catch (dispatchErr) {
           console.warn("Notice dispatching digital notices:", dispatchErr);
         }

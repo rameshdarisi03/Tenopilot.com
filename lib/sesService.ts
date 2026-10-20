@@ -33,6 +33,13 @@ export interface SESSendParams {
     month?: string;
     rentAmount?: number | string;
     depositAmount?: number | string;
+    initialDeposit?: number | string;
+    unpaidRent?: number | string;
+    repairs?: number | string;
+    maintenance?: number | string;
+    totalDeductions?: number | string;
+    netRefunded?: number | string;
+    notes?: string;
   };
   attachments?: {
     name: string;
@@ -750,12 +757,13 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
     mime_type?: string;
   }[] = payload.attachments ? [...payload.attachments] : [];
 
-  // Automatically generate official PDF attachment for PAYMENT_RECEIPT if not explicitly provided
-  if (payload.type === "PAYMENT_RECEIPT" && resolvedAttachments.length === 0) {
+  // Automatically generate official PDF attachment for PAYMENT_RECEIPT or CHECKOUT_THANK_YOU if not explicitly provided
+  if ((payload.type === "PAYMENT_RECEIPT" || payload.type === "CHECKOUT_THANK_YOU") && resolvedAttachments.length === 0) {
     try {
-      const rawReceiptNo = p.receiptId || `REC-${Date.now().toString().slice(-6)}`;
+      const isSettlement = payload.type === "CHECKOUT_THANK_YOU";
+      const rawReceiptNo = p.receiptId || (isSettlement ? `REF-${Date.now().toString().slice(-6)}` : `REC-${Date.now().toString().slice(-6)}`);
       const cleanReceiptNo = rawReceiptNo.replace(/^#+/, "");
-      const isDeposit = cleanReceiptNo.startsWith("DEP") || (typeof p.customSubject === "string" && p.customSubject.toLowerCase().includes("deposit"));
+      const isDeposit = !isSettlement && (cleanReceiptNo.startsWith("DEP") || (typeof p.customSubject === "string" && p.customSubject.toLowerCase().includes("deposit")));
       const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const payMode = p.paymentMode || "UPI / Digital Transfer";
 
@@ -773,13 +781,27 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
         paidTo: p.bankLabel || "Main Business Pool",
         month: p.month || p.dueDate || "Current Cycle",
         isDeposit,
-        isSettlement: false,
+        isSettlement,
         rentAmount: p.rentAmount ? Number(p.rentAmount) : undefined,
         depositAmount: p.depositAmount ? Number(p.depositAmount) : undefined,
+        settlementDetails: isSettlement
+          ? {
+              initialDeposit: Number(p.initialDeposit || p.amount || 0),
+              unpaidRent: Number(p.unpaidRent || 0),
+              repairs: Number(p.repairs || 0),
+              maintenance: Number(p.maintenance || 0),
+              totalDeductions: Number(p.totalDeductions || 0),
+              netRefunded: Number(p.netRefunded || p.amount || 0),
+              status: "SETTLED & CLOSED",
+              notes: p.notes,
+            }
+          : undefined,
       });
 
       const base64Pdf = Buffer.from(pdfUint8).toString("base64");
-      const safeFilename = `Receipt_${cleanReceiptNo}_${(payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+      const safeFilename = isSettlement
+        ? `Settlement_NoDues_${cleanReceiptNo}_${(payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`
+        : `Receipt_${cleanReceiptNo}_${(payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
 
       resolvedAttachments.push({
         name: safeFilename,
