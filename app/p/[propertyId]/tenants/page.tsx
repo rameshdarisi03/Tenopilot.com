@@ -31,10 +31,8 @@ import { StaggerItem } from "@/components/motion/StaggerContainer";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
 import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
-import { WhatsAppInboundReviewDrawer } from "@/components/dashboard/WhatsAppInboundReviewDrawer";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
-import { whatsappInboxStore } from "@/constants/whatsappInboxStore";
 import {
   Search,
   Plus,
@@ -253,14 +251,6 @@ export default function TenantsDirectoryPage({
 
   // WhatsApp & Brevo Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
-  const [showWhatsAppInboxDrawer, setShowWhatsAppInboxDrawer] = useState(false);
-  const [activeInboxProof, setActiveInboxProof] = useState<{
-    utr?: string;
-    amount?: number;
-    screenshotUrl?: string;
-    inboxItemId?: string;
-  } | null>(null);
-  const [inboxPendingCount, setInboxPendingCount] = useState<number>(0);
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [isSendingCloudEmail, setIsSendingCloudEmail] = useState(false);
@@ -354,18 +344,6 @@ export default function TenantsDirectoryPage({
       setIsSendingCustomCloud(false);
     }
   };
-
-  // WhatsApp Inbound Inbox Real-Time Listener
-  useEffect(() => {
-    whatsappInboxStore.initFirebaseListener(propertyId);
-    setInboxPendingCount(whatsappInboxStore.getPendingCount(propertyId));
-    const unsub = whatsappInboxStore.subscribe(() => {
-      setInboxPendingCount(whatsappInboxStore.getPendingCount(propertyId));
-    });
-    return () => {
-      unsub();
-    };
-  }, [propertyId]);
 
   // Handle URL Deep-Link for Collect Rent Modal or Automated Reminders (e.g. from Overview / Financial Hub)
   const searchParams = useSearchParams();
@@ -958,15 +936,6 @@ export default function TenantsDirectoryPage({
       );
     }
 
-    // 💬 If collected via Inbound WhatsApp Proof, resolve the inbox item
-    if (activeInboxProof?.inboxItemId) {
-      whatsappInboxStore.markResolved(propertyId, activeInboxProof.inboxItemId, {
-        resolvedBy: staffName,
-        receiptId: newReceipts[0]?.receiptNo,
-        amountCollected: totalCollected,
-      });
-    }
-
     // 💬 Auto-Dispatch Official Verified WhatsApp Receipt to Tenant (Free within 24h window)
     fetch("/api/whatsapp/send", {
       method: "POST",
@@ -1005,7 +974,6 @@ export default function TenantsDirectoryPage({
       })
       .catch((e) => console.warn("Notice sending WhatsApp receipt:", e));
 
-    setActiveInboxProof(null);
     setCollectRentOccupant(null);
     setTransactionRef("");
   };
@@ -1294,28 +1262,6 @@ export default function TenantsDirectoryPage({
 
             {/* Top Action Controls */}
             <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-              {/* WhatsApp Inbound Feed Button */}
-              <button
-                type="button"
-                onClick={() => setShowWhatsAppInboxDrawer(true)}
-                className="relative px-3.5 py-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs md:text-sm font-bold transition-all shadow-xs flex items-center gap-2 active:scale-95 cursor-pointer min-h-[42px]"
-                title="View incoming WhatsApp payment proofs and replies"
-              >
-                <div className="relative">
-                  <MessageSquare className="w-4 h-4 text-emerald-700 shrink-0" />
-                  {inboxPendingCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
-                  )}
-                </div>
-                <span className="hidden sm:inline">WhatsApp Inbound</span>
-                <span className="sm:hidden">Inbox</span>
-                {inboxPendingCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[10px] font-extrabold">
-                    {inboxPendingCount}
-                  </span>
-                )}
-              </button>
-
               {/* FastTrack Migration Button */}
               <button
                 onClick={() => setShowFastTrackModal(true)}
@@ -2412,39 +2358,6 @@ Scroll vertically to browse all residents without pagination limits
                 onSubmit={handleCollectRentSubmit}
                 className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs overscroll-contain"
               >
-                {/* 📷 Attached WhatsApp Payment Proof Preview (If initiated from Inbound Feed) */}
-                {activeInboxProof?.screenshotUrl && (
-                  <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-3 animate-in fade-in shadow-2xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={activeInboxProof.screenshotUrl}
-                        alt="WhatsApp Proof"
-                        className="w-12 h-12 object-cover rounded-xl border border-emerald-400 shrink-0 shadow-xs"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-bold text-xs text-emerald-950 flex items-center gap-1.5 truncate">
-                          <span>📷 WhatsApp Payment Proof</span>
-                          <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[9px] font-extrabold rounded-md">
-                            Attached
-                          </span>
-                        </p>
-                        <p className="text-[10px] text-emerald-800 font-mono truncate">
-                          {activeInboxProof.utr ? `Ref/UTR: ${activeInboxProof.utr}` : "Resident screenshot attached"}
-                        </p>
-                      </div>
-                    </div>
-                    <a
-                      href={activeInboxProof.screenshotUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] shrink-0"
-                    >
-                      Zoom
-                    </a>
-                  </div>
-                )}
-
                 {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">
@@ -3632,23 +3545,6 @@ Scroll vertically to browse all residents without pagination limits
             </div>
           </div>
         )}
-
-        {/* 💬 WhatsApp Inbound Activity & Proofs Drawer (Mobile-First Sheet) */}
-        <WhatsAppInboundReviewDrawer
-          propertyId={propertyId}
-          isOpen={showWhatsAppInboxDrawer}
-          onClose={() => setShowWhatsAppInboxDrawer(false)}
-          occupants={occupantsList}
-          onOpenCollectRentModal={(occ, prefill) => {
-            setCollectRentOccupant(occ);
-            if (prefill) {
-              setActiveInboxProof(prefill);
-              if (prefill.utr) setTransactionRef(prefill.utr);
-              if (prefill.amount) setRentPaymentPortion(prefill.amount);
-              setPaymentMode("UPI");
-            }
-          }}
-        />
       </div>
     </div>
   );

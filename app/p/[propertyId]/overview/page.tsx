@@ -37,6 +37,7 @@ import {
   Printer,
   Sparkles,
   HelpCircle,
+  MapPin,
 } from "lucide-react";
 
 import { GuidedSpotlightTour, TourStep } from "@/components/onboarding/GuidedSpotlightTour";
@@ -65,7 +66,7 @@ const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="property-header"]',
     title: "Your Command Center",
     description:
-      "Welcome to your property flight deck! Monitor live operational health, total bed count, real-time occupancy rates, and active license tier.",
+      "Welcome to your property flight deck! Manage front desk operations, track daily activity, access the financial hub, and monitor real-time property health.",
     icon: Building2,
     placement: "bottom",
   },
@@ -323,6 +324,60 @@ export default function PropertyOverviewPage({
     router.push(`/p/${propertyId}/tenants?filter=due&sendReminders=true`);
   };
 
+  const quickActionsCard = (
+    <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
+      <div>
+        <h3 className="font-serif font-bold text-xl text-gray-900">
+          Quick Actions
+        </h3>
+        <p className="text-xs text-gray-500 font-medium">1-Tap shortcuts for daily front desk operations</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          href={`/p/${propertyId}/tenants/onboard-tenant`}
+          className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+        >
+          <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
+            <UserPlus className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-bold text-gray-900">Onboard Tenant</span>
+        </Link>
+
+        <button
+          onClick={handleSendWhatsAppReminders}
+          className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs cursor-pointer"
+        >
+          <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
+            <Bell className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-bold text-gray-900">Reminders</span>
+        </button>
+
+        <Link
+          href={`/p/${propertyId}/financial-hub`}
+          className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+        >
+          <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
+            <Receipt className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-bold text-gray-900">Financial Hub</span>
+        </Link>
+
+        <Link
+          data-tour={totalBeds > 0 ? "property-setup" : undefined}
+          href={`/p/${propertyId}/property-setup`}
+          className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
+        >
+          <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
+            <Settings className="w-5 h-5" />
+          </div>
+          <span className="text-xs font-bold text-gray-900">Property Setup</span>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen bg-[#f8fafc] text-gray-900 font-sans selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
       {/* 256px Left Sidebar */}
@@ -346,21 +401,21 @@ export default function PropertyOverviewPage({
           {/* Greeting Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div data-tour="property-header">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full border border-orange-200">
-                  {sub.isPro ? "PRO OPERATING SYSTEM" : sub.inGracePeriod ? "GRACE PERIOD ACTIVE" : `${platformConfig.trialDays}-DAY FREE TRIAL ACTIVE`}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-extrabold tracking-wide bg-orange-50 text-[#c2652a] px-3 py-1 rounded-full border border-orange-200 flex items-center gap-1.5 shadow-2xs">
+                  <Building2 className="w-3.5 h-3.5 text-[#c2652a] shrink-0" />
+                  <span>{propertySettings.propertyName}</span>
                 </span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  OPERATIONAL HEALTHY 🟢
-                </span>
+                {propertySettings.propertyAddress && (
+                  <span className="text-xs font-medium text-gray-600 bg-gray-100/90 px-3 py-1 rounded-full border border-gray-200 truncate max-w-[260px] sm:max-w-md flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="truncate">{propertySettings.propertyAddress}</span>
+                  </span>
+                )}
               </div>
               <h1 className="font-serif font-bold text-3xl sm:text-4xl text-gray-900 mt-2 tracking-tight">
                 {greetingText}
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-1 font-medium">
-                {propertySettings.propertyName} • {propertySettings.propertyAddress} • {totalBeds} Total Beds • {occRatePct}% Occupancy
-              </p>
             </div>
 
             <div className="flex items-center gap-2.5">
@@ -607,6 +662,11 @@ export default function PropertyOverviewPage({
                 </div>
               )}
 
+              {/* Mobile-Only: Quick Actions displayed directly above Recent Activity */}
+              <div className="block lg:hidden">
+                {quickActionsCard}
+              </div>
+
               {/* Recent Activity Audit Timeline Feed */}
               <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-6">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-4">
@@ -663,57 +723,9 @@ export default function PropertyOverviewPage({
 
             {/* Right Column (40%): Quick Actions, KYC Pulse & Resident Portal */}
             <div className="lg:col-span-5 space-y-6">
-              {/* Quick Actions Card */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
-                <div>
-                  <h3 className="font-serif font-bold text-xl text-gray-900">
-                    Quick Actions
-                  </h3>
-                  <p className="text-xs text-gray-500 font-medium">1-Tap shortcuts for daily front desk operations</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Link
-                    href={`/p/${propertyId}/tenants/onboard-tenant`}
-                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
-                  >
-                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
-                      <UserPlus className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-gray-900">Onboard Tenant</span>
-                  </Link>
-
-                  <button
-                    onClick={handleSendWhatsAppReminders}
-                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs cursor-pointer"
-                  >
-                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
-                      <Bell className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-gray-900">Reminders</span>
-                  </button>
-
-                  <Link
-                    href={`/p/${propertyId}/financial-hub`}
-                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
-                  >
-                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
-                      <Receipt className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-gray-900">Financial Hub</span>
-                  </Link>
-
-                  <Link
-                    data-tour={totalBeds > 0 ? "property-setup" : undefined}
-                    href={`/p/${propertyId}/property-setup`}
-                    className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#c2652a] hover:bg-orange-50/40 text-center transition-all flex flex-col items-center justify-center gap-2 group shadow-2xs"
-                  >
-                    <div className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#c2652a] group-hover:scale-110 transition-transform">
-                      <Settings className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-gray-900">Property Setup</span>
-                  </Link>
-                </div>
+              {/* Desktop-Only: Quick Actions Card */}
+              <div className="hidden lg:block">
+                {quickActionsCard}
               </div>
 
               {/* KYC & Police Compliance Pulse */}
@@ -785,33 +797,35 @@ export default function PropertyOverviewPage({
                     <span>Download / Print QR Poster</span>
                   </button>
 
-                  <a
-                    href={`/p/${propertyId}/public-complaint`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Test Complaints Portal</span>
-                  </a>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a
+                      href={`/p/${propertyId}/public-complaint`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-2.5 px-2.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Test Link</span>
+                    </a>
 
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="w-full py-2.5 px-4 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {copiedLink ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-emerald-700 font-bold">Link Copied to Clipboard!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-gray-500" />
-                        <span>Copy Direct Link</span>
-                      </>
-                    )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="w-full py-2.5 px-2.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="text-emerald-700 font-bold truncate">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          <span className="truncate">Copy Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

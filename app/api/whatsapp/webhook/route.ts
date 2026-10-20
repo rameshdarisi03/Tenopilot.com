@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, setDoc, getDoc, getDocs, collection, collectionGroup } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, collectionGroup } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatIndianPhoneNumber } from "@/lib/whatsappService";
 import { MOCK_OCCUPANTS_200 } from "@/constants/mockOccupants";
@@ -393,64 +393,7 @@ export async function POST(req: NextRequest) {
             inboundCategory = "SUPPORT_QUERY";
           }
 
-          // 2. Build Inbound Payload with Genuine Media & Raw Text
-          const itemId = `inbox_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-          const inboxPayload = {
-            id: itemId,
-            wamid: msg.id || itemId,
-            senderPhone: fromPhone,
-            senderName: occupant?.name || contactName,
-            occupantId: occupant?.id || null,
-            occupantName: occupant?.name || contactName,
-            roomNumber: occupant?.roomNumber || null,
-            bedCode: occupant?.bedCode || null,
-            propertyId: propertyId,
-            propertyName: propertyName,
-            organizationId: organizationId || null,
-            isUnassigned: propertyId === "all",
-            isMultiProperty: isMultiProperty || false,
-            multiPropertyNames: multiPropertyNames || [],
-            type: inboundCategory,
-            rawText,
-            mediaUrl,
-            mimeType,
-            status: "PENDING",
-            timestamp: msg.timestamp ? new Date(Number(msg.timestamp) * 1000).toISOString() : new Date().toISOString(),
-          };
-
-          // 3. Dual-Write to Firestore & Replicate if Multi-Property
-          if (db) {
-            try {
-              await setDoc(doc(db, "whatsapp_global_inbox", itemId), inboxPayload, { merge: true });
-            } catch (e) {
-              console.warn("Notice writing to whatsapp_global_inbox:", e);
-            }
-
-            if (propertyId && propertyId !== "all") {
-              try {
-                await setDoc(doc(db, `properties/${propertyId}/whatsapp_inbox`, itemId), inboxPayload, { merge: true });
-              } catch (e) {
-                console.warn(`Notice writing to properties/${propertyId}/whatsapp_inbox:`, e);
-              }
-            }
-
-            // If ambiguous multi-property, mirror to secondary properties for zero proof loss
-            if (isMultiProperty && allPropertyIds.length > 1) {
-              for (const pId of allPropertyIds) {
-                if (pId !== propertyId) {
-                  try {
-                    await setDoc(
-                      doc(db, `properties/${pId}/whatsapp_inbox`, itemId),
-                      { ...inboxPayload, propertyId: pId },
-                      { merge: true }
-                    );
-                  } catch (e) {}
-                }
-              }
-            }
-          }
-
-          // 4. Free 24-Hour WhatsApp Service Auto-Acknowledgment
+          // Auto-Acknowledgment Response
           if (metaToken && phoneNumberId) {
             let replyText = "";
             const activePropertyName = propertyName || "TenoPilot Living";
