@@ -66,7 +66,7 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
 
   // 3. Top Authority Header
   drawCenteredText("RESIDENT CARE DESK", 780, 11, fontBold, headerDark);
-  drawCenteredText("Maintenance Issues & Repairs 24/7", 764, 8.5, fontBold, textMuted);
+  drawCenteredText("Maintenance & Resident Care Support", 764, 8.5, fontBold, textMuted);
 
   // 4. Hero Headline
   drawCenteredText("Facing a Problem?", 722, 26, fontBold, darkBrown);
@@ -214,7 +214,7 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     borderWidth: 1,
   });
 
-  page.drawText("Fast * Simple * Available 24/7", {
+  page.drawText("Fast * Simple * Direct Resolution", {
     x: slaX + 20,
     y: slaY + 24,
     size: 9.5,

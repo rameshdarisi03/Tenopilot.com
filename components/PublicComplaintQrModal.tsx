@@ -218,7 +218,7 @@ export function PublicComplaintQrModal({
             {/* The Actual Scaled Poster Component with Photorealistic Interior Background */}
             <div
               ref={posterRef}
-              className="w-full max-w-[400px] aspect-[1/1.414] rounded-2xl shadow-2xl border border-orange-200/60 p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden text-center select-none bg-[#FAF7F2]"
+              className="w-full max-w-[390px] aspect-[1/1.414] rounded-none shadow-2xl border-0 p-3 sm:p-4 flex flex-col justify-between relative overflow-hidden text-center select-none bg-[#FAF7F2]"
             >
               {/* Background image layer */}
               {bgBase64 ? (
@@ -246,17 +246,17 @@ export function PublicComplaintQrModal({
               />
 
               {/* Top Authority Header */}
-              <div className="pt-1 space-y-0.5 relative z-10">
-                <p className="text-[10px] sm:text-[11px] font-black tracking-[0.26em] uppercase text-[#3D302A]">
+              <div className="pt-0.5 space-y-0.5 relative z-10 shrink-0">
+                <p className="text-[10px] sm:text-[11px] font-black tracking-[0.24em] uppercase text-[#3D302A]">
                   Resident Care Desk
                 </p>
-                <p className="text-[8.5px] font-bold text-[#6B5A51] tracking-wider">
-                  Maintenance Issues & Repairs 24/7
+                <p className="text-[8px] sm:text-[8.5px] font-bold text-[#6B5A51] tracking-wider">
+                  Maintenance & Resident Support
                 </p>
               </div>
 
               {/* Hero Hook Headline */}
-              <div className="my-1 relative z-10">
+              <div className="my-0.5 relative z-10 shrink-0">
                 <h1 className="text-xl sm:text-2xl font-black text-[#1F1714] tracking-tight leading-none">
                   Facing a Problem?
                 </h1>
@@ -266,8 +266,8 @@ export function PublicComplaintQrModal({
               </div>
 
               {/* Highlighted PG Name Badge (Smooth Rounded Terracotta Pill) */}
-              <div className="my-1 relative z-10 flex justify-center">
-                <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-5 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-lg border border-white/30 max-w-[85%]">
+              <div className="my-0.5 relative z-10 flex justify-center shrink-0">
+                <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-5 sm:px-6 py-1.5 rounded-full shadow-md border border-white/30 max-w-[85%]">
                   <span className="font-extrabold text-xs sm:text-sm tracking-wider uppercase truncate block">
                     {realPgName}
                   </span>
@@ -275,12 +275,12 @@ export function PublicComplaintQrModal({
               </div>
 
               {/* QR Code Container */}
-              <div className="relative z-10 my-1 flex items-center justify-center">
-                <div className="bg-white p-3.5 sm:p-4 rounded-3xl shadow-xl border border-orange-100 flex flex-col items-center justify-center relative">
+              <div className="relative z-10 my-0.5 flex items-center justify-center shrink-0">
+                <div className="bg-white p-2.5 sm:p-3 rounded-2xl shadow-lg border border-orange-100 flex flex-col items-center justify-center relative">
                   <QRCodeCanvas
                     id={`complaint-qr-${propertyId}`}
                     value={portalUrl}
-                    size={140}
+                    size={120}
                     fgColor="#1F1714"
                     bgColor="#FFFFFF"
                     level="H"
@@ -290,47 +290,47 @@ export function PublicComplaintQrModal({
               </div>
 
               {/* 3-Step Instruction Sequence */}
-              <div className="relative z-10 my-1">
+              <div className="relative z-10 my-0.5 shrink-0">
                 <div className="flex items-center justify-center gap-1 sm:gap-2">
                   {/* Step 1 */}
                   <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1">
-                      <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C25E2E]" />
-                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[8px] font-black flex items-center justify-center">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                      <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                         1
                       </span>
                     </div>
-                    <span className="text-[8px] sm:text-[9px] font-bold text-[#1F1714] leading-tight">
+                    <span className="text-[7.5px] sm:text-[8px] font-bold text-[#1F1714] leading-tight">
                       Scan with Phone Camera
                     </span>
                   </div>
 
-                  <span className="text-orange-500 font-black text-xs pb-3">›</span>
+                  <span className="text-orange-500 font-black text-xs pb-2">›</span>
 
                   {/* Step 2 */}
                   <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1">
-                      <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C25E2E]" />
-                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[8px] font-black flex items-center justify-center">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                      <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                         2
                       </span>
                     </div>
-                    <span className="text-[8px] sm:text-[9px] font-bold text-[#1F1714] leading-tight">
+                    <span className="text-[7.5px] sm:text-[8px] font-bold text-[#1F1714] leading-tight">
                       Enter Mobile Number
                     </span>
                   </div>
 
-                  <span className="text-orange-500 font-black text-xs pb-3">›</span>
+                  <span className="text-orange-500 font-black text-xs pb-2">›</span>
 
                   {/* Step 3 */}
                   <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1">
-                      <ClipboardCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C25E2E]" />
-                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[8px] font-black flex items-center justify-center">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                      <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                         3
                       </span>
                     </div>
-                    <span className="text-[8px] sm:text-[9px] font-bold text-[#1F1714] leading-tight">
+                    <span className="text-[7.5px] sm:text-[8px] font-bold text-[#1F1714] leading-tight">
                       Submit Your Issue
                     </span>
                   </div>
@@ -338,28 +338,28 @@ export function PublicComplaintQrModal({
               </div>
 
               {/* SLA Service Commitment Box */}
-              <div className="relative z-10 my-1 bg-white/95 border border-orange-200/80 p-2.5 rounded-xl text-left flex items-center gap-2.5 shadow-xs">
-                <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
-                  <Clock className="w-3.5 h-3.5 text-[#C25E2E]" />
+              <div className="relative z-10 my-0.5 bg-white/95 border border-orange-200/80 p-2 rounded-xl text-left flex items-center gap-2 shadow-xs shrink-0">
+                <div className="w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
+                  <Clock className="w-3 h-3 text-[#C25E2E]" />
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-[9px] sm:text-[10px] font-extrabold text-[#1F1714]">
-                    Fast • Simple • Available 24/7
+                  <p className="text-[8.5px] sm:text-[9px] font-extrabold text-[#1F1714]">
+                    Fast • Simple • Direct Resolution
                   </p>
-                  <p className="text-[8px] text-[#6B5A51] leading-tight">
+                  <p className="text-[7px] sm:text-[7.5px] text-[#6B5A51] leading-tight">
                     Your complaint goes directly to the property caretaker and management team.
                   </p>
                 </div>
               </div>
 
               {/* Bottom Official TenoPilot Enterprise Branding */}
-              <div className="relative z-10 pt-1 border-t border-orange-300/40 mt-1">
-                <div className="flex items-center justify-center gap-2 text-[9px] font-extrabold tracking-[0.22em] text-[#59473F] uppercase font-sans">
+              <div className="relative z-10 pt-1 pb-0.5 border-t border-orange-300/40 mt-0.5 shrink-0">
+                <div className="flex items-center justify-center gap-1.5 text-[8px] sm:text-[8.5px] font-extrabold tracking-[0.2em] text-[#59473F] uppercase font-sans">
                   <span>──</span>
                   <span className="text-[#3D302A]">POWERED BY TENOPILOT</span>
                   <span>──</span>
                 </div>
-                <p className="text-[7.5px] text-[#59473F] font-bold mt-0.5 tracking-tight">
+                <p className="text-[6.5px] sm:text-[7px] text-[#59473F] font-bold mt-0.5 tracking-tight">
                   tenopilot.com • Instant Direct Dispatch to Property Caretaker & Management
                 </p>
               </div>
