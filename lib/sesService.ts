@@ -2,6 +2,7 @@
 // Replaces third-party providers with direct, ultra-high deliverability AWS SES v2 infrastructure
 
 import { SESClient, SendEmailCommand, SendEmailCommandInput } from "@aws-sdk/client-ses";
+import { generateReceiptPdfBuffer } from "./pdfGenerator";
 
 export interface SESSendParams {
   toEmail: string;
@@ -29,7 +30,13 @@ export interface SESSendParams {
     customBody?: string;
     planName?: string;
     validityPeriod?: string;
+    month?: string;
   };
+  attachments?: {
+    name: string;
+    content: string; // Base64 encoded string
+    mime_type?: string;
+  }[];
   customCredentials?: {
     accessKeyId?: string;
     secretAccessKey?: string;
@@ -197,10 +204,13 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
     }
 
     case "PAYMENT_RECEIPT": {
-      const receiptNo = p.receiptId || `REC-${Date.now().toString().slice(-6)}`;
-      const subject = `🧾 Official Payment Receipt #${receiptNo} — ${pName} (Room ${p.roomNumber || "N/A"})`;
+      const rawReceiptNo = p.receiptId || `REC-${Date.now().toString().slice(-6)}`;
+      const cleanReceiptNo = rawReceiptNo.replace(/^#+/, "");
+      const subject = `🧾 Official Payment Receipt #${cleanReceiptNo} — ${pName} (Room ${p.roomNumber || "N/A"})`;
       const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const payMode = p.paymentMode || "UPI / Digital Transfer";
+      const isDeposit = cleanReceiptNo.startsWith("DEP") || (typeof p.customSubject === "string" && p.customSubject.toLowerCase().includes("deposit"));
+      const downloadReceiptUrl = p.receiptUrl || `https://tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(cleanReceiptNo)}&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}&amount=${encodeURIComponent(String(p.amount || 0))}&roomNumber=${encodeURIComponent(p.roomNumber || "")}&bedCode=${encodeURIComponent(p.bedCode || "")}&paidDate=${encodeURIComponent(paidDate)}&paymentMode=${encodeURIComponent(payMode)}${isDeposit ? "&isDeposit=true" : ""}`;
 
       const html = `
 <!DOCTYPE html>
@@ -219,7 +229,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         ✅ OFFICIAL PAYMENT RECEIPT
       </div>
       <h1 style="margin:0 0 6px 0;font-size:24px;font-weight:800;">${pName}</h1>
-      <p style="margin:0;color:#a7f3d0;font-size:13px;font-family:monospace;letter-spacing:0.5px;">Receipt #${receiptNo}</p>
+      <p style="margin:0;color:#a7f3d0;font-size:13px;font-family:monospace;letter-spacing:0.5px;">Receipt #${cleanReceiptNo}</p>
     </div>
 
     <!-- Main Body -->
@@ -236,7 +246,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         <table style="width:100%;font-size:14px;border-collapse:collapse;">
           <tr style="border-bottom:1px dashed #cbd5e1;">
             <td style="padding:10px 0;color:#64748b;font-weight:500;">Receipt Number:</td>
-            <td style="padding:10px 0;text-align:right;font-weight:700;font-family:monospace;color:#0f172a;">${receiptNo}</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;font-family:monospace;color:#0f172a;">#${cleanReceiptNo}</td>
           </tr>
           <tr style="border-bottom:1px dashed #cbd5e1;">
             <td style="padding:10px 0;color:#64748b;font-weight:500;">Resident Name:</td>
@@ -270,6 +280,16 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         </p>
       </div>
 
+      <!-- 📥 1-Click Official PDF Receipt Download Button -->
+      <div style="text-align:center;margin:28px 0 24px 0;">
+        <a href="${downloadReceiptUrl}" target="_blank" style="display:inline-block;padding:14px 34px;background:linear-gradient(135deg,#059669 0%,#047857 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(5,150,105,0.35);letter-spacing:0.3px;">
+          📥 Download Official PDF Receipt
+        </a>
+        <p style="margin:10px 0 0 0;font-size:11.5px;color:#64748b;">
+          📎 <em>Official PDF receipt is also attached directly to this email.</em>
+        </p>
+      </div>
+
       <p style="font-size:13px;color:#64748b;margin:0 0 20px 0;line-height:1.5;">
         We appreciate having you as our resident at <strong>${pName}</strong>. Wishing you a great day ahead! 🌟
       </p>
@@ -286,7 +306,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `Official Payment Receipt #${receiptNo}\n\nDear ${payload.recipientName},\n\nWe have received and verified your payment of ₹${formattedAmount} for ${pName} (Room ${p.roomNumber || "N/A"}).\n\nDate: ${paidDate}\nPayment Mode: ${payMode}\nReceipt No: #${receiptNo}\nStatus: Verified & Logged in Property Ledger\n\nThank you for being a valued resident!\n${pName} Administration • Powered by TenoPilot.com`;
+      const text = `Official Payment Receipt #${cleanReceiptNo}\n\nDear ${payload.recipientName},\n\nWe have received and verified your payment of ₹${formattedAmount} for ${pName} (Room ${p.roomNumber || "N/A"}).\n\nDate: ${paidDate}\nPayment Mode: ${payMode}\nReceipt No: #${cleanReceiptNo}\nStatus: Verified & Logged in Property Ledger\n\nDownload PDF: ${downloadReceiptUrl}\n\nThank you for being a valued resident!\n${pName} Administration • Powered by TenoPilot.com`;
       return { subject, html, text };
     }
 
@@ -709,6 +729,52 @@ function getSESClient(region?: string, accessKeyId?: string, secretAccessKey?: s
 export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResult> {
   const { subject, html, text } = generateEmailContent(payload);
   const pName = payload.propertyName || "TenoPilot PG";
+  const p = payload.params || {};
+
+  let resolvedAttachments: {
+    name: string;
+    content: string; // Base64
+    mime_type?: string;
+  }[] = payload.attachments ? [...payload.attachments] : [];
+
+  // Automatically generate official PDF attachment for PAYMENT_RECEIPT if not explicitly provided
+  if (payload.type === "PAYMENT_RECEIPT" && resolvedAttachments.length === 0) {
+    try {
+      const rawReceiptNo = p.receiptId || `REC-${Date.now().toString().slice(-6)}`;
+      const cleanReceiptNo = rawReceiptNo.replace(/^#+/, "");
+      const isDeposit = cleanReceiptNo.startsWith("DEP") || (typeof p.customSubject === "string" && p.customSubject.toLowerCase().includes("deposit"));
+      const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const payMode = p.paymentMode || "UPI / Digital Transfer";
+
+      const pdfUint8 = await generateReceiptPdfBuffer({
+        receiptNo: cleanReceiptNo,
+        propertyName: pName,
+        propertyAddress: p.bankLabel || "Verified Student & Professional Accommodation",
+        managerPhone: p.managerPhone || "+91 92066 51295",
+        residentName: payload.recipientName || "Resident",
+        roomNumber: p.roomNumber || "N/A",
+        bedCode: p.bedCode || "Standard Bed",
+        amount: Number(p.amount || 0),
+        paidDate: paidDate,
+        paymentMode: payMode,
+        paidTo: p.bankLabel || "Main Business Pool",
+        month: p.month || p.dueDate || "Current Cycle",
+        isDeposit,
+        isSettlement: false,
+      });
+
+      const base64Pdf = Buffer.from(pdfUint8).toString("base64");
+      const safeFilename = `Receipt_${cleanReceiptNo}_${(payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+
+      resolvedAttachments.push({
+        name: safeFilename,
+        mime_type: "application/pdf",
+        content: base64Pdf,
+      });
+    } catch (genErr) {
+      console.warn("Failed to auto-generate PDF receipt attachment:", genErr);
+    }
+  }
 
   const accessKeyId = payload.customCredentials?.accessKeyId || process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = payload.customCredentials?.secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY;
@@ -770,6 +836,12 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
           subject: subject,
           htmlContent: html,
           textContent: text,
+          attachment: resolvedAttachments.length > 0
+            ? resolvedAttachments.map((att) => ({
+                name: att.name,
+                content: att.content,
+              }))
+            : undefined,
         }),
       });
 
@@ -829,6 +901,13 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
             : undefined,
           subject: subject,
           htmlbody: html,
+          attachments: resolvedAttachments.length > 0
+            ? resolvedAttachments.map((att) => ({
+                name: att.name,
+                mime_type: att.mime_type || "application/pdf",
+                content: att.content,
+              }))
+            : undefined,
         }),
       });
 
