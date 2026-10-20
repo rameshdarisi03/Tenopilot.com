@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useMemo, useEffect } from "react";
+import { use, useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
@@ -67,6 +67,8 @@ import {
   Info,
   MessageSquare,
   Send,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -539,13 +541,25 @@ export default function IndividualTenantProfilePage({
   const [kycFrontUploaded, setKycFrontUploaded] = useState<boolean>(false);
   const [kycBackUploaded, setKycBackUploaded] = useState<boolean>(false);
 
-  // Toast Notification State
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Toast Notification State (Floating High-Visibility Viewport Alert across all devices)
+  const [toastData, setToastData] = useState<{
+    message: string;
+    type?: "success" | "error" | "info";
+    detail?: string;
+  } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const triggerToast = (msg: string, type: "success" | "error" | "info" = "success", detail?: string) => {
+    setToastData({ message: msg, type, detail });
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToastData(null), 4500);
   };
+
+  // Active Dispatch Target for Granular Loading Feedback on Specific Button
+  const [activeDispatchTarget, setActiveDispatchTarget] = useState<{
+    receiptId: string;
+    channel: "WHATSAPP" | "EMAIL";
+  } | null>(null);
 
   const handleRoomTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -693,10 +707,15 @@ export default function IndividualTenantProfilePage({
       return;
     }
 
+    const cleanReceiptNo = receiptItem.receiptNo.replace(/^#+/, "");
+    setActiveDispatchTarget({ receiptId: receiptItem.id, channel: channel === "BOTH" ? "WHATSAPP" : channel });
     setIsDispatchingReceipt(true);
 
     let waSuccess = false;
+    let waError: string | null = null;
     let emailSuccess = false;
+    let emailError: string | null = null;
+    const destEmail = occupantState.email || `${occupantState.phone.replace(/\D/g, "")}@example-tenant.com`;
 
     // 1. WhatsApp Receipt
     if (channel === "WHATSAPP" || channel === "BOTH") {
@@ -716,7 +735,7 @@ export default function IndividualTenantProfilePage({
                 propertyName: displayPropertyName,
                 type: "PAYMENT_RECEIPT",
                 params: {
-                  receiptId: receiptItem.receiptNo,
+                  receiptId: cleanReceiptNo,
                   amount: receiptItem.amount,
                   roomNumber: occupantState.roomNumber,
                   bedCode: occupantState.bedCode,
@@ -727,23 +746,19 @@ export default function IndividualTenantProfilePage({
             ],
           }),
         });
-        if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && (resData.success || resData.successfulCount > 0)) {
           waSuccess = true;
         } else {
-          const errData = await res.json().catch(() => ({}));
-          console.warn("WhatsApp receipt failed:", errData);
-          if (errData?.error) {
-            triggerToast(`⚠️ WhatsApp receipt: ${errData.error}`);
-          }
+          waError = resData?.error || `WhatsApp gateway returned HTTP ${res.status}`;
         }
-      } catch (e) {
-        console.warn("WhatsApp receipt error:", e);
+      } catch (e: any) {
+        waError = e?.message || "Network exception sending WhatsApp receipt";
       }
     }
 
-    // 2. Email Receipt (Brevo Transactional)
+    // 2. Email Receipt (Zoho CPaaS Transactional with Attached PDF)
     if (channel === "EMAIL" || channel === "BOTH") {
-      const destEmail = occupantState.email || `${occupantState.phone.replace(/\D/g, "")}@example-tenant.com`;
       try {
         const res = await fetch("/api/email/send", {
           method: "POST",
@@ -761,7 +776,7 @@ export default function IndividualTenantProfilePage({
                 replyToEmail: profile?.email,
                 type: "PAYMENT_RECEIPT",
                 params: {
-                  receiptId: receiptItem.receiptNo,
+                  receiptId: cleanReceiptNo,
                   amount: receiptItem.amount,
                   rentAmount: receiptItem.rentAmount,
                   depositAmount: receiptItem.depositAmount,
@@ -777,32 +792,69 @@ export default function IndividualTenantProfilePage({
             ],
           }),
         });
-        if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && resData.success) {
           emailSuccess = true;
         } else {
-          const errData = await res.json().catch(() => ({}));
-          console.warn("Email receipt failed:", errData);
-          if (errData?.error) {
-            triggerToast(`⚠️ Email receipt: ${errData.error}`);
-          }
+          emailError = resData?.error || `Email gateway returned HTTP ${res.status}`;
         }
-      } catch (e) {
-        console.warn("Email receipt error:", e);
+      } catch (e: any) {
+        emailError = e?.message || "Network exception sending Email receipt";
       }
     }
 
     setIsDispatchingReceipt(false);
+    setActiveDispatchTarget(null);
 
-    if (!waSuccess && !emailSuccess) {
-      return;
-    }
-
-    if (channel === "BOTH") {
-      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via WhatsApp & Email!`);
-    } else if (channel === "WHATSAPP") {
-      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via WhatsApp!`);
-    } else {
-      triggerToast(`🎉 Receipt #${receiptItem.receiptNo} sent to ${occupantState.name} via Email!`);
+    // Provide immediate, floating, unambiguous feedback across all screen sizes
+    if (channel === "WHATSAPP") {
+      if (waSuccess) {
+        triggerToast(
+          `✓ Official Receipt #${cleanReceiptNo} sent to WhatsApp! 💬`,
+          "success",
+          `Delivered to ${occupantState.name} (+91 ${occupantState.phone})`
+        );
+      } else {
+        triggerToast(
+          `⚠️ WhatsApp Delivery Failed`,
+          "error",
+          waError || `Could not deliver to +91 ${occupantState.phone}. Please check number.`
+        );
+      }
+    } else if (channel === "EMAIL") {
+      if (emailSuccess) {
+        triggerToast(
+          `✓ Official PDF Receipt #${cleanReceiptNo} emailed! ✉️`,
+          "success",
+          `Attached PDF sent to ${destEmail} via Zoho CPaaS`
+        );
+      } else {
+        triggerToast(
+          `⚠️ Email Delivery Failed`,
+          "error",
+          emailError || `Could not send to ${destEmail}. Please verify email address.`
+        );
+      }
+    } else if (channel === "BOTH") {
+      if (waSuccess && emailSuccess) {
+        triggerToast(
+          `✓ Receipt #${cleanReceiptNo} sent via WhatsApp & Email! 🟢`,
+          "success",
+          `Delivered to ${occupantState.phone} and ${destEmail}`
+        );
+      } else if (waSuccess || emailSuccess) {
+        triggerToast(
+          `✓ Partially Sent: ${waSuccess ? "WhatsApp OK" : "Email OK"}`,
+          "info",
+          waSuccess ? `WhatsApp delivered, but Email failed: ${emailError}` : `Email delivered, but WhatsApp failed: ${waError}`
+        );
+      } else {
+        triggerToast(
+          `⚠️ Failed to send receipt via WhatsApp & Email`,
+          "error",
+          `${waError || ""} ${emailError || ""}`.trim()
+        );
+      }
     }
   };
 
@@ -1573,15 +1625,6 @@ export default function IndividualTenantProfilePage({
 
         {/* Profile Content Body */}
         <div className="p-4 md:p-8 space-y-6 flex-1 pb-24">
-          {/* Toast Callout */}
-          {toastMessage && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>{toastMessage}</span>
-              </div>
-            </div>
-          )}
 
           {!occupantState ? (
             <div className="bg-white rounded-3xl border border-[#d7c2b9] p-12 text-center max-w-lg mx-auto space-y-4 shadow-sm">
@@ -2681,44 +2724,66 @@ export default function IndividualTenantProfilePage({
                               </span>
                             </td>
                             <td className="py-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* 1. View / Download PDF */}
                                 <button
                                   type="button"
                                   onClick={() => setSelectedReceiptForModal(item)}
-                                  className="px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all mr-1"
+                                  className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
                                   title="View / Download PDF Receipt"
                                 >
                                   <FileText className="w-3 h-3 text-amber-600" />
                                   <span>PDF</span>
                                 </button>
+
+                                {/* 2. WhatsApp Receipt Button */}
                                 <button
                                   type="button"
                                   onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
                                   disabled={isDispatchingReceipt}
-                                  className="px-1.5 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
-                                  title="Send Receipt via WhatsApp"
+                                  className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                    isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP"
+                                      ? "bg-emerald-100 border-emerald-400 text-emerald-800 ring-2 ring-emerald-300"
+                                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 disabled:opacity-50"
+                                  }`}
+                                  title="Send Official Receipt via WhatsApp"
                                 >
-                                  <MessageSquare className="w-3 h-3 text-emerald-600" />
-                                  <span className="hidden sm:inline">WhatsApp</span>
+                                  {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP" ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 text-emerald-700 animate-spin" />
+                                      <span>Sending...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                      <span className="hidden sm:inline">WhatsApp</span>
+                                    </>
+                                  )}
                                 </button>
+
+                                {/* 3. Email Receipt Button */}
                                 <button
                                   type="button"
                                   onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
                                   disabled={isDispatchingReceipt}
-                                  className="px-1.5 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
-                                  title="Send Receipt via Email"
+                                  className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                    isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL"
+                                      ? "bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-300"
+                                      : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 disabled:opacity-50"
+                                  }`}
+                                  title="Send Official PDF Receipt via Email"
                                 >
-                                  <Mail className="w-3 h-3 text-blue-600" />
-                                  <span className="hidden sm:inline">Email</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => dispatchElectronicReceipt(item, "BOTH")}
-                                  disabled={isDispatchingReceipt}
-                                  className="p-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 cursor-pointer shadow-2xs transition-all disabled:opacity-50"
-                                  title="Send via Both WhatsApp + Email"
-                                >
-                                  <Sparkles className="w-3 h-3 text-purple-600" />
+                                  {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL" ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 text-blue-700 animate-spin" />
+                                      <span>Sending...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Mail className="w-3 h-3 text-blue-600" />
+                                      <span className="hidden sm:inline">Email</span>
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </td>
@@ -5870,6 +5935,62 @@ export default function IndividualTenantProfilePage({
             occupant={occupantState}
             propertySettings={propertySettings}
           />
+        )}
+
+        {/* 🔔 Viewport-Floating Confirmation Banner (Guaranteed Cross-Device Visibility & Zero Cropping) */}
+        {toastData && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] max-w-md w-[92vw] sm:w-auto shadow-2xl rounded-2xl animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto"
+          >
+            <div
+              className={`px-4 py-3.5 rounded-2xl border flex items-center justify-between gap-3 backdrop-blur-md ${
+                toastData.type === "error"
+                  ? "bg-rose-950/95 border-rose-500/80 text-white shadow-rose-950/50"
+                  : toastData.type === "info"
+                  ? "bg-slate-900/95 border-slate-700 text-white shadow-slate-900/50"
+                  : "bg-emerald-950/95 border-emerald-500/80 text-white shadow-emerald-950/50"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    toastData.type === "error"
+                      ? "bg-rose-500/20 text-rose-400"
+                      : toastData.type === "info"
+                      ? "bg-blue-500/20 text-blue-400"
+                      : "bg-emerald-500/20 text-emerald-400"
+                  }`}
+                >
+                  {toastData.type === "error" ? (
+                    <AlertCircle className="w-4 h-4" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-extrabold text-xs tracking-tight text-white leading-tight">
+                    {toastData.message}
+                  </p>
+                  {toastData.detail && (
+                    <p className="text-[11px] text-gray-300 mt-0.5 leading-snug truncate">
+                      {toastData.detail}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setToastData(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors shrink-0 ml-2 cursor-pointer"
+                aria-label="Close notification"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         )}
       </>
     )}
