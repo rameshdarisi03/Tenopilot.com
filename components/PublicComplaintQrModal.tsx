@@ -218,7 +218,7 @@ export function PublicComplaintQrModal({
             {/* The Actual Scaled Poster Component with Photorealistic Interior Background */}
             <div
               ref={posterRef}
-              className="w-full max-w-[390px] aspect-[1/1.414] rounded-none shadow-2xl border-0 p-3 sm:p-4 flex flex-col justify-between relative overflow-hidden text-center select-none bg-[#FAF7F2]"
+              className="w-full max-w-[390px] aspect-[1/1.414] rounded-none shadow-2xl border-0 p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden text-center select-none bg-[#FAF7F2]"
             >
               {/* Background image layer */}
               {bgBase64 ? (
@@ -352,15 +352,10 @@ export function PublicComplaintQrModal({
                 </div>
               </div>
 
-              {/* Bottom Official TenoPilot Enterprise Branding */}
-              <div className="relative z-10 pt-1 pb-0.5 border-t border-orange-300/40 mt-0.5 shrink-0">
-                <div className="flex items-center justify-center gap-1.5 text-[8px] sm:text-[8.5px] font-extrabold tracking-[0.2em] text-[#59473F] uppercase font-sans">
-                  <span>──</span>
-                  <span className="text-[#3D302A]">POWERED BY TENOPILOT</span>
-                  <span>──</span>
-                </div>
-                <p className="text-[6.5px] sm:text-[7px] text-[#59473F] font-bold mt-0.5 tracking-tight">
-                  tenopilot.com • Instant Direct Dispatch to Property Caretaker & Management
+              {/* Bottom Clean Branding */}
+              <div className="relative z-10 pt-1.5 pb-1 shrink-0 text-center">
+                <p className="text-[9px] sm:text-[10px] font-extrabold tracking-[0.16em] uppercase text-[#4A3B33] font-sans">
+                  Powered by Tenopilot.com
                 </p>
               </div>
             </div>

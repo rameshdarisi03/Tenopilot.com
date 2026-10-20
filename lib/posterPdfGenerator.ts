@@ -229,23 +229,8 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     color: textMuted,
   });
 
-  // 9. Footer Divider & Branding
-  page.drawLine({
-    start: { x: 70, y: 190 },
-    end: { x: width - 70, y: 190 },
-    thickness: 0.8,
-    color: rgb(0.85, 0.72, 0.65),
-    opacity: 0.5,
-  });
-
-  drawCenteredText("-- POWERED BY TENOPILOT --", 168, 8, fontBold, headerDark);
-  drawCenteredText(
-    "tenopilot.com * Instant Direct Dispatch to Property Caretaker & Management",
-    154,
-    7.2,
-    fontBold,
-    textMuted
-  );
+  // 9. Footer Branding
+  drawCenteredText("Powered by Tenopilot.com", 185, 9, fontBold, headerDark);
 
   return await pdfDoc.save();
 }
