@@ -193,6 +193,7 @@ export default function ApexCommandClientsPage() {
   const [planDurationDays, setPlanDurationDays] = useState<number>(30);
   const [paymentModeSelection, setPaymentModeSelection] = useState<"UPI" | "Cash" | "Bank Transfer" | "VIP Pass">("UPI");
   const [planAmount, setPlanAmount] = useState<number>(999);
+  const [discountPercentage, setDiscountPercentage] = useState<number>(0);
   const [receiptTag, setReceiptTag] = useState<string>("");
   const [receiptProofUrl, setReceiptProofUrl] = useState<string>("");
   const [internalNotes, setInternalNotes] = useState<string>("");
@@ -603,6 +604,7 @@ export default function ApexCommandClientsPage() {
           durationDays: Number(planDurationDays),
           paymentMode: paymentModeSelection,
           amountPaid: paymentModeSelection === "VIP Pass" ? 0 : Number(planAmount),
+          discountPercentage: Number(discountPercentage) || 0,
           receiptNumber: receiptTag || `REC-${Date.now().toString().slice(-6)}`,
           receiptUrl: receiptProofUrl,
           notes: internalNotes,
@@ -1746,16 +1748,53 @@ export default function ApexCommandClientsPage() {
                     </select>
                   </div>
 
-                  {/* Amount Paid */}
-                  <div className="space-y-1">
-                    <label className="block font-bold text-gray-300">Amount Paid (₹)</label>
-                    <input
-                      type="number"
-                      value={planAmount}
-                      onChange={(e) => setPlanAmount(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-white/10 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500"
-                    />
+                  {/* Amount Paid & Discount */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1">
+                      <label className="block font-bold text-gray-300">Base / Amount Paid (₹) *</label>
+                      <input
+                        type="number"
+                        value={planAmount}
+                        onChange={(e) => setPlanAmount(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-white/10 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="block font-bold text-gray-300">Special Discount (%)</label>
+                        {discountPercentage > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-400">
+                            Save ₹{Math.round((planAmount * discountPercentage) / 100).toLocaleString("en-IN")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={discountPercentage}
+                          onChange={(e) => setDiscountPercentage(Math.min(100, Math.max(0, Number(e.target.value))))}
+                          placeholder="e.g. 10 or 20"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-white/10 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500 pr-8"
+                        />
+                        <span className="absolute right-3 top-2.5 text-xs text-gray-400 font-bold">%</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Net Payable Preview Pill */}
+                  {discountPercentage > 0 && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
+                      <span className="text-gray-300">
+                        Net Billed on Invoice: <span className="line-through text-gray-500">₹{planAmount.toLocaleString("en-IN")}</span>
+                      </span>
+                      <span className="font-mono font-extrabold text-amber-300 text-sm">
+                        ₹{Math.max(0, Math.round(planAmount - (planAmount * discountPercentage) / 100)).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Receipt / UTR Tag */}
                   <div className="space-y-1">

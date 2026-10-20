@@ -22,6 +22,8 @@ export interface SubscriptionInvoiceData {
     rate: string;
   }>;
   subtotal?: number;
+  discountPercentage?: number;
+  discountAmount?: number;
   cgst?: number;
   sgst?: number;
   totalAmount?: number;
@@ -316,34 +318,48 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
   // 6. Summary & Totals Block
   const sumY = currentY - 20;
   const subtotal = data.subtotal || 11489;
-  const cgst = data.cgst || (subtotal * 0.09);
-  const sgst = data.sgst || (subtotal * 0.09);
-  const totalAmount = data.totalAmount || (subtotal + cgst + sgst);
+  const discountPct = data.discountPercentage || 0;
+  const discountAmt = data.discountAmount || (discountPct > 0 ? (subtotal * discountPct) / 100 : 0);
+  const taxableAmount = Math.max(0, subtotal - discountAmt);
+  const cgst = data.cgst !== undefined ? data.cgst : (taxableAmount * 0.09);
+  const sgst = data.sgst !== undefined ? data.sgst : (taxableAmount * 0.09);
+  const totalAmount = data.totalAmount || (taxableAmount + cgst + sgst);
 
-  page.drawText("Subtotal:", { x: 360, y: sumY, size: 9, font: fontManropeSemiBold, color: cMuted });
-  page.drawText(`INR ${subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY, size: 9, font: fontManropeBold, color: cEspresso });
+  let currentSummaryY = sumY;
 
-  page.drawText("CGST (9.0%):", { x: 360, y: sumY - 16, size: 9, font: fontManropeSemiBold, color: cMuted });
-  page.drawText(`INR ${cgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY - 16, size: 9, font: fontManropeSemiBold, color: cCharcoal });
+  page.drawText("Subtotal:", { x: 340, y: currentSummaryY, size: 9, font: fontManropeSemiBold, color: cMuted });
+  page.drawText(`INR ${subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: currentSummaryY, size: 9, font: fontManropeBold, color: cEspresso });
 
-  page.drawText("SGST (9.0%):", { x: 360, y: sumY - 32, size: 9, font: fontManropeSemiBold, color: cMuted });
-  page.drawText(`INR ${sgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: sumY - 32, size: 9, font: fontManropeSemiBold, color: cCharcoal });
+  if (discountPct > 0 || discountAmt > 0) {
+    currentSummaryY -= 16;
+    const discountLabel = discountPct > 0 ? `Discount (${discountPct}%):` : "Discount:";
+    page.drawText(discountLabel, { x: 340, y: currentSummaryY, size: 9, font: fontManropeSemiBold, color: rgb(0.75, 0.15, 0.15) });
+    page.drawText(`-INR ${discountAmt.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: currentSummaryY, size: 9, font: fontManropeBold, color: rgb(0.75, 0.15, 0.15) });
+  }
+
+  currentSummaryY -= 16;
+  page.drawText("CGST (9.0%):", { x: 340, y: currentSummaryY, size: 9, font: fontManropeSemiBold, color: cMuted });
+  page.drawText(`INR ${cgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: currentSummaryY, size: 9, font: fontManropeSemiBold, color: cCharcoal });
+
+  currentSummaryY -= 16;
+  page.drawText("SGST (9.0%):", { x: 340, y: currentSummaryY, size: 9, font: fontManropeSemiBold, color: cMuted });
+  page.drawText(`INR ${sgst.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 470, y: currentSummaryY, size: 9, font: fontManropeSemiBold, color: cCharcoal });
 
   // Total Box
   page.drawRectangle({
     x: 340,
-    y: sumY - 72,
+    y: currentSummaryY - 40,
     width: width - 45 - 340,
     height: 32,
     color: cTerracotta,
   });
 
-  page.drawText("TOTAL AMOUNT PAID:", { x: 350, y: sumY - 54, size: 8.5, font: fontManropeBold, color: cWhite });
-  page.drawText(`INR ${totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 462, y: sumY - 54, size: 11.5, font: fontPlayfairBold, color: cWhite });
+  page.drawText("TOTAL AMOUNT PAID:", { x: 350, y: currentSummaryY - 22, size: 8.5, font: fontManropeBold, color: cWhite });
+  page.drawText(`INR ${totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { x: 462, y: currentSummaryY - 22, size: 11.5, font: fontPlayfairBold, color: cWhite });
 
   // Amount in Words
   page.drawText("AMOUNT IN WORDS:", { x: 45, y: sumY, size: 8, font: fontManropeBold, color: cTerracottaDark });
-  page.drawText(data.amountInWords || "Thirteen Thousand Five Hundred Fifty Seven Indian Rupees Only", {
+  page.drawText(data.amountInWords || "Tax Invoice Amount Paid in Full (Indian Rupees)", {
     x: 45,
     y: sumY - 15,
     size: 9.5,
@@ -352,7 +368,7 @@ export async function generateSubscriptionInvoicePdfBuffer(data: SubscriptionInv
   });
 
   // 7. Security & Official Verification Seal Block
-  const sealY = sumY - 146;
+  const sealY = currentSummaryY - 114;
   page.drawRectangle({
     x: 45,
     y: sealY,

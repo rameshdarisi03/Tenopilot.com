@@ -15,24 +15,37 @@ export async function GET(req: NextRequest) {
     const validityPeriod = searchParams.get("validityPeriod") || "Annual Flight Deck";
     const invoiceDate = searchParams.get("invoiceDate") || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
     const isInclusive = searchParams.get("inclusive") !== "false";
+    const discountPct = parseFloat(searchParams.get("discount") || searchParams.get("discountPercentage") || "0") || 0;
     const rawAmount = parseFloat(searchParams.get("totalAmount") || searchParams.get("amount") || "11489");
     const parsedAmount = !isNaN(rawAmount) && rawAmount > 0 ? rawAmount : 11489;
 
     let subtotal: number;
+    let discountAmount: number = 0;
+    let taxableAmount: number;
     let cgst: number;
     let sgst: number;
     let totalAmount: number;
 
     if (isInclusive) {
       totalAmount = parsedAmount;
-      subtotal = Math.round((totalAmount / 1.18) * 100) / 100;
-      cgst = Math.round(((totalAmount - subtotal) / 2) * 100) / 100;
-      sgst = Math.round((totalAmount - subtotal - cgst) * 100) / 100;
+      // Taxable amount before GST
+      taxableAmount = Math.round((totalAmount / 1.18) * 100) / 100;
+      if (discountPct > 0 && discountPct < 100) {
+        // Original subtotal before discount
+        subtotal = Math.round((taxableAmount / (1 - discountPct / 100)) * 100) / 100;
+        discountAmount = Math.round((subtotal - taxableAmount) * 100) / 100;
+      } else {
+        subtotal = taxableAmount;
+      }
+      cgst = Math.round(((totalAmount - taxableAmount) / 2) * 100) / 100;
+      sgst = Math.round((totalAmount - taxableAmount - cgst) * 100) / 100;
     } else {
       subtotal = parsedAmount;
-      cgst = Math.round(subtotal * 0.09 * 100) / 100;
-      sgst = Math.round(subtotal * 0.09 * 100) / 100;
-      totalAmount = Math.round((subtotal + cgst + sgst) * 100) / 100;
+      discountAmount = discountPct > 0 ? Math.round(((subtotal * discountPct) / 100) * 100) / 100 : 0;
+      taxableAmount = Math.max(0, subtotal - discountAmount);
+      cgst = Math.round(taxableAmount * 0.09 * 100) / 100;
+      sgst = Math.round(taxableAmount * 0.09 * 100) / 100;
+      totalAmount = Math.round((taxableAmount + cgst + sgst) * 100) / 100;
     }
 
     const pdfBuffer = await generateSubscriptionInvoicePdfBuffer({
@@ -46,6 +59,8 @@ export async function GET(req: NextRequest) {
       ownerEmail,
       ownerPhone,
       subtotal,
+      discountPercentage: discountPct > 0 ? discountPct : undefined,
+      discountAmount: discountAmount > 0 ? discountAmount : undefined,
       cgst,
       sgst,
       totalAmount,

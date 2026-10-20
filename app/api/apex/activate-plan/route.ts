@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       durationDays = 30,
       paymentMode = "UPI",
       amountPaid = 999,
+      discountPercentage = 0,
       receiptNumber = "",
       receiptUrl = "",
       notes = "",
@@ -368,7 +369,7 @@ export async function POST(req: NextRequest) {
         const invoiceNumber = receiptNumber || `INV-${Date.now().toString().slice(-6)}`;
         const origin = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
         const validityPeriodStr = `${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} - ${new Date(expiryIso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
-        const invoicePdfUrl = `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNumber)}&ownerName=${encodeURIComponent(customerName)}&propertyName=${encodeURIComponent(customerPropName)}&ownerEmail=${encodeURIComponent(cleanEmail)}&ownerPhone=${encodeURIComponent(customerPhone)}&planName=${encodeURIComponent(resolvedPlan)}&amount=${amountPaid}&validityPeriod=${encodeURIComponent(validityPeriodStr)}`;
+        const invoicePdfUrl = `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNumber)}&ownerName=${encodeURIComponent(customerName)}&propertyName=${encodeURIComponent(customerPropName)}&ownerEmail=${encodeURIComponent(cleanEmail)}&ownerPhone=${encodeURIComponent(customerPhone)}&planName=${encodeURIComponent(resolvedPlan)}&amount=${amountPaid}${Number(discountPercentage) > 0 ? `&discount=${encodeURIComponent(String(discountPercentage))}` : ""}&validityPeriod=${encodeURIComponent(validityPeriodStr)}`;
 
         // Dispatch Email Invoice
         if (cleanEmail && cleanEmail.includes("@")) {
