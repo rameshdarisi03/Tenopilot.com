@@ -14,7 +14,8 @@ import {
   FileText,
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import html2canvas from "html2canvas";
+import { toPng, toBlob } from "html-to-image";
+import { jsPDF } from "jspdf";
 
 interface PublicComplaintQrModalProps {
   isOpen: boolean;
@@ -121,60 +122,82 @@ export function PublicComplaintQrModal({
     }, 2000);
   };
 
-  // 1-Click Server-Side A4 PDF Download (Eliminates mobile edge device CPU/memory crashes)
-  const handleDownloadPdf = () => {
+  // 1-Click High-Resolution A4 PDF Poster Download (Direct 1:1 replica of the live preview)
+  const handleDownloadPdf = async () => {
+    const el = posterRef.current;
+    if (!el) return;
     setIsGeneratingPdf(true);
+
     try {
-      const downloadUrl = `/api/complaints/poster/pdf?propertyId=${encodeURIComponent(propertyId)}&propertyName=${encodeURIComponent(realPgName)}`;
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.setAttribute("download", `${cleanPgName}_Resident_Care_Poster_A4.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        setIsGeneratingPdf(false);
-      }, 1200);
+      // Capture the exact preview element at 300+ DPI sharpness
+      const dataUrl = await toPng(el, {
+        pixelRatio: 3,
+        cacheBust: true,
+      });
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      // Fit standard A4 dimensions (210mm x 297mm)
+      pdf.addImage(dataUrl, "PNG", 0, 0, 210, 297, undefined, "FAST");
+      
+      const pdfBlob = pdf.output("blob");
+      triggerBlobDownload(pdfBlob, `${cleanPgName}_Resident_Care_Poster_A4.pdf`);
     } catch (err: any) {
-      console.error("Error initiating poster PDF download:", err);
-      // Native browser fallback
-      window.open(`/api/complaints/poster/pdf?propertyId=${encodeURIComponent(propertyId)}&propertyName=${encodeURIComponent(realPgName)}`, "_blank");
+      console.error("Error generating poster PDF:", err);
+      try {
+        const dataUrl = await toPng(el, { pixelRatio: 2 });
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        pdf.addImage(dataUrl, "PNG", 0, 0, 210, 297);
+        pdf.save(`${cleanPgName}_Resident_Care_Poster_A4.pdf`);
+      } catch (fallbackErr) {
+        alert("Notice: Could not generate PDF. Please try downloading as PNG.");
+      }
+    } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // High-Resolution PNG Poster Download (Direct from visible modal canvas)
+  // 1-Click High-Resolution PNG Poster Download (Direct 1:1 replica of the live preview)
   const handleDownloadPng = async () => {
     const el = posterRef.current;
     if (!el) return;
     setIsGeneratingPng(true);
 
     try {
-      const canvas = await (html2canvas as any)(el, {
-        scale: 2.5,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#FAF7F2",
-        logging: false,
+      const blob = await toBlob(el, {
+        pixelRatio: 3,
+        cacheBust: true,
       });
-      
-      canvas.toBlob((blob: Blob | null) => {
-        if (blob) {
-          triggerBlobDownload(blob, `${cleanPgName}_Resident_Care_Poster.png`);
-        } else {
-          // Fallback to dataURL if toBlob returned null
-          const dataUrl = canvas.toDataURL("image/png");
-          const link = document.createElement("a");
-          link.href = dataUrl;
-          link.download = `${cleanPgName}_Resident_Care_Poster.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-        setIsGeneratingPng(false);
-      }, "image/png");
+
+      if (blob) {
+        triggerBlobDownload(blob, `${cleanPgName}_Resident_Care_Poster.png`);
+      } else {
+        const dataUrl = await toPng(el, { pixelRatio: 3 });
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `${cleanPgName}_Resident_Care_Poster.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (err: any) {
       console.error("Error generating poster PNG:", err);
+      try {
+        const dataUrl = await toPng(el, { pixelRatio: 2 });
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `${cleanPgName}_Resident_Care_Poster.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (fallbackErr) {
+        alert("Notice: Could not generate image. Please take a screenshot of the preview.");
+      }
+    } finally {
       setIsGeneratingPng(false);
     }
   };
