@@ -787,7 +787,7 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
   const senderName = payload.customCredentials?.senderName || `${pName} via TenoPilot`;
   const formattedSource = `"${senderName.replace(/"/g, '')}" <${senderEmail}>`;
 
-  const activeGateway = (process.env.ACTIVE_EMAIL_GATEWAY || "BREVO").toUpperCase();
+  const activeGateway = (process.env.ACTIVE_EMAIL_GATEWAY || "ZOHO").toUpperCase();
 
   // Brevo API credentials
   const brevoApiKey =
@@ -983,15 +983,15 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
   };
 
   // Multi-Gateway Routing Pipeline:
-  // 1. If ACTIVE_EMAIL_GATEWAY === "BREVO": Brevo -> Zoho -> AWS SES
-  // 2. If ACTIVE_EMAIL_GATEWAY === "ZOHO": Zoho -> Brevo -> AWS SES
-  // 3. Otherwise: AWS SES -> Brevo -> Zoho
+  // 1. If ACTIVE_EMAIL_GATEWAY === "ZOHO" (Default): Zoho CPaaS -> Brevo -> AWS SES
+  // 2. If ACTIVE_EMAIL_GATEWAY === "BREVO": Brevo -> Zoho CPaaS -> AWS SES
+  // 3. If ACTIVE_EMAIL_GATEWAY === "AWS_SES": AWS SES -> Zoho CPaaS -> Brevo
   const primaryResult =
     activeGateway === "BREVO"
       ? await executeBrevoDispatch()
-      : activeGateway === "ZOHO"
-      ? await executeZohoDispatch()
-      : await executeAwsSesDispatch();
+      : activeGateway === "AWS_SES"
+      ? await executeAwsSesDispatch()
+      : await executeZohoDispatch();
 
   if (primaryResult) {
     return primaryResult;
@@ -1008,7 +1008,10 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
   }
 
   // Automatic Failover 2 (AWS SES):
-  const tertiaryResult = await executeAwsSesDispatch();
+  const tertiaryResult =
+    activeGateway === "AWS_SES"
+      ? await executeZohoDispatch()
+      : await executeAwsSesDispatch();
   if (tertiaryResult) {
     return { ...tertiaryResult, fallbackUsed: true };
   }
