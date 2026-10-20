@@ -7,7 +7,6 @@ import {
   Check,
   ExternalLink,
   X,
-  Clock,
   Camera,
   Smartphone,
   ClipboardCheck,
@@ -289,68 +288,57 @@ export function PublicComplaintQrModal({
                 </div>
               </div>
 
-              {/* 3-Step Instruction Sequence (Packed in central sunlight zone with frosted card for 100% readability) */}
+              {/* 3-Step Instruction Sequence (Glassmorphic card with 65% opacity and straight horizontal alignment) */}
               <div className="relative z-10 my-1 shrink-0 flex justify-center">
-                <div className="bg-white/85 border border-orange-200/70 shadow-xs px-2.5 py-1.5 rounded-2xl max-w-[285px] w-full">
-                  <div className="flex items-center justify-between gap-1">
+                <div className="bg-white/65 backdrop-blur-md border border-orange-200/60 shadow-xs px-3 py-2 rounded-2xl max-w-[300px] w-full">
+                  <div className="flex items-start justify-between gap-1">
                     {/* Step 1 */}
-                    <div className="flex flex-col items-center flex-1">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                    <div className="flex flex-col items-center flex-1 min-w-0">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1 shrink-0">
                         <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
                         <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                           1
                         </span>
                       </div>
-                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[22px] flex items-start justify-center">
                         Scan with Phone Camera
                       </span>
                     </div>
 
-                    <span className="text-orange-500 font-black text-xs pb-2">›</span>
+                    <div className="flex items-center justify-center h-6 sm:h-7 shrink-0 text-orange-500 font-black text-xs">
+                      ›
+                    </div>
 
                     {/* Step 2 */}
-                    <div className="flex flex-col items-center flex-1">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                    <div className="flex flex-col items-center flex-1 min-w-0">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1 shrink-0">
                         <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
                         <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                           2
                         </span>
                       </div>
-                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[22px] flex items-start justify-center">
                         Enter Mobile Number
                       </span>
                     </div>
 
-                    <span className="text-orange-500 font-black text-xs pb-2">›</span>
+                    <div className="flex items-center justify-center h-6 sm:h-7 shrink-0 text-orange-500 font-black text-xs">
+                      ›
+                    </div>
 
                     {/* Step 3 */}
-                    <div className="flex flex-col items-center flex-1">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                    <div className="flex flex-col items-center flex-1 min-w-0">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1 shrink-0">
                         <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
                         <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                           3
                         </span>
                       </div>
-                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[22px] flex items-start justify-center">
                         Submit Your Issue
                       </span>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* SLA Service Commitment Box */}
-              <div className="relative z-10 my-0.5 bg-white/95 border border-orange-200/80 p-2 rounded-xl text-left flex items-center gap-2 shadow-xs shrink-0">
-                <div className="w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
-                  <Clock className="w-3 h-3 text-[#C25E2E]" />
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-[8.5px] sm:text-[9px] font-extrabold text-[#1F1714]">
-                    Fast • Simple • Direct Resolution
-                  </p>
-                  <p className="text-[7px] sm:text-[7.5px] text-[#6B5A51] leading-tight">
-                    Your complaint goes directly to the property caretaker and management team.
-                  </p>
                 </div>
               </div>
 

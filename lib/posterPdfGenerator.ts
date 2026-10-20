@@ -135,10 +135,26 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     height: qrInnerSize,
   });
 
-  // 7. 3-Step Instruction Sequence
-  const stepY = 325;
-  const stepColWidth = 140;
-  const stepSpacing = (width - 3 * stepColWidth) / 4;
+  // 7. 3-Step Instruction Sequence (Glassmorphic card with 65% opacity)
+  const stepY = 280;
+  const stepBoxWidth = 470;
+  const stepBoxHeight = 64;
+  const stepBoxX = (width - stepBoxWidth) / 2;
+  const stepBoxY = stepY - 20;
+
+  page.drawRectangle({
+    x: stepBoxX,
+    y: stepBoxY,
+    width: stepBoxWidth,
+    height: stepBoxHeight,
+    color: white,
+    opacity: 0.65,
+    borderColor: rgb(0.93, 0.82, 0.74),
+    borderWidth: 1,
+  });
+
+  const stepColWidth = 130;
+  const stepSpacing = (stepBoxWidth - 3 * stepColWidth) / 4;
 
   const steps = [
     { num: "1", label: "Scan with Phone Camera" },
@@ -147,12 +163,12 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
   ];
 
   steps.forEach((step, i) => {
-    const x = stepSpacing + i * (stepColWidth + stepSpacing) + stepColWidth / 2;
+    const x = stepBoxX + stepSpacing + i * (stepColWidth + stepSpacing) + stepColWidth / 2;
 
     // Circle icon backdrop
     page.drawCircle({
       x,
-      y: stepY + 15,
+      y: stepY + 16,
       size: 14,
       color: white,
       borderColor: rgb(0.93, 0.82, 0.74),
@@ -162,14 +178,14 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     // Step Number Badge
     page.drawCircle({
       x: x - 10,
-      y: stepY + 23,
+      y: stepY + 24,
       size: 6,
       color: terracotta,
     });
     const numWidth = fontBold.widthOfTextAtSize(step.num, 7);
     page.drawText(step.num, {
       x: x - 10 - numWidth / 2,
-      y: stepY + 20.5,
+      y: stepY + 21.5,
       size: 7,
       font: fontBold,
       color: white,
@@ -189,7 +205,7 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     if (i < 2) {
       page.drawText(">", {
         x: x + stepColWidth / 2 + stepSpacing / 2 - 4,
-        y: stepY + 11,
+        y: stepY + 12,
         size: 13,
         font: fontBold,
         color: terracotta,
@@ -197,40 +213,8 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     }
   });
 
-  // 8. SLA Service Commitment Box
-  const slaBoxWidth = 440;
-  const slaBoxHeight = 44;
-  const slaX = (width - slaBoxWidth) / 2;
-  const slaY = 240;
-
-  page.drawRectangle({
-    x: slaX,
-    y: slaY,
-    width: slaBoxWidth,
-    height: slaBoxHeight,
-    color: white,
-    opacity: 0.95,
-    borderColor: rgb(0.93, 0.82, 0.74),
-    borderWidth: 1,
-  });
-
-  page.drawText("Fast * Simple * Direct Resolution", {
-    x: slaX + 20,
-    y: slaY + 24,
-    size: 9.5,
-    font: fontBold,
-    color: darkBrown,
-  });
-  page.drawText("Your complaint goes directly to the property caretaker and management team.", {
-    x: slaX + 20,
-    y: slaY + 11,
-    size: 8,
-    font: fontRegular,
-    color: textMuted,
-  });
-
-  // 9. Footer Branding
-  drawCenteredText("Powered by Tenopilot.com", 185, 9, fontBold, headerDark);
+  // 8. Footer Branding
+  drawCenteredText("Powered by Tenopilot.com", 200, 9, fontBold, headerDark);
 
   return await pdfDoc.save();
 }
