@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
   try {
     const scannedAccounts: ScannedAccountRecord[] = [];
     const processedEmails = new Set<string>();
+    const processedPhones = new Set<string>();
 
     // 1. Fetch Portfolio Properties to map properties by ownerEmail / organizationId
     const ownerPropertiesMap = new Map<string, { names: string[]; totalBeds: number; city: string; ids: string[] }>();
@@ -135,12 +136,27 @@ export async function GET(req: NextRequest) {
     // 5. Scan Users Collection in Cloud Firestore
     try {
       const usersSnap = await getDocs(collection(db, "users"));
-      for (const d of usersSnap.docs) {
+
+      // 🛡️ Sort user documents so the most authoritative / Active Pro / latest expiry profile is processed first
+      const sortedUserDocs = [...usersSnap.docs].sort((a, b) => {
+        const aData = a.data() as any;
+        const bData = b.data() as any;
+        const aPro = aData.subscriptionStatus === "ACTIVE_PRO" || aData.plan?.startsWith("PRO_") || aData.plan === "VIP_PASS";
+        const bPro = bData.subscriptionStatus === "ACTIVE_PRO" || bData.plan?.startsWith("PRO_") || bData.plan === "VIP_PASS";
+        if (aPro && !bPro) return -1;
+        if (!aPro && bPro) return 1;
+        const aExpiry = aData.planExpiresAt ? new Date(aData.planExpiresAt).getTime() : 0;
+        const bExpiry = bData.planExpiresAt ? new Date(bData.planExpiresAt).getTime() : 0;
+        return bExpiry - aExpiry;
+      });
+
+      for (const d of sortedUserDocs) {
         const data = { id: d.id, ...d.data() } as any;
         const email = (data.email || "").toLowerCase().trim();
+        const phone = (data.phone || "").replace(/\D/g, "").slice(-10);
 
         // Skip non-user internal doc patterns
-        if (d.id.startsWith("portfolio_") || !email) {
+        if (d.id.startsWith("portfolio_") || (!email && !phone)) {
           continue;
         }
 
@@ -149,20 +165,30 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        const vipInvite = vipInvitesMap.get(email);
-        const founderClient = founderClientsMap.get(email);
+        // 🛡️ DEDUPLICATION SSOT: Ensure each customer appears as EXACTLY ONE card in founder portal
+        // (Prevents duplicate cards when owner signs in via both Google OAuth and Phone OTP)
+        if (email && processedEmails.has(email)) {
+          continue;
+        }
+        if (phone && processedPhones.has(phone)) {
+          continue;
+        }
+
+        const vipInvite = (email && vipInvitesMap.get(email)) || null;
+        const founderClient = (email && founderClientsMap.get(email)) || null;
         const orgId = data.organizationId || "";
-        const mappedProps = ownerPropertiesMap.get(email) || (orgId ? ownerPropertiesMap.get(orgId) : null);
+        const mappedProps = (email && ownerPropertiesMap.get(email)) || (orgId ? ownerPropertiesMap.get(orgId) : null);
 
         // Exclude internal staff accounts
-        const isStaff = staffAccountsSet.has(email) || data.role === "admin" || data.role === "receptionist";
+        const isStaff = (email && staffAccountsSet.has(email)) || data.role === "admin" || data.role === "receptionist";
         const isMasterAdmin = data.role === "master_admin" || Boolean(vipInvite) || Boolean(founderClient) || Boolean(mappedProps);
 
         if (isStaff && !isMasterAdmin) {
           continue;
         }
 
-        processedEmails.add(email);
+        if (email) processedEmails.add(email);
+        if (phone) processedPhones.add(phone);
 
         const propIds: string[] = [];
         if (data.assignedPropertyId) propIds.push(data.assignedPropertyId);
@@ -172,7 +198,7 @@ export async function GET(req: NextRequest) {
           });
         }
         if (mappedProps) {
-          mappedProps.ids.forEach((id) => {
+          mappedProps.ids.forEach((id: string) => {
             if (!propIds.includes(id)) propIds.push(id);
           });
         }

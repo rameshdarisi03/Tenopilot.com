@@ -273,9 +273,24 @@ export default function ApexCommandClientsPage() {
     try {
       const usersSnap = await getDocs(collection(db, "users"));
       const fallbackList: ScannedAccountRecord[] = [];
-      usersSnap.docs.forEach((d) => {
+      const seenEmails = new Set<string>();
+      const seenPhones = new Set<string>();
+
+      const sortedDocs = [...usersSnap.docs].sort((a, b) => {
+        const aData = a.data() as any;
+        const bData = b.data() as any;
+        const aPro = aData.subscriptionStatus === "ACTIVE_PRO" || aData.plan?.startsWith("PRO_") || aData.plan === "VIP_PASS";
+        const bPro = bData.subscriptionStatus === "ACTIVE_PRO" || bData.plan?.startsWith("PRO_") || bData.plan === "VIP_PASS";
+        if (aPro && !bPro) return -1;
+        if (!aPro && bPro) return 1;
+        return 0;
+      });
+
+      sortedDocs.forEach((d) => {
         const data = { id: d.id, ...d.data() } as any;
         const email = (data.email || "").toLowerCase().trim();
+        const phone = (data.phone || "").replace(/\D/g, "").slice(-10);
+
         // Skip users who have not completed onboarding yet
         if (data.onboardingCompleted !== true) {
           return;
@@ -285,6 +300,12 @@ export default function ApexCommandClientsPage() {
         if ((data.role === "admin" || data.role === "receptionist") && data.role !== "master_admin") {
           return;
         }
+
+        // Deduplicate customer accounts across Google & Phone logins
+        if (email && seenEmails.has(email)) return;
+        if (phone && seenPhones.has(phone)) return;
+        if (email) seenEmails.add(email);
+        if (phone) seenPhones.add(phone);
 
         const sub = evaluateSubscription({
           ...data,
