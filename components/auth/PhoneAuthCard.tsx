@@ -246,21 +246,22 @@ export function PhoneAuthCard({
         verifyData.existingProfile?.email
       );
 
-      // Save local session
+      // Save local session (Trusted Device Persistence)
       if (typeof window !== "undefined") {
         const realEmail =
           authResult.profile.email && !authResult.profile.email.startsWith("phone_")
             ? authResult.profile.email
             : verifyData.existingProfile?.email || "";
+        const fallbackPhoneEmail = `phone_${verifyData.phone.replace(/\D/g, "").slice(-10)}@auth.tenopilot.com`;
         const sessionPayload = {
-          email: realEmail,
-          name: authResult.profile.displayName || verifyData.existingProfile?.displayName || "",
-          role: authResult.profile.role,
+          email: realEmail || authResult.profile.email || verifyData.authEmail || fallbackPhoneEmail,
+          name: authResult.profile.displayName || verifyData.existingProfile?.displayName || authResult.profile.propertyName || "Property Owner",
+          role: authResult.profile.role || "master_admin",
           assignedPropertyId: authResult.profile.assignedPropertyId || verifyData.existingProfile?.assignedPropertyId || "",
-          propertyName: authResult.profile.propertyName || verifyData.existingProfile?.propertyName || "",
+          propertyName: authResult.profile.propertyName || verifyData.existingProfile?.propertyName || "My Property",
           phone: verifyData.phone,
           securityPin: authResult.profile.securityPin || verifyData.existingProfile?.securityPin || "",
-          hasSetPin: authResult.profile.hasSetPin || Boolean(verifyData.existingProfile?.securityPin),
+          hasSetPin: Boolean(authResult.profile.hasSetPin || authResult.profile.securityPin || verifyData.existingProfile?.securityPin),
         };
         localStorage.setItem("tenopilot_saved_session", JSON.stringify(sessionPayload));
       }

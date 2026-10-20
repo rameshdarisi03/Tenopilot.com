@@ -399,15 +399,38 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
         organizationId: staffAccountDoc?.orgId || existingUserDoc?.organizationId || `org_${user.uid}`,
         role: resolvedRole,
         assignedPropertyId: resolvedProp,
-        propertyName: staffAccountDoc?.propertyName || existingUserDoc?.propertyName || "",
+        propertyName: staffAccountDoc?.propertyName || existingUserDoc?.propertyName || existingUserDoc?.pgName || "",
+        primaryPropertyName: existingUserDoc?.primaryPropertyName || existingUserDoc?.propertyName || "",
         onboardingCompleted: true,
         hasSetPin: hasPin,
         securityPin: resolvedPin,
         plan: existingUserDoc?.plan || "10_DAY_TRIAL",
+        subscriptionPlan: existingUserDoc?.subscriptionPlan || (existingUserDoc?.plan?.startsWith("PRO_") ? "pro" : "trial"),
         subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
+        planExpiresAt: existingUserDoc?.planExpiresAt,
+        trialEndsAtMs: existingUserDoc?.trialEndsAtMs || null,
+        createdAt: existingUserDoc?.createdAt,
+        tenantExtensionPacks: existingUserDoc?.tenantExtensionPacks || 0,
+        maxPropertiesAllowed: existingUserDoc?.maxPropertiesAllowed || 1,
+        primaryUid: existingUserDoc?.primaryUid || user.uid,
+        isStaff: Boolean(isStaff || existingUserDoc?.isStaff),
       };
 
       await setDoc(userDocRef, profile, { merge: true });
+
+      if (typeof window !== "undefined") {
+        const sessionPayload = {
+          email: email,
+          name: resolvedName,
+          role: resolvedRole,
+          propertyName: profile.propertyName || "",
+          assignedPropertyId: resolvedProp,
+          securityPin: resolvedPin,
+          hasSetPin: hasPin,
+          phone: existingUserDoc?.phone || "",
+        };
+        localStorage.setItem("tenopilot_saved_session", JSON.stringify(sessionPayload));
+      }
 
       return {
         user,
@@ -435,15 +458,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       await deleteDoc(doc(db, "purged_accounts", email));
     } catch {}
 
-    try {
-      const staleQ = query(collection(db, "users"), where("email", "==", email));
-      const staleSnap = await getDocs(staleQ);
-      for (const sDoc of staleSnap.docs) {
-        if (sDoc.id !== user.uid) {
-          await deleteDoc(doc(db, "users", sDoc.id));
-        }
-      }
-    } catch {}
+// Preserved linked documents across auth providers
 
     // 3. Initialize fresh onboarding profile in Firestore
     const nowIso = new Date().toISOString();

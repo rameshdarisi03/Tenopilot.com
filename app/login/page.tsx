@@ -42,7 +42,7 @@ import { portfolioStore } from "@/constants/portfolioStore";
 import { PwaBootSplashScreen } from "@/components/auth/PwaBootSplashScreen";
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
+import { signOut, onAuthStateChanged } from "firebase/auth";
 import { PhoneAuthCard } from "@/components/auth/PhoneAuthCard";
 import { EmailAuthCard } from "@/components/auth/EmailAuthCard";
 
@@ -54,6 +54,7 @@ interface SavedSession {
   securityPin?: string;
   assignedPropertyId?: string;
   hasSetPin?: boolean;
+  phone?: string;
 }
 
 export default function LoginPage() {
@@ -132,43 +133,44 @@ export default function LoginPage() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved) as SavedSession;
-          if (!parsed.email || typeof parsed.email !== "string" || (!parsed.email.includes("@") && !parsed.email.startsWith("phone_"))) {
-            // Corrupt or legacy session schema -> self heal
+          const hasIdentifier = Boolean(parsed.email || parsed.phone || parsed.name || parsed.securityPin);
+          if (!hasIdentifier) {
             localStorage.removeItem("tenopilot_saved_session");
             setSavedSession(null);
             setAuthStep("CREDENTIALS");
           } else {
             setSavedSession(parsed);
-            setEmail(parsed.email);
+            if (parsed.email) setEmail(parsed.email);
             if (parsed.hasSetPin === false || !parsed.securityPin) {
               setIsResetMode(false);
               setPinCreationStep("ENTER");
               setAuthStep("SET_OR_RESET_PIN");
             } else {
+              // 🚀 OPTION A: INSTANT 6-DIGIT MPIN QUICK UNLOCK ON REOPEN
               setAuthStep("PIN_PROMPT");
             }
 
             // 🔄 Background Cloud Revalidation: Silently verify latest PIN & account status from Cloud Firestore
             (async () => {
               try {
-                const cleanEmail = parsed.email.trim().toLowerCase();
+                const cleanEmail = (parsed.email || "").trim().toLowerCase();
                 const isMasterDemo = cleanEmail === "isharapandey01@gmail.com";
 
-                // 🛡️ STRICT CLOUD AUTHORITY: Check if account still exists in Cloud Firestore
-                if (!isMasterDemo) {
-                  const regStatus = await checkAccountRegistrationStatus(cleanEmail);
-                  if (!regStatus.exists) {
-                    // 🛑 ACCOUNT PURGED OR DELETED: Silently wipe stale localStorage and revert to login credentials!
-                    console.warn(`[Login] Stale cached session detected for non-existent/purged email: ${cleanEmail}. Purging localStorage.`);
-                    localStorage.removeItem("tenopilot_saved_session");
-                    localStorage.removeItem("tenopilot_portfolio_properties");
-                    portfolioStore.clear();
-                    setSavedSession(null);
-                    setAuthStep("CREDENTIALS");
-                    try { await signOut(auth); } catch {}
-                    setError(null);
-                    return;
-                  }
+                // 🛑 ONLY evict if explicitly found in purged_accounts (never wipe on network blips or phone sessions!)
+                if (!isMasterDemo && cleanEmail && !cleanEmail.includes("auth.tenopilot")) {
+                  try {
+                    const purgedDoc = await getDoc(doc(db, "purged_accounts", cleanEmail));
+                    if (purgedDoc.exists()) {
+                      console.warn(`[Login] Account explicitly purged: ${cleanEmail}`);
+                      localStorage.removeItem("tenopilot_saved_session");
+                      localStorage.removeItem("tenopilot_portfolio_properties");
+                      portfolioStore.clear();
+                      setSavedSession(null);
+                      setAuthStep("CREDENTIALS");
+                      try { await signOut(auth); } catch {}
+                      return;
+                    }
+                  } catch {}
                 }
 
                 let cloudPin: string | undefined = undefined;
@@ -176,37 +178,46 @@ export default function LoginPage() {
                 let cloudName: string | undefined = undefined;
                 let cloudRole: any = undefined;
                 let cloudAssignedProp: string | undefined = undefined;
+                let cloudPropName: string | undefined = undefined;
 
-                // 1. Check staff_accounts collection
-                const staffSnap = await getDoc(doc(db, "staff_accounts", cleanEmail));
-                if (staffSnap.exists()) {
-                  const sData = staffSnap.data();
-                  if (sData.securityPin) {
-                    cloudPin = sData.securityPin;
-                    cloudHasSetPin = true;
-                  }
-                  if (sData.name) cloudName = sData.name;
-                  if (sData.role) cloudRole = sData.role;
-                  if (sData.assignedPropertyId) cloudAssignedProp = sData.assignedPropertyId;
-                }
-
-                // 2. Check users collection if firebase auth user is present
+                // 1. Check users collection if firebase auth user is present
                 if (auth.currentUser) {
-                  const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-                  if (userSnap.exists()) {
-                    const uData = userSnap.data();
-                    if (uData.securityPin) {
-                      cloudPin = uData.securityPin;
-                      cloudHasSetPin = true;
+                  try {
+                    const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+                    if (userSnap.exists()) {
+                      const uData = userSnap.data();
+                      if (uData.securityPin) {
+                        cloudPin = uData.securityPin;
+                        cloudHasSetPin = true;
+                      }
+                      if (uData.displayName) cloudName = uData.displayName;
+                      if (uData.role) cloudRole = uData.role;
+                      if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
+                      if (uData.propertyName || uData.pgName) cloudPropName = uData.propertyName || uData.pgName;
                     }
-                    if (uData.displayName) cloudName = uData.displayName;
-                    if (uData.role) cloudRole = uData.role;
-                    if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
-                  }
+                  } catch {}
                 }
 
-                // 3. Fallback check in users collection by email if not found by currentUser.uid
-                if (!cloudPin && !cloudHasSetPin) {
+                // 2. Check staff_accounts collection
+                if (!cloudPin && cleanEmail) {
+                  try {
+                    const staffSnap = await getDoc(doc(db, "staff_accounts", cleanEmail));
+                    if (staffSnap.exists()) {
+                      const sData = staffSnap.data();
+                      if (sData.securityPin) {
+                        cloudPin = sData.securityPin;
+                        cloudHasSetPin = true;
+                      }
+                      if (sData.name) cloudName = sData.name;
+                      if (sData.role) cloudRole = sData.role;
+                      if (sData.assignedPropertyId) cloudAssignedProp = sData.assignedPropertyId;
+                      if (sData.propertyName) cloudPropName = sData.propertyName;
+                    }
+                  } catch {}
+                }
+
+                // 3. Fallback check in users collection by email
+                if (!cloudPin && cleanEmail) {
                   try {
                     const uQ = query(collection(db, "users"), where("email", "==", cleanEmail));
                     const uSnap = await getDocs(uQ);
@@ -219,11 +230,34 @@ export default function LoginPage() {
                       if (uData.displayName) cloudName = uData.displayName;
                       if (uData.role) cloudRole = uData.role;
                       if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
+                      if (uData.propertyName || uData.pgName) cloudPropName = uData.propertyName || uData.pgName;
                     }
                   } catch {}
                 }
 
-                if (cloudPin || cloudHasSetPin) {
+                // 4. Fallback check in users collection by phone
+                if (!cloudPin && parsed.phone) {
+                  const pure10 = parsed.phone.replace(/\D/g, "").slice(-10);
+                  if (pure10) {
+                    try {
+                      const pQ = query(collection(db, "users"), where("phone", "==", pure10));
+                      const pSnap = await getDocs(pQ);
+                      if (!pSnap.empty) {
+                        const uData = pSnap.docs[0].data();
+                        if (uData.securityPin) {
+                          cloudPin = uData.securityPin;
+                          cloudHasSetPin = true;
+                        }
+                        if (uData.displayName) cloudName = uData.displayName;
+                        if (uData.role) cloudRole = uData.role;
+                        if (uData.assignedPropertyId) cloudAssignedProp = uData.assignedPropertyId;
+                        if (uData.propertyName || uData.pgName) cloudPropName = uData.propertyName || uData.pgName;
+                      }
+                    } catch {}
+                  }
+                }
+
+                if (cloudPin || cloudHasSetPin || cloudPropName || cloudName) {
                   const updatedSession: SavedSession = {
                     ...parsed,
                     securityPin: cloudPin || parsed.securityPin,
@@ -231,6 +265,7 @@ export default function LoginPage() {
                     name: cloudName || parsed.name,
                     role: cloudRole || parsed.role,
                     assignedPropertyId: cloudAssignedProp || parsed.assignedPropertyId,
+                    propertyName: cloudPropName || parsed.propertyName,
                   };
                   setSavedSession(updatedSession);
                   localStorage.setItem("tenopilot_saved_session", JSON.stringify(updatedSession));
@@ -244,10 +279,39 @@ export default function LoginPage() {
             })();
           }
         } catch {
-          localStorage.removeItem("tenopilot_saved_session");
-          setSavedSession(null);
           setAuthStep("CREDENTIALS");
         }
+      } else {
+        // 🛡️ AUTHENTICATED PERSISTENCE FALLBACK:
+        // If user is already authenticated in Firebase Auth (IndexedDB), reconstruct session and prompt MPIN immediately!
+        const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
+          if (currentUser) {
+            try {
+              const uSnap = await getDoc(doc(db, "users", currentUser.uid));
+              if (uSnap.exists()) {
+                const uData = uSnap.data();
+                const cleanPhone = (uData.phone || "").replace(/\D/g, "").slice(-10);
+                const recovered: SavedSession = {
+                  email: uData.email || currentUser.email || (cleanPhone ? `phone_${cleanPhone}@auth.tenopilot.com` : ""),
+                  name: uData.displayName || currentUser.displayName || uData.propertyName || "Property Owner",
+                  role: uData.role || "master_admin",
+                  propertyName: uData.propertyName || uData.pgName || "",
+                  assignedPropertyId: uData.assignedPropertyId || "",
+                  phone: uData.phone || "",
+                  securityPin: uData.securityPin,
+                  hasSetPin: Boolean(uData.hasSetPin && uData.securityPin),
+                };
+                setSavedSession(recovered);
+                localStorage.setItem("tenopilot_saved_session", JSON.stringify(recovered));
+                if (recovered.hasSetPin && recovered.securityPin) {
+                  setAuthStep("PIN_PROMPT");
+                }
+              }
+            } catch (authRecovErr) {
+              console.warn("Auth state session reconstruction notice:", authRecovErr);
+            }
+          }
+        });
       }
 
       const lockout = localStorage.getItem("tenopilot_pin_lockout");
@@ -801,24 +865,17 @@ export default function LoginPage() {
       console.warn("Cloud Firestore PIN verification network fallback:", cloudErr);
     }
 
-    // 2. STRICT CLOUD AUTHORITY (Zero Local Trust)
+    // 2. STRICT CLOUD AUTHORITY with Local Trusted Device Fallback
     if (!cloudFound) {
-      const isMasterTest = targetEmail === "isharapandey01@gmail.com";
-      if (isMasterTest) {
-        if (inputPin === "1234" || (savedSession?.securityPin && savedSession.securityPin === inputPin)) {
-          isValid = true;
-        }
+      if (savedSession?.securityPin && savedSession.securityPin === inputPin) {
+        isValid = true;
       } else {
-        // Account does NOT exist in Cloud Firestore (purged or deleted)
-        localStorage.removeItem("tenopilot_saved_session");
-        localStorage.removeItem("tenopilot_portfolio_properties");
-        portfolioStore.clear();
-        setSavedSession(null);
-        try { await signOut(auth); } catch {}
-        setError("This account has been removed or purged. Please click Sign Up below to create a new property.");
-        setAuthStep("CREDENTIALS");
-        setIsLoading(false);
-        return;
+        const isMasterTest = targetEmail === "isharapandey01@gmail.com";
+        if (isMasterTest && inputPin === "1234") {
+          isValid = true;
+        } else {
+          isValid = false;
+        }
       }
     }
 
@@ -1417,23 +1474,30 @@ export default function LoginPage() {
             {/* STEP 2B: RETURNING USER - 6-DIGIT QUICK UNLOCK PIN */}
             {authStep === "PIN_PROMPT" && (
               <div className="space-y-5 text-center animate-in fade-in">
-                {/* Account Profile Pill */}
-                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-2xl bg-gray-50 border border-gray-200 text-xs text-gray-700">
-                  <div className="w-8 h-8 rounded-full bg-[#c2652a] text-white font-bold flex items-center justify-center text-xs">
-                    {savedSession?.name?.charAt(0) || "U"}
+                {/* Account & Property Profile Pill */}
+                <div className="inline-flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-orange-50/60 border border-orange-200/80 text-xs text-gray-700 shadow-xs max-w-xs mx-auto">
+                  <div className="w-10 h-10 rounded-2xl bg-[#c2652a] text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
+                    {(savedSession?.propertyName || savedSession?.name || "T")?.charAt(0).toUpperCase()}
                   </div>
-                  <div className="text-left">
-                    <p className="font-bold text-gray-900 leading-tight">
-                      {savedSession?.name || "Estate Admin"}
+                  <div className="text-left min-w-0">
+                    <p className="font-bold text-gray-900 leading-tight truncate">
+                      {savedSession?.propertyName || savedSession?.name || "Friendly Space"}
                     </p>
-                    <p className="text-[11px] text-gray-500">{savedSession?.email || email}</p>
+                    <p className="text-[11px] text-gray-500 truncate">
+                      {savedSession?.name ? `${savedSession.name} • ` : ""}
+                      {savedSession?.role === "admin"
+                        ? "🏢 Property Admin"
+                        : savedSession?.role === "receptionist"
+                        ? "🔑 Staff Desk"
+                        : "👑 Master Admin"}
+                    </p>
                   </div>
                 </div>
 
                 {/* Direct 6-Digit Keyboard Input with Auto-Submit */}
                 <div className="space-y-2 max-w-xs mx-auto">
                   <label className="block text-xs font-bold text-gray-600">
-                    Enter 6-Digit MPIN
+                    Enter 6-Digit Security MPIN
                   </label>
                   <input
                     ref={pinInputRef}
@@ -1454,8 +1518,59 @@ export default function LoginPage() {
                     className="w-full px-4 py-3 rounded-2xl border-2 border-gray-300 focus:border-[#c2652a] font-mono text-center font-bold tracking-[0.5em] text-2xl bg-white shadow-xs focus:ring-4 focus:ring-orange-100 focus:outline-hidden"
                   />
                   <p className="text-[10px] text-gray-400">
-                    {lockoutExpiry ? `Locked: ${lockoutCountdown}s remaining` : "Auto-submits on 6th digit"}
+                    {lockoutExpiry ? `Locked: ${lockoutCountdown}s remaining` : "Fast 1.5s unlock • Auto-submits on 6th digit"}
                   </p>
+                </div>
+
+                {/* Fast On-Screen Numeric Dial Pad for PWA & Mobile Thumb Tapping */}
+                <div className="max-w-[260px] mx-auto grid grid-cols-3 gap-2 pt-1">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      disabled={lockoutExpiry !== null || isLoading}
+                      onClick={() => {
+                        if (pinValue.length < 6) {
+                          const next = pinValue + String(num);
+                          setPinValue(next);
+                          if (next.length === 6) verifyAndRedirect(next);
+                        }
+                      }}
+                      className="h-12 rounded-2xl bg-white hover:bg-orange-50 border border-gray-200 active:bg-orange-100 font-bold text-lg text-gray-800 shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-40"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={lockoutExpiry !== null || isLoading || pinValue.length === 0}
+                    onClick={() => setPinValue("")}
+                    className="h-12 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 active:bg-gray-200 font-bold text-xs text-gray-500 uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-30"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    disabled={lockoutExpiry !== null || isLoading}
+                    onClick={() => {
+                      if (pinValue.length < 6) {
+                        const next = pinValue + "0";
+                        setPinValue(next);
+                        if (next.length === 6) verifyAndRedirect(next);
+                      }
+                    }}
+                    className="h-12 rounded-2xl bg-white hover:bg-orange-50 border border-gray-200 active:bg-orange-100 font-bold text-lg text-gray-800 shadow-2xs transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-40"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    disabled={lockoutExpiry !== null || isLoading || pinValue.length === 0}
+                    onClick={() => setPinValue((prev) => prev.slice(0, -1))}
+                    className="h-12 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 active:bg-gray-200 font-bold text-sm text-gray-600 transition-all active:scale-95 flex items-center justify-center cursor-pointer disabled:opacity-30"
+                  >
+                    ⌫
+                  </button>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs font-bold pt-2">
