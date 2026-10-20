@@ -21,6 +21,9 @@ export interface WhatsAppSendParams {
     managerPhone?: string;
     paidDate?: string;
     paymentMode?: string;
+    month?: string;
+    rentAmount?: string | number;
+    depositAmount?: string | number;
     onboardUrl?: string;
     complaintId?: string;
     complaintTitle?: string;
@@ -331,6 +334,19 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           paidTo: p.bankLabel || "Main Business Pool",
           isDeposit: receiptNoStr.startsWith("DEP") ? "true" : "false",
         });
+
+        if (p.month) {
+          pdfParams.set("month", p.month);
+        }
+        if (p.rentAmount !== undefined) {
+          pdfParams.set("rentAmount", String(p.rentAmount));
+        }
+        if (p.depositAmount !== undefined) {
+          pdfParams.set("depositAmount", String(p.depositAmount));
+        }
+        if (p.managerPhone) {
+          pdfParams.set("managerPhone", p.managerPhone);
+        }
 
         const pdfUrl = `${baseUrl}/api/receipt/pdf?${pdfParams.toString()}`;
         const fileName = `${receiptNoStr}_${payload.recipientName.replace(/\s+/g, "_")}.pdf`;
