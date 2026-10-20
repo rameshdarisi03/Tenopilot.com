@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import {
   Download,
-  Printer,
   Check,
   ExternalLink,
   X,
@@ -168,7 +167,7 @@ export function PublicComplaintQrModal({
     } catch (err: any) {
       console.error("Error generating poster PNG:", err);
       setIsGeneratingPng(false);
-      alert("Notice: Could not download automatically. Please use 'Print Poster' to save as PDF directly.");
+      alert("Notice: Could not download automatically. Please check your browser download permissions.");
     }
   };
 
@@ -196,14 +195,10 @@ export function PublicComplaintQrModal({
       }
     } catch (err: any) {
       console.error("Error generating poster PDF:", err);
-      alert("Notice: Could not generate PDF file. Please use 'Print Poster' to print or save as PDF.");
+      alert("Notice: Could not generate PDF file. Please try downloading as PNG image.");
     } finally {
       setIsGeneratingPdf(false);
     }
-  };
-
-  const handlePrintPoster = () => {
-    window.print();
   };
 
   return (
@@ -434,16 +429,6 @@ export function PublicComplaintQrModal({
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>{isGeneratingPng ? "Rendering PNG..." : "Download Image (PNG)"}</span>
-              </button>
-
-              {/* Print Poster Button (Full Width, Replaced Copy Link) */}
-              <button
-                type="button"
-                onClick={handlePrintPoster}
-                className="w-full py-2.5 rounded-xl bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs flex items-center justify-center gap-2 border border-gray-300 transition-all cursor-pointer shadow-xs"
-              >
-                <Printer className="w-3.5 h-3.5 text-gray-600" />
-                <span>Print Poster</span>
               </button>
 
               {/* Test in New Tab Link */}
