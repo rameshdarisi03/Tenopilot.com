@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 
 interface PublicComplaintQrModalProps {
   isOpen: boolean;
@@ -36,9 +35,6 @@ export function PublicComplaintQrModal({
   const [bgBase64, setBgBase64] = useState<string>("");
 
   const posterRef = useRef<HTMLDivElement>(null);
-  const exportPosterRef = useRef<HTMLDivElement>(null);
-  const printPosterRef = useRef<HTMLDivElement>(null);
-
   const [settings, setSettings] = useState(() => propertySettingsStore.getSettings(propertyId));
 
   useEffect(() => {
@@ -125,29 +121,42 @@ export function PublicComplaintQrModal({
     }, 2000);
   };
 
-  // Capture helper targeting the pristine offscreen fixed-dimension A4 element
-  const capturePosterCanvas = async () => {
-    const el = exportPosterRef.current || posterRef.current;
-    if (!el) throw new Error("Poster element not available");
-
-    return await (html2canvas as any)(el, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: "#FAF7F2",
-      logging: false,
-      scrollX: 0,
-      scrollY: 0,
-      windowWidth: 850,
-      windowHeight: 1200,
-    });
+  // 1-Click Server-Side A4 PDF Download (Eliminates mobile edge device CPU/memory crashes)
+  const handleDownloadPdf = () => {
+    setIsGeneratingPdf(true);
+    try {
+      const downloadUrl = `/api/complaints/poster/pdf?propertyId=${encodeURIComponent(propertyId)}&propertyName=${encodeURIComponent(realPgName)}`;
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `${cleanPgName}_Resident_Care_Poster_A4.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        setIsGeneratingPdf(false);
+      }, 1200);
+    } catch (err: any) {
+      console.error("Error initiating poster PDF download:", err);
+      // Native browser fallback
+      window.open(`/api/complaints/poster/pdf?propertyId=${encodeURIComponent(propertyId)}&propertyName=${encodeURIComponent(realPgName)}`, "_blank");
+      setIsGeneratingPdf(false);
+    }
   };
 
-  // High-Resolution PNG Poster Download
+  // High-Resolution PNG Poster Download (Direct from visible modal canvas)
   const handleDownloadPng = async () => {
+    const el = posterRef.current;
+    if (!el) return;
     setIsGeneratingPng(true);
+
     try {
-      const canvas = await capturePosterCanvas();
+      const canvas = await (html2canvas as any)(el, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#FAF7F2",
+        logging: false,
+      });
       
       canvas.toBlob((blob: Blob | null) => {
         if (blob) {
@@ -167,37 +176,6 @@ export function PublicComplaintQrModal({
     } catch (err: any) {
       console.error("Error generating poster PNG:", err);
       setIsGeneratingPng(false);
-      alert("Notice: Could not download automatically. Please check your browser download permissions.");
-    }
-  };
-
-  // High-Resolution A4 PDF Poster Download
-  const handleDownloadPdf = async () => {
-    setIsGeneratingPdf(true);
-    try {
-      const canvas = await capturePosterCanvas();
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      // Fit standard A4 dimensions: 210mm x 297mm
-      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
-
-      try {
-        const pdfBlob = pdf.output("blob");
-        triggerBlobDownload(pdfBlob, `${cleanPgName}_Resident_Care_Poster_A4.pdf`);
-      } catch {
-        pdf.save(`${cleanPgName}_Resident_Care_Poster_A4.pdf`);
-      }
-    } catch (err: any) {
-      console.error("Error generating poster PDF:", err);
-      alert("Notice: Could not generate PDF file. Please try downloading as PNG image.");
-    } finally {
-      setIsGeneratingPdf(false);
     }
   };
 
@@ -409,7 +387,7 @@ export function PublicComplaintQrModal({
 
             {/* Action Buttons Stack */}
             <div className="space-y-2.5 pt-4 border-t border-gray-100">
-              {/* Primary Download A4 PDF */}
+              {/* Primary Download A4 PDF (Server-Rendered SSOT) */}
               <button
                 type="button"
                 onClick={handleDownloadPdf}
@@ -417,7 +395,7 @@ export function PublicComplaintQrModal({
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-[#BA5324] to-[#C25E2E] hover:from-[#a8471c] hover:to-[#b05226] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-98"
               >
                 <FileText className="w-4 h-4" />
-                <span>{isGeneratingPdf ? "Generating A4 PDF..." : "Download A4 Poster (PDF)"}</span>
+                <span>{isGeneratingPdf ? "Downloading A4 PDF..." : "Download A4 Poster (PDF)"}</span>
               </button>
 
               {/* Secondary Download High-Res PNG */}
@@ -442,283 +420,6 @@ export function PublicComplaintQrModal({
                 <ExternalLink className="w-3 h-3 text-gray-400" />
               </a>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* OFF-SCREEN HIGH-RES RENDER CONTAINER (Guarantees 100% crisp, unclipped exports on both mobile & desktop) */}
-      <div
-        style={{
-          position: "fixed",
-          left: "-9999px",
-          top: "0px",
-          width: "794px",
-          height: "1123px",
-          zIndex: -1,
-          overflow: "hidden",
-        }}
-        aria-hidden="true"
-      >
-        <div
-          ref={exportPosterRef}
-          style={{
-            width: "794px",
-            height: "1123px",
-            backgroundColor: "#FAF7F2",
-          }}
-          className="p-12 flex flex-col justify-between text-center relative overflow-hidden select-none"
-        >
-          {/* Background image layer */}
-          {bgBase64 ? (
-            <img
-              src={bgBase64}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-            />
-          ) : (
-            <img
-              src="/images/poster-background.jpg"
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-              crossOrigin="anonymous"
-            />
-          )}
-
-          {/* Top Authority Header */}
-          <div className="pt-2 space-y-1 relative z-10">
-            <p className="text-sm font-black tracking-[0.28em] uppercase text-[#3D302A]">
-              Resident Care Desk
-            </p>
-            <p className="text-xs font-bold text-[#6B5A51] tracking-wider">
-              Maintenance Issues & Repairs 24/7
-            </p>
-          </div>
-
-          {/* Hero Headline */}
-          <div className="my-2 relative z-10">
-            <h1 className="text-4xl font-black text-[#1F1714] tracking-tight leading-tight">
-              Facing a Problem?
-            </h1>
-            <h2 className="text-4xl font-black text-[#C25E2E] tracking-tight leading-tight mt-1">
-              Scan to Report It.
-            </h2>
-          </div>
-
-          {/* Highlighted PG Name (Terracotta Pill) */}
-          <div className="my-2 relative z-10 flex justify-center">
-            <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-8 py-3 rounded-full shadow-lg border border-white/30 max-w-[85%]">
-              <span className="font-extrabold text-xl tracking-wider uppercase truncate block">
-                {realPgName}
-              </span>
-            </div>
-          </div>
-
-          {/* QR Code Container */}
-          <div className="relative z-10 my-2 flex items-center justify-center">
-            <div className="bg-white p-6 rounded-3xl shadow-xl border border-orange-100 flex flex-col items-center justify-center">
-              <QRCodeCanvas
-                id={`complaint-export-qr-${propertyId}`}
-                value={portalUrl}
-                size={220}
-                fgColor="#1F1714"
-                bgColor="#FFFFFF"
-                level="H"
-                includeMargin={false}
-              />
-            </div>
-          </div>
-
-          {/* 3 Steps */}
-          <div className="relative z-10 my-2 px-6">
-            <div className="flex items-center justify-center gap-6">
-              {/* Step 1 */}
-              <div className="flex flex-col items-center flex-1 max-w-[140px]">
-                <div className="w-12 h-12 rounded-full bg-white border border-orange-200 shadow-sm flex items-center justify-center relative mb-2">
-                  <Camera className="w-6 h-6 text-[#C25E2E]" />
-                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-[11px] font-black flex items-center justify-center">
-                    1
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-[#1F1714]">
-                  Scan with Phone Camera
-                </span>
-              </div>
-
-              <span className="text-orange-500 font-black text-xl pb-6">›</span>
-
-              {/* Step 2 */}
-              <div className="flex flex-col items-center flex-1 max-w-[140px]">
-                <div className="w-12 h-12 rounded-full bg-white border border-orange-200 shadow-sm flex items-center justify-center relative mb-2">
-                  <Smartphone className="w-6 h-6 text-[#C25E2E]" />
-                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-[11px] font-black flex items-center justify-center">
-                    2
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-[#1F1714]">
-                  Enter Mobile Number
-                </span>
-              </div>
-
-              <span className="text-orange-500 font-black text-xl pb-6">›</span>
-
-              {/* Step 3 */}
-              <div className="flex flex-col items-center flex-1 max-w-[140px]">
-                <div className="w-12 h-12 rounded-full bg-white border border-orange-200 shadow-sm flex items-center justify-center relative mb-2">
-                  <ClipboardCheck className="w-6 h-6 text-[#C25E2E]" />
-                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-[11px] font-black flex items-center justify-center">
-                    3
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-[#1F1714]">
-                  Submit Your Issue
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* SLA Service Commitment Box */}
-          <div className="relative z-10 my-2 bg-white/95 border border-orange-200/90 p-4 rounded-2xl flex items-center gap-4 max-w-lg mx-auto shadow-sm text-left">
-            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
-              <Clock className="w-5 h-5 text-[#C25E2E]" />
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs font-extrabold text-[#1F1714]">
-                Fast • Simple • Available 24/7
-              </p>
-              <p className="text-[11px] text-[#6B5A51] leading-tight">
-                Your complaint goes directly to the property caretaker and management team.
-              </p>
-            </div>
-          </div>
-
-          {/* Bottom Official TenoPilot Enterprise Branding */}
-          <div className="relative z-10 pt-3 border-t border-orange-300/40 mt-2">
-            <div className="flex items-center justify-center gap-3 text-xs font-extrabold tracking-[0.25em] text-[#59473F] uppercase font-sans">
-              <span>──</span>
-              <span className="text-[#3D302A]">POWERED BY TENOPILOT</span>
-              <span>──</span>
-            </div>
-            <p className="text-[10px] text-[#59473F] font-bold mt-1 tracking-tight">
-              tenopilot.com • Instant Direct Dispatch to Property Caretaker & Management
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* PRINT-ONLY CLEAN POSTER LAYOUT (Triggered on Print Poster or Ctrl+P) */}
-      <div className="hidden print:flex flex-col items-center justify-center min-h-screen p-0 bg-white text-[#1F1714] font-sans">
-        <div
-          ref={printPosterRef}
-          className="w-[210mm] h-[297mm] p-12 flex flex-col justify-between text-center relative overflow-hidden bg-cover bg-center"
-          style={{
-            backgroundImage: "url('/images/poster-background.jpg')",
-          }}
-        >
-          {/* Top Header */}
-          <div className="pt-4 space-y-1 relative z-10">
-            <p className="text-base font-black tracking-[0.28em] uppercase text-[#3D302A]">
-              Resident Care Desk
-            </p>
-            <p className="text-xs font-bold text-[#6B5A51] tracking-wider">
-              Maintenance Issues & Repairs 24/7
-            </p>
-          </div>
-
-          {/* Hero Headline */}
-          <div className="my-3 relative z-10">
-            <h1 className="text-4xl font-black text-[#1F1714] tracking-tight">
-              Facing a Problem?
-            </h1>
-            <h2 className="text-4xl font-black text-[#C25E2E] tracking-tight mt-1">
-              Scan to Report It.
-            </h2>
-          </div>
-
-          {/* Highlighted PG Name (Terracotta Pill) */}
-          <div className="my-2 flex justify-center relative z-10">
-            <div className="bg-gradient-to-r from-[#BA5324] via-[#C25E2E] to-[#D36A38] text-white px-10 py-3 rounded-full shadow-xl border border-white/40 inline-block">
-              <span className="font-extrabold text-xl tracking-wider uppercase">
-                {realPgName}
-              </span>
-            </div>
-          </div>
-
-          {/* QR Code Container */}
-          <div className="my-4 flex items-center justify-center relative z-10">
-            <div className="bg-white p-8 rounded-3xl shadow-2xl border border-orange-100 flex flex-col items-center justify-center relative">
-              <QRCodeCanvas
-                value={portalUrl}
-                size={260}
-                fgColor="#1F1714"
-                bgColor="#FFFFFF"
-                level="H"
-                includeMargin={false}
-              />
-            </div>
-          </div>
-
-          {/* 3 Steps */}
-          <div className="my-3 px-8 relative z-10">
-            <div className="flex items-center justify-center gap-8">
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-sm">
-                  <Camera className="w-6 h-6 text-[#C25E2E]" />
-                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-xs font-black flex items-center justify-center">
-                    1
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-[#1F1714]">Scan with Phone Camera</span>
-              </div>
-
-              <span className="text-orange-500 font-black text-xl pb-6">›</span>
-
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-sm">
-                  <Smartphone className="w-6 h-6 text-[#C25E2E]" />
-                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-xs font-black flex items-center justify-center">
-                    2
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-[#1F1714]">Enter Mobile Number</span>
-              </div>
-
-              <span className="text-orange-500 font-black text-xl pb-6">›</span>
-
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center relative mb-2 shadow-sm">
-                  <ClipboardCheck className="w-6 h-6 text-[#C25E2E]" />
-                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#C25E2E] text-white text-xs font-black flex items-center justify-center">
-                    3
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-[#1F1714]">Submit Your Issue</span>
-              </div>
-            </div>
-          </div>
-
-          {/* SLA Box */}
-          <div className="my-2 bg-white border border-orange-200 p-4 rounded-2xl flex items-center justify-center gap-4 max-w-lg mx-auto shadow-sm relative z-10">
-            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200">
-              <Clock className="w-5 h-5 text-[#C25E2E]" />
-            </div>
-            <div className="text-left">
-              <p className="text-xs font-extrabold text-[#1F1714]">Fast • Simple • Available 24/7</p>
-              <p className="text-[11px] text-[#6B5A51]">
-                Your complaint goes directly to the property caretaker and management team.
-              </p>
-            </div>
-          </div>
-
-          {/* Footer Branding */}
-          <div className="pt-4 border-t border-orange-300/50 mt-2 relative z-10">
-            <div className="flex items-center justify-center gap-3 text-xs font-extrabold tracking-[0.25em] text-[#59473F] uppercase font-sans">
-              <span>──</span>
-              <span className="text-[#3D302A]">POWERED BY TENOPILOT</span>
-              <span>──</span>
-            </div>
-            <p className="text-[10px] text-[#59473F] font-bold mt-1">
-              tenopilot.com • Instant Direct Dispatch to Property Caretaker & Management
-            </p>
           </div>
         </div>
       </div>
