@@ -304,9 +304,11 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="mt-8 pt-3 border-t border-slate-100 text-center text-[10px] text-slate-400 flex items-center justify-between">
-              <span>Ref: {receiptItem.receiptNo}</span>
-              <span>Generated via <a href="https://tenopilot.com" className="text-indigo-600 font-bold">TenoPilot.com</a></span>
+            <div className="mt-8 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10.5px] text-slate-400">
+              <span className="font-mono">Ref: {receiptItem.receiptNo} • Digitally Verified Electronic Receipt</span>
+              <span className="font-medium text-slate-500">
+                Powered by <a href="https://tenopilot.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">TenoPilot.com</a>
+              </span>
             </div>
           </div>
         </div>

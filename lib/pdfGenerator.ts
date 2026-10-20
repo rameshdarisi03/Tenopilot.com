@@ -546,7 +546,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     thickness: 0.5,
     color: borderLight,
   });
-  page.drawText(`Ref: ${data.receiptNo} • Generated securely via TenoPilot (https://tenopilot.com)`, {
+  page.drawText(`Ref: ${data.receiptNo} • Digitally verified official receipt • Powered by TenoPilot.com`, {
     x: 40,
     y: 22,
     size: 8,

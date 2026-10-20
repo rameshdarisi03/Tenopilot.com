@@ -286,7 +286,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `Official Payment Receipt #${receiptNo}\n\nDear ${payload.recipientName},\n\nWe have received and verified your payment of ₹${formattedAmount} for ${pName} (Room ${p.roomNumber || "N/A"}).\n\nDate: ${paidDate}\nPayment Mode: ${payMode}\nReceipt No: #${receiptNo}\nStatus: Verified & Logged in Property Ledger\n\nThank you for being a valued resident!\n${pName} Administration via TenoPilot.com`;
+      const text = `Official Payment Receipt #${receiptNo}\n\nDear ${payload.recipientName},\n\nWe have received and verified your payment of ₹${formattedAmount} for ${pName} (Room ${p.roomNumber || "N/A"}).\n\nDate: ${paidDate}\nPayment Mode: ${payMode}\nReceipt No: #${receiptNo}\nStatus: Verified & Logged in Property Ledger\n\nThank you for being a valued resident!\n${pName} Administration • Powered by TenoPilot.com`;
       return { subject, html, text };
     }
 
