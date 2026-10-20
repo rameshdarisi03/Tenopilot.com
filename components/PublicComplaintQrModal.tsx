@@ -289,50 +289,52 @@ export function PublicComplaintQrModal({
                 </div>
               </div>
 
-              {/* 3-Step Instruction Sequence */}
-              <div className="relative z-10 my-0.5 shrink-0">
-                <div className="flex items-center justify-center gap-1 sm:gap-2">
-                  {/* Step 1 */}
-                  <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
-                      <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
-                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
-                        1
+              {/* 3-Step Instruction Sequence (Packed in central sunlight zone with frosted card for 100% readability) */}
+              <div className="relative z-10 my-1 shrink-0 flex justify-center">
+                <div className="bg-white/85 border border-orange-200/70 shadow-xs px-2.5 py-1.5 rounded-2xl max-w-[285px] w-full">
+                  <div className="flex items-center justify-between gap-1">
+                    {/* Step 1 */}
+                    <div className="flex flex-col items-center flex-1">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                        <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                        <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
+                          1
+                        </span>
+                      </div>
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                        Scan with Phone Camera
                       </span>
                     </div>
-                    <span className="text-[7.5px] sm:text-[8px] font-bold text-[#1F1714] leading-tight">
-                      Scan with Phone Camera
-                    </span>
-                  </div>
 
-                  <span className="text-orange-500 font-black text-xs pb-2">›</span>
+                    <span className="text-orange-500 font-black text-xs pb-2">›</span>
 
-                  {/* Step 2 */}
-                  <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
-                      <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
-                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
-                        2
+                    {/* Step 2 */}
+                    <div className="flex flex-col items-center flex-1">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                        <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                        <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
+                          2
+                        </span>
+                      </div>
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                        Enter Mobile Number
                       </span>
                     </div>
-                    <span className="text-[7.5px] sm:text-[8px] font-bold text-[#1F1714] leading-tight">
-                      Enter Mobile Number
-                    </span>
-                  </div>
 
-                  <span className="text-orange-500 font-black text-xs pb-2">›</span>
+                    <span className="text-orange-500 font-black text-xs pb-2">›</span>
 
-                  {/* Step 3 */}
-                  <div className="flex flex-col items-center flex-1 max-w-[80px]">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
-                      <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
-                      <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
-                        3
+                    {/* Step 3 */}
+                    <div className="flex flex-col items-center flex-1">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-0.5">
+                        <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                        <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
+                          3
+                        </span>
+                      </div>
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                        Submit Your Issue
                       </span>
                     </div>
-                    <span className="text-[7.5px] sm:text-[8px] font-bold text-[#1F1714] leading-tight">
-                      Submit Your Issue
-                    </span>
                   </div>
                 </div>
               </div>
