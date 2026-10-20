@@ -72,18 +72,20 @@ export function WhatsAppWalletModal({
   useEffect(() => {
     if (!isOpen || !propertyId) return;
 
-    whatsappCreditStore.initFirebaseListener(propertyId);
-    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+    const isPro = Boolean(profile?.plan?.startsWith("PRO_") || profile?.plan === "VIP_PASS" || profile?.subscriptionStatus === "ACTIVE_PRO" || (profile?.planExpiresAt && new Date(profile.planExpiresAt).getTime() > Date.now()));
+    whatsappCreditStore.initFirebaseListener(propertyId, isPro, 300);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId, isPro, 300);
+    whatsappCreditStore.syncWithSubscription(propertyId, isPro, 300);
 
     const updateState = () => {
-      setCredits(whatsappCreditStore.getCredits(propertyId));
+      setCredits(whatsappCreditStore.getCredits(propertyId, isPro, 300));
       setTransactions(whatsappCreditStore.getTransactions(propertyId));
     };
 
     updateState();
     const unsub = whatsappCreditStore.subscribe(updateState);
     return () => unsub();
-  }, [isOpen, propertyId]);
+  }, [isOpen, propertyId, profile?.plan, profile?.subscriptionStatus, profile?.planExpiresAt]);
 
   // Load pending offline verification if any
   const loadPendingRequest = async () => {

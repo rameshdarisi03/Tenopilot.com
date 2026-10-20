@@ -361,14 +361,38 @@ export async function POST(req: NextRequest) {
         }
 
         // Find all property wallets owned by this user
-        const propSnap = await getDocs(query(collection(db, "portfolio_properties"), where("ownerEmail", "==", cleanEmail)));
-        for (const pDoc of propSnap.docs) {
-          const propId = pDoc.id;
+        const targetPropertyIds = new Set<string>();
+        if (propertyId) targetPropertyIds.add(propertyId);
+
+        if (cleanEmail) {
+          try {
+            const propSnap = await getDocs(query(collection(db, "portfolio_properties"), where("ownerEmail", "==", cleanEmail)));
+            propSnap.docs.forEach((d) => targetPropertyIds.add(d.id));
+          } catch (e) {}
+
+          try {
+            const fcSnap = await getDocs(query(collection(db, "founder_clients"), where("email", "==", cleanEmail)));
+            fcSnap.docs.forEach((d) => {
+              const dData = d.data();
+              if (dData.propertyId) targetPropertyIds.add(dData.propertyId);
+              if (Array.isArray(dData.propertyIds)) dData.propertyIds.forEach((pid: string) => targetPropertyIds.add(pid));
+            });
+          } catch (e) {}
+        }
+
+        if (userId) {
+          try {
+            const uPropSnap = await getDocs(query(collection(db, "portfolio_properties"), where("ownerUid", "==", userId)));
+            uPropSnap.docs.forEach((d) => targetPropertyIds.add(d.id));
+          } catch (e) {}
+        }
+
+        for (const propId of Array.from(targetPropertyIds)) {
           const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
           const wSnap = await getDoc(walletRef);
           const currentCredits = wSnap.exists() && typeof wSnap.data()?.credits === "number" ? wSnap.data().credits : 0;
           const currentTxs = wSnap.exists() && Array.isArray(wSnap.data()?.transactions) ? wSnap.data().transactions : [];
-          const newBalance = currentCredits + welcomeCredits;
+          const newBalance = Math.max(currentCredits + welcomeCredits, welcomeCredits);
 
           const newTx = {
             id: `tx-pro-bonus-${Date.now()}`,

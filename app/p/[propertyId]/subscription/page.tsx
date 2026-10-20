@@ -80,8 +80,12 @@ export default function SubscriptionBillingPage() {
   const [historyTransactions, setHistoryTransactions] = useState<any[]>([]);
   const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<InvoiceData | null>(null);
 
+  const sub = evaluateSubscription(profile);
+
   // 💬 WhatsApp Cloud Message Wallet & Credits State
-  const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
+  const [whatsappCredits, setWhatsappCredits] = useState<number>(() =>
+    whatsappCreditStore.getCredits(propertyId, sub.isPro, platformConfig.proWhatsAppCredits || 300)
+  );
   const [whatsappTransactions, setWhatsappTransactions] = useState<WhatsAppCreditTransaction[]>(() => whatsappCreditStore.getTransactions(propertyId));
   const [selectedCreditPack, setSelectedCreditPack] = useState<WhatsAppCreditPackage | null>(null);
   const [showCreditRechargeModal, setShowCreditRechargeModal] = useState(false);
@@ -89,19 +93,20 @@ export default function SubscriptionBillingPage() {
 
   // Sync WhatsApp Credits in Real-Time
   useEffect(() => {
-    whatsappCreditStore.initFirebaseListener(propertyId);
-    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    const proLimit = platformConfig.proWhatsAppCredits || 300;
+    whatsappCreditStore.initFirebaseListener(propertyId, sub.isPro, proLimit);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId, sub.isPro, proLimit);
+    whatsappCreditStore.syncWithSubscription(propertyId, sub.isPro, proLimit);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
     setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
     const unsub = whatsappCreditStore.subscribe(() => {
-      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
       setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
     });
     return () => {
       unsub();
     };
-  }, [propertyId]);
-
-  const sub = evaluateSubscription(profile);
+  }, [propertyId, sub.isPro, platformConfig.proWhatsAppCredits]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -852,7 +857,7 @@ export default function SubscriptionBillingPage() {
                   <span>Pro Plan Monthly Credit</span>
                   <span>💎 Active</span>
                 </div>
-                <p className="font-black text-xl text-emerald-950">{platformConfig.proWhatsAppCredits || 350} Messages</p>
+                <p className="font-black text-xl text-emerald-950">{platformConfig.proWhatsAppCredits || 300} Messages</p>
                 <p className="text-[10px] text-emerald-700">Included complimentary in every Pro Monthly cycle</p>
               </div>
 
@@ -865,13 +870,13 @@ export default function SubscriptionBillingPage() {
                 <p className="text-[10px] text-blue-700">Covers verified template dispatches & delivery confirmation</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-1">
-                <div className="flex items-center justify-between text-[11px] font-bold text-purple-900">
-                  <span>Inbound AI Review</span>
-                  <span>Free 24h Window</span>
+              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                  <span>Smart Cloud Gateway</span>
+                  <span>100% Automated</span>
                 </div>
-                <p className="font-black text-xl text-purple-950">₹0.00 (Unlimited)</p>
-                <p className="text-[10px] text-purple-700">Screenshots & tenant replies in drawer are 100% free</p>
+                <p className="font-black text-xl text-amber-950">Included</p>
+                <p className="text-[10px] text-amber-700">Instant digital rent receipts & reminders dispatch</p>
               </div>
             </div>
 

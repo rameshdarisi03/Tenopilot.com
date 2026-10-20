@@ -251,7 +251,9 @@ export default function TenantsDirectoryPage({
 
   // WhatsApp & Brevo Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
-  const [whatsappCredits, setWhatsappCredits] = useState<number>(() => whatsappCreditStore.getCredits(propertyId));
+  const [whatsappCredits, setWhatsappCredits] = useState<number>(() =>
+    whatsappCreditStore.getCredits(propertyId, sub.isPro, platformConfig.proWhatsAppCredits || 300)
+  );
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [isSendingCloudEmail, setIsSendingCloudEmail] = useState(false);
   const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
@@ -415,17 +417,19 @@ export default function TenantsDirectoryPage({
   useEffect(() => {
     runAutoCheckInEngine();
     
-    whatsappCreditStore.initFirebaseListener(propertyId);
-    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
-    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    const proLimit = platformConfig.proWhatsAppCredits || 300;
+    whatsappCreditStore.initFirebaseListener(propertyId, sub.isPro, proLimit);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId, sub.isPro, proLimit);
+    whatsappCreditStore.syncWithSubscription(propertyId, sub.isPro, proLimit);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
     const unsubscribeWallet = whatsappCreditStore.subscribe(() => {
-      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
     });
 
     return () => {
       unsubscribeWallet();
     };
-  }, [propertyId]);
+  }, [propertyId, sub.isPro, platformConfig.proWhatsAppCredits]);
 
   // Sync Real-Time Property Settings
   useEffect(() => {
@@ -616,7 +620,7 @@ export default function TenantsDirectoryPage({
     setCloudSendProgress(null);
 
     if (emailSentCount === 0) {
-      triggerToast(`⚠️ Email not delivered: ${lastAwsError || "Amazon SES is in Sandbox mode awaiting AWS production approval."}`);
+      triggerToast(`⚠️ Email not delivered: ${lastAwsError || "Email gateway is awaiting production dispatch approval."}`);
       return;
     }
 
@@ -625,7 +629,7 @@ export default function TenantsDirectoryPage({
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
       title: `Email Rent Reminders Sent: ${emailSentCount} tenants`,
-      subtitle: `Dispatched via Amazon SES Official Gateway (Free)`,
+      subtitle: `Dispatched via Official Email Gateway (Free)`,
       staffName: profile?.displayName || "Manager",
       staffRole: "Property Admin",
     });
@@ -3118,7 +3122,7 @@ Scroll vertically to browse all residents without pagination limits
                             <Mail className="w-4 h-4" />
                             <span>Email (Free)</span>
                           </div>
-                          <span className="text-[10px] text-blue-200 font-normal">Amazon SES • Free</span>
+                          <span className="text-[10px] text-blue-200 font-normal">Official Gateway • Free</span>
                         </>
                       )}
                     </button>
@@ -3175,7 +3179,7 @@ Scroll vertically to browse all residents without pagination limits
                   </div>
                   <div className="space-y-1.5">
                     <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider inline-block border border-blue-200">
-                      100% Free • Amazon SES
+                      100% Free • Official Gateway
                     </span>
                     <h3 className="text-xl font-black text-gray-900 tracking-tight font-serif pt-1">
                       Email Reminders Sent! 🎉

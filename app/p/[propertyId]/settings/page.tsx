@@ -226,13 +226,15 @@ export default function PropertySettingsPage({
       setCategories(partnerStore.getCategories(propertyId));
     });
 
-    whatsappCreditStore.initFirebaseListener(propertyId);
-    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
-    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    const isPro = Boolean(profile?.plan?.startsWith("PRO_") || profile?.plan === "VIP_PASS" || profile?.subscriptionStatus === "ACTIVE_PRO" || (profile?.planExpiresAt && new Date(profile.planExpiresAt).getTime() > Date.now()));
+    whatsappCreditStore.initFirebaseListener(propertyId, isPro, 300);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId, isPro, 300);
+    whatsappCreditStore.syncWithSubscription(propertyId, isPro, 300);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, isPro, 300));
     setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
 
     const unsubWallet = whatsappCreditStore.subscribe(() => {
-      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, isPro, 300));
       setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
     });
 
