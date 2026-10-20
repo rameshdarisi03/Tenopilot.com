@@ -173,10 +173,12 @@ export default function SubscriptionBillingPage() {
 
       // A. Query apex subscription-history endpoint (searches subscription_transactions, platform_admin, and approved requests)
       try {
+        const phone = profile?.phone?.replace(/\D/g, "").slice(-10);
         const queryParams = new URLSearchParams();
         if (email) queryParams.set("email", email);
         if (uid) queryParams.set("userId", uid);
-        if (email || uid) {
+        if (phone) queryParams.set("phone", phone);
+        if (email || uid || phone) {
           const res = await fetch(`/api/apex/subscription-history?${queryParams.toString()}`);
           if (res.ok) {
             const data = await res.json();

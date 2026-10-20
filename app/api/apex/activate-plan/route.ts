@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
       updatePayload.tenantExtensionPacks = existingExtensionPacks + 1;
     }
 
-    // 1. Update users collection (both by explicit userId and by email query)
+    // 1. Update users collection (by explicit userId, email, verified phone, and linked accounts)
     if (userId) {
       try {
         await setDoc(doc(db, "users", userId), updatePayload, { merge: true });
@@ -232,6 +232,37 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.warn(`User email doc update notice for ${cleanEmail}:`, err);
+      }
+    }
+
+    // 1a. Omni-Auth Sync: Also update user records linked via Phone or primaryUid
+    const cleanCustomerPhone = (body?.phone || customerPhone || "").replace(/\D/g, "");
+    const pure10 = cleanCustomerPhone.slice(-10);
+    if (pure10) {
+      try {
+        const qPhone1 = query(collection(db, "users"), where("phone", "==", pure10));
+        const snap1 = await getDocs(qPhone1);
+        for (const uDoc of snap1.docs) {
+          await setDoc(doc(db, "users", uDoc.id), updatePayload, { merge: true });
+        }
+        const qPhone2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+        const snap2 = await getDocs(qPhone2);
+        for (const uDoc of snap2.docs) {
+          await setDoc(doc(db, "users", uDoc.id), updatePayload, { merge: true });
+        }
+      } catch (err) {
+        console.warn("User phone doc update notice in activate-plan:", err);
+      }
+    }
+    if (userId) {
+      try {
+        const qPrimary = query(collection(db, "users"), where("primaryUid", "==", userId));
+        const snapPrimary = await getDocs(qPrimary);
+        for (const uDoc of snapPrimary.docs) {
+          await setDoc(doc(db, "users", uDoc.id), updatePayload, { merge: true });
+        }
+      } catch (err) {
+        console.warn("Primary linked doc update notice in activate-plan:", err);
       }
     }
 

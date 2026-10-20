@@ -103,32 +103,42 @@ export async function POST(req: NextRequest) {
     try {
       if (db) {
         const pure10 = cleanPhone.replace(/\D/g, "").slice(-10);
+        const candidateDocs: any[] = [];
 
         // 1. Try 10-digit format (e.g. 9206651295)
         const phoneQ1 = query(collection(db, "users"), where("phone", "==", pure10));
         const phoneSnap1 = await getDocs(phoneQ1);
-        if (!phoneSnap1.empty) {
-          const onboardedDoc = phoneSnap1.docs.find((d) => d.data()?.onboardingCompleted === true);
-          existingProfile = onboardedDoc ? onboardedDoc.data() : phoneSnap1.docs[0].data();
-        }
+        phoneSnap1.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
 
         // 2. Try 12-digit format (e.g. 919206651295)
-        if (!existingProfile) {
-          const phoneQ2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
-          const phoneSnap2 = await getDocs(phoneQ2);
-          if (!phoneSnap2.empty) {
-            const onboardedDoc = phoneSnap2.docs.find((d) => d.data()?.onboardingCompleted === true);
-            existingProfile = onboardedDoc ? onboardedDoc.data() : phoneSnap2.docs[0].data();
-          }
-        }
+        const phoneQ2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+        const phoneSnap2 = await getDocs(phoneQ2);
+        phoneSnap2.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
 
-        // 3. Fallback to authEmail
-        if (!existingProfile) {
-          const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
-          const emailSnap = await getDocs(emailQ);
-          if (!emailSnap.empty) {
-            existingProfile = emailSnap.docs[0].data();
-          }
+        // 3. Try authEmail
+        const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
+        const emailSnap = await getDocs(emailQ);
+        emailSnap.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+
+        if (candidateDocs.length > 0) {
+          const scored = candidateDocs.map((docData) => {
+            let score = 0;
+            const isPro =
+              docData.subscriptionStatus === "ACTIVE_PRO" ||
+              docData.plan === "PRO_MONTHLY" ||
+              docData.plan === "PRO_ANNUAL" ||
+              docData.plan === "VIP_PASS" ||
+              docData.subscriptionPlan === "pro" ||
+              (docData.planExpiresAt && new Date(docData.planExpiresAt).getTime() > Date.now());
+            if (isPro) score += 1000;
+            if (docData.onboardingCompleted === true) score += 100;
+            if (docData.assignedPropertyId) score += 50;
+            if (docData.email && !docData.email.startsWith("phone_") && !docData.email.includes("tenopilot.auth")) score += 25;
+            if (docData.uid && !docData.uid.startsWith("phone_")) score += 10;
+            return { docData, score };
+          });
+          scored.sort((a, b) => b.score - a.score);
+          existingProfile = scored[0].docData;
         }
 
         if (existingProfile?.onboardingCompleted === true && existingProfile?.assignedPropertyId) {

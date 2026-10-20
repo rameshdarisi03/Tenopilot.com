@@ -42,7 +42,15 @@ export interface AuthUserProfile {
   createdAt?: string;
   planExpiresAt?: string;
   plan?: string;
+  subscriptionPlan?: string;
   subscriptionStatus?: string;
+  trialEndsAtMs?: number | string;
+  primaryUid?: string;
+  linkedPhoneUid?: string;
+  isStaff?: boolean;
+  tenantExtensionPacks?: number;
+  maxPropertiesAllowed?: number;
+  primaryPropertyName?: string;
 }
 
 /**
@@ -678,6 +686,11 @@ export async function provisionStaffFirebaseAccount(staff: {
   assignedPropertyIds?: string[];
   propertyName: string;
   password: string;
+  organizationId?: string;
+  masterAdminUid?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
+  planExpiresAt?: string | null;
 }): Promise<StaffMember> {
   const cleanEmail = staff.email.trim().toLowerCase();
 
@@ -739,11 +752,44 @@ export async function provisionStaffFirebaseAccount(staff: {
       password: staff.password,
       hasSetPin: false,
       createdAt: new Date().toISOString(),
+      organizationId: staff.organizationId || "",
+      masterAdminUid: staff.masterAdminUid || "",
+      ownerEmail: staff.ownerEmail || "",
+      ownerPhone: staff.ownerPhone || "",
+      plan: "ORGANIZATION_STAFF",
+      subscriptionPlan: "pro",
+      subscriptionStatus: "ACTIVE_PRO",
+      planExpiresAt: staff.planExpiresAt || null,
     }, { merge: true });
 
     // 2. Save under property staff
     if (staff.assignedPropertyId) {
       await setDoc(doc(db, "properties", staff.assignedPropertyId, "staff", staffRecord.id), staffRecord, { merge: true });
+    }
+
+    // 2b. Authoritatively provision the users/{uid} document with organization authorization
+    if (staffUid && !staffUid.startsWith("staff-")) {
+      await setDoc(doc(db, "users", staffUid), {
+        uid: staffUid,
+        email: cleanEmail,
+        displayName: staff.name.trim(),
+        phone: staff.phone ? staff.phone.trim() : "",
+        role: staff.role,
+        assignedPropertyId: staff.assignedPropertyId,
+        assignedPropertyIds: assignedIds,
+        propertyName: staff.propertyName,
+        organizationId: staff.organizationId || "",
+        masterAdminUid: staff.masterAdminUid || "",
+        ownerEmail: staff.ownerEmail || "",
+        plan: "ORGANIZATION_STAFF",
+        subscriptionPlan: "pro",
+        subscriptionStatus: "ACTIVE_PRO",
+        planExpiresAt: staff.planExpiresAt || null,
+        onboardingCompleted: true,
+        isStaff: true,
+        hasSetPin: false,
+        createdAt: new Date().toISOString(),
+      }, { merge: true });
     }
   } catch (fsErr) {
     console.warn("Firestore staff save notice:", fsErr);
@@ -1010,25 +1056,54 @@ export async function loginOrRegisterWithPhone(
   const cleanPhone = phone.replace(/\D/g, "");
   const pure10 = cleanPhone.slice(-10);
 
-  // If not found by UID, check if there's an existing profile by phone field
-  if (!existingUserDoc) {
-    try {
-      // 1. Try 10-digit format (e.g. 9206651295)
-      const q1 = query(collection(db, "users"), where("phone", "==", pure10));
-      const qSnap1 = await getDocs(q1);
-      if (!qSnap1.empty) {
-        const onboardedDoc = qSnap1.docs.find((d) => d.data()?.onboardingCompleted === true);
-        existingUserDoc = onboardedDoc ? onboardedDoc.data() : qSnap1.docs[0].data();
-      } else {
-        // 2. Try 12-digit format (e.g. 919206651295)
-        const q2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
-        const qSnap2 = await getDocs(q2);
-        if (!qSnap2.empty) {
-          const onboardedDoc = qSnap2.docs.find((d) => d.data()?.onboardingCompleted === true);
-          existingUserDoc = onboardedDoc ? onboardedDoc.data() : qSnap2.docs[0].data();
-        }
-      }
-    } catch {}
+  // Collect candidate accounts across UID, verified phone (both 10-digit and 12-digit), and verified email
+  const candidateDocs: any[] = [];
+  if (existingUserDoc) candidateDocs.push({ ...existingUserDoc, id: user.uid, uid: user.uid });
+
+  try {
+    // 1. Try 10-digit format (e.g. 9206651295)
+    const q1 = query(collection(db, "users"), where("phone", "==", pure10));
+    const qSnap1 = await getDocs(q1);
+    qSnap1.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+
+    // 2. Try 12-digit format (e.g. 919206651295)
+    const q2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+    const qSnap2 = await getDocs(q2);
+    qSnap2.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+
+    // 3. Try verified email if provided
+    const cleanMailParam = verifiedEmail?.trim().toLowerCase();
+    if (cleanMailParam) {
+      const q3 = query(collection(db, "users"), where("email", "==", cleanMailParam));
+      const qSnap3 = await getDocs(q3);
+      qSnap3.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+    }
+  } catch (lookupErr) {
+    console.warn("Notice collecting candidate docs in phone login:", lookupErr);
+  }
+
+  // 🛡️ AUTHORITATIVE MASTER SSOT RESOLUTION:
+  // If the owner created an account via Google (or another UID) and paid for Pro,
+  // ensure the phone login links to and inherits from the authoritative master account!
+  if (candidateDocs.length > 0) {
+    const scored = candidateDocs.map((docData) => {
+      let score = 0;
+      const isPro =
+        docData.subscriptionStatus === "ACTIVE_PRO" ||
+        docData.plan === "PRO_MONTHLY" ||
+        docData.plan === "PRO_ANNUAL" ||
+        docData.plan === "VIP_PASS" ||
+        docData.subscriptionPlan === "pro" ||
+        (docData.planExpiresAt && new Date(docData.planExpiresAt).getTime() > Date.now());
+      if (isPro) score += 1000;
+      if (docData.onboardingCompleted === true) score += 100;
+      if (docData.assignedPropertyId) score += 50;
+      if (docData.email && !docData.email.startsWith("phone_") && !docData.email.includes("tenopilot.auth")) score += 25;
+      if (docData.uid && !docData.uid.startsWith("phone_")) score += 10;
+      return { docData, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    existingUserDoc = scored[0].docData;
   }
 
   // Determine clean public email (never expose synthetic phone_XXX@... to user profiles)
@@ -1057,20 +1132,33 @@ export async function loginOrRegisterWithPhone(
     const resolvedRole = existingUserDoc?.role || "master_admin";
     const resolvedPin = existingUserDoc?.securityPin;
     const hasPin = Boolean(existingUserDoc?.hasSetPin || resolvedPin);
+    const resolvedPlan = existingUserDoc?.plan || "10_DAY_TRIAL";
+    const resolvedStatus = existingUserDoc?.subscriptionStatus || "TRIAL";
+    const resolvedExpiry = existingUserDoc?.planExpiresAt || trialExpiryIso;
 
     const profile: AuthUserProfile = {
       uid: user.uid,
       email: publicEmail,
       displayName: cleanName,
-      organizationId: existingUserDoc?.organizationId || `org_${user.uid}`,
+      organizationId: existingUserDoc?.organizationId || `org_${existingUserDoc?.uid || user.uid}`,
       role: resolvedRole,
       assignedPropertyId: activeAssignedPropId,
-      propertyName: existingUserDoc?.propertyName || "",
+      propertyName: existingUserDoc?.propertyName || existingUserDoc?.pgName || "",
+      primaryPropertyName: existingUserDoc?.primaryPropertyName || existingUserDoc?.propertyName || "",
       onboardingCompleted: true,
       hasSetPin: hasPin,
       securityPin: resolvedPin,
-      plan: existingUserDoc?.plan || "10_DAY_TRIAL",
-      subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
+      plan: resolvedPlan,
+      subscriptionPlan: existingUserDoc?.subscriptionPlan || (resolvedPlan.startsWith("PRO_") ? "pro" : "trial"),
+      subscriptionStatus: resolvedStatus,
+      planExpiresAt: resolvedExpiry,
+      trialEndsAtMs: existingUserDoc?.trialEndsAtMs || null,
+      createdAt: existingUserDoc?.createdAt || nowIso,
+      tenantExtensionPacks: existingUserDoc?.tenantExtensionPacks || 0,
+      maxPropertiesAllowed: existingUserDoc?.maxPropertiesAllowed || 1,
+      primaryUid: existingUserDoc?.uid || existingUserDoc?.id || user.uid,
+      linkedPhoneUid: user.uid,
+      isStaff: existingUserDoc?.isStaff || resolvedRole === "admin" || resolvedRole === "receptionist",
     };
 
     await setDoc(
@@ -1087,6 +1175,23 @@ export async function loginOrRegisterWithPhone(
       { merge: true }
     );
 
+    // If authoritative account was under a different UID (e.g. Google), link it bidirectionally
+    if (existingUserDoc?.uid && existingUserDoc.uid !== user.uid) {
+      try {
+        await setDoc(
+          doc(db, "users", existingUserDoc.uid),
+          {
+            phone: pure10,
+            phoneVerified: true,
+            linkedPhoneUid: user.uid,
+          },
+          { merge: true }
+        );
+      } catch (linkErr) {
+        console.warn("Notice linking primary Google doc with phone UID:", linkErr);
+      }
+    }
+
     return {
       user,
       profile,
@@ -1101,7 +1206,7 @@ export async function loginOrRegisterWithPhone(
     uid: user.uid,
     email: publicEmail,
     displayName: cleanName,
-    organizationId: `org_${user.uid}`,
+    organizationId: existingUserDoc?.organizationId || `org_${user.uid}`,
     role: "master_admin",
     assignedPropertyId: "",
     isNewUser: true,
@@ -1110,7 +1215,13 @@ export async function loginOrRegisterWithPhone(
     createdAt: existingUserDoc?.createdAt || nowIso,
     planExpiresAt: existingUserDoc?.planExpiresAt || trialExpiryIso,
     plan: existingUserDoc?.plan || "10_DAY_TRIAL",
+    subscriptionPlan: existingUserDoc?.subscriptionPlan || "trial",
     subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
+    trialEndsAtMs: existingUserDoc?.trialEndsAtMs || null,
+    tenantExtensionPacks: existingUserDoc?.tenantExtensionPacks || 0,
+    maxPropertiesAllowed: existingUserDoc?.maxPropertiesAllowed || 1,
+    primaryUid: existingUserDoc?.uid || user.uid,
+    linkedPhoneUid: user.uid,
   };
 
   await setDoc(

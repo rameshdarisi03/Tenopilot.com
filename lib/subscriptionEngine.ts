@@ -76,22 +76,26 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
   }
 
   // 🏢 STAFF ACCOUNT DELEGATION: Staff users (Admins & Receptionists) inherit organization operational authorization
-  if (userProfile.role === "admin" || userProfile.role === "receptionist") {
-    if (!userProfile.planExpiresAt && (!userProfile.subscriptionStatus || userProfile.subscriptionStatus === "TRIAL")) {
-      return {
-        status: "ACTIVE_PRO",
-        plan: "ORGANIZATION_STAFF",
-        isPro: true,
-        daysRemaining: 999,
-        graceDaysRemaining: 0,
-        isPreExpiry: false,
-        inGracePeriod: false,
-        canAccessProFeatures: true,
-        expiryDateFormatted: "Enterprise Workspace",
-        badgeLabel: userProfile.role === "admin" ? "🏢 Property Admin" : "🔑 Staff Member",
-        badgeColor: "emerald",
-      };
-    }
+  if (userProfile.role === "admin" || userProfile.role === "receptionist" || userProfile.isStaff || userProfile.plan === "ORGANIZATION_STAFF") {
+    return {
+      status: "ACTIVE_PRO",
+      plan: "ORGANIZATION_STAFF",
+      isPro: true,
+      daysRemaining: 999,
+      graceDaysRemaining: 0,
+      isPreExpiry: false,
+      inGracePeriod: false,
+      canAccessProFeatures: true,
+      expiryDateFormatted: userProfile.planExpiresAt
+        ? new Date(userProfile.planExpiresAt).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "Enterprise Workspace",
+      badgeLabel: userProfile.role === "admin" ? "🏢 Property Admin" : "🔑 Staff Member",
+      badgeColor: "emerald",
+    };
   }
 
   if (userProfile.status === "SUSPENDED" || userProfile.subscriptionStatus === "SUSPENDED") {
@@ -124,7 +128,10 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     expiryTime = Number(userProfile.trialEndsAtMs);
   } else if (userProfile.createdAt) {
     const createdTime = new Date(userProfile.createdAt).getTime();
-    expiryTime = isNaN(createdTime) ? 0 : createdTime + trialDurationDays * 86400000;
+    expiryTime = isNaN(createdTime) ? 0 : createdTime + (isProPlan ? 30 : trialDurationDays) * 86400000;
+  } else if (isProPlan || userProfile.subscriptionStatus === "ACTIVE_PRO") {
+    // 🛡️ Active Pro fallback: preserve active cycle (30 days from now) if timestamp is briefly syncing
+    expiryTime = now + 30 * 86400000;
   } else {
     // ⚠️ Legacy account with no createdAt or planExpiresAt stamped in Firestore
     // Because this account was created historically in the past, its trial has elapsed.

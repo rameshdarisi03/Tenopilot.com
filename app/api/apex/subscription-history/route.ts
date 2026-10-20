@@ -7,9 +7,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const email = searchParams.get("email")?.toLowerCase().trim();
     const userId = searchParams.get("userId")?.trim();
+    const phone = searchParams.get("phone")?.replace(/\D/g, "").slice(-10);
 
-    if (!email && !userId) {
-      return NextResponse.json({ success: false, message: "Email or userId is required" }, { status: 400 });
+    if (!email && !userId && !phone) {
+      return NextResponse.json({ success: false, message: "Email, userId, or phone is required" }, { status: 400 });
     }
 
     const historyItems: any[] = [];
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest) {
         const data = d.data();
         const dEmail = (data.customerEmail || data.email || "").toLowerCase().trim();
         const dUid = data.userId || "";
-        if ((email && dEmail === email) || (userId && dUid === userId)) {
+        const dPhone = (data.customerPhone || data.phone || "").replace(/\D/g, "").slice(-10);
+        if ((email && dEmail === email) || (userId && dUid === userId) || (phone && dPhone && dPhone === phone)) {
           if (!seenIds.has(d.id)) {
             seenIds.add(d.id);
             historyItems.push({
@@ -53,7 +55,8 @@ export async function GET(req: NextRequest) {
         const data = d.data();
         const dEmail = (data.customerEmail || data.email || "").toLowerCase().trim();
         const dUid = data.userId || "";
-        if ((email && dEmail === email) || (userId && dUid === userId)) {
+        const dPhone = (data.customerPhone || data.phone || "").replace(/\D/g, "").slice(-10);
+        if ((email && dEmail === email) || (userId && dUid === userId) || (phone && dPhone && dPhone === phone)) {
           if (!seenIds.has(d.id)) {
             seenIds.add(d.id);
             historyItems.push({
@@ -84,7 +87,8 @@ export async function GET(req: NextRequest) {
         const data = d.data();
         const dEmail = (data.customerEmail || data.email || "").toLowerCase().trim();
         const dUid = data.userId || "";
-        if ((email && dEmail === email) || (userId && dUid === userId)) {
+        const dPhone = (data.customerPhone || data.phone || "").replace(/\D/g, "").slice(-10);
+        if ((email && dEmail === email) || (userId && dUid === userId) || (phone && dPhone && dPhone === phone)) {
           if (!seenIds.has(d.id)) {
             seenIds.add(d.id);
             historyItems.push({

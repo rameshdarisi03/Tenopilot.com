@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, getDocs, query, collection, where } from "firebase/firestore";
 import { usePathname, useRouter } from "next/navigation";
 import { sanitizeTitleCase } from "@/lib/authService";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
@@ -31,6 +31,11 @@ export interface UserProfile {
   maxPropertiesAllowed?: number;
   maxTenantsLimit?: number;
   tenantExtensionPacks?: number;
+  primaryUid?: string;
+  linkedPhoneUid?: string;
+  isStaff?: boolean;
+  subscriptionPlan?: string;
+  trialEndsAtMs?: number | string;
 }
 
 interface AuthContextType {
@@ -152,32 +157,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (!data.phone && savedSessionPhone) {
                 data.phone = savedSessionPhone;
               }
-              const isExplicitStaff = Boolean(staffAccountDoc?.role || staffMatch?.role);
-              const finalRole = isExplicitStaff
-                ? (staffAccountDoc?.role || staffMatch?.role || "receptionist")
-                : (data.role === "admin" ? "master_admin" : data.role || "master_admin");
-              data.role = finalRole;
-              data.assignedPropertyId =
-                (isExplicitStaff && (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId)) ||
-                data.assignedPropertyId ||
-                resolvedProp;
+              const isExplicitStaff = Boolean(
+                staffAccountDoc?.role ||
+                staffMatch?.role ||
+                data.role === "admin" ||
+                data.role === "receptionist" ||
+                data.isStaff
+              );
 
-              // 🛡️ Self-heal existing accounts: stamp planExpiresAt if missing
-              if (!data.planExpiresAt && data.role === "master_admin" && !data.plan) {
-                const effectiveCreated = data.createdAt || currentUser.metadata.creationTime || "2026-08-20T00:00:00.000Z";
-                const createdMs = new Date(effectiveCreated).getTime();
-                const expiryMs = createdMs + 10 * 24 * 60 * 60 * 1000;
-                const isStillValid = expiryMs > Date.now();
-                data.createdAt = new Date(createdMs).toISOString();
-                data.planExpiresAt = new Date(expiryMs).toISOString();
-                data.plan = "10_DAY_TRIAL";
-                data.subscriptionStatus = isStillValid ? "TRIAL" : "EXPIRED";
-                setDoc(userDocRef, {
-                  createdAt: data.createdAt,
-                  planExpiresAt: data.planExpiresAt,
-                  plan: data.plan,
-                  subscriptionStatus: data.subscriptionStatus,
-                }, { merge: true }).catch(() => {});
+              if (isExplicitStaff) {
+                const finalStaffRole = (staffAccountDoc?.role || staffMatch?.role || (data.role === "admin" ? "admin" : "receptionist")) as UserRole;
+                data.role = finalStaffRole;
+                data.plan = "ORGANIZATION_STAFF";
+                data.subscriptionPlan = "pro";
+                data.subscriptionStatus = "ACTIVE_PRO";
+                data.isStaff = true;
+                data.assignedPropertyId =
+                  (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId) ||
+                  data.assignedPropertyId ||
+                  resolvedProp;
+                if (staffAccountDoc?.organizationId && !data.organizationId) {
+                  data.organizationId = staffAccountDoc.organizationId;
+                }
+              } else {
+                data.role = data.role === "admin" ? "master_admin" : (data.role || "master_admin");
+                data.assignedPropertyId = data.assignedPropertyId || resolvedProp;
+
+                // 🔗 CROSS-AUTH IDENTITY LINKING & REAL-TIME SUBSCRIPTION HEALING:
+                // If this account was accessed via phone or has a primary master UID (e.g. Google OAuth Master),
+                // synchronize Pro subscription and property authority from the master account!
+                if (data.primaryUid && data.primaryUid !== currentUser.uid) {
+                  getDoc(doc(db, "users", data.primaryUid)).then((primarySnap) => {
+                    if (primarySnap.exists()) {
+                      const pData = primarySnap.data();
+                      const isPrimaryPro =
+                        pData.subscriptionStatus === "ACTIVE_PRO" ||
+                        pData.plan?.startsWith("PRO_") ||
+                        pData.plan === "VIP_PASS" ||
+                        pData.subscriptionPlan === "pro" ||
+                        (pData.planExpiresAt && new Date(pData.planExpiresAt).getTime() > Date.now());
+                      if (isPrimaryPro && data.subscriptionStatus !== "ACTIVE_PRO") {
+                        const synced: Partial<UserProfile> = {
+                          plan: pData.plan || "PRO_MONTHLY",
+                          subscriptionPlan: pData.subscriptionPlan || "pro",
+                          subscriptionStatus: pData.subscriptionStatus || "ACTIVE_PRO",
+                          planExpiresAt: pData.planExpiresAt,
+                          trialEndsAtMs: pData.trialEndsAtMs || null,
+                          tenantExtensionPacks: pData.tenantExtensionPacks || 0,
+                          maxPropertiesAllowed: pData.maxPropertiesAllowed || 1,
+                          organizationId: pData.organizationId || data.organizationId,
+                          assignedPropertyId: pData.assignedPropertyId || data.assignedPropertyId,
+                          propertyName: pData.propertyName || data.propertyName,
+                        };
+                        Object.assign(data, synced);
+                        setDoc(userDocRef, synced, { merge: true }).catch(() => {});
+                        setProfile({ ...data });
+                      }
+                    }
+                  }).catch(() => {});
+                } else if (
+                  data.subscriptionStatus !== "ACTIVE_PRO" &&
+                  data.plan !== "PRO_MONTHLY" &&
+                  data.plan !== "PRO_ANNUAL" &&
+                  data.plan !== "VIP_PASS"
+                ) {
+                  // Fallback proactive lookup by phone if primaryUid wasn't stamped yet
+                  const cleanPhone = (data.phone || savedSessionPhone || "").replace(/\D/g, "").slice(-10);
+                  if (cleanPhone) {
+                    getDocs(query(collection(db, "users"), where("phone", "==", cleanPhone))).then((pSnap: any) => {
+                      const proMatch = pSnap.docs.find((d: any) => {
+                        const dData = d.data();
+                        return (
+                          d.id !== currentUser.uid &&
+                          (dData.subscriptionStatus === "ACTIVE_PRO" ||
+                            dData.plan?.startsWith("PRO_") ||
+                            dData.plan === "VIP_PASS" ||
+                            dData.subscriptionPlan === "pro" ||
+                            (dData.planExpiresAt && new Date(dData.planExpiresAt).getTime() > Date.now()))
+                        );
+                      });
+                      if (proMatch) {
+                        const pData = proMatch.data();
+                        const synced: Partial<UserProfile> = {
+                          primaryUid: proMatch.id,
+                          plan: pData.plan || "PRO_MONTHLY",
+                          subscriptionPlan: pData.subscriptionPlan || "pro",
+                          subscriptionStatus: pData.subscriptionStatus || "ACTIVE_PRO",
+                          planExpiresAt: pData.planExpiresAt,
+                          trialEndsAtMs: pData.trialEndsAtMs || null,
+                          tenantExtensionPacks: pData.tenantExtensionPacks || 0,
+                          maxPropertiesAllowed: pData.maxPropertiesAllowed || 1,
+                          organizationId: pData.organizationId || data.organizationId,
+                          assignedPropertyId: pData.assignedPropertyId || data.assignedPropertyId,
+                          propertyName: pData.propertyName || data.propertyName,
+                        };
+                        Object.assign(data, synced);
+                        setDoc(userDocRef, synced, { merge: true }).catch(() => {});
+                        setProfile({ ...data });
+                      }
+                    }).catch(() => {});
+                  }
+                }
+
+                // 🛡️ Self-heal existing accounts: stamp planExpiresAt if missing
+                if (!data.planExpiresAt && data.role === "master_admin") {
+                  if (data.plan === "PRO_MONTHLY" || data.plan === "PRO_ANNUAL" || data.plan === "VIP_PASS" || data.subscriptionStatus === "ACTIVE_PRO") {
+                    data.planExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+                    data.subscriptionStatus = "ACTIVE_PRO";
+                    setDoc(userDocRef, {
+                      planExpiresAt: data.planExpiresAt,
+                      subscriptionStatus: data.subscriptionStatus,
+                    }, { merge: true }).catch(() => {});
+                  } else if (!data.plan) {
+                    const effectiveCreated = data.createdAt || currentUser.metadata.creationTime || "2026-08-20T00:00:00.000Z";
+                    const createdMs = new Date(effectiveCreated).getTime();
+                    const expiryMs = createdMs + 10 * 24 * 60 * 60 * 1000;
+                    const isStillValid = expiryMs > Date.now();
+                    data.createdAt = new Date(createdMs).toISOString();
+                    data.planExpiresAt = new Date(expiryMs).toISOString();
+                    data.plan = "10_DAY_TRIAL";
+                    data.subscriptionStatus = isStillValid ? "TRIAL" : "EXPIRED";
+                    setDoc(userDocRef, {
+                      createdAt: data.createdAt,
+                      planExpiresAt: data.planExpiresAt,
+                      plan: data.plan,
+                      subscriptionStatus: data.subscriptionStatus,
+                    }, { merge: true }).catch(() => {});
+                  }
+                }
               }
 
               setProfile(data);
@@ -190,11 +297,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   uid: currentUser.uid,
                   email: email,
                   displayName: sanitizeTitleCase(resolvedName),
-                  organizationId: orgId,
+                  organizationId: staffAccountDoc?.organizationId || orgId,
                   role: resolvedRole,
                   assignedPropertyId: resolvedProp,
                   isNewUser: false,
                   onboardingCompleted: true,
+                  plan: "ORGANIZATION_STAFF",
+                  subscriptionPlan: "pro",
+                  subscriptionStatus: "ACTIVE_PRO",
+                  isStaff: true,
                 };
                 setProfile(staffProf);
                 staffStore.setActiveRole(staffProf.role);

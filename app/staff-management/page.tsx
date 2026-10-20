@@ -281,6 +281,11 @@ export default function StaffManagementPage() {
         assignedPropertyIds: role === "admin" ? selectedPropertyIds : [assignedPropertyId],
         propertyName: propDisplayName,
         password: password,
+        organizationId: profile?.organizationId || `org_${profile?.uid || "admin"}`,
+        masterAdminUid: profile?.uid || "",
+        ownerEmail: profile?.email || "",
+        ownerPhone: profile?.phone || "",
+        planExpiresAt: profile?.planExpiresAt || null,
       });
 
       setSuccessMessage(`✅ Account for ${name.trim()} created! Work Email: ${email.trim().toLowerCase()} | Handover Password: ${password}`);

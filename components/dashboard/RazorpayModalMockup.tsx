@@ -62,6 +62,7 @@ export function RazorpayModalMockup({
         body: JSON.stringify({
           userId,
           email: customerEmail,
+          phone: customerPhone,
           plan,
           durationDays: plan === "PRO_MONTHLY" ? 30 : 365,
           paymentMode: `Razorpay (${activeTab})`,
