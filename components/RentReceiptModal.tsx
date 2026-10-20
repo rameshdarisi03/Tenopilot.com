@@ -202,21 +202,55 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
               </div>
 
               <div className="divide-y divide-slate-100 text-xs">
-                <div className="px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {isDeposit ? "Refundable Security Deposit" : `Monthly Accommodation & Room Rent (${receiptItem.month})`}
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {isDeposit
-                        ? "Collateral security held per signed lease agreement terms"
-                        : `Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities`}
-                    </p>
+                {receiptItem.rentAmount !== undefined && receiptItem.depositAmount !== undefined && receiptItem.rentAmount > 0 && receiptItem.depositAmount > 0 ? (
+                  <>
+                    {/* Itemized Line 1: Rent */}
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          Monthly Accommodation & Room Rent ({receiptItem.month.replace(/\s*\+\s*Security Deposit/i, "")})
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities
+                        </p>
+                      </div>
+                      <div className="font-black text-slate-900 text-sm font-mono">
+                        ₹{receiptItem.rentAmount.toLocaleString("en-IN")}
+                      </div>
+                    </div>
+
+                    {/* Itemized Line 2: Security Deposit */}
+                    <div className="px-4 py-3 flex items-center justify-between bg-purple-50/20">
+                      <div>
+                        <p className="font-bold text-purple-950">
+                          Refundable Security Deposit (Lease Collateral)
+                        </p>
+                        <p className="text-[11px] text-purple-700/80 mt-0.5">
+                          Collateral security deposit held per signed lease agreement terms (Refundable)
+                        </p>
+                      </div>
+                      <div className="font-black text-purple-950 text-sm font-mono">
+                        ₹{receiptItem.depositAmount.toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">
+                        {isDeposit ? "Refundable Security Deposit" : `Monthly Accommodation & Room Rent (${receiptItem.month})`}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {isDeposit
+                          ? "Collateral security held per signed lease agreement terms"
+                          : `Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities`}
+                      </p>
+                    </div>
+                    <div className="font-black text-slate-900 text-sm font-mono">
+                      ₹{formattedAmount}
+                    </div>
                   </div>
-                  <div className="font-black text-slate-900 text-sm font-mono">
-                    ₹{formattedAmount}
-                  </div>
-                </div>
+                )}
 
                 {/* Subtotal Row */}
                 <div className="px-4 py-2.5 bg-slate-50/70 flex items-center justify-between font-semibold text-slate-600">

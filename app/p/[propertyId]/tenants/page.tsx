@@ -829,13 +829,15 @@ export default function TenantsDirectoryPage({
     const currentBillingMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
     const newReceipts: PaymentHistoryItem[] = [];
 
-    // 🏠 Rent Receipt
-    if (effectiveRent > 0) {
+    if (paymentPurpose === "COMBINED") {
+      // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit)
       newReceipts.push({
-        id: `rcpt_rent_${Date.now()}`,
+        id: `rcpt_comb_${Date.now()}`,
         receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        month: currentBillingMonth,
-        amount: effectiveRent,
+        month: `${currentBillingMonth} + Security Deposit`,
+        amount: totalCollected,
+        rentAmount: effectiveRent,
+        depositAmount: effectiveDeposit,
         date: formattedPaidDate,
         mode: modeLabel,
         paidTo: paidTo || "Main Business Account",
@@ -847,26 +849,50 @@ export default function TenantsDirectoryPage({
           email: profile?.email,
         },
       });
-    }
+    } else {
+      // 🏠 Rent Receipt
+      if (effectiveRent > 0) {
+        newReceipts.push({
+          id: `rcpt_rent_${Date.now()}`,
+          receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          month: currentBillingMonth,
+          amount: effectiveRent,
+          rentAmount: effectiveRent,
+          depositAmount: 0,
+          date: formattedPaidDate,
+          mode: modeLabel,
+          paidTo: paidTo || "Main Business Account",
+          status: "PAID",
+          collectedBy: {
+            id: profile?.uid,
+            name: staffName,
+            role: staffRole,
+            email: profile?.email,
+          },
+        });
+      }
 
-    // 🔒 Security Deposit Receipt
-    if (effectiveDeposit > 0) {
-      newReceipts.push({
-        id: `rcpt_dep_${Date.now() + 1}`,
-        receiptNo: `DEP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        month: "Security Deposit",
-        amount: effectiveDeposit,
-        date: formattedPaidDate,
-        mode: modeLabel,
-        paidTo: paidTo || "Main Business Account",
-        status: "PAID",
-        collectedBy: {
-          id: profile?.uid,
-          name: staffName,
-          role: staffRole,
-          email: profile?.email,
-        },
-      });
+      // 🔒 Security Deposit Receipt
+      if (effectiveDeposit > 0) {
+        newReceipts.push({
+          id: `rcpt_dep_${Date.now() + 1}`,
+          receiptNo: `DEP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          month: "Security Deposit",
+          amount: effectiveDeposit,
+          rentAmount: 0,
+          depositAmount: effectiveDeposit,
+          date: formattedPaidDate,
+          mode: modeLabel,
+          paidTo: paidTo || "Main Business Account",
+          status: "PAID",
+          collectedBy: {
+            id: profile?.uid,
+            name: staffName,
+            role: staffRole,
+            email: profile?.email,
+          },
+        });
+      }
     }
 
     const updatedHistory = [...newReceipts, ...(collectRentOccupant.paymentHistory || [])];
@@ -960,6 +986,9 @@ export default function TenantsDirectoryPage({
               roomNumber: collectRentOccupant.roomNumber,
               bedCode: collectRentOccupant.bedCode,
               amount: totalCollected,
+              rentAmount: effectiveRent,
+              depositAmount: effectiveDeposit,
+              month: newReceipts[0]?.month,
               receiptId: newReceipts[0]?.receiptNo,
               paidDate: formattedPaidDate,
               paymentMode: modeLabel,

@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month") || "Current Cycle";
     const isDeposit = searchParams.get("isDeposit") === "true" || receiptNo.startsWith("DEP");
     const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
+    const rentAmount = searchParams.get("rentAmount") ? Number(searchParams.get("rentAmount")) : undefined;
+    const depositAmount = searchParams.get("depositAmount") ? Number(searchParams.get("depositAmount")) : undefined;
 
     const pdfData: ReceiptPdfData = {
       receiptNo,
@@ -36,6 +38,8 @@ export async function GET(req: NextRequest) {
       month,
       isDeposit,
       isSettlement,
+      rentAmount,
+      depositAmount,
       settlementDetails: isSettlement
         ? {
             initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : amount,

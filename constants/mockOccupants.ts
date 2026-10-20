@@ -9,6 +9,9 @@ export interface PaymentHistoryItem {
   paidTo?: string; // "Main Business Account" | "Petty Cash" | Partner Name
   receiptNo: string;
   status: "PAID" | "PENDING" | "PARTIAL";
+  rentAmount?: number;      // Itemized Rent Portion
+  depositAmount?: number;   // Itemized Security Deposit Portion
+  maintenanceAmount?: number;
   collectedBy?: {
     id?: string;
     name: string;

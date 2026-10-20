@@ -471,8 +471,20 @@ export function calculateOccupantFinancialStatement(
     );
 
     const totalCollectedReceipts = history.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalDepositPaidFromReceipts = depositReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalRentPaidFromReceipts = rentReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalDepositPaidFromReceipts = history.reduce((sum, item) => {
+      if (item.depositAmount !== undefined && item.depositAmount > 0) return sum + item.depositAmount;
+      if (item.month === "Security Deposit" || item.id?.includes("-dep-") || item.receiptNo?.startsWith("#DEP-")) {
+        return sum + (item.amount || 0);
+      }
+      return sum;
+    }, 0);
+    const totalRentPaidFromReceipts = history.reduce((sum, item) => {
+      if (item.rentAmount !== undefined && item.rentAmount > 0) return sum + item.rentAmount;
+      if (item.month !== "Security Deposit" && !item.id?.includes("-dep-") && !item.receiptNo?.startsWith("#DEP-")) {
+        return sum + (item.amount || 0);
+      }
+      return sum;
+    }, 0);
 
     const isFullyPaidExplicitly = occupant.paymentStatus === "Paid" && occupant.depositStatus === "PAID";
     const hasCategorizedReceipts = depositReceipts.length > 0 || rentReceipts.length > 0;
@@ -605,8 +617,16 @@ export function calculateOccupantFinancialStatement(
   const depositReceipts = history.filter(isDepositReceipt);
   const rentReceipts = history.filter((item) => !isDepositReceipt(item));
 
-  const totalDepositPaidFromReceipts = depositReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const totalRentPaidFromReceipts = rentReceipts.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const totalDepositPaidFromReceipts = history.reduce((sum, item) => {
+    if (item.depositAmount !== undefined && item.depositAmount > 0) return sum + item.depositAmount;
+    if (isDepositReceipt(item)) return sum + (item.amount || 0);
+    return sum;
+  }, 0);
+  const totalRentPaidFromReceipts = history.reduce((sum, item) => {
+    if (item.rentAmount !== undefined && item.rentAmount > 0) return sum + item.rentAmount;
+    if (!isDepositReceipt(item)) return sum + (item.amount || 0);
+    return sum;
+  }, 0);
 
   // Deposit Clearance
   const isDepositCleared = occupant.depositStatus === "PAID" || totalDepositPaidFromReceipts >= securityDepositRequired;

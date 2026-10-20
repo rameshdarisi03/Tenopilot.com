@@ -31,6 +31,8 @@ export interface SESSendParams {
     planName?: string;
     validityPeriod?: string;
     month?: string;
+    rentAmount?: number | string;
+    depositAmount?: number | string;
   };
   attachments?: {
     name: string;
@@ -210,7 +212,8 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       const paidDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const payMode = p.paymentMode || "UPI / Digital Transfer";
       const isDeposit = cleanReceiptNo.startsWith("DEP") || (typeof p.customSubject === "string" && p.customSubject.toLowerCase().includes("deposit"));
-      const downloadReceiptUrl = p.receiptUrl || `https://tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(cleanReceiptNo)}&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}&amount=${encodeURIComponent(String(p.amount || 0))}&roomNumber=${encodeURIComponent(p.roomNumber || "")}&bedCode=${encodeURIComponent(p.bedCode || "")}&paidDate=${encodeURIComponent(paidDate)}&paymentMode=${encodeURIComponent(payMode)}${isDeposit ? "&isDeposit=true" : ""}`;
+      const hasBreakup = p.rentAmount !== undefined && p.depositAmount !== undefined && Number(p.rentAmount) > 0 && Number(p.depositAmount) > 0;
+      const downloadReceiptUrl = p.receiptUrl || `https://tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(cleanReceiptNo)}&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}&amount=${encodeURIComponent(String(p.amount || 0))}&roomNumber=${encodeURIComponent(p.roomNumber || "")}&bedCode=${encodeURIComponent(p.bedCode || "")}&paidDate=${encodeURIComponent(paidDate)}&paymentMode=${encodeURIComponent(payMode)}${isDeposit ? "&isDeposit=true" : ""}${hasBreakup ? `&rentAmount=${encodeURIComponent(String(p.rentAmount))}&depositAmount=${encodeURIComponent(String(p.depositAmount))}` : ""}`;
 
       const html = `
 <!DOCTYPE html>
@@ -264,6 +267,16 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
             <td style="padding:10px 0;color:#64748b;font-weight:500;">Payment Channel:</td>
             <td style="padding:10px 0;text-align:right;font-weight:600;color:#0f172a;">${payMode}</td>
           </tr>
+          ${hasBreakup ? `
+          <tr style="border-bottom:1px dashed #cbd5e1;">
+            <td style="padding:10px 0;color:#64748b;font-weight:500;">• Room Rent Portion:</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;color:#0f172a;">₹${Number(p.rentAmount).toLocaleString("en-IN")}</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #cbd5e1;background-color:#faf5ff;">
+            <td style="padding:10px 0;color:#6b21a8;font-weight:500;">• Security Deposit (Refundable):</td>
+            <td style="padding:10px 0;text-align:right;font-weight:700;color:#6b21a8;">₹${Number(p.depositAmount).toLocaleString("en-IN")}</td>
+          </tr>
+          ` : ""}
           <tr>
             <td style="padding:16px 0 4px 0;color:#0f172a;font-weight:800;font-size:15px;">Total Amount Paid:</td>
             <td style="padding:16px 0 4px 0;text-align:right;font-weight:900;font-size:22px;color:#059669;">₹${formattedAmount}</td>
@@ -761,6 +774,8 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
         month: p.month || p.dueDate || "Current Cycle",
         isDeposit,
         isSettlement: false,
+        rentAmount: p.rentAmount ? Number(p.rentAmount) : undefined,
+        depositAmount: p.depositAmount ? Number(p.depositAmount) : undefined,
       });
 
       const base64Pdf = Buffer.from(pdfUint8).toString("base64");

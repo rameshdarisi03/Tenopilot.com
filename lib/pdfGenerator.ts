@@ -15,6 +15,9 @@ export interface ReceiptPdfData {
   month?: string;
   isDeposit?: boolean;
   isSettlement?: boolean;
+  rentAmount?: number;
+  depositAmount?: number;
+  maintenanceAmount?: number;
   settlementDetails?: {
     initialDeposit?: number;
     unpaidRent?: number;
@@ -398,8 +401,137 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
       font: fontRegular,
       color: rgb(0.18, 0.31, 0.65),
     });
+  } else if (data.rentAmount !== undefined && data.depositAmount !== undefined && data.rentAmount > 0 && data.depositAmount > 0) {
+    // Combined Payment Breakup: Rent Portion + Deposit Portion
+    // Row 1: Rent Portion
+    const row1Y = tableY - 55;
+    page.drawText(`Monthly Accommodation & Room Rent (${(data.month || "Current Cycle").replace(/\s*\+\s*Security Deposit/i, "")})`, {
+      x: 55,
+      y: row1Y,
+      size: 10,
+      font: fontBold,
+      color: slateDark,
+    });
+    page.drawText("Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities", {
+      x: 55,
+      y: row1Y - 14,
+      size: 8,
+      font: fontRegular,
+      color: slateMuted,
+    });
+    const rentStr = `INR ${Number(data.rentAmount).toLocaleString("en-IN")}`;
+    const rentWidth = fontBold.widthOfTextAtSize(rentStr, 11);
+    page.drawText(rentStr, {
+      x: width - 55 - rentWidth,
+      y: row1Y,
+      size: 11,
+      font: fontBold,
+      color: slateDark,
+    });
+
+    page.drawLine({
+      start: { x: 40, y: row1Y - 24 },
+      end: { x: width - 40, y: row1Y - 24 },
+      thickness: 1,
+      color: borderLight,
+    });
+
+    // Row 2: Security Deposit Portion
+    const row2Y = row1Y - 48;
+    page.drawText("Refundable Security Deposit (Lease Collateral)", {
+      x: 55,
+      y: row2Y,
+      size: 10,
+      font: fontBold,
+      color: rgb(0.35, 0.18, 0.55),
+    });
+    page.drawText("Collateral security deposit held per signed agreement terms (Refundable)", {
+      x: 55,
+      y: row2Y - 14,
+      size: 8,
+      font: fontRegular,
+      color: slateMuted,
+    });
+    const depStr = `INR ${Number(data.depositAmount).toLocaleString("en-IN")}`;
+    const depWidth = fontBold.widthOfTextAtSize(depStr, 11);
+    page.drawText(depStr, {
+      x: width - 55 - depWidth,
+      y: row2Y,
+      size: 11,
+      font: fontBold,
+      color: rgb(0.35, 0.18, 0.55),
+    });
+
+    page.drawLine({
+      start: { x: 40, y: row2Y - 24 },
+      end: { x: width - 40, y: row2Y - 24 },
+      thickness: 1,
+      color: borderLight,
+    });
+
+    // Total Paid Row
+    const totalY = row2Y - 56;
+    page.drawRectangle({
+      x: 40,
+      y: totalY,
+      width: width - 80,
+      height: 32,
+      color: rgb(0.93, 0.98, 0.95), // light emerald
+      borderColor: rgb(0.65, 0.89, 0.75),
+      borderWidth: 1,
+    });
+    page.drawText("TOTAL AMOUNT PAID & CLEARED", {
+      x: 55,
+      y: totalY + 11,
+      size: 9,
+      font: fontBold,
+      color: emeraldGreen,
+    });
+    const grandTotalStr = `INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
+    const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
+    page.drawText(grandTotalStr, {
+      x: width - 55 - grandTotalWidth,
+      y: totalY + 10,
+      size: 13,
+      font: fontBold,
+      color: emeraldGreen,
+    });
+
+    // Income Tax Declaration Box
+    declarationBoxY = totalY - 75;
+    const hraBoxY = declarationBoxY;
+    page.drawRectangle({
+      x: 40,
+      y: hraBoxY,
+      width: width - 80,
+      height: 55,
+      color: rgb(0.94, 0.96, 1.0),
+      borderColor: rgb(0.78, 0.85, 0.98),
+      borderWidth: 1,
+    });
+    page.drawText("INCOME TAX HRA EXEMPTION & SALARY REIMBURSEMENT DECLARATION", {
+      x: 55,
+      y: hraBoxY + 38,
+      size: 8,
+      font: fontBold,
+      color: rgb(0.12, 0.23, 0.54),
+    });
+    page.drawText("This official electronic document certifies receipt of accommodation dues for the period stated above", {
+      x: 55,
+      y: hraBoxY + 24,
+      size: 7.5,
+      font: fontRegular,
+      color: rgb(0.18, 0.31, 0.65),
+    });
+    page.drawText("under Section 10(13A) of the Income Tax Act, 1961. Issued and tamper-verified via TenoPilot Cloud Ledger.", {
+      x: 55,
+      y: hraBoxY + 12,
+      size: 7.5,
+      font: fontRegular,
+      color: rgb(0.18, 0.31, 0.65),
+    });
   } else {
-    // Row 1: Primary Charge
+    // Single Charge Row (Rent Only or Deposit Only)
     const row1Y = tableY - 60;
     const itemDesc = data.isDeposit
       ? "Refundable Security Deposit (Lease Guarantee)"

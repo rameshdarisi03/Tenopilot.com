@@ -763,6 +763,8 @@ export default function IndividualTenantProfilePage({
                 params: {
                   receiptId: receiptItem.receiptNo,
                   amount: receiptItem.amount,
+                  rentAmount: receiptItem.rentAmount,
+                  depositAmount: receiptItem.depositAmount,
                   paymentMode: receiptItem.mode,
                   paidDate: receiptItem.date,
                   roomNumber: occupantState.roomNumber,
@@ -836,32 +838,52 @@ export default function IndividualTenantProfilePage({
     const currentBillingMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
     const newReceipts: PaymentHistoryItem[] = [];
 
-    // 🏠 Rent Receipt
-    if (effectiveRent > 0) {
+    if (paymentPurpose === "COMBINED") {
+      // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit)
       newReceipts.push({
-        id: `pay-rent-${Date.now()}`,
-        month: currentBillingMonth,
+        id: `pay-comb-${Date.now()}`,
+        month: `${currentBillingMonth} + Security Deposit`,
         date: formattedPaidDate,
-        amount: effectiveRent,
+        amount: totalCollected,
+        rentAmount: effectiveRent,
+        depositAmount: effectiveDeposit,
         mode: modeLabel,
         paidTo: paidTo || "Main Business Account",
         receiptNo: `#REC-${Math.floor(10000 + Math.random() * 90000)}`,
         status: "PAID",
       });
-    }
+    } else {
+      // 🏠 Rent Receipt
+      if (effectiveRent > 0) {
+        newReceipts.push({
+          id: `pay-rent-${Date.now()}`,
+          month: currentBillingMonth,
+          date: formattedPaidDate,
+          amount: effectiveRent,
+          rentAmount: effectiveRent,
+          depositAmount: 0,
+          mode: modeLabel,
+          paidTo: paidTo || "Main Business Account",
+          receiptNo: `#REC-${Math.floor(10000 + Math.random() * 90000)}`,
+          status: "PAID",
+        });
+      }
 
-    // 🔒 Security Deposit Receipt
-    if (effectiveDeposit > 0) {
-      newReceipts.push({
-        id: `pay-dep-${Date.now() + 1}`,
-        month: "Security Deposit",
-        date: formattedPaidDate,
-        amount: effectiveDeposit,
-        mode: modeLabel,
-        paidTo: paidTo || "Main Business Account",
-        receiptNo: `#DEP-${Math.floor(10000 + Math.random() * 90000)}`,
-        status: "PAID",
-      });
+      // 🔒 Security Deposit Receipt
+      if (effectiveDeposit > 0) {
+        newReceipts.push({
+          id: `pay-dep-${Date.now() + 1}`,
+          month: "Security Deposit",
+          date: formattedPaidDate,
+          amount: effectiveDeposit,
+          rentAmount: 0,
+          depositAmount: effectiveDeposit,
+          mode: modeLabel,
+          paidTo: paidTo || "Main Business Account",
+          receiptNo: `#DEP-${Math.floor(10000 + Math.random() * 90000)}`,
+          status: "PAID",
+        });
+      }
     }
 
     const updatedHistory = [...newReceipts, ...(occupantState.paymentHistory || paymentHistory)];
