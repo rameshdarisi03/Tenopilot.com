@@ -70,6 +70,8 @@ import {
   Send,
   Loader2,
   AlertCircle,
+  Car,
+  Plus,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -431,6 +433,7 @@ export default function IndividualTenantProfilePage({
   const [paymentPurpose, setPaymentPurpose] = useState<"RENT" | "DEPOSIT" | "COMBINED">("RENT");
   const [rentPaymentPortion, setRentPaymentPortion] = useState<number>(occupantState?.rentAmount || 0);
   const [depositPaymentPortion, setDepositPaymentPortion] = useState<number>(0);
+  const [parkingPaymentPortion, setParkingPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(occupantState?.rentAmount || 0);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [paidTo, setPaidTo] = useState<string>("Main Business Account");
@@ -456,6 +459,7 @@ export default function IndividualTenantProfilePage({
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
     if (showCollectRentModal && occupantState) {
+      setParkingPaymentPortion(0);
       const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount;
       const depDue = stmt.remainingDepositDue;
@@ -518,6 +522,12 @@ export default function IndividualTenantProfilePage({
   const [editOccupation, setEditOccupation] = useState<string>(occupantState?.occupation || "");
   const [editWorkplace, setEditWorkplace] = useState<string>(occupantState?.workplace || "");
   const [editPurposeOfVisit, setEditPurposeOfVisit] = useState<string>(occupantState?.purposeOfVisit || "");
+  const [editVehicleNumbers, setEditVehicleNumbers] = useState<string[]>(() => {
+    if (occupantState?.vehicleNumbers && occupantState.vehicleNumbers.length > 0) {
+      return occupantState.vehicleNumbers;
+    }
+    return occupantState?.vehicleNumber ? [occupantState.vehicleNumber] : [""];
+  });
 
   // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -740,6 +750,7 @@ export default function IndividualTenantProfilePage({
                   amount: receiptItem.amount,
                   rentAmount: receiptItem.rentAmount,
                   depositAmount: receiptItem.depositAmount,
+                  parkingAmount: receiptItem.parkingAmount,
                   roomNumber: occupantState.roomNumber,
                   bedCode: occupantState.bedCode,
                   paymentMode: receiptItem.mode,
@@ -787,6 +798,7 @@ export default function IndividualTenantProfilePage({
                   amount: receiptItem.amount,
                   rentAmount: receiptItem.rentAmount,
                   depositAmount: receiptItem.depositAmount,
+                  parkingAmount: receiptItem.parkingAmount,
                   paymentMode: receiptItem.mode,
                   paidDate: receiptItem.date,
                   roomNumber: occupantState.roomNumber,
@@ -873,7 +885,8 @@ export default function IndividualTenantProfilePage({
     // Calculate effective portions based on active purpose
     const effectiveRent = paymentPurpose === "DEPOSIT" ? 0 : (rentPaymentPortion || 0);
     const effectiveDeposit = paymentPurpose === "RENT" ? 0 : (depositPaymentPortion || 0);
-    const totalCollected = effectiveRent + effectiveDeposit;
+    const effectiveParking = paymentPurpose === "DEPOSIT" ? 0 : (parkingPaymentPortion || 0);
+    const totalCollected = effectiveRent + effectiveDeposit + effectiveParking;
 
     if (totalCollected <= 0) {
       triggerToast("⚠️ Please enter a payment amount greater than ₹0.");
@@ -898,7 +911,7 @@ export default function IndividualTenantProfilePage({
     const newReceipts: PaymentHistoryItem[] = [];
 
     if (paymentPurpose === "COMBINED") {
-      // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit)
+      // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit + Optional Parking)
       newReceipts.push({
         id: `pay-comb-${Date.now()}`,
         month: `${currentBillingMonth} + Security Deposit`,
@@ -906,20 +919,22 @@ export default function IndividualTenantProfilePage({
         amount: totalCollected,
         rentAmount: effectiveRent,
         depositAmount: effectiveDeposit,
+        parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
         mode: modeLabel,
         paidTo: paidTo || "Main Business Account",
         receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
         status: "PAID",
       });
     } else {
-      // 🏠 Rent Receipt
-      if (effectiveRent > 0) {
+      // 🏠 Rent Receipt (with optional Parking Charges)
+      if (effectiveRent > 0 || effectiveParking > 0) {
         newReceipts.push({
           id: `pay-rent-${Date.now()}`,
           month: currentBillingMonth,
           date: formattedPaidDate,
-          amount: effectiveRent,
+          amount: effectiveRent + effectiveParking,
           rentAmount: effectiveRent,
+          parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
           depositAmount: 0,
           mode: modeLabel,
           paidTo: paidTo || "Main Business Account",
@@ -1536,6 +1551,13 @@ export default function IndividualTenantProfilePage({
     setEditOccupation(occupantState.occupation || "");
     setEditWorkplace(occupantState.workplace || "");
     setEditPurposeOfVisit(occupantState.purposeOfVisit || "");
+    if (occupantState.vehicleNumbers && occupantState.vehicleNumbers.length > 0) {
+      setEditVehicleNumbers(occupantState.vehicleNumbers);
+    } else if (occupantState.vehicleNumber) {
+      setEditVehicleNumbers([occupantState.vehicleNumber]);
+    } else {
+      setEditVehicleNumbers([""]);
+    }
     setShowEditProfileModal(true);
   };
 
@@ -1557,6 +1579,7 @@ export default function IndividualTenantProfilePage({
       : `+${editCountryCode.trim() || "91"}`;
     const cleanNationalPhone = editPhone.trim().replace(/\D/g, "");
     const fullPhoneNumber = `${cleanCc} ${cleanNationalPhone}`;
+    const cleanVehicles = editVehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
 
     const updated: Occupant = {
       ...occupantState,
@@ -1573,6 +1596,8 @@ export default function IndividualTenantProfilePage({
       occupation: editOccupation.trim() || undefined,
       workplace: editWorkplace.trim() || undefined,
       purposeOfVisit: editPurposeOfVisit.trim() || undefined,
+      vehicleNumber: cleanVehicles[0] || undefined,
+      vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
     };
 
     setOccupantState(updated);
@@ -1798,8 +1823,8 @@ export default function IndividualTenantProfilePage({
                   )}
                 </div>
 
-                {/* 💼 Profession & Workplace Quick Badges (High-Priority Demographic Display) */}
-                {(occupantState.occupation || occupantState.workplace) && (
+                {/* 💼 Profession, Workplace & 🚗 Vehicle Quick Badges (High-Priority Demographic Display) */}
+                {(occupantState.occupation || occupantState.workplace || occupantState.vehicleNumber || (occupantState.vehicleNumbers && occupantState.vehicleNumbers.length > 0)) && (
                   <div className="flex flex-wrap items-center gap-2 mt-2.5">
                     {occupantState.occupation && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200/70 shadow-2xs">
@@ -1813,6 +1838,12 @@ export default function IndividualTenantProfilePage({
                         <span>{occupantState.workplace}</span>
                       </span>
                     )}
+                    {(occupantState.vehicleNumbers || (occupantState.vehicleNumber ? [occupantState.vehicleNumber] : [])).filter(Boolean).map((veh, vIdx) => (
+                      <span key={vIdx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-300 shadow-2xs font-mono">
+                        <Car className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                        <span>{veh}</span>
+                      </span>
+                    ))}
                   </div>
                 )}
 
@@ -2378,6 +2409,21 @@ export default function IndividualTenantProfilePage({
                       <span className="font-bold text-amber-950 flex items-center gap-1">
                         <Building2 className="w-3.5 h-3.5 text-amber-700" /> {occupantState.workplace}
                       </span>
+                    </div>
+                  )}
+                  {((occupantState.vehicleNumbers && occupantState.vehicleNumbers.length > 0) || occupantState.vehicleNumber) && (
+                    <div className="flex justify-between items-start pt-1 border-t border-gray-100">
+                      <span className="text-gray-500 font-medium">Registered Vehicle(s)</span>
+                      <div className="flex flex-col items-end gap-1">
+                        {(occupantState.vehicleNumbers || [occupantState.vehicleNumber]).filter(Boolean).map((veh, vIdx) => (
+                          <span
+                            key={vIdx}
+                            className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded text-[11px] border border-gray-200 flex items-center gap-1"
+                          >
+                            <Car className="w-3 h-3 text-[#c2652a]" /> {veh}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2999,31 +3045,54 @@ export default function IndividualTenantProfilePage({
 
                   {/* 💵 Dynamic Amount Inputs Based on Selected Category */}
                   {paymentPurpose === "RENT" && (
-                    <div className="animate-in fade-in space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="font-bold text-gray-700">
-                          Rent Amount Collected (₹) *
-                        </label>
-                        {(() => {
-                          const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
-                          return (
-                            <span className="text-[10px] text-gray-500 font-medium">
-                              Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
-                            </span>
-                          );
-                        })()}
+                    <div className="animate-in fade-in space-y-2.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-gray-700">
+                            Rent Amount Collected (₹) *
+                          </label>
+                          {(() => {
+                            const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+                            return (
+                              <span className="text-[10px] text-gray-500 font-medium">
+                                Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <input
+                          type="number"
+                          required
+                          value={rentPaymentPortion ? rentPaymentPortion : ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        required
-                        value={rentPaymentPortion ? rentPaymentPortion : ""}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
-                        }}
-                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-gray-700 flex items-center gap-1.5">
+                            <Car className="w-3.5 h-3.5 text-[#c2652a]" />
+                            <span>Vehicle Parking Charges (₹) (Optional)</span>
+                          </label>
+                          <span className="text-[10px] text-gray-400">Itemized in PDF</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={parkingPaymentPortion ? parkingPaymentPortion : ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setParkingPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -3057,7 +3126,7 @@ export default function IndividualTenantProfilePage({
                   )}
 
                   {paymentPurpose === "COMBINED" && (
-                    <div className="animate-in fade-in space-y-2 p-3 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
+                    <div className="animate-in fade-in space-y-2.5 p-3 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="font-bold text-gray-700">
@@ -3110,10 +3179,31 @@ export default function IndividualTenantProfilePage({
                         />
                       </div>
 
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-bold text-gray-700 flex items-center gap-1.5">
+                            <Car className="w-3.5 h-3.5 text-blue-600" />
+                            <span>3. Vehicle Parking Charges (₹) (Optional)</span>
+                          </label>
+                          <span className="text-[10px] text-gray-400">Itemized in PDF</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={parkingPaymentPortion ? parkingPaymentPortion : ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setParkingPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 bg-white focus:ring-1 focus:ring-emerald-600"
+                        />
+                      </div>
+
                       <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
                         <span>Total Combined:</span>
                         <span className="font-mono text-sm text-emerald-700 font-extrabold">
-                          ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0)).toLocaleString("en-IN")}
+                          ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0) + (parkingPaymentPortion || 0)).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
@@ -3303,10 +3393,10 @@ export default function IndividualTenantProfilePage({
                     <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
                       ₹{(
                         paymentPurpose === "RENT"
-                          ? (rentPaymentPortion || 0)
+                          ? (rentPaymentPortion || 0) + (parkingPaymentPortion || 0)
                           : paymentPurpose === "DEPOSIT"
                           ? (depositPaymentPortion || 0)
-                          : (rentPaymentPortion || 0) + (depositPaymentPortion || 0)
+                          : (rentPaymentPortion || 0) + (depositPaymentPortion || 0) + (parkingPaymentPortion || 0)
                       ).toLocaleString("en-IN")}
                     </span>
                   </button>
@@ -4398,6 +4488,54 @@ export default function IndividualTenantProfilePage({
                       </div>
                     </>
                   )}
+
+                  {/* 🚗 Vehicle Registration Number(s) */}
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-gray-700 text-xs flex items-center gap-1.5">
+                        <Car className="w-4 h-4 text-[#c2652a]" />
+                        <span>Vehicle Registration Number(s)</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setEditVehicleNumbers((prev) => [...prev, ""])}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#c2652a] hover:text-[#a3521e] bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg border border-orange-200 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Vehicle</span>
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {editVehicleNumbers.map((veh, vIdx) => (
+                        <div key={vIdx} className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              placeholder="e.g. KA 03 HK 4772"
+                              value={veh}
+                              onChange={(e) => {
+                                const updated = [...editVehicleNumbers];
+                                updated[vIdx] = e.target.value.toUpperCase();
+                                setEditVehicleNumbers(updated);
+                              }}
+                              className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-[#c2652a] bg-gray-50/50"
+                            />
+                            <Car className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          </div>
+                          {editVehicleNumbers.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setEditVehicleNumbers(editVehicleNumbers.filter((_, i) => i !== vIdx))}
+                              className="p-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Remove vehicle"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/90 shrink-0 flex items-center justify-end gap-3 rounded-b-3xl">

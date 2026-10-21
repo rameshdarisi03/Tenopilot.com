@@ -44,6 +44,9 @@ import {
   Building2,
   Lock,
   MessageSquare,
+  Car,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -93,6 +96,7 @@ export default function OnboardGuestPage({
   const [address, setAddress] = useState("");
   const [purposeOfVisit, setPurposeOfVisit] = useState<string>("Exam / College Admission");
   const [customPurpose, setCustomPurpose] = useState<string>("");
+  const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([""]);
 
   const [checkInDate, setCheckInDate] = useState(() => {
     const today = new Date();
@@ -447,6 +451,8 @@ export default function OnboardGuestPage({
     const isVerified = isIdProvided;
     const finalAadhaarNumber = isIdProvided ? "XXXX-XXXX-8811" : "Skipped";
 
+    const cleanVehicles = vehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
+
     const newGuest: Occupant = {
       id: newId,
       name: fullName.trim(),
@@ -471,6 +477,8 @@ export default function OnboardGuestPage({
       workplace: undefined,
       purposeOfVisit: purposeOfVisit === "Other" ? (customPurpose.trim() || "Other Short-Term Stay") : purposeOfVisit,
       address: address || undefined,
+      vehicleNumber: cleanVehicles[0] || undefined,
+      vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
       aadhaarNumber: finalAadhaarNumber,
       emergencyContact: {
         name: "Parent / Guardian",
@@ -889,6 +897,57 @@ export default function OnboardGuestPage({
                       className="mt-2 w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   )}
+                </div>
+
+                {/* 🚗 Vehicle Registration Number(s) with Dynamic + Icon */}
+                <div className="md:col-span-2 space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-gray-700 text-xs flex items-center gap-1.5">
+                      <Car className="w-4 h-4 text-purple-700" />
+                      <span>Vehicle Registration Number(s) (Optional)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setVehicleNumbers((prev) => [...prev, ""])}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl border border-purple-200 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Vehicle</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {vehicleNumbers.map((veh, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            placeholder="e.g. KA 03 HK 4772"
+                            value={veh}
+                            onChange={(e) => {
+                              const updated = [...vehicleNumbers];
+                              updated[idx] = e.target.value.toUpperCase();
+                              setVehicleNumbers(updated);
+                            }}
+                            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-purple-700 bg-gray-50/50"
+                          />
+                          <Car className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        </div>
+                        {vehicleNumbers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setVehicleNumbers(vehicleNumbers.filter((_, i) => i !== idx))}
+                            className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Remove vehicle"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">
+                    Add guest bike, scooter, or car registration numbers for gate pass, parking slot, and smart search.
+                  </span>
                 </div>
               </div>
 

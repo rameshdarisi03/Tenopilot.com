@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
     const rentAmount = searchParams.get("rentAmount") ? Number(searchParams.get("rentAmount")) : undefined;
     const depositAmount = searchParams.get("depositAmount") ? Number(searchParams.get("depositAmount")) : undefined;
+    const parkingAmount = searchParams.get("parkingAmount") ? Number(searchParams.get("parkingAmount")) : undefined;
 
     const pdfData: ReceiptPdfData = {
       receiptNo,
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
       isSettlement,
       rentAmount,
       depositAmount,
+      parkingAmount,
       settlementDetails: isSettlement
         ? {
             initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : amount,

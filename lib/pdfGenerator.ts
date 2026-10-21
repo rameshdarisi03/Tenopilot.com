@@ -18,6 +18,7 @@ export interface ReceiptPdfData {
   rentAmount?: number;
   depositAmount?: number;
   maintenanceAmount?: number;
+  parkingAmount?: number;
   settlementDetails?: {
     initialDeposit?: number;
     unpaidRent?: number;
@@ -469,8 +470,44 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
       color: borderLight,
     });
 
+    let nextCombinedY = row2Y - 48;
+    if (data.parkingAmount !== undefined && data.parkingAmount > 0) {
+      // Row 3: Parking Charges Portion
+      page.drawText("Vehicle Parking Charges (Designated Parking Slot)", {
+        x: 55,
+        y: nextCombinedY,
+        size: 10,
+        font: fontBold,
+        color: rgb(0.18, 0.45, 0.65),
+      });
+      page.drawText("Reserved parking space access, resident vehicle security & gate pass", {
+        x: 55,
+        y: nextCombinedY - 14,
+        size: 8,
+        font: fontRegular,
+        color: slateMuted,
+      });
+      const parkStr = `INR ${Number(data.parkingAmount).toLocaleString("en-IN")}`;
+      const parkWidth = fontBold.widthOfTextAtSize(parkStr, 11);
+      page.drawText(parkStr, {
+        x: width - 55 - parkWidth,
+        y: nextCombinedY,
+        size: 11,
+        font: fontBold,
+        color: rgb(0.18, 0.45, 0.65),
+      });
+
+      page.drawLine({
+        start: { x: 40, y: nextCombinedY - 24 },
+        end: { x: width - 40, y: nextCombinedY - 24 },
+        thickness: 1,
+        color: borderLight,
+      });
+      nextCombinedY = nextCombinedY - 48;
+    }
+
     // Total Paid Row
-    const totalY = row2Y - 56;
+    const totalY = nextCombinedY - 8;
     page.drawRectangle({
       x: 40,
       y: totalY,
@@ -531,8 +568,15 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
       color: rgb(0.18, 0.31, 0.65),
     });
   } else {
-    // Single Charge Row (Rent Only or Deposit Only)
-    const row1Y = tableY - 60;
+    // Single Charge Row (Rent Only or Deposit Only) + Optional Parking Charges
+    const hasParking = data.parkingAmount !== undefined && data.parkingAmount > 0;
+    const baseRentAmount = hasParking
+      ? data.rentAmount !== undefined
+        ? data.rentAmount
+        : Math.max(0, (data.amount || 0) - (data.parkingAmount || 0))
+      : (data.amount || 0);
+
+    const row1Y = tableY - 55;
     const itemDesc = data.isDeposit
       ? "Refundable Security Deposit (Lease Guarantee)"
       : `Monthly Accommodation & Room Rent (${data.month || "Current Cycle"})`;
@@ -551,7 +595,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
       color: slateMuted,
     });
 
-    const formattedAmount = `INR ${Number(data.amount || 0).toLocaleString("en-IN")}`;
+    const formattedAmount = `INR ${Number(baseRentAmount).toLocaleString("en-IN")}`;
     const amtWidth = fontBold.widthOfTextAtSize(formattedAmount, 11);
     page.drawText(formattedAmount, {
       x: width - 55 - amtWidth,
@@ -563,14 +607,49 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
 
     // Table Line
     page.drawLine({
-      start: { x: 40, y: row1Y - 25 },
-      end: { x: width - 40, y: row1Y - 25 },
+      start: { x: 40, y: row1Y - 24 },
+      end: { x: width - 40, y: row1Y - 24 },
       thickness: 1,
       color: borderLight,
     });
 
+    let nextSingleY = row1Y - 48;
+    if (hasParking) {
+      page.drawText("Vehicle Parking Charges (Designated Parking Slot)", {
+        x: 55,
+        y: nextSingleY,
+        size: 10,
+        font: fontBold,
+        color: rgb(0.18, 0.45, 0.65),
+      });
+      page.drawText("Reserved parking space access, resident vehicle security & gate pass", {
+        x: 55,
+        y: nextSingleY - 14,
+        size: 8,
+        font: fontRegular,
+        color: slateMuted,
+      });
+      const parkStr = `INR ${Number(data.parkingAmount).toLocaleString("en-IN")}`;
+      const parkWidth = fontBold.widthOfTextAtSize(parkStr, 11);
+      page.drawText(parkStr, {
+        x: width - 55 - parkWidth,
+        y: nextSingleY,
+        size: 11,
+        font: fontBold,
+        color: rgb(0.18, 0.45, 0.65),
+      });
+
+      page.drawLine({
+        start: { x: 40, y: nextSingleY - 24 },
+        end: { x: width - 40, y: nextSingleY - 24 },
+        thickness: 1,
+        color: borderLight,
+      });
+      nextSingleY = nextSingleY - 48;
+    }
+
     // Total Paid Row
-    const totalY = row1Y - 60;
+    const totalY = nextSingleY - 8;
     page.drawRectangle({
       x: 40,
       y: totalY,

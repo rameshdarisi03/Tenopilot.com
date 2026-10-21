@@ -233,23 +233,63 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
                         ₹{receiptItem.depositAmount.toLocaleString("en-IN")}
                       </div>
                     </div>
+
+                    {/* Itemized Line 3: Optional Parking Charges */}
+                    {receiptItem.parkingAmount !== undefined && receiptItem.parkingAmount > 0 && (
+                      <div className="px-4 py-3 flex items-center justify-between bg-blue-50/20">
+                        <div>
+                          <p className="font-bold text-blue-950">
+                            Vehicle Parking Charges (Designated Parking Slot)
+                          </p>
+                          <p className="text-[11px] text-blue-700/80 mt-0.5">
+                            Reserved parking space access, resident vehicle security & gate pass
+                          </p>
+                        </div>
+                        <div className="font-black text-blue-950 text-sm font-mono">
+                          ₹{receiptItem.parkingAmount.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
-                  <div className="px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {isDeposit ? "Refundable Security Deposit" : `Monthly Accommodation & Room Rent (${receiptItem.month})`}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {isDeposit
-                          ? "Collateral security held per signed lease agreement terms"
-                          : `Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities`}
-                      </p>
+                  <>
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          {isDeposit ? "Refundable Security Deposit" : `Monthly Accommodation & Room Rent (${receiptItem.month})`}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {isDeposit
+                            ? "Collateral security held per signed lease agreement terms"
+                            : `Includes room tariff, electricity, high-speed WiFi, housekeeping & amenities`}
+                        </p>
+                      </div>
+                      <div className="font-black text-slate-900 text-sm font-mono">
+                        ₹{(
+                          receiptItem.parkingAmount && receiptItem.parkingAmount > 0
+                            ? (receiptItem.rentAmount !== undefined ? receiptItem.rentAmount : Math.max(0, (receiptItem.amount || 0) - receiptItem.parkingAmount))
+                            : (receiptItem.amount || 0)
+                        ).toLocaleString("en-IN")}
+                      </div>
                     </div>
-                    <div className="font-black text-slate-900 text-sm font-mono">
-                      ₹{formattedAmount}
-                    </div>
-                  </div>
+
+                    {/* Itemized Parking Charges for Single Rent Payment */}
+                    {receiptItem.parkingAmount !== undefined && receiptItem.parkingAmount > 0 && (
+                      <div className="px-4 py-3 flex items-center justify-between bg-blue-50/20">
+                        <div>
+                          <p className="font-bold text-blue-950">
+                            Vehicle Parking Charges (Designated Parking Slot)
+                          </p>
+                          <p className="text-[11px] text-blue-700/80 mt-0.5">
+                            Reserved parking space access, resident vehicle security & gate pass
+                          </p>
+                        </div>
+                        <div className="font-black text-blue-950 text-sm font-mono">
+                          ₹{receiptItem.parkingAmount.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Subtotal Row */}

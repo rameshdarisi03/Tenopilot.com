@@ -52,6 +52,9 @@ import {
   X,
   AlertCircle,
   Users,
+  Car,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   validateDocumentFile,
@@ -112,6 +115,7 @@ export default function OnboardTenantPage({
   const [address, setAddress] = useState("");
   const [workplace, setWorkplace] = useState("");
   const [workplaceAddress, setWorkplaceAddress] = useState("");
+  const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([""]);
   const [joiningDate, setJoiningDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split("T")[0];
@@ -549,6 +553,8 @@ export default function OnboardTenantPage({
     const initialLifecycleStatus: "Active" | "Booked" = isFutureMoveIn ? "Booked" : "Active";
     const initialPaymentStatus: "Due" = "Due";
 
+    const cleanVehicles = vehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
+
     const newTenant: Occupant = {
       id: newId,
       name: fullName.trim(),
@@ -572,6 +578,8 @@ export default function OnboardTenantPage({
       hasPdfAgreement: true,
       workplace: workplace.trim(),
       address: address.trim(),
+      vehicleNumber: cleanVehicles[0] || undefined,
+      vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
       aadhaarNumber: finalAadhaarNumber,
       emergencyContact: {
         name: "Parent / Guardian",
@@ -1058,6 +1066,57 @@ export default function OnboardTenantPage({
                     onChange={(e) => setWorkplaceAddress(e.target.value)}
                     className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
                   />
+                </div>
+
+                {/* 🚗 Vehicle Registration Number(s) with Dynamic + Icon */}
+                <div className="md:col-span-2 space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-gray-700 text-xs flex items-center gap-1.5">
+                      <Car className="w-4 h-4 text-[#c2652a]" />
+                      <span>Vehicle Registration Number(s) (Optional)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setVehicleNumbers((prev) => [...prev, ""])}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#c2652a] hover:text-[#a3521e] bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-xl border border-orange-200 transition-all cursor-pointer shadow-2xs active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Vehicle</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {vehicleNumbers.map((veh, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            placeholder="e.g. KA 03 HK 4772"
+                            value={veh}
+                            onChange={(e) => {
+                              const updated = [...vehicleNumbers];
+                              updated[idx] = e.target.value.toUpperCase();
+                              setVehicleNumbers(updated);
+                            }}
+                            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-[#c2652a] bg-gray-50/50"
+                          />
+                          <Car className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        </div>
+                        {vehicleNumbers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setVehicleNumbers(vehicleNumbers.filter((_, i) => i !== idx))}
+                            className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Remove vehicle"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">
+                    Add bike, scooter, or car registration numbers for gate pass, parking allocation, and fast tenant search.
+                  </span>
                 </div>
               </div>
 

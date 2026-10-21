@@ -24,6 +24,7 @@ export interface WhatsAppSendParams {
     month?: string;
     rentAmount?: string | number;
     depositAmount?: string | number;
+    parkingAmount?: string | number;
     onboardUrl?: string;
     complaintId?: string;
     complaintTitle?: string;
@@ -343,6 +344,9 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         }
         if (p.depositAmount !== undefined) {
           pdfParams.set("depositAmount", String(p.depositAmount));
+        }
+        if (p.parkingAmount !== undefined) {
+          pdfParams.set("parkingAmount", String(p.parkingAmount));
         }
         if (p.managerPhone) {
           pdfParams.set("managerPhone", p.managerPhone);

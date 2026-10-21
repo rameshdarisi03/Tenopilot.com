@@ -73,6 +73,7 @@ import {
   Lock,
   Check,
   Send,
+  Car,
 } from "lucide-react";
 
 export default function TenantsDirectoryPage({
@@ -190,6 +191,7 @@ export default function TenantsDirectoryPage({
   const [paymentPurpose, setPaymentPurpose] = useState<"RENT" | "DEPOSIT" | "COMBINED">("RENT");
   const [rentPaymentPortion, setRentPaymentPortion] = useState<number>(14500);
   const [depositPaymentPortion, setDepositPaymentPortion] = useState<number>(0);
+  const [parkingPaymentPortion, setParkingPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(14500);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
   const [paidTo, setPaidTo] = useState<string>("Main Business Account");
@@ -222,6 +224,7 @@ export default function TenantsDirectoryPage({
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
     if (collectRentOccupant) {
+      setParkingPaymentPortion(0);
       const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount;
       const depDue = stmt.remainingDepositDue;
@@ -786,7 +789,8 @@ export default function TenantsDirectoryPage({
 
     const effectiveRent = paymentPurpose === "DEPOSIT" ? 0 : (rentPaymentPortion || 0);
     const effectiveDeposit = paymentPurpose === "RENT" ? 0 : (depositPaymentPortion || 0);
-    const totalCollected = effectiveRent + effectiveDeposit;
+    const effectiveParking = paymentPurpose === "DEPOSIT" ? 0 : (parkingPaymentPortion || 0);
+    const totalCollected = effectiveRent + effectiveDeposit + effectiveParking;
 
     if (totalCollected <= 0) {
       triggerToast("⚠️ Please enter a payment amount greater than ₹0.");
@@ -813,7 +817,7 @@ export default function TenantsDirectoryPage({
     const newReceipts: PaymentHistoryItem[] = [];
 
     if (paymentPurpose === "COMBINED") {
-      // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit)
+      // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit + Optional Parking)
       newReceipts.push({
         id: `rcpt_comb_${Date.now()}`,
         receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
@@ -821,6 +825,7 @@ export default function TenantsDirectoryPage({
         amount: totalCollected,
         rentAmount: effectiveRent,
         depositAmount: effectiveDeposit,
+        parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
         date: formattedPaidDate,
         mode: modeLabel,
         paidTo: paidTo || "Main Business Account",
@@ -833,14 +838,15 @@ export default function TenantsDirectoryPage({
         },
       });
     } else {
-      // 🏠 Rent Receipt
-      if (effectiveRent > 0) {
+      // 🏠 Rent Receipt (with Optional Parking Charges)
+      if (effectiveRent > 0 || effectiveParking > 0) {
         newReceipts.push({
           id: `rcpt_rent_${Date.now()}`,
           receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
           month: currentBillingMonth,
-          amount: effectiveRent,
+          amount: effectiveRent + effectiveParking,
           rentAmount: effectiveRent,
+          parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
           depositAmount: 0,
           date: formattedPaidDate,
           mode: modeLabel,
@@ -962,6 +968,7 @@ export default function TenantsDirectoryPage({
               amount: totalCollected,
               rentAmount: effectiveRent,
               depositAmount: effectiveDeposit,
+              parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
               month: newReceipts[0]?.month,
               receiptId: newReceipts[0]?.receiptNo,
               paidDate: formattedPaidDate,
@@ -1056,7 +1063,16 @@ export default function TenantsDirectoryPage({
         const occPhoneDigits = normalizePhoneNumber(occ.phone);
         const occAadhaar = occ.aadhaarNumber.toLowerCase();
 
-        // Check if entered tokens match name prefix (startsWith word), room, or phone
+        // Collect all registered vehicle plates for this occupant
+        const vList: string[] = [];
+        if (occ.vehicleNumber) vList.push(occ.vehicleNumber);
+        if (Array.isArray(occ.vehicleNumbers)) {
+          for (const v of occ.vehicleNumbers) {
+            if (v && !vList.includes(v)) vList.push(v);
+          }
+        }
+
+        // Check if entered tokens match name prefix (startsWith word), room, phone, or vehicle plate
         const matchesAllTokens = searchTokens.every((token) => {
           const cleanName = occNameLower.replace(/[^a-z0-9\s]/g, "");
           const nameWords = cleanName.split(/\s+/).filter(Boolean);
@@ -1066,7 +1082,17 @@ export default function TenantsDirectoryPage({
           const aadhaarMatches = occAadhaar.startsWith(token);
           const phoneMatches = numericDigitsOnly.length >= 2 && occPhoneDigits.includes(numericDigitsOnly);
 
-          return nameMatchesPrefix || roomMatches || aadhaarMatches || phoneMatches;
+          // 🚗 Vehicle registration plate matching (Case-insensitive, substring like "HK", last 4 digits like "4772")
+          const tokenAlpha = token.replace(/[^a-z0-9]/g, "");
+          const vehicleMatches = vList.some((veh) => {
+            const vl = veh.toLowerCase();
+            const vs = vl.replace(/[^a-z0-9]/g, "");
+            if (!tokenAlpha) return vl.includes(token);
+            // Matches substring in raw plate (e.g. "hk") OR alphanumeric condensed plate (e.g. "ka03") OR ends with token (e.g. last 4 digits "4772")
+            return vl.includes(token) || vs.includes(tokenAlpha) || vs.endsWith(tokenAlpha);
+          });
+
+          return nameMatchesPrefix || roomMatches || aadhaarMatches || phoneMatches || vehicleMatches;
         });
 
         // If searching, return true if matches query (Ignore tab & dropdown filters for True Global Search)
@@ -1458,7 +1484,7 @@ export default function TenantsDirectoryPage({
               onChange={(e) => {
                 setRawSearchTerm(e.target.value);
               }}
-              placeholder="Search resident name, room, phone..."
+              placeholder="Search resident name, room, phone, vehicle plate..."
               className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 focus:border-[#c2652a] rounded-2xl text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[#c2652a]/20 shadow-xs transition-all"
             />
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-4" />
@@ -1748,6 +1774,12 @@ export default function TenantsDirectoryPage({
                           ) : (
                             <>
                               <span className="block font-bold text-gray-900">Room {occ.roomNumber} ({occ.bedCode})</span>
+                              {((occ.vehicleNumbers && occ.vehicleNumbers.length > 0) || occ.vehicleNumber) && (
+                                <span className="text-[10px] text-slate-700 font-mono font-bold flex items-center gap-1 mt-0.5" title={(occ.vehicleNumbers || [occ.vehicleNumber]).filter(Boolean).join(", ")}>
+                                  <Car className="w-3 h-3 text-[#c2652a] shrink-0" />
+                                  <span className="truncate max-w-[140px]">{(occ.vehicleNumbers || [occ.vehicleNumber]).filter(Boolean).join(", ")}</span>
+                                </span>
+                              )}
                               <span className="text-[10px] text-gray-400 block font-normal">
                                 {propertySettingsStore.getSettings(propertyId)?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property")}
                               </span>
@@ -2075,6 +2107,12 @@ Scroll vertically to browse all residents without pagination limits
                             </p>
                           ) : (
                             <p className="text-xs text-gray-500 font-mono truncate select-none">{occ.phone}</p>
+                          )}
+                          {((occ.vehicleNumbers && occ.vehicleNumbers.length > 0) || occ.vehicleNumber) && (
+                            <p className="text-[10px] text-slate-700 font-mono font-bold flex items-center gap-1 select-none mt-0.5">
+                              <Car className="w-3 h-3 text-[#c2652a] shrink-0" />
+                              <span className="truncate">{(occ.vehicleNumbers || [occ.vehicleNumber]).filter(Boolean).join(", ")}</span>
+                            </p>
                           )}
                         </Link>
                       </div>
@@ -2450,31 +2488,54 @@ Scroll vertically to browse all residents without pagination limits
 
                 {/* 💵 Dynamic Amount Inputs Based on Selected Category */}
                 {paymentPurpose === "RENT" && (
-                  <div className="animate-in fade-in space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-gray-700">
-                        Rent Amount Collected (₹) *
-                      </label>
-                      {(() => {
-                        const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
-                        return (
-                          <span className="text-[10px] text-gray-500 font-medium">
-                            Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
-                          </span>
-                        );
-                      })()}
+                  <div className="animate-in fade-in space-y-2.5">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-gray-700">
+                          Rent Amount Collected (₹) *
+                        </label>
+                        {(() => {
+                          const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                          return (
+                            <span className="text-[10px] text-gray-500 font-medium">
+                              Due: ₹{stmt.remainingRentDue.toLocaleString("en-IN")}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <input
+                        type="number"
+                        required
+                        value={rentPaymentPortion ? rentPaymentPortion : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
                     </div>
-                    <input
-                      type="number"
-                      required
-                      value={rentPaymentPortion ? rentPaymentPortion : ""}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setRentPaymentPortion(val === "" ? 0 : parseInt(val, 10));
-                      }}
-                      className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-gray-700 flex items-center gap-1.5">
+                          <Car className="w-3.5 h-3.5 text-[#c2652a]" />
+                          <span>Vehicle Parking Charges (₹) (Optional)</span>
+                        </label>
+                        <span className="text-[10px] text-gray-400">Itemized in PDF</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={parkingPaymentPortion ? parkingPaymentPortion : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setParkingPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -2508,7 +2569,7 @@ Scroll vertically to browse all residents without pagination limits
                 )}
 
                 {paymentPurpose === "COMBINED" && (
-                  <div className="animate-in fade-in space-y-2 p-3 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
+                  <div className="animate-in fade-in space-y-2.5 p-3 bg-gradient-to-br from-gray-50 to-emerald-50/20 border border-gray-200 rounded-2xl">
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-bold text-gray-700">
@@ -2561,10 +2622,31 @@ Scroll vertically to browse all residents without pagination limits
                       />
                     </div>
 
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-gray-700 flex items-center gap-1.5">
+                          <Car className="w-3.5 h-3.5 text-blue-600" />
+                          <span>3. Vehicle Parking Charges (₹) (Optional)</span>
+                        </label>
+                        <span className="text-[10px] text-gray-400">Itemized in PDF</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={parkingPaymentPortion ? parkingPaymentPortion : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setParkingPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm font-mono font-bold text-gray-900 bg-white focus:ring-1 focus:ring-emerald-600"
+                      />
+                    </div>
+
                     <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
                       <span>Total Combined:</span>
                       <span className="font-mono text-sm text-emerald-700 font-extrabold">
-                        ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0)).toLocaleString("en-IN")}
+                        ₹{((rentPaymentPortion || 0) + (depositPaymentPortion || 0) + (parkingPaymentPortion || 0)).toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>
@@ -2686,10 +2768,10 @@ Scroll vertically to browse all residents without pagination limits
                   <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
                     ₹{(
                       paymentPurpose === "RENT"
-                        ? (rentPaymentPortion || 0)
+                        ? (rentPaymentPortion || 0) + (parkingPaymentPortion || 0)
                         : paymentPurpose === "DEPOSIT"
                         ? (depositPaymentPortion || 0)
-                        : (rentPaymentPortion || 0) + (depositPaymentPortion || 0)
+                        : (rentPaymentPortion || 0) + (depositPaymentPortion || 0) + (parkingPaymentPortion || 0)
                     ).toLocaleString("en-IN")}
                   </span>
                 </button>

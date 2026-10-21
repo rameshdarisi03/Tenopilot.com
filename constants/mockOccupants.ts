@@ -12,6 +12,7 @@ export interface PaymentHistoryItem {
   rentAmount?: number;      // Itemized Rent Portion
   depositAmount?: number;   // Itemized Security Deposit Portion
   maintenanceAmount?: number;
+  parkingAmount?: number;   // Itemized Parking Charges Portion
   collectedBy?: {
     id?: string;
     name: string;
@@ -78,6 +79,8 @@ export interface Occupant {
   depositStatus?: "PAID" | "PENDING" | "PARTIAL" | "REFUNDED";
   partialPaidThisCycle?: number;
   arrearsBalance?: number;
+  vehicleNumber?: string;
+  vehicleNumbers?: string[];
   paymentHistory?: PaymentHistoryItem[];
   checkoutSettlement?: CheckoutSettlementAudit;
 }
@@ -146,6 +149,8 @@ export function generateMockOccupants(count = 25): Occupant[] {
       hasPdfAgreement: true,
       workplace: "Microsoft R&D",
       address: "Koramangala, Bengaluru",
+      vehicleNumber: "KA 03 HK 4772",
+      vehicleNumbers: ["KA 03 HK 4772"],
       aadhaarNumber: "Skipped",
       emergencyContact: { name: "Subhash Sengupta", phone: "+91 99001 00000", relation: "Father" },
       securityDeposit: 25000,
