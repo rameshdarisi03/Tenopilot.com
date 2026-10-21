@@ -23,6 +23,7 @@ import {
   Zap,
   Building2,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
   Phone,
   HelpCircle,
@@ -57,8 +58,17 @@ export default function SubscriptionBillingPage() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"PRO_MONTHLY" | "PRO_ANNUAL">("PRO_MONTHLY");
+  const [mobilePlanIndex, setMobilePlanIndex] = useState<number>(0);
   const [paymentChannel, setPaymentChannel] = useState<"ONLINE" | "OFFLINE">("ONLINE");
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+
+  // Auto-slide mobile plan carousel every 2 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMobilePlanIndex((prev) => (prev === 0 ? 1 : 0));
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Offline Verification State
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
@@ -1014,7 +1024,8 @@ export default function SubscriptionBillingPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Desktop / Tablet View (Hidden on Mobile) */}
+            <div className="hidden md:grid md:grid-cols-2 gap-6">
               {/* Plan 1: Pro Monthly */}
               <div
                 onClick={() => setSelectedPlan("PRO_MONTHLY")}
@@ -1123,6 +1134,184 @@ export default function SubscriptionBillingPage() {
                 </div>
               </div>
             </div>
+
+            {/* Mobile / Smartphone Carousel View (Sliding Left-Right Every 2s) */}
+            <div className="block md:hidden">
+              <div className="relative overflow-hidden pt-3 pb-1">
+                <div
+                  className="flex transition-transform duration-500 ease-in-out"
+                  style={{ transform: `translateX(-${mobilePlanIndex * 100}%)` }}
+                >
+                  {/* Slide 0: Pro Monthly */}
+                  <div className="w-full shrink-0 px-1">
+                    <div
+                      onClick={() => {
+                        setSelectedPlan("PRO_MONTHLY");
+                        setMobilePlanIndex(0);
+                      }}
+                      className={`p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between min-h-[360px] ${
+                        selectedPlan === "PRO_MONTHLY"
+                          ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
+                          : "bg-white/80 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
+                      }`}
+                    >
+                      {selectedPlan === "PRO_MONTHLY" && (
+                        <span className="absolute -top-3 right-6 bg-[#c2652a] text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-xs">
+                          SELECTED
+                        </span>
+                      )}
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-black text-base text-[#201a17]">Pro Monthly Plan</h4>
+                            <p className="text-[11px] text-gray-500">Flexible 30-day recurring subscription</p>
+                          </div>
+                          <div className="p-2 rounded-xl bg-amber-50 text-[#c2652a]">
+                            <Zap className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proMonthlyPrice.toLocaleString("en-IN")}</span>
+                          <span className="text-xs text-gray-500 font-bold">/ Month</span>
+                        </div>
+
+                        <ul className="space-y-1.5 text-xs text-gray-600 pt-1">
+                          {proFeatures.slice(0, 4).map((f, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPlan("PRO_MONTHLY");
+                            setMobilePlanIndex(0);
+                          }}
+                          className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                            selectedPlan === "PRO_MONTHLY"
+                              ? "bg-[#201a17] text-white shadow-xs"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {selectedPlan === "PRO_MONTHLY" ? "✓ Plan Selected" : `Select Monthly (₹${platformConfig.proMonthlyPrice})`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Slide 1: Pro Annual */}
+                  <div className="w-full shrink-0 px-1">
+                    <div
+                      onClick={() => {
+                        setSelectedPlan("PRO_ANNUAL");
+                        setMobilePlanIndex(1);
+                      }}
+                      className={`p-5 rounded-3xl border-2 transition-all cursor-pointer relative flex flex-col justify-between min-h-[360px] ${
+                        selectedPlan === "PRO_ANNUAL"
+                          ? "bg-white border-[#c2652a] shadow-md ring-2 ring-[#c2652a]/20"
+                          : "bg-white/80 border-[#d7c2b9]/60 hover:border-[#c2652a]/50"
+                      }`}
+                    >
+                      <span className="absolute -top-3 right-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+                        SAVE ₹{(platformConfig.proMonthlyPrice * 12 - platformConfig.proAnnualPrice).toLocaleString("en-IN")} 🏆
+                      </span>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-black text-base text-[#201a17]">Pro Annual Plan</h4>
+                            <p className="text-[11px] text-gray-500">365 days uninterrupted peace of mind</p>
+                          </div>
+                          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                            <ShieldCheck className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-[#201a17]">₹{platformConfig.proAnnualPrice.toLocaleString("en-IN")}</span>
+                          <span className="text-xs text-gray-500 font-bold">/ Year</span>
+                        </div>
+
+                        <ul className="space-y-1.5 text-xs text-gray-600 pt-1">
+                          {proFeatures.slice(0, 4).map((f, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPlan("PRO_ANNUAL");
+                            setMobilePlanIndex(1);
+                          }}
+                          className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                            selectedPlan === "PRO_ANNUAL"
+                              ? "bg-[#201a17] text-white shadow-xs"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {selectedPlan === "PRO_ANNUAL" ? "✓ Plan Selected" : `Select Annual (₹${platformConfig.proAnnualPrice})`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Carousel Arrow Controls & Pagination Dots */}
+              <div className="flex items-center justify-between px-2 pt-1 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setMobilePlanIndex((prev) => (prev === 0 ? 1 : 0))}
+                  className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50"
+                  aria-label="Previous plan"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobilePlanIndex(0)}
+                    className={`h-2 rounded-full transition-all ${
+                      mobilePlanIndex === 0 ? "w-6 bg-[#c2652a]" : "w-2 bg-stone-300"
+                    }`}
+                    aria-label="Monthly Plan indicator"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMobilePlanIndex(1)}
+                    className={`h-2 rounded-full transition-all ${
+                      mobilePlanIndex === 1 ? "w-6 bg-[#c2652a]" : "w-2 bg-stone-300"
+                    }`}
+                    aria-label="Annual Plan indicator"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobilePlanIndex((prev) => (prev === 0 ? 1 : 0))}
+                  className="w-8 h-8 rounded-full bg-white border border-[#d7c2b9] text-[#201a17] shadow-xs flex items-center justify-center active:scale-90 transition-all hover:bg-amber-50"
+                  aria-label="Next plan"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* DUAL PAYMENT METHOD HUB: ONLINE (RAZORPAY) vs OFFLINE (PROOF APPROVAL) */}
@@ -1142,59 +1331,47 @@ export default function SubscriptionBillingPage() {
               </p>
             </div>
 
-            {/* Payment Channel Selector Tabs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Payment Channel Selector Tabs (Horizontal Side-by-Side on all devices, no description) */}
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
               <button
                 type="button"
                 onClick={() => setPaymentChannel("ONLINE")}
-                className={`p-4 rounded-2xl border-2 flex items-start gap-3 transition-all cursor-pointer text-left ${
+                className={`p-3 sm:p-4 rounded-2xl border-2 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-2 sm:gap-3 transition-all cursor-pointer justify-center sm:justify-start ${
                   paymentChannel === "ONLINE"
                     ? "bg-gradient-to-br from-blue-50/60 to-white border-blue-600 shadow-sm ring-2 ring-blue-500/20"
                     : "bg-slate-50/50 border-slate-200 hover:bg-slate-50 text-slate-700"
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
                   paymentChannel === "ONLINE" ? "bg-blue-600 text-white shadow-sm" : "bg-slate-200 text-slate-700"
                 }`}>
-                  <CreditCard className="w-5 h-5" />
+                  <CreditCard className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-sm text-slate-900">Online Gateway (Razorpay)</span>
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
-                      Instant ⚡
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    UPI, Cards, NetBanking. Automated activation in 10 seconds.
-                  </p>
+                <div className="min-w-0">
+                  <span className="font-black text-xs sm:text-sm text-slate-900 block leading-tight">
+                    Online Razorpay
+                  </span>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentChannel("OFFLINE")}
-                className={`p-4 rounded-2xl border-2 flex items-start gap-3 transition-all cursor-pointer text-left ${
+                className={`p-3 sm:p-4 rounded-2xl border-2 flex flex-col sm:flex-row items-center sm:items-center text-center sm:text-left gap-2 sm:gap-3 transition-all cursor-pointer justify-center sm:justify-start ${
                   paymentChannel === "OFFLINE"
                     ? "bg-gradient-to-br from-amber-50/60 to-white border-amber-600 shadow-sm ring-2 ring-amber-500/20"
                     : "bg-slate-50/50 border-slate-200 hover:bg-slate-50 text-slate-700"
                 }`}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
                   paymentChannel === "OFFLINE" ? "bg-amber-600 text-white shadow-sm" : "bg-slate-200 text-slate-700"
                 }`}>
-                  <QrCode className="w-5 h-5" />
+                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-sm text-slate-900">Direct Offline UPI / Bank</span>
-                    <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-black uppercase">
-                      Manual Approval
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Scan QR, upload screenshot. Verified & approved by founder.
-                  </p>
+                <div className="min-w-0">
+                  <span className="font-black text-xs sm:text-sm text-slate-900 block leading-tight">
+                    Offline UPI/Bank
+                  </span>
                 </div>
               </button>
             </div>

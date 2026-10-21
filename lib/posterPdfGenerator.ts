@@ -135,7 +135,7 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     height: qrInnerSize,
   });
 
-  // 7. 3-Step Instruction Sequence (Glassmorphic card with 65% opacity)
+  // 7. 3-Step Instruction Sequence (Glassmorphic card with ~35% translucent opacity)
   const stepY = 280;
   const stepBoxWidth = 470;
   const stepBoxHeight = 64;
@@ -148,7 +148,7 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     width: stepBoxWidth,
     height: stepBoxHeight,
     color: white,
-    opacity: 0.65,
+    opacity: 0.35,
     borderColor: rgb(0.93, 0.82, 0.74),
     borderWidth: 1,
   });

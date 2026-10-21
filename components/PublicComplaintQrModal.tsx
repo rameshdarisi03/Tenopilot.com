@@ -288,9 +288,9 @@ export function PublicComplaintQrModal({
                 </div>
               </div>
 
-              {/* 3-Step Instruction Sequence (Glassmorphic card with 65% opacity and straight horizontal alignment) */}
+              {/* 3-Step Instruction Sequence (Glassmorphic card with ~35% translucent opacity and straight horizontal alignment) */}
               <div className="relative z-10 my-1 shrink-0 flex justify-center">
-                <div className="bg-white/65 backdrop-blur-md border border-orange-200/60 shadow-xs px-3 py-2 rounded-2xl max-w-[300px] w-full">
+                <div className="bg-white/35 backdrop-blur-md border border-white/40 shadow-xs px-3 py-2 rounded-2xl max-w-[300px] w-full">
                   <div className="flex items-start justify-between gap-1">
                     {/* Step 1 */}
                     <div className="flex flex-col items-center flex-1 min-w-0">
