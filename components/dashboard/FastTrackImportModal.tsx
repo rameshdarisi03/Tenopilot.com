@@ -34,6 +34,9 @@ import {
   Scissors,
   AlertCircle,
   Download,
+  Mail,
+  Send,
+  Receipt,
 } from "lucide-react";
 import {
   parseRawSpreadsheetText,
@@ -144,6 +147,14 @@ export function FastTrackImportModal({
   const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
   const [extensionSuccess, setExtensionSuccess] = useState(false);
   const [extensionError, setExtensionError] = useState<string | null>(null);
+
+  // 🧾 FastTrack Post-Enrollment Receipt Dispatch State
+  const [showReceiptDispatchModal, setShowReceiptDispatchModal] = useState(false);
+  const [dispatchViaWhatsApp, setDispatchViaWhatsApp] = useState(true);
+  const [dispatchViaEmail, setDispatchViaEmail] = useState(true);
+  const [isDispatchingReceipts, setIsDispatchingReceipts] = useState(false);
+  const [dispatchProgress, setDispatchProgress] = useState<{ current: number; total: number; currentName: string }>({ current: 0, total: 0, currentName: "" });
+  const [dispatchSummary, setDispatchSummary] = useState<{ total: number; waCount: number; emailCount: number; failedCount: number } | null>(null);
 
   const handleAutoTrimRows = () => {
     if (!isOverCapacity || allowedToKeep < 0) return;
@@ -1305,6 +1316,16 @@ export function FastTrackImportModal({
 
       setIngestResult(result);
       setStep("SUCCESS");
+
+      // Check if any enrolled tenants have a current month rent payment marked as paid
+      const rentPaidTenants = (result.occupants || []).filter(
+        (occ) => (occ.paymentHistory || []).some((p) => p.month !== "Security Deposit" && p.status === "PAID")
+      );
+
+      if (rentPaidTenants.length > 0) {
+        setShowReceiptDispatchModal(true);
+      }
+
       if (onSuccess) {
         onSuccess();
       }
@@ -1314,6 +1335,150 @@ export function FastTrackImportModal({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Execute FastTrack Batch Rent Receipt Dispatch
+  const handleExecuteReceiptDispatch = async () => {
+    if (!ingestResult || !ingestResult.occupants) return;
+
+    const rentPaidTenants = ingestResult.occupants.filter(
+      (occ) => (occ.paymentHistory || []).some((p) => p.month !== "Security Deposit" && p.status === "PAID")
+    );
+
+    if (rentPaidTenants.length === 0) {
+      setShowReceiptDispatchModal(false);
+      return;
+    }
+
+    if (!dispatchViaWhatsApp && !dispatchViaEmail) {
+      alert("Please select at least one delivery channel (WhatsApp or Email).");
+      return;
+    }
+
+    setIsDispatchingReceipts(true);
+    setDispatchProgress({ current: 0, total: rentPaidTenants.length, currentName: rentPaidTenants[0].name });
+
+    let waCount = 0;
+    let emailCount = 0;
+    let failedCount = 0;
+
+    const currentPropSettings = propertySettingsStore.getSettings(propertyId);
+    const displayPropertyName = currentPropSettings?.propertyName || propertyId;
+
+    for (let i = 0; i < rentPaidTenants.length; i++) {
+      const occ = rentPaidTenants[i];
+      setDispatchProgress({ current: i + 1, total: rentPaidTenants.length, currentName: occ.name });
+
+      // Find rent receipt item
+      const rentReceipt = (occ.paymentHistory || []).find((p) => p.month !== "Security Deposit" && p.status === "PAID");
+      if (!rentReceipt) continue;
+
+      const cleanReceiptNo = rentReceipt.receiptNo || `REC-RENT-${Date.now().toString().slice(-4)}-${i + 1}`;
+      const destEmail = occ.email || `${occ.phone?.replace(/\D/g, "") || "resident"}@example.com`;
+
+      // 1. WhatsApp Dispatch
+      if (dispatchViaWhatsApp && occ.phone) {
+        try {
+          const res = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid,
+              userEmail: profile?.email,
+              messages: [
+                {
+                  toPhone: occ.phone,
+                  recipientName: occ.name,
+                  propertyId,
+                  propertyName: displayPropertyName,
+                  type: "PAYMENT_RECEIPT",
+                  params: {
+                    receiptId: cleanReceiptNo,
+                    amount: rentReceipt.amount,
+                    rentAmount: rentReceipt.rentAmount || rentReceipt.amount,
+                    depositAmount: 0,
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    paymentMode: rentReceipt.mode || "UPI",
+                    dueDate: rentReceipt.date,
+                    paidDate: rentReceipt.date,
+                    month: rentReceipt.month,
+                    bankLabel: rentReceipt.paidTo || displayPropertyName,
+                    managerPhone: currentPropSettings?.managerPhone,
+                  },
+                },
+              ],
+            }),
+          });
+          const resData = await res.json().catch(() => ({}));
+          if (res.ok && (resData.success || resData.successfulCount > 0)) {
+            waCount++;
+          } else {
+            failedCount++;
+          }
+        } catch {
+          failedCount++;
+        }
+      }
+
+      // 2. Email Dispatch
+      if (dispatchViaEmail) {
+        try {
+          const res = await fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid,
+              userEmail: profile?.email,
+              messages: [
+                {
+                  toEmail: destEmail,
+                  recipientName: occ.name,
+                  propertyId,
+                  propertyName: displayPropertyName,
+                  replyToEmail: profile?.email,
+                  type: "PAYMENT_RECEIPT",
+                  params: {
+                    receiptId: cleanReceiptNo,
+                    amount: rentReceipt.amount,
+                    rentAmount: rentReceipt.rentAmount || rentReceipt.amount,
+                    depositAmount: 0,
+                    paymentMode: rentReceipt.mode || "UPI",
+                    paidDate: rentReceipt.date,
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    month: rentReceipt.month,
+                    bankLabel: rentReceipt.paidTo || displayPropertyName,
+                    managerPhone: currentPropSettings?.managerPhone,
+                  },
+                },
+              ],
+            }),
+          });
+          const resData = await res.json().catch(() => ({}));
+          if (res.ok && resData.success) {
+            emailCount++;
+          } else {
+            failedCount++;
+          }
+        } catch {
+          failedCount++;
+        }
+      }
+
+      // Small delay between sends to prevent rate spikes
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    setIsDispatchingReceipts(false);
+    setDispatchSummary({
+      total: rentPaidTenants.length,
+      waCount,
+      emailCount,
+      failedCount,
+    });
   };
 
   // Stats calculation for review & success screens
@@ -3249,6 +3414,214 @@ Anil Verma   9812345678   Room 103   12000"
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 🧾 RENT RECEIPT DISPATCH PROMPT MODAL */}
+        {showReceiptDispatchModal && ingestResult && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-gray-100 space-y-5 animate-in zoom-in-95">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-inner">
+                    <Receipt className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Dispatch Rent Receipts
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      FastTrack detected tenants with rent paid for this month
+                    </p>
+                  </div>
+                </div>
+                {!isDispatchingReceipts && (
+                  <button
+                    onClick={() => setShowReceiptDispatchModal(false)}
+                    className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Banner */}
+              {(() => {
+                const rentPaidCount = (ingestResult.occupants || []).filter(
+                  (occ) => (occ.paymentHistory || []).some((p) => p.month !== "Security Deposit" && p.status === "PAID")
+                ).length;
+
+                return (
+                  <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold flex items-center gap-1.5 text-emerald-900">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        {rentPaidCount} Tenant{rentPaidCount === 1 ? "" : "s"} Paid Rent for Current Cycle
+                      </span>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-800">
+                        Current Month
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Official rent receipts have been generated with invoice dates anchored to their joining day. Would you like to automatically dispatch their payment receipts right now?
+                    </p>
+                    <p className="text-[10px] text-emerald-700/80 italic">
+                      Note: Security deposit receipts are safely stored in your financial ledger and are not dispatched.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Delivery Channels Selectors */}
+              {!dispatchSummary && (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-gray-700 block">
+                    Choose Delivery Channel(s):
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* WhatsApp Checkbox Card */}
+                    <label
+                      className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 cursor-pointer transition-all ${
+                        dispatchViaWhatsApp
+                          ? "border-emerald-500 bg-emerald-50/50 shadow-xs"
+                          : "border-gray-200 bg-white hover:border-gray-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dispatchViaWhatsApp}
+                        onChange={(e) => setDispatchViaWhatsApp(e.target.checked)}
+                        disabled={isDispatchingReceipts}
+                        className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="text-xs font-bold text-gray-900">WhatsApp</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Instant delivery via Cloud API</p>
+                      </div>
+                    </label>
+
+                    {/* Email Checkbox Card */}
+                    <label
+                      className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 cursor-pointer transition-all ${
+                        dispatchViaEmail
+                          ? "border-purple-500 bg-purple-50/50 shadow-xs"
+                          : "border-gray-200 bg-white hover:border-gray-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dispatchViaEmail}
+                        onChange={(e) => setDispatchViaEmail(e.target.checked)}
+                        disabled={isDispatchingReceipts}
+                        className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <Mail className="w-4 h-4 text-purple-600 shrink-0" />
+                          <span className="text-xs font-bold text-gray-900">Email</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-0.5">PDF Receipt Attached</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Progress Bar (Visible while dispatching) */}
+              {isDispatchingReceipts && (
+                <div className="space-y-2 p-4 bg-gray-50 rounded-2xl border border-gray-200 animate-in fade-in">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-gray-800 flex items-center gap-2">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#c2652a]" />
+                      Dispatching to {dispatchProgress.currentName}...
+                    </span>
+                    <span className="font-mono font-bold text-gray-600">
+                      {dispatchProgress.current} / {dispatchProgress.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-[#c2652a] h-2.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${dispatchProgress.total > 0 ? (dispatchProgress.current / dispatchProgress.total) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-500 text-center">
+                    Please do not close this window while receipts are being transmitted.
+                  </p>
+                </div>
+              )}
+
+              {/* Completion Summary */}
+              {dispatchSummary && (
+                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-xs space-y-2 animate-in fade-in">
+                  <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Dispatch Complete!
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                    <div className="p-2 bg-white rounded-xl border border-gray-200">
+                      <span className="text-gray-500 block text-[10px]">WhatsApp Sent</span>
+                      <strong className="text-emerald-700 font-mono text-sm">{dispatchSummary.waCount}</strong>
+                    </div>
+                    <div className="p-2 bg-white rounded-xl border border-gray-200">
+                      <span className="text-gray-500 block text-[10px]">Emails Sent</span>
+                      <strong className="text-purple-700 font-mono text-sm">{dispatchSummary.emailCount}</strong>
+                    </div>
+                    <div className="p-2 bg-white rounded-xl border border-gray-200">
+                      <span className="text-gray-500 block text-[10px]">Failed / Skipped</span>
+                      <strong className="text-gray-700 font-mono text-sm">{dispatchSummary.failedCount}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                {!dispatchSummary ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isDispatchingReceipts}
+                      onClick={() => setShowReceiptDispatchModal(false)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      Skip For Now
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDispatchingReceipts || (!dispatchViaWhatsApp && !dispatchViaEmail)}
+                      onClick={handleExecuteReceiptDispatch}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      {isDispatchingReceipts ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Dispatching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          <span>Send Rent Receipts</span>
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowReceiptDispatchModal(false)}
+                    className="px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs transition-all cursor-pointer"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

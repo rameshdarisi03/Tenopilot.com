@@ -148,6 +148,27 @@ export async function executeFastTrackBatchIngest(
     const isDepositPaid = row.isSecurityDepositPaid !== undefined ? Boolean(row.isSecurityDepositPaid) : (options.markDepositsPaid !== false);
     totalMonthlyRevenue += rent;
 
+    // Calculate clean current-cycle invoice date from tenant's joining date
+    // If tenant joined historically, anchor invoice date to the current month on their joining day
+    let currentCycleInvoiceDate = now.toISOString().split("T")[0];
+    if (row.joiningDate) {
+      try {
+        const rawJoin = new Date(row.joiningDate);
+        if (!isNaN(rawJoin.getTime())) {
+          const joinDay = rawJoin.getDate();
+          // Current month year & month
+          const currentYear = now.getFullYear();
+          const currentMonth = now.getMonth(); // 0-indexed
+          // Find max days in current month
+          const maxDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+          const safeDay = Math.min(joinDay, maxDays);
+          const monthStr = String(currentMonth + 1).padStart(2, "0");
+          const dayStr = String(safeDay).padStart(2, "0");
+          currentCycleInvoiceDate = `${currentYear}-${monthStr}-${dayStr}`;
+        }
+      } catch {}
+    }
+
     // Build initial payment ledger items
     const paymentHistory: PaymentHistoryItem[] = [];
 
@@ -158,6 +179,8 @@ export async function executeFastTrackBatchIngest(
         month: "Security Deposit",
         date: row.joiningDate || now.toISOString().split("T")[0],
         amount: deposit,
+        depositAmount: deposit,
+        rentAmount: 0,
         mode: "UPI",
         receiptNo: `REC-DEP-${Date.now().toString().slice(-4)}-${idx + 1}`,
         status: "PAID",
@@ -169,8 +192,10 @@ export async function executeFastTrackBatchIngest(
       paymentHistory.push({
         id: `pay_rent_${Date.now()}_${idx}`,
         month: currentMonthStr,
-        date: row.joiningDate || now.toISOString().split("T")[0],
+        date: currentCycleInvoiceDate,
         amount: rent,
+        rentAmount: rent,
+        depositAmount: 0,
         mode: row.paymentMode || "UPI",
         receiptNo: `REC-RENT-${Date.now().toString().slice(-4)}-${idx + 1}`,
         status: "PAID",
