@@ -133,7 +133,7 @@ export default function SelfKycDeskPage({
     [submissions]
   );
   const activeInvites = useMemo(
-    () => invites.filter((i) => i.status === "ACTIVE"),
+    () => invites.filter((i) => i.status !== "REVOKED"),
     [invites]
   );
 
@@ -611,7 +611,7 @@ export default function SelfKycDeskPage({
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <span>Active Invites (On Hold)</span>
+              <span>Sent Invites Log</span>
               {activeInvites.length > 0 && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold">
                   {activeInvites.length}
@@ -805,9 +805,16 @@ export default function SelfKycDeskPage({
                               )}
                             </td>
                             <td className="py-3.5 px-4 font-bold text-gray-900">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-900 border border-rose-300 font-mono text-[11px]">
-                                <Lock className="w-3 h-3 text-rose-600" />
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-mono text-[11px] ${
+                                inv.status === "COMPLETED"
+                                  ? "bg-emerald-50 text-emerald-900 border-emerald-300"
+                                  : "bg-rose-50 text-rose-900 border-rose-300"
+                              }`}>
+                                <Lock className={`w-3 h-3 ${inv.status === "COMPLETED" ? "text-emerald-600" : "text-rose-600"}`} />
                                 <span>Room {inv.roomNumber} ({inv.bedCode})</span>
+                                {inv.status === "COMPLETED" && (
+                                  <span className="text-[10px] font-bold text-emerald-700 ml-1">✓ Onboarded</span>
+                                )}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
