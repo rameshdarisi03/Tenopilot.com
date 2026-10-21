@@ -763,26 +763,30 @@ export const selfKycStore = {
     SUBMISSIONS_CACHE.set(propertyId, [...list]);
     saveLocalCache(propertyId, "subs");
 
-    // Release bed back to Available
-    const structure = propertyStore.getStructure(propertyId);
-    const updatedStructure = structure.map((fl) => ({
-      ...fl,
-      rooms: fl.rooms.map((rm) => {
-        if (rm.roomNumber !== target.roomNumber) return rm;
-        return {
-          ...rm,
-          beds: rm.beds.map((bd) => {
-            if (bd.bedCode !== target.bedCode) return bd;
-            return {
-              ...bd,
-              status: "Available" as const,
-              holdCandidate: undefined,
-            };
-          }),
-        };
-      }),
-    }));
-    propertyStore.updateStructure(updatedStructure, propertyId);
+    // For walk-in QR submissions without a prior invite, release the bed back to Available.
+    // For invite-based submissions, the invite moves back to Sent Invites Log awaiting re-upload,
+    // so the bed remains reserved on Hold (manager can click Revoke on the invite if cancelling).
+    if (!target.inviteId) {
+      const structure = propertyStore.getStructure(propertyId);
+      const updatedStructure = structure.map((fl) => ({
+        ...fl,
+        rooms: fl.rooms.map((rm) => {
+          if (rm.roomNumber !== target.roomNumber) return rm;
+          return {
+            ...rm,
+            beds: rm.beds.map((bd) => {
+              if (bd.bedCode !== target.bedCode) return bd;
+              return {
+                ...bd,
+                status: "Available" as const,
+                holdCandidate: undefined,
+              };
+            }),
+          };
+        }),
+      }));
+      propertyStore.updateStructure(updatedStructure, propertyId);
+    }
 
     notifySubscribers(propertyId);
 

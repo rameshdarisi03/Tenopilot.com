@@ -57,7 +57,7 @@ export default function SelfKycDeskPage({
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "ramesh-residencies";
 
-  const [activeTab, setActiveTab] = useState<"PENDING" | "INVITES" | "APPROVED">("PENDING");
+  const [activeTab, setActiveTab] = useState<"INVITES" | "REVIEW" | "APPROVED">("INVITES");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
   const [invites, setInvites] = useState<SelfKycInvite[]>([]);
@@ -132,10 +132,39 @@ export default function SelfKycDeskPage({
     () => submissions.filter((s) => s.status === "APPROVED"),
     [submissions]
   );
-  const activeInvites = useMemo(
-    () => invites.filter((i) => i.status !== "REVOKED"),
-    [invites]
-  );
+
+  // Sent Invites Log: Only active invites awaiting candidate action (first fill or re-upload after rejection)
+  // Transitions OUT when candidate submits (enters Review KYC), or when candidate is Approved
+  const activeInvites = useMemo(() => {
+    const pendingInviteIds = new Set(
+      pendingSubmissions.map((s) => s.inviteId).filter(Boolean)
+    );
+    const pendingPhones = new Set(
+      pendingSubmissions.map((s) => (s.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean)
+    );
+
+    const approvedInviteIds = new Set(
+      approvedSubmissions.map((s) => s.inviteId).filter(Boolean)
+    );
+    const approvedPhones = new Set(
+      approvedSubmissions.map((s) => (s.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean)
+    );
+
+    return invites.filter((inv) => {
+      if (inv.status === "REVOKED" || inv.status === "COMPLETED") return false;
+
+      // Filter out if currently pending in Review KYC
+      if (pendingInviteIds.has(inv.id)) return false;
+      const cleanPhone = (inv.candidatePhone || "").replace(/\D/g, "").slice(-10);
+      if (cleanPhone && pendingPhones.has(cleanPhone)) return false;
+
+      // Filter out if already approved
+      if (approvedInviteIds.has(inv.id)) return false;
+      if (cleanPhone && approvedPhones.has(cleanPhone)) return false;
+
+      return true;
+    });
+  }, [invites, pendingSubmissions, approvedSubmissions]);
 
   // List of available rooms & beds for invite creation
   const availableBeds = useMemo(() => {
@@ -404,6 +433,7 @@ export default function SelfKycDeskPage({
         `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${createdResident.bedCode}) updated. Welcome notice sent via WhatsApp.`
       );
       setActiveReviewSubmission(null);
+      setActiveTab("APPROVED");
     } catch (e) {
       console.error(e);
       triggerToast("Error approving KYC submission. Please try again.", "error");
@@ -497,11 +527,12 @@ export default function SelfKycDeskPage({
       }
 
       triggerToast(
-        `Submission for ${subToReject.name} rejected. Bed ${subToReject.roomNumber}-${subToReject.bedCode} released. Candidate notified via WhatsApp${subToReject.email ? " & Email" : ""}!`
+        `Correction requested for ${subToReject.name}. Application moved back to Sent Invites Log. Candidate notified via WhatsApp${subToReject.email ? " & Email" : ""}!`
       );
       setActiveReviewSubmission(null);
       setShowRejectionInput(false);
       setRejectionReason("");
+      setActiveTab("INVITES");
     } catch (e) {
       console.error(e);
       triggerToast("Error rejecting submission.", "error");
@@ -593,87 +624,9 @@ export default function SelfKycDeskPage({
             </div>
           </div>
 
-          {/* Metric Overview Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Pending Verifications
-                </p>
-                <p className="font-serif text-2xl font-extrabold text-rose-600 mt-0.5">
-                  {pendingSubmissions.length}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Awaiting owner sign-off</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                <Clock className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Active Invites (On Hold)
-                </p>
-                <p className="font-serif text-2xl font-extrabold text-blue-600 mt-0.5">
-                  {activeInvites.length}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Beds locked for candidates</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <Lock className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Approved Residents
-                </p>
-                <p className="font-serif text-2xl font-extrabold text-emerald-600 mt-0.5">
-                  {approvedSubmissions.length}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Digital check-ins completed</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Available Beds Matrix
-                </p>
-                <p className="font-serif text-2xl font-extrabold text-amber-800 mt-0.5">
-                  {availableBeds.length}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-0.5">Ready for new check-in</p>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-                <Home className="w-5 h-5" />
-              </div>
-            </div>
-          </div>
-
-          {/* Tab Navigation */}
+          {/* Tab Navigation (Transition Pipeline: Sent Invites -> Review KYC -> Approved Residents) */}
           <div className="flex items-center gap-2 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab("PENDING")}
-              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === "PENDING"
-                  ? "border-[#c2652a] text-[#c2652a]"
-                  : "border-transparent text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <span>Pending Verifications</span>
-              {pendingSubmissions.length > 0 && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500 text-white font-black">
-                  {pendingSubmissions.length}
-                </span>
-              )}
-            </button>
-
+            {/* 1. Sent Invites Log */}
             <button
               onClick={() => setActiveTab("INVITES")}
               className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
@@ -690,6 +643,24 @@ export default function SelfKycDeskPage({
               )}
             </button>
 
+            {/* 2. Review KYC (Formerly Pending Verifications) */}
+            <button
+              onClick={() => setActiveTab("REVIEW")}
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "REVIEW"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span>Review KYC</span>
+              {pendingSubmissions.length > 0 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500 text-white font-black animate-pulse">
+                  {pendingSubmissions.length}
+                </span>
+              )}
+            </button>
+
+            {/* 3. Approved Residents */}
             <button
               onClick={() => setActiveTab("APPROVED")}
               className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
@@ -702,8 +673,251 @@ export default function SelfKycDeskPage({
             </button>
           </div>
 
-          {/* TAB 1: PENDING VERIFICATIONS */}
-          {activeTab === "PENDING" && (
+          {/* STAGE 1: SENT INVITES LOG (Awaiting Candidate KYC Submission) */}
+          {activeTab === "INVITES" && (
+            <div className="space-y-4">
+              {activeInvites.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-2xl font-bold">
+                    ✉️
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    No active self-KYC invite links.
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Click <strong>"+ Send Invite Link"</strong> to generate a link for an incoming tenant and lock their room on hold.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
+                  {/* Mobile Stacked Card View */}
+                  <div className="sm:hidden divide-y divide-gray-100">
+                    {activeInvites.map((inv) => {
+                      const cleanPhone = (inv.candidatePhone || "").replace(/\D/g, "").slice(-10);
+                      const lastRejection = submissions.find(
+                        (s) =>
+                          s.status === "REJECTED" &&
+                          (s.inviteId === inv.id || (s.phone && cleanPhone && s.phone.replace(/\D/g, "").slice(-10) === cleanPhone))
+                      );
+
+                      return (
+                        <div key={inv.id} className="p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                  inv.stayType === "Guest"
+                                    ? "bg-purple-100 text-purple-900"
+                                    : "bg-blue-100 text-blue-900"
+                                }`}>
+                                  {inv.stayType}
+                                </span>
+                                <span className="font-bold text-sm text-gray-900">{inv.candidateName}</span>
+                              </div>
+                              <p className="font-mono text-xs text-gray-600 mt-0.5">{inv.candidatePhone}</p>
+                            </div>
+                            <span className="font-mono font-bold text-[#c2652a] text-xs">
+                              ₹{(inv.rentAmount ?? 0).toLocaleString("en-IN")}/mo
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs pt-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border font-mono text-[11px] ${
+                              lastRejection
+                                ? "bg-amber-50 text-amber-900 border-amber-300"
+                                : "bg-rose-50 text-rose-900 border-rose-300"
+                            }`}>
+                              <Lock className="w-3 h-3 text-rose-600" />
+                              <span>Room {inv.roomNumber} ({inv.bedCode})</span>
+                            </span>
+
+                            {lastRejection ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                <span>⚠️</span> Correction Requested
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <Check className="w-3 h-3 text-emerald-600" /> WhatsApp Sent
+                              </span>
+                            )}
+                          </div>
+
+                          {lastRejection?.rejectionReason && (
+                            <p className="text-[11px] text-amber-800 bg-amber-50/80 p-2 rounded-xl border border-amber-200 italic">
+                              Note: "{lastRejection.rejectionReason}"
+                            </p>
+                          )}
+
+                          <div className="grid grid-cols-4 gap-1.5 pt-1">
+                            <a
+                              href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="py-1.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-bold flex items-center justify-center gap-1"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>Open</span>
+                            </a>
+                            <button
+                              onClick={() => handleShareInviteViaWhatsApp(inv)}
+                              className="py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1"
+                            >
+                              <MessageSquare className="w-3 h-3 text-emerald-600" />
+                              <span>Chat</span>
+                            </button>
+                            <button
+                              onClick={() => handleCopyInviteUrl(inv.id)}
+                              className="py-1.5 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 text-xs font-bold flex items-center justify-center gap-1"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>Link</span>
+                            </button>
+                            <button
+                              onClick={() => handleRevokeInvite(inv.id, inv.roomNumber, inv.bedCode)}
+                              className="py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold flex items-center justify-center gap-1"
+                            >
+                              <X className="w-3 h-3" />
+                              <span>Revoke</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#fff8f6] border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
+                        <tr>
+                          <th className="py-3 px-4">Candidate</th>
+                          <th className="py-3 px-4">Contact</th>
+                          <th className="py-3 px-4">Reserved Bed</th>
+                          <th className="py-3 px-4">Tariff</th>
+                          <th className="py-3 px-4">Delivery Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {activeInvites.map((inv) => {
+                          const cleanPhone = (inv.candidatePhone || "").replace(/\D/g, "").slice(-10);
+                          const lastRejection = submissions.find(
+                            (s) =>
+                              s.status === "REJECTED" &&
+                              (s.inviteId === inv.id || (s.phone && cleanPhone && s.phone.replace(/\D/g, "").slice(-10) === cleanPhone))
+                          );
+
+                          return (
+                            <tr key={inv.id} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="py-3.5 px-4 font-bold text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    inv.stayType === "Guest"
+                                      ? "bg-purple-100 text-purple-900"
+                                      : "bg-blue-100 text-blue-900"
+                                  }`}>
+                                    {inv.stayType}
+                                  </span>
+                                  <span>{inv.candidateName}</span>
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
+                                <div>{inv.candidatePhone}</div>
+                                {inv.candidateEmail && (
+                                  <div className="text-[10px] font-sans text-gray-400">{inv.candidateEmail}</div>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 font-bold text-gray-900">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-mono text-[11px] ${
+                                  lastRejection
+                                    ? "bg-amber-50 text-amber-900 border-amber-300"
+                                    : "bg-rose-50 text-rose-900 border-rose-300"
+                                }`}>
+                                  <Lock className="w-3 h-3 text-rose-600" />
+                                  <span>Room {inv.roomNumber} ({inv.bedCode})</span>
+                                  <span className="text-[9px] font-bold text-rose-700 ml-1">On Hold</span>
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
+                                ₹{(inv.rentAmount ?? 0).toLocaleString("en-IN")}/mo
+                              </td>
+                              <td className="py-3.5 px-4">
+                                {lastRejection ? (
+                                  <div className="flex flex-col gap-1 items-start">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                      <span>⚠️</span>
+                                      <span>Correction Requested</span>
+                                    </span>
+                                    {lastRejection.rejectionReason && (
+                                      <span className="text-[10px] text-amber-700 italic max-w-xs truncate" title={lastRejection.rejectionReason}>
+                                        "{lastRejection.rejectionReason}"
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-1 items-start">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                      <span>WhatsApp Sent</span>
+                                    </span>
+                                    {inv.candidateEmail && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                        <Check className="w-3 h-3 text-blue-600" />
+                                        <span>Email Sent</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                                <a
+                                  href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                                  title="Open candidate onboarding link in new tab"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>Open</span>
+                                </a>
+                                <button
+                                  onClick={() => handleShareInviteViaWhatsApp(inv)}
+                                  className="px-2.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                  title="Open candidate WhatsApp chat with prefilled invite"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>WhatsApp</span>
+                                </button>
+                                <button
+                                  onClick={() => handleCopyInviteUrl(inv.id)}
+                                  className="px-2.5 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                                  title="Copy self-onboard link"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Link</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRevokeInvite(inv.id, inv.roomNumber, inv.bedCode)}
+                                  className="px-2.5 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                                  title="Cancel invite & release bed to available"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  <span>Revoke</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STAGE 2: REVIEW KYC (Candidate Submitted, Awaiting Manager Approval) */}
+          {activeTab === "REVIEW" && (
             <div className="space-y-4">
               {pendingSubmissions.length === 0 ? (
                 <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
@@ -737,7 +951,7 @@ export default function SelfKycDeskPage({
 
                           <span className="text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Clock className="w-3 h-3 text-rose-500" />
-                            <span>Pending Review</span>
+                            <span>Awaiting Review</span>
                           </span>
                         </div>
 
@@ -820,132 +1034,6 @@ export default function SelfKycDeskPage({
                       </button>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: ACTIVE INVITES */}
-          {activeTab === "INVITES" && (
-            <div className="space-y-4">
-              {activeInvites.length === 0 ? (
-                <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
-                  <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-2xl font-bold">
-                    ✉️
-                  </div>
-                  <h3 className="font-serif font-bold text-lg text-gray-900">
-                    No active self-KYC invite links.
-                  </h3>
-                  <p className="text-xs text-gray-500 max-w-md mx-auto">
-                    Click <strong>"+ Send Self-KYC Invite"</strong> to generate a link for an incoming tenant and lock their room on hold.
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-[#fff8f6] border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                        <tr>
-                          <th className="py-3 px-4">Candidate</th>
-                          <th className="py-3 px-4">Contact</th>
-                          <th className="py-3 px-4">Reserved Bed</th>
-                          <th className="py-3 px-4">Tariff</th>
-                          <th className="py-3 px-4">Delivery Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {activeInvites.map((inv) => (
-                          <tr key={inv.id} className="hover:bg-gray-50/80 transition-colors">
-                            <td className="py-3.5 px-4 font-bold text-gray-900">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                  inv.stayType === "Guest"
-                                    ? "bg-purple-100 text-purple-900"
-                                    : "bg-blue-100 text-blue-900"
-                                }`}>
-                                  {inv.stayType}
-                                </span>
-                                <span>{inv.candidateName}</span>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
-                              <div>{inv.candidatePhone}</div>
-                              {inv.candidateEmail && (
-                                <div className="text-[10px] font-sans text-gray-400">{inv.candidateEmail}</div>
-                              )}
-                            </td>
-                            <td className="py-3.5 px-4 font-bold text-gray-900">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border font-mono text-[11px] ${
-                                inv.status === "COMPLETED"
-                                  ? "bg-emerald-50 text-emerald-900 border-emerald-300"
-                                  : "bg-rose-50 text-rose-900 border-rose-300"
-                              }`}>
-                                <Lock className={`w-3 h-3 ${inv.status === "COMPLETED" ? "text-emerald-600" : "text-rose-600"}`} />
-                                <span>Room {inv.roomNumber} ({inv.bedCode})</span>
-                                {inv.status === "COMPLETED" && (
-                                  <span className="text-[10px] font-bold text-emerald-700 ml-1">✓ Onboarded</span>
-                                )}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
-                              ₹{(inv.rentAmount ?? 0).toLocaleString("en-IN")}/mo
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <div className="flex flex-col gap-1 items-start">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                  <span>WhatsApp Sent</span>
-                                </span>
-                                {inv.candidateEmail && (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                    <Check className="w-3 h-3 text-blue-600" />
-                                    <span>Email Sent</span>
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                              <a
-                                href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
-                                title="Open candidate onboarding link in new tab"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                <span>Open</span>
-                              </a>
-                              <button
-                                onClick={() => handleShareInviteViaWhatsApp(inv)}
-                                className="px-2.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                title="Open candidate WhatsApp chat with prefilled invite"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>WhatsApp</span>
-                              </button>
-                              <button
-                                onClick={() => handleCopyInviteUrl(inv.id)}
-                                className="px-2.5 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
-                                title="Copy self-onboard link"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Link</span>
-                              </button>
-                              <button
-                                onClick={() => handleRevokeInvite(inv.id, inv.roomNumber, inv.bedCode)}
-                                className="px-2.5 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
-                                title="Cancel invite & release bed to available"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                <span>Revoke</span>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
               )}
             </div>
