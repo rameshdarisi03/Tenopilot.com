@@ -290,28 +290,55 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
         const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const tariffStr = String(p.amount || "12000");
 
-        requestBody = {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: formattedPhone,
-          type: "template",
-          template: {
-            name: "pg_welcome_onboarding",
-            language: { code: "en_US" },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: payload.recipientName },
-                  { type: "text", text: pName },
-                  { type: "text", text: roomStay },
-                  { type: "text", text: checkinDate },
-                ],
-              },
-            ],
-          },
-        };
+        if (p.onboardUrl) {
+          // Attempt dedicated Self-KYC Invite Link template
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_self_kyc_invite_link",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: pName },
+                    { type: "text", text: payload.recipientName },
+                    { type: "text", text: roomStay },
+                    { type: "text", text: tariffStr },
+                    { type: "text", text: p.onboardUrl },
+                  ],
+                },
+              ],
+            },
+          };
+        } else {
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_welcome_onboarding",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: payload.recipientName },
+                    { type: "text", text: pName },
+                    { type: "text", text: roomStay },
+                    { type: "text", text: checkinDate },
+                  ],
+                },
+              ],
+            },
+          };
+        }
       } else if (payload.type === "PAYMENT_RECEIPT") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
@@ -472,7 +499,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         };
       }
 
-      const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+      let response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${metaToken}`,
@@ -481,7 +508,48 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         body: JSON.stringify(requestBody),
       });
 
-      const resData = await response.json();
+      let resData = await response.json();
+
+      // Graceful fallback: If dedicated invite template is pending review, fallback to approved pg_welcome_onboarding
+      if (!response.ok && requestBody?.template?.name === "pg_self_kyc_invite_link") {
+        console.warn("Notice: pg_self_kyc_invite_link is pending or returned error, falling back to pg_welcome_onboarding:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        
+        const fallbackBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_welcome_onboarding",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: pName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: checkinDate },
+                ],
+              },
+            ],
+          },
+        };
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
       if (!response.ok) {
         console.warn("Meta WhatsApp API Error:", resData);
         return {

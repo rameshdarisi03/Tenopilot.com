@@ -235,7 +235,7 @@ export default function SelfKycDeskPage({
     const portalOrigin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
     const inviteLink = `${portalOrigin}/self-onboard/${token}`;
 
-    // 3. Attempt WhatsApp dispatch
+    // 3. Attempt WhatsApp & Email dispatch
     try {
       const settings = propertySettingsStore.getSettings(propertyId);
       const propName = settings?.propertyName || "Ramesh Residencies";
@@ -248,16 +248,56 @@ export default function SelfKycDeskPage({
         `${inviteLink}\n\n` +
         `Takes under 2 minutes. Once submitted, management will approve your check-in!`;
 
-      // Open or dispatch WhatsApp
+      // 1. Dispatch WhatsApp via backend gateway
       await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: fullPhone,
-          message: waMsg,
           propertyId,
+          messages: [
+            {
+              toPhone: cleanPhone,
+              recipientName: newInvite.candidateName,
+              propertyId,
+              propertyName: propName,
+              type: "ONBOARDING_INVITE",
+              params: {
+                roomNumber: newInvite.roomNumber,
+                bedCode: newInvite.bedCode,
+                amount: newInvite.rentAmount,
+                onboardUrl: inviteLink,
+                customMessage: waMsg,
+              },
+            },
+          ],
         }),
       }).catch((e) => console.warn("WhatsApp dispatch API error:", e));
+
+      // 2. Dispatch Email via Amazon SES if candidate email is provided
+      if (newInvite.candidateEmail) {
+        await fetch("/api/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            messages: [
+              {
+                toEmail: newInvite.candidateEmail,
+                recipientName: newInvite.candidateName,
+                propertyId,
+                propertyName: propName,
+                type: "ONBOARDING_INVITE",
+                params: {
+                  roomNumber: newInvite.roomNumber,
+                  bedCode: newInvite.bedCode,
+                  rentAmount: newInvite.rentAmount,
+                  onboardUrl: inviteLink,
+                },
+              },
+            ],
+          }),
+        }).catch((e) => console.warn("Email dispatch API error:", e));
+      }
     } catch (e) {
       console.warn("Dispatch error:", e);
     }
@@ -265,6 +305,29 @@ export default function SelfKycDeskPage({
     setInviteDispatchLoading(false);
     setShowInviteModal(false);
     triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName}! Bed ${inviteRoomNumber}-${inviteBedCode} is now ON HOLD 🔒`);
+  };
+
+  // 1-Tap Share Invite Directly via WhatsApp Web / App
+  const handleShareInviteViaWhatsApp = (inv: SelfKycInvite) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+    const url = `${origin}/self-onboard/${inv.id}`;
+    const cleanDigits = inv.candidatePhone.replace(/\D/g, "");
+    const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
+    const settings = propertySettingsStore.getSettings(propertyId);
+    const propName = settings?.propertyName || "Ramesh Residencies";
+    const msg =
+      `Hello ${inv.candidateName}! 👋\n\n` +
+      `Welcome to *${propName}*. Your bed has been placed on hold:\n` +
+      `🏠 *Room ${inv.roomNumber} (Bed ${inv.bedCode})*\n` +
+      `💰 *Tariff*: ₹${inv.rentAmount.toLocaleString("en-IN")} / month\n\n` +
+      `👉 Please complete your 2-minute digital Self-KYC check-in here:\n` +
+      `${url}\n\n` +
+      `Takes under 2 minutes. Once submitted, management will approve your check-in!`;
+
+    const waUrl = targetPhone
+      ? `https://wa.me/91${targetPhone}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, "_blank");
   };
 
   // Revoke Invite (Returns bed to Available)
@@ -754,18 +817,28 @@ export default function SelfKycDeskPage({
                             </td>
                             <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                               <button
+                                onClick={() => handleShareInviteViaWhatsApp(inv)}
+                                className="px-2.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                title="Open candidate WhatsApp chat with prefilled invite"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>WhatsApp</span>
+                              </button>
+                              <button
                                 onClick={() => handleCopyInviteUrl(inv.id)}
-                                className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer"
+                                className="px-2.5 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                                 title="Copy self-onboard link"
                               >
-                                <Copy className="w-3.5 h-3.5 inline mr-1" /> Link
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Link</span>
                               </button>
                               <button
                                 onClick={() => handleRevokeInvite(inv.id, inv.roomNumber, inv.bedCode)}
-                                className="px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all cursor-pointer"
+                                className="px-2.5 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                                 title="Cancel invite & release bed to available"
                               >
-                                <X className="w-3.5 h-3.5 inline mr-1" /> Revoke
+                                <X className="w-3.5 h-3.5" />
+                                <span>Revoke</span>
                               </button>
                             </td>
                           </tr>
