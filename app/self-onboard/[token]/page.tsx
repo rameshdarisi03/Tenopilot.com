@@ -56,24 +56,12 @@ export default function TenantSelfOnboardingPage({
   // Fallback propertyId for backward compatible search mode
   const propertyId = invitePropertyId || token || "sunshine-pg";
 
-  // Step state: for Invite: "INVITE_VERIFY_PHONE" -> "INVITE_FORM" -> "SUCCESS"
+  // Step state: for Invite: "INVITE_FORM" -> "SUCCESS"
   // For Search fallback: "SEARCH" -> "VERIFY" -> "DOCS" -> "SUCCESS"
   const [step, setStep] = useState<
-    "LOADING" | "INVITE_VERIFY_PHONE" | "INVITE_FORM" | "SEARCH" | "VERIFY" | "DOCS" | "SUCCESS"
+    "LOADING" | "INVITE_FORM" | "SEARCH" | "VERIFY" | "DOCS" | "SUCCESS"
   >("LOADING");
   const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
-
-  // Phone Matching & OTP state for Owner Invite Link
-  const [enteredPhone, setEnteredPhone] = useState("");
-  const [phoneMatchError, setPhoneMatchError] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpVerificationToken, setOtpVerificationToken] = useState("");
-  const [otpSending, setOtpSending] = useState(false);
-  const [otpVerifying, setOtpVerifying] = useState(false);
-  const [otpError, setOtpError] = useState("");
-  const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
-  const [cooldown, setCooldown] = useState(0);
 
   // Search state (backward-compatible fallback)
   const [searchPhone, setSearchPhone] = useState("");
@@ -108,13 +96,6 @@ export default function TenantSelfOnboardingPage({
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
 
-  // Resend OTP Cooldown timer
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
-
   // 1. Resolve token on mount (asynchronously from local cache or Firestore)
   useEffect(() => {
     async function resolveToken() {
@@ -128,16 +109,7 @@ export default function TenantSelfOnboardingPage({
           setPhone(result.invite.candidatePhone);
           setEmail(result.invite.candidateEmail || "");
           setSignatureName(result.invite.candidateName);
-
-          // Check if already verified in this browser session
-          const isSessionVerified =
-            typeof window !== "undefined" &&
-            sessionStorage.getItem(`tp_self_kyc_verified_${token}`) === "true";
-          if (isSessionVerified) {
-            setStep("INVITE_FORM");
-          } else {
-            setStep("INVITE_VERIFY_PHONE");
-          }
+          setStep("INVITE_FORM");
         } else {
           setStep("SEARCH");
         }
@@ -165,94 +137,7 @@ export default function TenantSelfOnboardingPage({
   const propertySettings = propertySettingsStore.getSettings(invitePropertyId || propertyId);
   const propertyName = propertySettings?.propertyName || "Ramesh Residencies";
 
-  // Step 1: Send OTP to Candidate Phone after matching check
-  const handleSendInviteOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setPhoneMatchError("");
-    setOtpError("");
 
-    if (!invite) return;
-
-    const enteredClean = enteredPhone.replace(/\D/g, "").slice(-10);
-    const expectedClean = invite.candidatePhone.replace(/\D/g, "").slice(-10);
-
-    if (enteredClean.length !== 10) {
-      setPhoneMatchError("Please enter your valid 10-digit mobile number.");
-      return;
-    }
-
-    // Security Check: Joinee number must match PG management recorded number
-    if (enteredClean !== expectedClean) {
-      const maskedHint = `••••${expectedClean.slice(-4)}`;
-      setPhoneMatchError(
-        `Mobile number does not match our records. Please enter the mobile number that was communicated to PG management (ending in ${maskedHint}).`
-      );
-      return;
-    }
-
-    setOtpSending(true);
-    try {
-      const res = await fetch("/api/auth/phone/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: enteredClean }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setOtpError(data.message || "Failed to dispatch verification code. Please check your connection.");
-        return;
-      }
-      setOtpVerificationToken(data.verificationToken);
-      setOtpSent(true);
-      setCooldown(data.cooldownSeconds || 45);
-      setOtpSuccessMsg(`Verification code sent to WhatsApp (+91 ${enteredClean})`);
-    } catch {
-      setOtpError("Network error. Please check your internet connection.");
-    } finally {
-      setOtpSending(false);
-    }
-  };
-
-  // Step 2: Verify WhatsApp OTP
-  const handleVerifyInviteOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpError("");
-
-    const cleanOtp = otpCode.trim();
-    if (cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
-      setOtpError("Please enter the complete 6-digit verification code.");
-      return;
-    }
-
-    setOtpVerifying(true);
-    try {
-      const enteredClean = enteredPhone.replace(/\D/g, "").slice(-10);
-      const res = await fetch("/api/auth/phone/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: enteredClean,
-          otp: cleanOtp,
-          verificationToken: otpVerificationToken,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setOtpError(data.message || "Incorrect verification code. Please check and try again.");
-        return;
-      }
-
-      // Mark session verified and advance to full form
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem(`tp_self_kyc_verified_${token}`, "true");
-      }
-      setStep("INVITE_FORM");
-    } catch {
-      setOtpError("Verification error. Please check connection and try again.");
-    } finally {
-      setOtpVerifying(false);
-    }
-  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -442,202 +327,6 @@ export default function TenantSelfOnboardingPage({
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 1: PHONE MATCH & OTP SECURITY CHALLENGE                              */}
-        {/* ========================================================================= */}
-        {!loadingInvite && step === "INVITE_VERIFY_PHONE" && invite && (
-          <div className="space-y-6 animate-in fade-in max-w-xl mx-auto">
-            {/* Header Card */}
-            <div className="bg-gradient-to-r from-orange-500 to-[#c2652a] text-white rounded-3xl p-6 sm:p-7 shadow-lg shadow-orange-500/15 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-white/20 backdrop-blur-xs px-2.5 py-1 rounded-full text-white">
-                  {invite.stayType === "Tenant" ? "🏠 Tenant Digital Gate" : "⚡ Guest Digital Gate"}
-                </span>
-                <span className="text-[10px] font-bold bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Bed Held for You
-                </span>
-              </div>
-              <h1 className="font-serif font-bold text-2xl sm:text-3xl">
-                Welcome, {invite.candidateName}!
-              </h1>
-              <p className="text-xs text-white/90 leading-relaxed">
-                Management at <span className="font-bold underline">{propertyName}</span> has reserved{" "}
-                <span className="font-bold">Room {invite.roomNumber} ({invite.bedCode})</span> for you.
-              </p>
-            </div>
-
-            {/* Verification Form Card */}
-            <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-sm space-y-6">
-              <div className="flex items-start gap-3.5 pb-4 border-b border-gray-100">
-                <div className="w-10 h-10 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center shrink-0 text-[#c2652a]">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="font-serif font-bold text-lg text-gray-900">
-                    Verify Your Mobile Identity
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    For resident security and bed confirmation, please verify the 10-digit mobile number communicated to PG management.
-                  </p>
-                </div>
-              </div>
-
-              {!otpSent ? (
-                /* Stage A: Enter Mobile Number */
-                <form onSubmit={handleSendInviteOtp} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                      Your 10-Digit Mobile Number
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500 font-mono">
-                        +91
-                      </span>
-                      <input
-                        type="tel"
-                        required
-                        autoFocus
-                        maxLength={10}
-                        value={enteredPhone}
-                        onChange={(e) => {
-                          setEnteredPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
-                          setPhoneMatchError("");
-                          setOtpError("");
-                        }}
-                        placeholder="98765 43210"
-                        className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-300 font-mono font-bold text-base text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] tracking-wide"
-                      />
-                    </div>
-                  </div>
-
-                  {phoneMatchError && (
-                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <div className="space-y-0.5">
-                        <span className="font-bold block">Mobile Verification Mismatch</span>
-                        <span>{phoneMatchError}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {otpError && (
-                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <span>{otpError}</span>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={otpSending || enteredPhone.length < 10}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-orange-600 to-[#c2652a] hover:from-orange-700 hover:to-[#a3521e] text-white font-bold text-sm shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {otpSending ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Sending WhatsApp OTP...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Send WhatsApp Verification Code</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-2 text-[11px] text-gray-500">
-                    <Lock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span>Your number is used strictly for identity verification, check-in confirmation, and digital rent receipts.</span>
-                  </div>
-                </form>
-              ) : (
-                /* Stage B: Enter 6-digit OTP */
-                <form onSubmit={handleVerifyInviteOtp} className="space-y-4">
-                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs text-emerald-900">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Code sent to WhatsApp (+91 {enteredPhone})</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtpSent(false);
-                        setOtpCode("");
-                        setOtpError("");
-                      }}
-                      className="text-[11px] font-bold text-[#c2652a] hover:underline cursor-pointer"
-                    >
-                      Change
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5 text-center">
-                      Enter 6-Digit WhatsApp Verification Code
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      required
-                      autoFocus
-                      maxLength={6}
-                      value={otpCode}
-                      onChange={(e) => {
-                        setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
-                        setOtpError("");
-                      }}
-                      placeholder="••••••"
-                      className="w-full text-center py-3.5 px-4 rounded-2xl border-2 border-[#c2652a]/40 font-mono font-extrabold text-2xl tracking-[0.5em] text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] bg-orange-50/20"
-                    />
-                  </div>
-
-                  {otpError && (
-                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <span>{otpError}</span>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={otpVerifying || otpCode.length !== 6}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {otpVerifying ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Verifying Security Code...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Verify & Unlock Onboarding Form</span>
-                      </>
-                    )}
-                  </button>
-
-                  <div className="flex items-center justify-between pt-2 text-xs">
-                    <span className="text-gray-400">Didn't receive code?</span>
-                    {cooldown > 0 ? (
-                      <span className="font-mono text-gray-500 font-bold">
-                        Resend in {cooldown}s
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSendInviteOtp()}
-                        className="font-bold text-[#c2652a] hover:underline cursor-pointer"
-                      >
-                        Resend Code via WhatsApp
-                      </button>
-                    )}
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
         {/* CASE 1: DIRECT OWNER INVITE ONBOARDING (BED ALREADY ON HOLD)             */}
         {/* ========================================================================= */}
         {!loadingInvite && step === "INVITE_FORM" && invite && (
@@ -724,12 +413,7 @@ export default function TenantSelfOnboardingPage({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-gray-700">Mobile Number *</label>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-emerald-600" /> WhatsApp OTP Verified
-                    </span>
-                  </div>
+                  <label className="block font-bold text-gray-700 mb-1">Mobile Phone Number *</label>
                   <input
                     type="tel"
                     disabled
