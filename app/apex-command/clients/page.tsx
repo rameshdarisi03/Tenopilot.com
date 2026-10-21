@@ -78,6 +78,16 @@ export default function ApexCommandClientsPage() {
   const [purgeConfirmationInput, setPurgeConfirmationInput] = useState("");
   const [isPurging, setIsPurging] = useState(false);
 
+  // Selected account for Reset Tenants modal
+  const [accountToResetTenants, setAccountToResetTenants] = useState<ScannedAccountRecord | null>(null);
+  const [resetTenantsConfirmInput, setResetTenantsConfirmInput] = useState("");
+  const [isResettingTenants, setIsResettingTenants] = useState(false);
+
+  // Selected account for Reset Property Config modal
+  const [accountToResetConfig, setAccountToResetConfig] = useState<ScannedAccountRecord | null>(null);
+  const [resetConfigConfirmInput, setResetConfigConfirmInput] = useState("");
+  const [isResettingConfig, setIsResettingConfig] = useState(false);
+
   // Selected account for 1-Click +10 Days Extension confirmation modal
   const [accountToExtend, setAccountToExtend] = useState<ScannedAccountRecord | null>(null);
   const [isExtending, setIsExtending] = useState(false);
@@ -569,6 +579,78 @@ export default function ApexCommandClientsPage() {
       triggerToast(`⚠️ Purge failed: ${err.message}`);
     } finally {
       setIsPurging(false);
+    }
+  };
+
+  // Handle Reset Tenants Execution
+  const handleExecuteResetTenants = async () => {
+    if (!accountToResetTenants) return;
+    setIsResettingTenants(true);
+
+    try {
+      const res = await fetch("/api/apex/reset-organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESET_TENANTS",
+          email: accountToResetTenants.email,
+          userId: accountToResetTenants.userId,
+          propertyIds: accountToResetTenants.propertyIds,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`✓ ${data.message}`);
+        // Update local state tenant count for this account to 0
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.email.toLowerCase() === accountToResetTenants.email.toLowerCase()
+              ? { ...a, totalTenants: 0 }
+              : a
+          )
+        );
+        setAccountToResetTenants(null);
+        setResetTenantsConfirmInput("");
+      } else {
+        triggerToast(`⚠️ Reset Tenants error: ${data.message}`);
+      }
+    } catch (err: any) {
+      triggerToast(`⚠️ Reset Tenants failed: ${err.message}`);
+    } finally {
+      setIsResettingTenants(false);
+    }
+  };
+
+  // Handle Reset Property Config Execution
+  const handleExecuteResetConfig = async () => {
+    if (!accountToResetConfig) return;
+    setIsResettingConfig(true);
+
+    try {
+      const res = await fetch("/api/apex/reset-organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESET_PROPERTY_CONFIG",
+          email: accountToResetConfig.email,
+          userId: accountToResetConfig.userId,
+          propertyIds: accountToResetConfig.propertyIds,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(`✓ ${data.message}`);
+        setAccountToResetConfig(null);
+        setResetConfigConfirmInput("");
+      } else {
+        triggerToast(`⚠️ Reset Config error: ${data.message}`);
+      }
+    } catch (err: any) {
+      triggerToast(`⚠️ Reset Config failed: ${err.message}`);
+    } finally {
+      setIsResettingConfig(false);
     }
   };
 
@@ -2635,6 +2717,52 @@ export default function ApexCommandClientsPage() {
                   </button>
                 </div>
 
+                {/* Reset Tenants */}
+                <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/40 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-amber-300">Reset Tenants</h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">FastTrack Rescue</span>
+                    </div>
+                    <p className="text-[11px] text-amber-200/70 mt-0.5">
+                      Wipes all tenant records and KYC files in Firestore leaving no trace. Resets all room beds to Available/Vacant.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountToResetTenants(selectedCustomer360);
+                      setSelectedCustomer360(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/30 shrink-0 cursor-pointer transition-all active:scale-95"
+                  >
+                    Reset Tenants
+                  </button>
+                </div>
+
+                {/* Reset Property Config */}
+                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/40 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-purple-300">Reset Property Config</h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Layout Wipe</span>
+                    </div>
+                    <p className="text-[11px] text-purple-200/70 mt-0.5">
+                      Wipes floor and room layout configurations. Shows empty layout ready for fresh setup or AI import.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountToResetConfig(selectedCustomer360);
+                      setSelectedCustomer360(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 shrink-0 cursor-pointer transition-all active:scale-95"
+                  >
+                    Reset Property Config
+                  </button>
+                </div>
+
                 {/* Zero-Footprint Deep Purge */}
                 <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/40 flex items-center justify-between gap-3">
                   <div>
@@ -2821,6 +2949,186 @@ export default function ApexCommandClientsPage() {
                   <>
                     <Trash2 className="w-4 h-4" />
                     <span>Confirm Deep Purge</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Tenants Modal */}
+      {accountToResetTenants && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in-50">
+          <div className="w-full max-w-lg bg-[#161b22] border-2 border-amber-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-white">Reset Tenants</h3>
+                  <p className="text-xs text-amber-300 font-mono">{accountToResetTenants.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAccountToResetTenants(null);
+                  setResetTenantsConfirmInput("");
+                }}
+                disabled={isResettingTenants}
+                className="text-gray-400 hover:text-white p-1 cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/40 text-xs text-amber-200 space-y-2">
+              <p className="font-bold flex items-center gap-1.5 text-amber-300">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                Warning: Zero-Trace Tenant Wipe
+              </p>
+              <p className="leading-relaxed">
+                This will atomically wipe all tenant records across this organization&apos;s properties:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-gray-300 text-[11px]">
+                <li><strong className="text-white">Firestore Tenants:</strong> Deletes all docs in <code className="text-amber-300">properties/&#123;propertyId&#125;/occupants</code></li>
+                <li><strong className="text-white">KYC & Storage:</strong> Permanently deletes Aadhaar photos, profile avatars, and ID proofs</li>
+                <li><strong className="text-white">Bed Layout:</strong> Resets all beds in all rooms to <span className="text-emerald-400 font-bold">Vacant / Available</span></li>
+                <li><strong className="text-white">Properties:</strong> {accountToResetTenants.propertyIds.join(", ") || "All owned properties"}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <label className="block text-gray-400">
+                Type <span className="font-bold text-amber-400 font-mono">RESET TENANTS</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={resetTenantsConfirmInput}
+                onChange={(e) => setResetTenantsConfirmInput(e.target.value.toUpperCase())}
+                placeholder="RESET TENANTS"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-amber-500/40 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountToResetTenants(null);
+                  setResetTenantsConfirmInput("");
+                }}
+                disabled={isResettingTenants}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteResetTenants}
+                disabled={resetTenantsConfirmInput !== "RESET TENANTS" || isResettingTenants}
+                className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-600/30 transition-all"
+              >
+                {isResettingTenants ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Wiping Tenants...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Confirm Reset Tenants</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Property Config Modal */}
+      {accountToResetConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in-50">
+          <div className="w-full max-w-lg bg-[#161b22] border-2 border-purple-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 text-white animate-in zoom-in-95">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                  <HardDrive className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-white">Reset Property Config</h3>
+                  <p className="text-xs text-purple-300 font-mono">{accountToResetConfig.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAccountToResetConfig(null);
+                  setResetConfigConfirmInput("");
+                }}
+                disabled={isResettingConfig}
+                className="text-gray-400 hover:text-white p-1 cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-purple-950/40 border border-purple-800/40 text-xs text-purple-200 space-y-2">
+              <p className="font-bold flex items-center gap-1.5 text-purple-300">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                Warning: Layout & Floor Configuration Wipe
+              </p>
+              <p className="leading-relaxed">
+                This will completely wipe all floor, room, and bed layout configurations for this organization&apos;s properties:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-gray-300 text-[11px]">
+                <li><strong className="text-white">Layout Structure:</strong> Wipes <code className="text-purple-300">properties/&#123;propertyId&#125;/layout/structure</code></li>
+                <li><strong className="text-white">Property Settings:</strong> Clears custom floor counts and default room presets</li>
+                <li><strong className="text-white">Result:</strong> Property layout map will show completely empty, ready for fresh setup or FastTrack AI scan</li>
+                <li><strong className="text-white">Properties:</strong> {accountToResetConfig.propertyIds.join(", ") || "All owned properties"}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <label className="block text-gray-400">
+                Type <span className="font-bold text-purple-400 font-mono">RESET CONFIG</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={resetConfigConfirmInput}
+                onChange={(e) => setResetConfigConfirmInput(e.target.value.toUpperCase())}
+                placeholder="RESET CONFIG"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d1117] border border-purple-500/40 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountToResetConfig(null);
+                  setResetConfigConfirmInput("");
+                }}
+                disabled={isResettingConfig}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteResetConfig}
+                disabled={resetConfigConfirmInput !== "RESET CONFIG" || isResettingConfig}
+                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/30 transition-all"
+              >
+                {isResettingConfig ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Wiping Config...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Confirm Reset Config</span>
                   </>
                 )}
               </button>
