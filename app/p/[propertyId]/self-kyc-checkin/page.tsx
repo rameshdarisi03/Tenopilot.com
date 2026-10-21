@@ -459,12 +459,12 @@ export default function WalkInSelfKycCheckinPage({
                       </div>
 
                       <div className="text-right">
-                        <span className="font-mono font-bold text-base sm:text-lg text-emerald-700 block">
-                          ₹{price.toLocaleString("en-IN")}{" "}
-                          <span className="text-xs text-gray-500 font-sans font-normal">{unitText}</span>
+                        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Available
                         </span>
                         {isSelected && (
-                          <span className="text-[10px] font-bold text-[#c2652a] flex items-center justify-end gap-1">
+                          <span className="text-[10px] font-bold text-[#c2652a] flex items-center justify-end gap-1 mt-1">
                             <Check className="w-3 h-3" /> Selected
                           </span>
                         )}
@@ -529,23 +529,12 @@ export default function WalkInSelfKycCheckinPage({
                   </span>
                 </div>
 
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">
-                    {stayType === "Tenant" ? "Monthly Rent" : "Daily Rate"}
-                  </span>
-                  <span className="font-mono font-bold text-base sm:text-lg text-emerald-700 block">
-                    ₹{selectedBedTariff.toLocaleString("en-IN")}
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 col-span-2 sm:col-span-2">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Check-In Tariff</span>
+                  <span className="font-semibold text-xs sm:text-sm text-gray-700 block mt-0.5">
+                    Confirmed by PG Reception upon Approval
                   </span>
                 </div>
-
-                {stayType === "Tenant" && (
-                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 col-span-2 sm:col-span-1">
-                    <span className="text-[10px] font-bold uppercase text-gray-400 block">Security Deposit</span>
-                    <span className="font-mono font-bold text-base sm:text-lg text-purple-700 block">
-                      ₹{(selectedBedTariff * 2).toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -953,9 +942,8 @@ export default function WalkInSelfKycCheckinPage({
               </p>
               <p className="text-gray-700 flex items-center justify-between">
                 <span>💰 Tariff:</span>
-                <span className="font-mono font-bold text-emerald-700">
-                  ₹{selectedBedTariff.toLocaleString("en-IN")}{" "}
-                  {stayType === "Tenant" ? "/ month" : "/ day"}
+                <span className="font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[11px]">
+                  Confirmed by PG Reception upon Approval
                 </span>
               </p>
               <p className="text-gray-700 flex items-center justify-between">

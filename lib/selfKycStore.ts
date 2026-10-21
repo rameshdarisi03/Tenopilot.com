@@ -6,6 +6,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -248,20 +249,78 @@ export const selfKycStore = {
   },
 
   // Asynchronous universal lookup across local cache and Firestore cloud
-  async fetchInviteAsync(token: string): Promise<{ invite?: SelfKycInvite; propertyId?: string }> {
+  async fetchInviteAsync(token: string, explicitPropertyId?: string): Promise<{ invite?: SelfKycInvite; propertyId?: string }> {
     if (!token) return {};
 
-    // 1. Check local cache first
+    // 1. Direct query with explicit propertyId if passed in URL (?p=propertyId)
+    if (explicitPropertyId) {
+      try {
+        const inviteRef = doc(db, "properties", explicitPropertyId, "self_kyc_invites", token);
+        const inviteSnap = await getDoc(inviteRef);
+        if (inviteSnap.exists()) {
+          const inv = inviteSnap.data() as SelfKycInvite;
+          const list = INVITES_CACHE.get(explicitPropertyId) || [];
+          INVITES_CACHE.set(explicitPropertyId, [inv, ...list.filter((i) => i.id !== inv.id)]);
+          saveLocalCache(explicitPropertyId, "invs");
+          return { invite: inv, propertyId: explicitPropertyId };
+        }
+      } catch (e) {
+        console.warn("Explicit property invite fetch notice:", e);
+      }
+    }
+
+    // 2. Check local cache first
     const local = this.getInviteByToken(token);
     if (local?.invite) return local;
 
-    // 2. Direct single-hop read from root collection self_kyc_invites/{token}
+    // 3. Fast Server-Side API Failsafe (Cross-Collection Lookup)
+    if (typeof window !== "undefined") {
+      try {
+        const queryUrl = `/api/self-kyc/invite?token=${encodeURIComponent(token)}${explicitPropertyId ? `&p=${encodeURIComponent(explicitPropertyId)}` : ""}`;
+        const res = await fetch(queryUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.invite) {
+            const pId = data.propertyId || data.invite.propertyId || "sunshine-pg";
+            const list = INVITES_CACHE.get(pId) || [];
+            INVITES_CACHE.set(pId, [data.invite, ...list.filter((i) => i.id !== data.invite.id)]);
+            saveLocalCache(pId, "invs");
+            return { invite: data.invite, propertyId: pId };
+          }
+        }
+      } catch (e) {
+        console.warn("Server API invite lookup notice:", e);
+      }
+    }
+
+    // 4. Direct scan across properties/{propId}/self_kyc_invites/{token}
+    try {
+      const propsSnap = await getDocs(collection(db, "properties"));
+      for (const pDoc of propsSnap.docs) {
+        const pId = pDoc.id;
+        try {
+          const inviteRef = doc(db, "properties", pId, "self_kyc_invites", token);
+          const inviteSnap = await getDoc(inviteRef);
+          if (inviteSnap.exists()) {
+            const inv = inviteSnap.data() as SelfKycInvite;
+            const list = INVITES_CACHE.get(pId) || [];
+            INVITES_CACHE.set(pId, [inv, ...list.filter((i) => i.id !== inv.id)]);
+            saveLocalCache(pId, "invs");
+            return { invite: inv, propertyId: pId };
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn("Properties scan notice:", e);
+    }
+
+    // 5. Direct single-hop read from root collection self_kyc_invites/{token} (if permitted)
     try {
       const directRef = doc(db, "self_kyc_invites", token);
       const directSnap = await getDoc(directRef);
       if (directSnap.exists()) {
         const inv = directSnap.data() as SelfKycInvite;
-        const propId = inv.propertyId || "sunshine-pg";
+        const propId = inv.propertyId || explicitPropertyId || "sunshine-pg";
         const list = INVITES_CACHE.get(propId) || [];
         INVITES_CACHE.set(propId, [inv, ...list.filter((i) => i.id !== inv.id)]);
         saveLocalCache(propId, "invs");
@@ -271,7 +330,7 @@ export const selfKycStore = {
       console.warn("Direct self_kyc_invites read notice:", e);
     }
 
-    // 3. Fallback: Query Firestore global lookup pointer
+    // 6. Fallback: Query Firestore global lookup pointer
     try {
       const lookupRef = doc(db, "self_kyc_invite_lookup", token);
       const lookupSnap = await getDoc(lookupRef);
@@ -282,7 +341,6 @@ export const selfKycStore = {
           const inviteSnap = await getDoc(inviteRef);
           if (inviteSnap.exists()) {
             const inv = inviteSnap.data() as SelfKycInvite;
-            // Cache locally
             const list = INVITES_CACHE.get(propertyId) || [];
             INVITES_CACHE.set(propertyId, [inv, ...list.filter((i) => i.id !== inv.id)]);
             saveLocalCache(propertyId, "invs");
@@ -294,7 +352,7 @@ export const selfKycStore = {
       console.warn("Firestore lookup pointer notice:", e);
     }
 
-    // 4. Fallback: Check local layouts for holdCandidate
+    // 7. Fallback: Check local layouts for holdCandidate
     try {
       const knownProperties = ["sunshine-pg", "prop-1788438308277"];
       for (const propId of knownProperties) {
@@ -370,25 +428,37 @@ export const selfKycStore = {
     }));
     propertyStore.updateStructure(updated, invite.propertyId);
 
-    // Push to Firestore with undefined sanitization
+    // Push to Firestore with robust multi-path persistence
     try {
       const sanitized = sanitizeForFirestore(invite);
 
-      // Direct write to root collection for fast 1-hop cross-device lookup
-      const rootInviteRef = doc(db, "self_kyc_invites", invite.id);
-      await setDoc(rootInviteRef, sanitized);
+      // 1. PRIMARY: Property scoped collection (Guaranteed write permissions)
+      try {
+        const docRef = doc(db, "properties", invite.propertyId, "self_kyc_invites", invite.id);
+        await setDoc(docRef, sanitized);
+      } catch (err) {
+        console.warn("Property self_kyc_invites write notice:", err);
+      }
 
-      // Property scoped collection
-      const docRef = doc(db, "properties", invite.propertyId, "self_kyc_invites", invite.id);
-      await setDoc(docRef, sanitized);
+      // 2. Direct write to root collection for fast 1-hop cross-device lookup (if permitted)
+      try {
+        const rootInviteRef = doc(db, "self_kyc_invites", invite.id);
+        await setDoc(rootInviteRef, sanitized);
+      } catch (err) {
+        // Fallback gracefully if root collection security rules not deployed
+      }
 
-      // Global pointer for cross-device mobile lookup
-      const lookupRef = doc(db, "self_kyc_invite_lookup", invite.id);
-      await setDoc(lookupRef, {
-        propertyId: invite.propertyId,
-        inviteId: invite.id,
-        createdAt: invite.createdAt,
-      });
+      // 3. Global pointer for cross-device mobile lookup (if permitted)
+      try {
+        const lookupRef = doc(db, "self_kyc_invite_lookup", invite.id);
+        await setDoc(lookupRef, {
+          propertyId: invite.propertyId,
+          inviteId: invite.id,
+          createdAt: invite.createdAt,
+        });
+      } catch (err) {
+        // Fallback gracefully if lookup collection security rules not deployed
+      }
     } catch (e) {
       console.warn("Firestore createInvite write failed, cached locally:", e);
     }

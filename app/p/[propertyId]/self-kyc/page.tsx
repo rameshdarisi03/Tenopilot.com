@@ -231,9 +231,9 @@ export default function SelfKycDeskPage({
     // 1. Create Invite & Put Bed on Hold in propertyStore & Firestore
     await selfKycStore.createInvite(newInvite);
 
-    // 2. Build portal invite link
+    // 2. Build portal invite link with self-contained property parameter
     const portalOrigin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
-    const inviteLink = `${portalOrigin}/self-onboard/${token}`;
+    const inviteLink = `${portalOrigin}/self-onboard/${token}?p=${propertyId}`;
 
     // 3. Attempt WhatsApp & Email dispatch
     try {
@@ -313,7 +313,7 @@ export default function SelfKycDeskPage({
   // 1-Tap Share Invite Directly via WhatsApp Web / App
   const handleShareInviteViaWhatsApp = (inv: SelfKycInvite) => {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
-    const url = `${origin}/self-onboard/${inv.id}`;
+    const url = `${origin}/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`;
     const cleanDigits = inv.candidatePhone.replace(/\D/g, "");
     const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
     const settings = propertySettingsStore.getSettings(propertyId);
@@ -346,7 +346,7 @@ export default function SelfKycDeskPage({
   // Copy Invite URL
   const handleCopyInviteUrl = (inviteToken: string) => {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
-    const url = `${origin}/self-onboard/${inviteToken}`;
+    const url = `${origin}/self-onboard/${inviteToken}?p=${propertyId}`;
     navigator.clipboard?.writeText(url);
     triggerToast("📋 Invite link copied to clipboard!", "info");
   };

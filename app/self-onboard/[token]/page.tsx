@@ -103,11 +103,16 @@ export default function TenantSelfOnboardingPage({
     async function resolveToken() {
       setLoadingInvite(true);
       try {
-        const result = await selfKycStore.fetchInviteAsync(token);
+        let paramPropId = "";
+        if (typeof window !== "undefined") {
+          const sp = new URLSearchParams(window.location.search);
+          paramPropId = sp.get("p") || "";
+        }
+        const result = await selfKycStore.fetchInviteAsync(token, paramPropId);
         if (result?.invite) {
           const inv = result.invite;
           setInvite(inv);
-          const resolvedPropId = result.propertyId || inv.propertyId || propertyId;
+          const resolvedPropId = result.propertyId || inv.propertyId || paramPropId || propertyId;
           setInvitePropertyId(resolvedPropId);
           setCandidateName(inv.candidateName || "");
           setPhone(inv.candidatePhone || "");
@@ -131,7 +136,7 @@ export default function TenantSelfOnboardingPage({
       }
     }
     resolveToken();
-  }, [token, propertyId]);
+  }, [token]);
 
   // Synchronize property layout for walk-in bed choices
   useEffect(() => {
@@ -454,23 +459,44 @@ export default function TenantSelfOnboardingPage({
               </p>
             </div>
 
-            {/* Pre-Locked Room & Tariff Card (ZERO BANK DETAILS EXPOSED) */}
-            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-3">
+            {/* Pre-Locked Stay Type, Room & Tariff Card (ZERO BANK DETAILS EXPOSED) */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
                   <Home className="w-4 h-4 text-[#c2652a]" />
-                  <span>Reserved Accommodation Details</span>
+                  <span>Reserved Accommodation & Stay Type</span>
                 </div>
-                <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
-                  Status: ON HOLD 🔒
+                <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> RESERVED & ON HOLD
+                </span>
+              </div>
+
+              {/* Locked Stay Type Banner */}
+              <div className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl border border-orange-200/80 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#c2652a] text-white flex items-center justify-center font-bold text-xs">
+                    {invite.stayType === "Tenant" ? <Home className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-orange-950 block">Stay Plan</span>
+                    <span className="font-serif font-bold text-sm text-gray-900 block">
+                      {invite.stayType === "Tenant" ? "Monthly Tenant" : "Short-Term Daily Guest"}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-gray-600 bg-white px-2.5 py-1 rounded-lg border border-gray-200 flex items-center gap-1 shadow-xs">
+                  <Lock className="w-3 h-3 text-[#c2652a]" /> Locked by Management
                 </span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200">
-                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Room & Bed</span>
+                  <span className="text-[10px] font-bold uppercase text-gray-400 block">Assigned Room & Bed</span>
                   <span className="font-serif font-bold text-base sm:text-lg text-gray-900 block">
                     Room {invite.roomNumber} ({invite.bedCode})
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
+                    Locked on Hold 🔒
                   </span>
                 </div>
 
@@ -481,6 +507,9 @@ export default function TenantSelfOnboardingPage({
                   <span className="font-mono font-bold text-base sm:text-lg text-emerald-700 block">
                     ₹{invite.rentAmount.toLocaleString("en-IN")}
                   </span>
+                  <span className="text-[10px] text-gray-400 block">
+                    {invite.stayType === "Tenant" ? "/ month" : "/ day"}
+                  </span>
                 </div>
 
                 {invite.stayType === "Tenant" && (
@@ -489,6 +518,7 @@ export default function TenantSelfOnboardingPage({
                     <span className="font-mono font-bold text-base sm:text-lg text-purple-700 block">
                       ₹{(invite.securityDeposit ?? invite.rentAmount * 2).toLocaleString("en-IN")}
                     </span>
+                    <span className="text-[10px] text-gray-400 block">Refundable on exit</span>
                   </div>
                 )}
               </div>
@@ -945,11 +975,12 @@ export default function TenantSelfOnboardingPage({
                             <span className="text-[10px] text-gray-500 block">{slot.roomType}</span>
                           </div>
                           <div className="text-right">
-                            <span className="font-mono font-bold text-xs text-emerald-700 block">
-                              ₹{tariff.toLocaleString("en-IN")}
+                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Available
                             </span>
-                            <span className="text-[9px] text-gray-400 block">
-                              {stayType === "Tenant" ? "/mo" : "/day"}
+                            <span className="text-[9px] text-gray-400 block mt-0.5">
+                              Vacant Bed
                             </span>
                           </div>
                         </div>
@@ -1382,10 +1413,16 @@ export default function TenantSelfOnboardingPage({
               </p>
               <p className="text-gray-700 flex items-center justify-between">
                 <span>💰 Tariff:</span>
-                <span className="font-mono font-bold text-emerald-700">
-                  ₹{(selectedBedTariff || invite?.rentAmount || 0).toLocaleString("en-IN")}{" "}
-                  {stayType === "Tenant" ? "/ month" : "/ day"}
-                </span>
+                {invite ? (
+                  <span className="font-mono font-bold text-emerald-700">
+                    ₹{invite.rentAmount.toLocaleString("en-IN")}{" "}
+                    {stayType === "Tenant" ? "/ month" : "/ day"}
+                  </span>
+                ) : (
+                  <span className="font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[11px]">
+                    Confirmed by Reception upon Approval
+                  </span>
+                )}
               </p>
               <p className="text-gray-700 flex items-center justify-between">
                 <span>📅 Check-in Date:</span>
