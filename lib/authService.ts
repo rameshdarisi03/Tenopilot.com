@@ -1131,14 +1131,52 @@ export async function updateStaffFirebaseAccount(params: {
   if (params.ownerPhone) payload.ownerPhone = params.ownerPhone;
 
   try {
-    // 1. Clean up old phone doc if phone changed
+    // 1. Clean up & free previous phone credentials if phone changed (e.g. receptionist replaced or left)
     if (oldPurePhone && oldPurePhone !== purePhone) {
       await deleteDoc(doc(db, "staff_accounts", `phone_${oldPurePhone}`)).catch(() => {});
+      try {
+        const saSnap = await getDocs(
+          query(collection(db, "staff_accounts"), where("purePhone", "==", oldPurePhone))
+        );
+        for (const saDoc of saSnap.docs) {
+          if (saDoc.id !== staffAccountDocId) {
+            await deleteDoc(saDoc.ref).catch(() => {});
+          }
+        }
+        // Zero-trace liberation: wipe any staff profile in users collection so user can start a fresh organization
+        const uSnap = await getDocs(
+          query(collection(db, "users"), where("phone", "==", oldPurePhone))
+        );
+        for (const uDoc of uSnap.docs) {
+          const uData = uDoc.data();
+          if (uData?.isStaff || uData?.role === "admin" || uData?.role === "receptionist") {
+            await deleteDoc(uDoc.ref).catch(() => {});
+          }
+        }
+      } catch (phoneCleanErr) {
+        console.warn("Notice freeing old staff phone credentials:", phoneCleanErr);
+      }
     }
 
-    // 2. Clean up old email doc if email changed
+    // 2. Clean up & free previous email credentials if email changed (e.g. receptionist replaced or left)
     if (oldCleanEmail && cleanEmail && oldCleanEmail !== cleanEmail) {
-      await deleteDoc(doc(db, "staff_accounts", oldCleanEmail)).catch(() => {});
+      if (!oldCleanEmail.endsWith("@phone.tenopilot.auth")) {
+        await deleteDoc(doc(db, "staff_accounts", oldCleanEmail)).catch(() => {});
+        try {
+          // Zero-trace liberation: wipe any staff profile in users collection so user can register their own PG
+          const uSnap = await getDocs(
+            query(collection(db, "users"), where("email", "==", oldCleanEmail))
+          );
+          for (const uDoc of uSnap.docs) {
+            const uData = uDoc.data();
+            if (uData?.isStaff || uData?.role === "admin" || uData?.role === "receptionist") {
+              await deleteDoc(uDoc.ref).catch(() => {});
+            }
+          }
+        } catch (emailCleanErr) {
+          console.warn("Notice freeing old staff email credentials:", emailCleanErr);
+        }
+      }
     }
 
     // 3. Save new staff account doc in staff_accounts

@@ -413,10 +413,11 @@ class StaffStore {
         const pure10 = target.phone.replace(/\D/g, "").slice(-10);
         if (pure10) {
           try {
+            await deleteDoc(doc(db, "staff_accounts", `phone_${pure10}`)).catch(() => {});
             const saQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
             const saSnap = await getDocs(saQ);
             for (const saDoc of saSnap.docs) {
-              await deleteDoc(saDoc.ref);
+              await deleteDoc(saDoc.ref).catch(() => {});
             }
           } catch (e) {
             console.warn("Failed to delete staff_accounts by purePhone:", e);
