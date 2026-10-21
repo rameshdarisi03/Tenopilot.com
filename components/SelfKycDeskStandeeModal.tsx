@@ -278,7 +278,7 @@ export function SelfKycDeskStandeeModal({
                   <img
                     src={logoBase64 || "/tenopilot_official_badge.png"}
                     alt="TenoPilot"
-                    className="w-5 h-5 sm:w-6 sm:h-6 object-contain rounded-lg shadow-2xs"
+                    className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
                     crossOrigin="anonymous"
                   />
                   <span className="font-serif tracking-tight text-sm sm:text-base font-extrabold text-[#0b132b]">

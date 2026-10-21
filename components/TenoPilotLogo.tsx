@@ -39,7 +39,7 @@ export const TenoPilotLogo: React.FC<TenoPilotLogoProps> = ({
           alt="TenoPilot Logo Icon"
           width={80}
           height={80}
-          className="w-full h-full object-contain rounded-2xl"
+          className="w-full h-full object-contain"
           priority
         />
       </div>
