@@ -26,11 +26,18 @@ import {
   Copy,
   CheckSquare,
   Square,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
 import { useAuth } from "@/providers/AuthProvider";
-import { reauthenticateCurrentAccount, provisionStaffFirebaseAccount, syncUserSecurityPinToCloud } from "@/lib/authService";
+import {
+  reauthenticateCurrentAccount,
+  provisionStaffFirebaseAccount,
+  syncUserSecurityPinToCloud,
+  checkStaffCredentialConflict,
+} from "@/lib/authService";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -47,6 +54,9 @@ export default function StaffManagementPage() {
   const [email, setEmail] = useState("");
   const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
   const [phone, setPhone] = useState("");
+  // Real-time conflict validation states: "idle" | "checking" | "available" | "conflict"
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
+  const [phoneStatus, setPhoneStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
   const [role, setRole] = useState<UserRole>("admin");
   const [assignedPropertyId, setAssignedPropertyId] = useState("sunshine-pg");
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
@@ -172,6 +182,53 @@ export default function StaffManagementPage() {
     };
   }, [router, profile]);
 
+  // Real-time debounced conflict checking for Gmail ID
+  useEffect(() => {
+    const cleanGmail = email.trim().toLowerCase();
+    if (!cleanGmail) {
+      setEmailStatus("idle");
+      return;
+    }
+
+    if (!cleanGmail.endsWith("@gmail.com")) {
+      setEmailStatus("idle");
+      return;
+    }
+
+    setEmailStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const { emailConflict } = await checkStaffCredentialConflict({ email: cleanGmail });
+        setEmailStatus(emailConflict ? "conflict" : "available");
+      } catch {
+        setEmailStatus("idle");
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  // Real-time debounced conflict checking for Mobile Number
+  useEffect(() => {
+    const pure10 = phone.replace(/\D/g, "").slice(-10);
+    if (!pure10 || pure10.length < 10) {
+      setPhoneStatus("idle");
+      return;
+    }
+
+    setPhoneStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const { phoneConflict } = await checkStaffCredentialConflict({ phone: pure10 });
+        setPhoneStatus(phoneConflict ? "conflict" : "available");
+      } catch {
+        setPhoneStatus("idle");
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [phone]);
+
 
 
   const togglePropertySelection = (propId: string) => {
@@ -234,9 +291,39 @@ export default function StaffManagementPage() {
       return;
     }
 
+    if (emailStatus === "conflict") {
+      setErrorMessage("Sorry, this Gmail ID is already in use by another organization. Please try with a different ID.");
+      return;
+    }
+
+    if (phoneStatus === "conflict") {
+      setErrorMessage("Sorry, this mobile number is already in use by another organization. Please try with a different mobile number.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      // Final conflict check right before provisioning
+      const checkResult = await checkStaffCredentialConflict({
+        email: cleanGmail || undefined,
+        phone: pure10 || undefined,
+      });
+
+      if (checkResult.emailConflict) {
+        setEmailStatus("conflict");
+        setErrorMessage("Sorry, this Gmail ID is already in use by another organization. Please try with a different ID.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (checkResult.phoneConflict) {
+        setPhoneStatus("conflict");
+        setErrorMessage("Sorry, this mobile number is already in use by another organization. Please try with a different mobile number.");
+        setIsSubmitting(false);
+        return;
+      }
+
       const primaryPropId = role === "admin" ? selectedPropertyIds[0] : assignedPropertyId;
       const selectedProps = properties.filter((p) =>
         role === "admin" ? selectedPropertyIds.includes(p.id) : p.id === assignedPropertyId
@@ -274,6 +361,8 @@ export default function StaffManagementPage() {
       setName("");
       setEmail("");
       setPhone("");
+      setEmailStatus("idle");
+      setPhoneStatus("idle");
       setActiveTab("directory");
     } catch (err: any) {
       setErrorMessage("Failed to create staff account. Please try again.");
@@ -674,13 +763,41 @@ export default function StaffManagementPage() {
 
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Gmail ID (for Google Sign-In)</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="staffname@gmail.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
-                />
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="staffname@gmail.com"
+                    className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white transition-colors ${
+                      emailStatus === "conflict"
+                        ? "border-rose-400 focus:ring-rose-500 bg-rose-50/20"
+                        : emailStatus === "available"
+                        ? "border-emerald-400 focus:ring-emerald-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                    {emailStatus === "checking" && (
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                    )}
+                    {emailStatus === "available" && (
+                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                    {emailStatus === "conflict" && (
+                      <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shadow-2xs">
+                        <X className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {emailStatus === "conflict" && (
+                  <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <span>Sorry, this Gmail ID is already in use by another organization. Please try with a different ID.</span>
+                  </p>
+                )}
               </div>
 
               <div>
@@ -693,14 +810,42 @@ export default function StaffManagementPage() {
                     placeholder="+91"
                     className="w-20 px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-center text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
                   />
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="9876543210 (10 digits)"
-                    className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="9876543210 (10 digits)"
+                      className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
+                        phoneStatus === "conflict"
+                          ? "border-rose-400 focus:ring-rose-500 bg-rose-50/20"
+                          : phoneStatus === "available"
+                          ? "border-emerald-400 focus:ring-emerald-500"
+                          : "border-gray-300 focus:ring-[#c2652a]"
+                      }`}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {phoneStatus === "checking" && (
+                        <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                      )}
+                      {phoneStatus === "available" && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      )}
+                      {phoneStatus === "conflict" && (
+                        <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shadow-2xs">
+                          <X className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+                {phoneStatus === "conflict" && (
+                  <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <span>Sorry, this mobile number is already in use by another organization. Please try with a different mobile number.</span>
+                  </p>
+                )}
               </div>
 
               <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-center gap-2 text-[11px] text-amber-900">
@@ -792,7 +937,13 @@ export default function StaffManagementPage() {
               <div className="pt-3">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting ||
+                    emailStatus === "conflict" ||
+                    phoneStatus === "conflict" ||
+                    emailStatus === "checking" ||
+                    phoneStatus === "checking"
+                  }
                   className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating Staff Account..." : "Create Staff Account"}

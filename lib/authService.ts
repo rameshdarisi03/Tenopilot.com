@@ -320,6 +320,122 @@ export async function checkIfEmailExists(email: string): Promise<boolean> {
   return status.exists;
 }
 
+/**
+ * 🛡️ Real-time conflict verification for Staff creation
+ * Checks if a Gmail ID or Mobile Number is already in use by another organization or as a staff/admin/owner.
+ * Note: Strictly ignores tenant records.
+ */
+export async function checkStaffCredentialConflict(params: {
+  email?: string;
+  phone?: string;
+  excludeStaffId?: string;
+}): Promise<{
+  emailConflict: boolean;
+  phoneConflict: boolean;
+  conflictingEmailRole?: string;
+  conflictingPhoneRole?: string;
+}> {
+  let emailConflict = false;
+  let phoneConflict = false;
+  let conflictingEmailRole: string | undefined;
+  let conflictingPhoneRole: string | undefined;
+
+  try {
+    // 1. Check Email Conflict
+    const cleanEmail = (params.email || "").trim().toLowerCase();
+    if (cleanEmail && cleanEmail.includes("@")) {
+      // Check staff_accounts
+      try {
+        const saDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
+        if (saDoc.exists()) {
+          const saData = saDoc.data();
+          if (!params.excludeStaffId || saData?.id !== params.excludeStaffId) {
+            emailConflict = true;
+            conflictingEmailRole = saData?.role || "staff";
+          }
+        }
+      } catch (e) {
+        console.warn("staff_accounts check notice:", e);
+      }
+
+      // Check users collection (owners & staff only, strictly ignore tenants)
+      if (!emailConflict) {
+        try {
+          const uQ = query(collection(db, "users"), where("email", "==", cleanEmail));
+          const uSnap = await getDocs(uQ);
+          for (const uDoc of uSnap.docs) {
+            const uData = uDoc.data();
+            const role = uData?.role;
+            const isStaffOrAdmin = role === "master_admin" || role === "admin" || role === "receptionist" || uData?.isStaff === true;
+            if (isStaffOrAdmin && (!params.excludeStaffId || uData?.id !== params.excludeStaffId)) {
+              emailConflict = true;
+              conflictingEmailRole = role || "master_admin";
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn("users email conflict check notice:", e);
+        }
+      }
+    }
+
+    // 2. Check Phone Conflict
+    const rawDigits = (params.phone || "").replace(/\D/g, "");
+    const pure10 = rawDigits.slice(-10);
+    if (pure10.length === 10) {
+      // Check staff_accounts direct doc phone_{pure10}
+      try {
+        const saPhoneDoc = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
+        if (saPhoneDoc.exists()) {
+          const saData = saPhoneDoc.data();
+          if (!params.excludeStaffId || saData?.id !== params.excludeStaffId) {
+            phoneConflict = true;
+            conflictingPhoneRole = saData?.role || "staff";
+          }
+        }
+      } catch {}
+
+      // Check staff_accounts query by purePhone
+      if (!phoneConflict) {
+        try {
+          const saQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
+          const saSnap = await getDocs(saQ);
+          for (const docItem of saSnap.docs) {
+            const saData = docItem.data();
+            if (!params.excludeStaffId || saData?.id !== params.excludeStaffId) {
+              phoneConflict = true;
+              conflictingPhoneRole = saData?.role || "staff";
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      // Check users collection (owners & staff only, strictly ignore tenants)
+      if (!phoneConflict) {
+        try {
+          const pQ = query(collection(db, "users"), where("phone", "==", pure10));
+          const pSnap = await getDocs(pQ);
+          for (const pDoc of pSnap.docs) {
+            const pData = pDoc.data();
+            const role = pData?.role;
+            const isStaffOrAdmin = role === "master_admin" || role === "admin" || role === "receptionist" || pData?.isStaff === true;
+            if (isStaffOrAdmin && (!params.excludeStaffId || pData?.id !== params.excludeStaffId)) {
+              phoneConflict = true;
+              conflictingPhoneRole = role || "master_admin";
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn("checkStaffCredentialConflict global error:", err);
+  }
+
+  return { emailConflict, phoneConflict, conflictingEmailRole, conflictingPhoneRole };
+}
+
 export interface GoogleAuthResult {
   user: User;
   profile: AuthUserProfile;
