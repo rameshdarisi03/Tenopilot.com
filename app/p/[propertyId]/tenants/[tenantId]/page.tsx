@@ -72,6 +72,7 @@ import {
   AlertCircle,
   Car,
   Plus,
+  PhoneCall,
 } from "lucide-react";
 import {
   downloadRentalAgreementPdf,
@@ -463,8 +464,13 @@ export default function IndividualTenantProfilePage({
       const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount;
       const depDue = stmt.remainingDepositDue;
+      const isDepCleared = stmt.isDepositCleared || depDue <= 0;
 
-      if (stmt.remainingRentDue === 0 && depDue > 0) {
+      if (isDepCleared) {
+        setPaymentPurpose("RENT");
+        setRentPaymentPortion(rentDue);
+        setDepositPaymentPortion(0);
+      } else if (stmt.remainingRentDue === 0 && depDue > 0) {
         setPaymentPurpose("DEPOSIT");
         setRentPaymentPortion(0);
         setDepositPaymentPortion(depDue);
@@ -528,6 +534,9 @@ export default function IndividualTenantProfilePage({
     }
     return occupantState?.vehicleNumber ? [occupantState.vehicleNumber] : [""];
   });
+  const initialParsedEmergency = parsePhoneAndCountryCode(occupantState?.emergencyContact?.phone);
+  const [editEmergencyCountryCode, setEditEmergencyCountryCode] = useState<string>(initialParsedEmergency.countryCode || "+91");
+  const [editEmergencyPhone, setEditEmergencyPhone] = useState<string>(initialParsedEmergency.nationalNumber || "");
 
   // Room Transfer Modal State (Empty default ensures NO target bed is pre-selected!)
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -564,6 +573,28 @@ export default function IndividualTenantProfilePage({
     setToastData({ message: msg, type, detail });
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     toastTimeoutRef.current = setTimeout(() => setToastData(null), 4500);
+  };
+
+  // Smart Dial/Copy Handler: On smartphones opens native phone dialer; on desktop/laptops copies to clipboard
+  const handlePhoneLinkClick = (e: React.MouseEvent, rawPhone?: string) => {
+    if (typeof window === "undefined" || !rawPhone) return;
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia("(max-width: 768px)").matches && "ontouchstart" in window);
+
+    if (!isMobile) {
+      e.preventDefault();
+      const cleanNum = rawPhone.trim();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(cleanNum).then(() => {
+          triggerToast(`📋 Copied ${cleanNum} to clipboard!`, "info");
+        }).catch(() => {
+          triggerToast(`📋 ${cleanNum}`, "info");
+        });
+      } else {
+        triggerToast(`📋 ${cleanNum}`, "info");
+      }
+    }
   };
 
   // Active Dispatch Target for Granular Loading Feedback on Specific Button
@@ -1558,6 +1589,9 @@ export default function IndividualTenantProfilePage({
     } else {
       setEditVehicleNumbers([""]);
     }
+    const parsedEmergency = parsePhoneAndCountryCode(occupantState.emergencyContact?.phone);
+    setEditEmergencyCountryCode(parsedEmergency.countryCode || "+91");
+    setEditEmergencyPhone(parsedEmergency.nationalNumber || "");
     setShowEditProfileModal(true);
   };
 
@@ -1581,6 +1615,29 @@ export default function IndividualTenantProfilePage({
     const fullPhoneNumber = `${cleanCc} ${cleanNationalPhone}`;
     const cleanVehicles = editVehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
 
+    const cleanEmergencyDigits = editEmergencyPhone.trim().replace(/\D/g, "");
+    if (cleanEmergencyDigits && cleanNationalPhone === cleanEmergencyDigits) {
+      triggerToast("⚠️ Emergency contact cannot be the same as primary mobile number!", "error");
+      return;
+    }
+
+    const cleanEmergencyCc = editEmergencyCountryCode.trim().startsWith("+")
+      ? editEmergencyCountryCode.trim()
+      : `+${editEmergencyCountryCode.trim() || "91"}`;
+    const fullEmergencyPhone = cleanEmergencyDigits
+      ? `${cleanEmergencyCc} ${cleanEmergencyDigits}`
+      : (occupantState.emergencyContact?.phone || "");
+
+    // Check if security deposit is being increased or adjusted
+    const currentStmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+    const totalDepositPaid = currentStmt.totalDepositPaid;
+    let updatedDepositStatus = occupantState.depositStatus;
+    if (editDeposit > totalDepositPaid) {
+      updatedDepositStatus = totalDepositPaid > 0 ? "PARTIAL" : "PENDING";
+    } else if (editDeposit <= totalDepositPaid && editDeposit > 0) {
+      updatedDepositStatus = "PAID";
+    }
+
     const updated: Occupant = {
       ...occupantState,
       name: editName.trim(),
@@ -1593,6 +1650,12 @@ export default function IndividualTenantProfilePage({
       dueDate: updatedDueDate,
       rentAmount: editRent,
       securityDeposit: editDeposit,
+      depositStatus: updatedDepositStatus,
+      emergencyContact: {
+        name: occupantState.emergencyContact?.name || "Emergency Contact",
+        phone: fullEmergencyPhone,
+        relation: occupantState.emergencyContact?.relation || "Family",
+      },
       occupation: editOccupation.trim() || undefined,
       workplace: editWorkplace.trim() || undefined,
       purposeOfVisit: editPurposeOfVisit.trim() || undefined,
@@ -1778,9 +1841,10 @@ export default function IndividualTenantProfilePage({
 
                   {/* Phone Call Shortcut Button */}
                   <a
-                    href={`tel:${occupantState.phone}`}
-                    className="inline-flex items-center justify-center p-2 rounded-xl border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 transition-all shadow-2xs min-h-[34px] min-w-[34px]"
-                    title={`Call ${occupantState.name} (${occupantState.phone})`}
+                    href={`tel:${occupantState.phone.replace(/\s+/g, "")}`}
+                    onClick={(e) => handlePhoneLinkClick(e, occupantState.phone)}
+                    className="inline-flex items-center justify-center p-2 rounded-xl border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 transition-all shadow-2xs min-h-[34px] min-w-[34px] cursor-pointer"
+                    title={`Call on mobile or copy on desktop: ${occupantState.name} (${occupantState.phone})`}
                   >
                     <Phone className="w-4 h-4" />
                   </a>
@@ -2383,13 +2447,33 @@ export default function IndividualTenantProfilePage({
                       {occupantState.lastPaidDate}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-gray-500 font-medium">Phone</span>
-                    <span className="font-bold text-gray-900 flex items-center gap-1">
+                    <a
+                      href={`tel:${occupantState.phone.replace(/\s+/g, "")}`}
+                      onClick={(e) => handlePhoneLinkClick(e, occupantState.phone)}
+                      className="font-bold text-gray-900 hover:text-[#c2652a] hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Click to dial on phone or copy on desktop"
+                    >
                       <Phone className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.phone}
-                    </span>
+                    </a>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-medium">Emergency Contact</span>
+                    {occupantState.emergencyContact?.phone ? (
+                      <a
+                        href={`tel:${occupantState.emergencyContact.phone.replace(/\s+/g, "")}`}
+                        onClick={(e) => handlePhoneLinkClick(e, occupantState.emergencyContact.phone)}
+                        className="font-bold text-gray-900 hover:text-rose-600 hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Click to dial on phone or copy on desktop"
+                      >
+                        <PhoneCall className="w-3.5 h-3.5 text-rose-500" /> {occupantState.emergencyContact.phone}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 font-normal italic text-xs">Not Provided</span>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center">
                     <span className="text-gray-500 font-medium">Email</span>
                     <span className="font-bold text-gray-900 flex items-center gap-1">
                       <Mail className="w-3.5 h-3.5 text-[#c2652a]" /> {occupantState.email}
@@ -2960,44 +3044,74 @@ export default function IndividualTenantProfilePage({
                 >
                   {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">
-                      Payment Category *
-                    </label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentPurpose("RENT")}
-                        className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                          paymentPurpose === "RENT"
-                            ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
-                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                        }`}
-                      >
-                        <span>🏠 Rent Only</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentPurpose("DEPOSIT")}
-                        className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                          paymentPurpose === "DEPOSIT"
-                            ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                        }`}
-                      >
-                        <span>🔒 Deposit Only</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentPurpose("COMBINED")}
-                        className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                          paymentPurpose === "COMBINED"
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                        }`}
-                      >
-                        <span>⚡ Combined</span>
-                      </button>
-                    </div>
+                    {(() => {
+                      const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+                      const isDepositFullyPaid = stmt.isDepositCleared || stmt.remainingDepositDue <= 0;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block font-bold text-gray-700">
+                              Payment Category *
+                            </label>
+                            {isDepositFullyPaid && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                ✅ Deposit Received (Fully Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")})
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setPaymentPurpose("RENT")}
+                              className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                                paymentPurpose === "RENT"
+                                  ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                                  : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                              }`}
+                            >
+                              <span>🏠 Rent Only</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDepositFullyPaid}
+                              onClick={() => {
+                                if (!isDepositFullyPaid) setPaymentPurpose("DEPOSIT");
+                              }}
+                              className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all ${
+                                isDepositFullyPaid
+                                  ? "bg-gray-100 text-gray-400 border-gray-200 opacity-60 cursor-not-allowed"
+                                  : paymentPurpose === "DEPOSIT"
+                                  ? "bg-purple-600 text-white border-purple-600 shadow-xs cursor-pointer"
+                                  : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200 cursor-pointer"
+                              }`}
+                              title={
+                                isDepositFullyPaid
+                                  ? `Deposit of ₹${stmt.totalDepositPaid.toLocaleString("en-IN")} already received. Increase deposit in Edit Profile to collect more.`
+                                  : "Collect Security Deposit"
+                              }
+                            >
+                              <span>🔒 Deposit Only</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentPurpose("COMBINED")}
+                              className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                                paymentPurpose === "COMBINED"
+                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                  : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                              }`}
+                            >
+                              <span>⚡ Combined</span>
+                            </button>
+                          </div>
+                          {isDepositFullyPaid && (
+                            <p className="text-[10px] text-gray-500 mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 leading-tight">
+                              💡 Security deposit of <strong className="text-gray-800">₹{stmt.totalDepositPaid.toLocaleString("en-IN")}</strong> has already been received. Deposit menu is greyed out. To collect additional deposit, increase the Security Deposit in <strong className="text-[#c2652a]">Edit Profile</strong>.
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* 📅 Date & Payment Mode in 2-Column Grid */}
@@ -3154,29 +3268,49 @@ export default function IndividualTenantProfilePage({
                       </div>
 
                       <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="font-bold text-purple-900">
-                            2. Security Deposit Portion (₹)
-                          </label>
-                          {(() => {
-                            const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
-                            return (
-                              <span className="text-[10px] text-purple-700 font-bold">
-                                Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                        <input
-                          type="number"
-                          value={depositPaymentPortion ? depositPaymentPortion : ""}
-                          placeholder="0"
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, "");
-                            setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
-                          }}
-                          className="w-full px-3 py-2 rounded-xl border border-purple-300 text-sm font-mono font-bold text-purple-950 bg-white focus:ring-1 focus:ring-purple-600"
-                        />
+                        {(() => {
+                          const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+                          const isDepositFullyPaid = stmt.isDepositCleared || stmt.remainingDepositDue <= 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="font-bold text-purple-900">
+                                  2. Security Deposit Portion (₹)
+                                </label>
+                                {isDepositFullyPaid ? (
+                                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    ✅ Cleared (₹{stmt.totalDepositPaid.toLocaleString("en-IN")})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-purple-700 font-bold">
+                                    Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="number"
+                                disabled={isDepositFullyPaid}
+                                value={isDepositFullyPaid ? 0 : (depositPaymentPortion ? depositPaymentPortion : "")}
+                                placeholder={isDepositFullyPaid ? "0 (Fully Paid)" : "0"}
+                                onChange={(e) => {
+                                  if (isDepositFullyPaid) return;
+                                  const val = e.target.value.replace(/\D/g, "");
+                                  setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                                }}
+                                className={`w-full px-3 py-2 rounded-xl border text-sm font-mono font-bold ${
+                                  isDepositFullyPaid
+                                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                                    : "text-purple-950 border-purple-300 bg-white focus:ring-1 focus:ring-purple-600"
+                                }`}
+                              />
+                              {isDepositFullyPaid && (
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                  Deposit portion locked because deposit has been fully received. Increase deposit in Edit Profile if collecting more.
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       <div>
@@ -4363,6 +4497,45 @@ export default function IndividualTenantProfilePage({
                       onChange={(e) => setEditEmail(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Emergency Contact Number (Mobile)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editEmergencyCountryCode}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (val === "" || val === "+") {
+                            setEditEmergencyCountryCode(val);
+                          } else if (val.startsWith("+")) {
+                            setEditEmergencyCountryCode(`+${val.slice(1).replace(/\D/g, "").slice(0, 4)}`);
+                          } else {
+                            setEditEmergencyCountryCode(`+${val.replace(/\D/g, "").slice(0, 4)}`);
+                          }
+                        }}
+                        placeholder="+91"
+                        className="w-16 sm:w-20 px-2.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-center text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] shrink-0 bg-gray-50"
+                        title="Emergency Country Code (default +91)"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="e.g. 9812345678 (Parent/Guardian)"
+                        value={editEmergencyPhone}
+                        onChange={(e) => setEditEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                        className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+                    {editPhone.replace(/\D/g, "") &&
+                      editEmergencyPhone.replace(/\D/g, "") &&
+                      editPhone.replace(/\D/g, "") === editEmergencyPhone.replace(/\D/g, "") && (
+                        <span className="text-[10px] text-red-600 font-bold mt-1 block">
+                          ⚠️ Emergency contact number cannot match primary mobile number!
+                        </span>
+                    )}
                   </div>
 
                   <div>

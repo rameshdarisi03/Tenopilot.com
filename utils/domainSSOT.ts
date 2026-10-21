@@ -634,10 +634,21 @@ export function calculateOccupantFinancialStatement(
   }, 0);
 
   // Deposit Clearance
-  const isDepositCleared = occupant.depositStatus === "PAID" || totalDepositPaidFromReceipts >= securityDepositRequired;
+  const baselineDepositPaid =
+    totalDepositPaidFromReceipts > 0
+      ? totalDepositPaidFromReceipts
+      : occupant.depositStatus === "PAID"
+      ? (occupant.securityDeposit || 0)
+      : 0;
+
+  const isDepositCleared =
+    securityDepositRequired > 0
+      ? baselineDepositPaid >= securityDepositRequired
+      : occupant.depositStatus === "PAID";
+
   const remainingDepositDue = isDepositCleared
     ? 0
-    : Math.max(0, securityDepositRequired - totalDepositPaidFromReceipts);
+    : Math.max(0, securityDepositRequired - baselineDepositPaid);
 
   // Rent Clearance
   const isRentCleared = occupant.paymentStatus === "Paid" || totalRentPaidFromReceipts >= proRataRent;
@@ -656,9 +667,7 @@ export function calculateOccupantFinancialStatement(
   const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears;
 
   // Total payments tracked
-  const effectiveDepositPaid = isDepositCleared && totalDepositPaidFromReceipts === 0
-    ? securityDepositRequired
-    : totalDepositPaidFromReceipts;
+  const effectiveDepositPaid = baselineDepositPaid;
   const effectiveRentPaid = isRentCleared && totalRentPaidFromReceipts === 0
     ? proRataRent
     : totalRentPaidFromReceipts;

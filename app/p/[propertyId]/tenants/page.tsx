@@ -228,8 +228,13 @@ export default function TenantsDirectoryPage({
       const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount;
       const depDue = stmt.remainingDepositDue;
+      const isDepCleared = stmt.isDepositCleared || depDue <= 0;
 
-      if (stmt.remainingRentDue === 0 && depDue > 0) {
+      if (isDepCleared) {
+        setPaymentPurpose("RENT");
+        setRentPaymentPortion(rentDue);
+        setDepositPaymentPortion(0);
+      } else if (stmt.remainingRentDue === 0 && depDue > 0) {
         setPaymentPurpose("DEPOSIT");
         setRentPaymentPortion(0);
         setDepositPaymentPortion(depDue);
@@ -2403,44 +2408,74 @@ Scroll vertically to browse all residents without pagination limits
               >
                 {/* 🏷️ 1-Tap Payment Purpose / Allocation Category */}
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Payment Category *
-                  </label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPurpose("RENT")}
-                      className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                        paymentPurpose === "RENT"
-                          ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                      }`}
-                    >
-                      <span>🏠 Rent Only</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPurpose("DEPOSIT")}
-                      className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                        paymentPurpose === "DEPOSIT"
-                          ? "bg-purple-600 text-white border-purple-600 shadow-xs"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                      }`}
-                    >
-                      <span>🔒 Deposit Only</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentPurpose("COMBINED")}
-                      className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
-                        paymentPurpose === "COMBINED"
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
-                      }`}
-                    >
-                      <span>⚡ Combined</span>
-                    </button>
-                  </div>
+                  {(() => {
+                    const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                    const isDepositFullyPaid = stmt.isDepositCleared || stmt.remainingDepositDue <= 0;
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-gray-700">
+                            Payment Category *
+                          </label>
+                          {isDepositFullyPaid && (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              ✅ Deposit Received (Fully Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")})
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPurpose("RENT")}
+                            className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                              paymentPurpose === "RENT"
+                                ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                            }`}
+                          >
+                            <span>🏠 Rent Only</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isDepositFullyPaid}
+                            onClick={() => {
+                              if (!isDepositFullyPaid) setPaymentPurpose("DEPOSIT");
+                            }}
+                            className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all ${
+                              isDepositFullyPaid
+                                ? "bg-gray-100 text-gray-400 border-gray-200 opacity-60 cursor-not-allowed"
+                                : paymentPurpose === "DEPOSIT"
+                                ? "bg-purple-600 text-white border-purple-600 shadow-xs cursor-pointer"
+                                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200 cursor-pointer"
+                            }`}
+                            title={
+                              isDepositFullyPaid
+                                ? `Deposit of ₹${stmt.totalDepositPaid.toLocaleString("en-IN")} already received. Increase deposit in Edit Profile to collect more.`
+                                : "Collect Security Deposit"
+                            }
+                          >
+                            <span>🔒 Deposit Only</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentPurpose("COMBINED")}
+                            className={`py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                              paymentPurpose === "COMBINED"
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                            }`}
+                          >
+                            <span>⚡ Combined</span>
+                          </button>
+                        </div>
+                        {isDepositFullyPaid && (
+                          <p className="text-[10px] text-gray-500 mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 leading-tight">
+                            💡 Security deposit of <strong className="text-gray-800">₹{stmt.totalDepositPaid.toLocaleString("en-IN")}</strong> has already been received. Deposit menu is greyed out. To collect additional deposit, increase the Security Deposit in <strong className="text-[#c2652a]">Edit Profile</strong>.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* 📅 Date & Payment Mode in 2-Column Grid */}
@@ -2597,29 +2632,49 @@ Scroll vertically to browse all residents without pagination limits
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="font-bold text-purple-900">
-                          2. Security Deposit Portion (₹)
-                        </label>
-                        {(() => {
-                          const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
-                          return (
-                            <span className="text-[10px] text-purple-700 font-bold">
-                              Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      <input
-                        type="number"
-                        value={depositPaymentPortion ? depositPaymentPortion : ""}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
-                        }}
-                        className="w-full px-3 py-2 rounded-xl border border-purple-300 text-sm font-mono font-bold text-purple-950 bg-white focus:ring-1 focus:ring-purple-600"
-                      />
+                      {(() => {
+                        const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+                        const isDepositFullyPaid = stmt.isDepositCleared || stmt.remainingDepositDue <= 0;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="font-bold text-purple-900">
+                                2. Security Deposit Portion (₹)
+                              </label>
+                              {isDepositFullyPaid ? (
+                                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  ✅ Cleared (₹{stmt.totalDepositPaid.toLocaleString("en-IN")})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-purple-700 font-bold">
+                                  Pending: ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="number"
+                              disabled={isDepositFullyPaid}
+                              value={isDepositFullyPaid ? 0 : (depositPaymentPortion ? depositPaymentPortion : "")}
+                              placeholder={isDepositFullyPaid ? "0 (Fully Paid)" : "0"}
+                              onChange={(e) => {
+                                if (isDepositFullyPaid) return;
+                                const val = e.target.value.replace(/\D/g, "");
+                                setDepositPaymentPortion(val === "" ? 0 : parseInt(val, 10));
+                              }}
+                              className={`w-full px-3 py-2 rounded-xl border text-sm font-mono font-bold ${
+                                isDepositFullyPaid
+                                  ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                                  : "text-purple-950 border-purple-300 bg-white focus:ring-1 focus:ring-purple-600"
+                              }`}
+                            />
+                            {isDepositFullyPaid && (
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                Deposit portion locked because deposit has been fully received. Increase deposit in Edit Profile if collecting more.
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div>
