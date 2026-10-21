@@ -42,15 +42,14 @@ export default function StaffManagementPage() {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [activeTab, setActiveTab] = useState<"directory" | "add">("directory");
 
-  // Form State for Adding Staff
+  // Form State for Adding Staff (Passwordless: WhatsApp OTP + Google Sign-In)
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("admin");
   const [assignedPropertyId, setAssignedPropertyId] = useState("sunshine-pg");
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
-  const [password, setPassword] = useState("Pass@1234");
-  const [showPassword, setShowPassword] = useState(false);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -70,14 +69,7 @@ export default function StaffManagementPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
 
-  // Staff Password Management (Visible to Master Admin & Admin per Hierarchy)
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const [copiedStaffId, setCopiedStaffId] = useState<string | null>(null);
-  const [editPasswordMember, setEditPasswordMember] = useState<StaffMember | null>(null);
-  const [updatedPasswordValue, setUpdatedPasswordValue] = useState("");
-  const [showEditPassword, setShowEditPassword] = useState(false);
-  const [isUpdatingStaffPassword, setIsUpdatingStaffPassword] = useState(false);
-  const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
+
 
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
 
@@ -113,7 +105,7 @@ export default function StaffManagementPage() {
     const currentRole = staffStore.getActiveRole();
     setActiveRole(currentRole);
 
-    // 🔒 If Receptionist tries to access staff management, immediately redirect to their assigned building
+    // ðŸ”’ If Receptionist tries to access staff management, immediately redirect to their assigned building
     if (currentRole === "receptionist") {
       const allStaff = staffStore.getAllGlobalStaff();
       let userEmail = "";
@@ -152,16 +144,19 @@ export default function StaffManagementPage() {
       const all = staffStore.getAllGlobalStaff();
       try {
         const staffDocs = await getDocs(collection(db, "staff_accounts"));
-        const pwMap = new Map<string, string>();
+        const saMap = new Map<string, any>();
         staffDocs.forEach((d) => {
-          const data = d.data();
-          if (data.password) pwMap.set(d.id.toLowerCase(), data.password);
+          saMap.set(d.id.toLowerCase(), d.data());
         });
 
-        const merged = all.map((s) => ({
-          ...s,
-          password: pwMap.get(s.email.toLowerCase()) || s.password || "Pass@1234",
-        }));
+        const merged = all.map((s) => {
+          const saData = saMap.get(s.email.toLowerCase());
+          return {
+            ...s,
+            phone: saData?.phone || s.phone,
+            phoneCountryCode: saData?.phoneCountryCode || s.phoneCountryCode || "+91",
+          };
+        });
         setStaffList(merged);
       } catch {
         setStaffList(all);
@@ -177,37 +172,7 @@ export default function StaffManagementPage() {
     };
   }, [router, profile]);
 
-  const handleSaveStaffPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editPasswordMember) return;
-    if (updatedPasswordValue.length < 6) {
-      setEditPasswordError("Password must be at least 6 characters.");
-      return;
-    }
 
-    setIsUpdatingStaffPassword(true);
-    setEditPasswordError(null);
-
-    try {
-      await staffStore.updateStaffPassword(editPasswordMember.id, updatedPasswordValue);
-      setSuccessMessage(`✅ Desk password for ${editPasswordMember.name} updated to: ${updatedPasswordValue}`);
-      setEditPasswordMember(null);
-      setUpdatedPasswordValue("");
-    } catch (err: any) {
-      setEditPasswordError(err?.message || "Failed to update staff password.");
-    } finally {
-      setIsUpdatingStaffPassword(false);
-    }
-  };
-
-  const handleGenerateRandomPassword = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";
-    let res = "";
-    for (let i = 0; i < 10; i++) {
-      res += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setPassword(res);
-  };
 
   const togglePropertySelection = (propId: string) => {
     if (selectedPropertyIds.includes(propId)) {
@@ -235,15 +200,20 @@ export default function StaffManagementPage() {
       return;
     }
 
-    if (!email.trim() || !email.includes("@")) {
-      setErrorMessage("Please provide a valid work email.");
+    const cleanGmail = email.trim().toLowerCase();
+    if (!cleanGmail || !cleanGmail.endsWith("@gmail.com")) {
+      setErrorMessage("Please enter a valid personal or work @gmail.com address (e.g. staffname@gmail.com). Google Sign-In requires an active Gmail address.");
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters.");
+    const pure10 = phone.replace(/\D/g, "");
+    if (pure10.length !== 10) {
+      setErrorMessage("Please enter a valid 10-digit mobile number for WhatsApp OTP login.");
       return;
     }
+
+    const cleanCountryCode = phoneCountryCode.trim() || "+91";
+    const fullPhone = `${cleanCountryCode} ${pure10}`;
 
     if (role === "admin" && selectedPropertyIds.length === 0) {
       setErrorMessage("Please select at least one building to assign this Admin to.");
@@ -274,13 +244,13 @@ export default function StaffManagementPage() {
       const newStaff = await provisionStaffFirebaseAccount({
         id: `staff-${Date.now()}`,
         name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim() || "+91 98000 00000",
+        email: cleanGmail,
+        phone: fullPhone,
+        countryCode: cleanCountryCode,
         role: role,
         assignedPropertyId: primaryPropId,
         assignedPropertyIds: role === "admin" ? selectedPropertyIds : [assignedPropertyId],
         propertyName: propDisplayName,
-        password: password,
         organizationId: profile?.organizationId || `org_${profile?.uid || "admin"}`,
         masterAdminUid: profile?.uid || "",
         ownerEmail: profile?.email || "",
@@ -288,11 +258,10 @@ export default function StaffManagementPage() {
         planExpiresAt: profile?.planExpiresAt || null,
       });
 
-      setSuccessMessage(`✅ Account for ${name.trim()} created! Work Email: ${email.trim().toLowerCase()} | Handover Password: ${password}`);
+      setSuccessMessage(`✅ Staff account for ${name.trim()} enrolled! They can now log in hassle-free via WhatsApp OTP (${fullPhone}) or Google Sign-In (${cleanGmail}).`);
       setName("");
       setEmail("");
       setPhone("");
-      setPassword("Pass@1234");
       setActiveTab("directory");
     } catch (err: any) {
       setErrorMessage("Failed to create staff account. Please try again.");
@@ -335,7 +304,7 @@ export default function StaffManagementPage() {
       if (resetTargetMember.email) {
         await syncUserSecurityPinToCloud(resetTargetMember.email, resetNewPin);
       }
-      setSuccessMessage(`✅ Your Master Security PIN has been updated successfully to ${resetNewPin}!`);
+      setSuccessMessage(`âœ… Your Master Security PIN has been updated successfully to ${resetNewPin}!`);
       setResetTargetMember(null);
       setResetNewPin("");
       setResetMasterPassword("");
@@ -387,7 +356,7 @@ export default function StaffManagementPage() {
       }
 
       await staffStore.deleteGlobalStaff(deleteTargetMember.id);
-      setSuccessMessage(`✓ Account for ${deleteTargetMember.name} (${deleteTargetMember.role}) has been permanently deleted.`);
+      setSuccessMessage(`âœ“ Account for ${deleteTargetMember.name} (${deleteTargetMember.role}) has been permanently deleted.`);
       setDeleteTargetMember(null);
       setDeletePassword("");
     } catch (err: any) {
@@ -429,7 +398,7 @@ export default function StaffManagementPage() {
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Logged in as:</span>
             <span className="text-[#c2652a] uppercase tracking-wider">
-              {activeRole === "master_admin" ? "👑 Master Admin" : "🏢 Property Admin"}
+              {activeRole === "master_admin" ? "ðŸ‘‘ Master Admin" : "ðŸ¢ Property Admin"}
             </span>
           </div>
         </div>
@@ -568,7 +537,7 @@ export default function StaffManagementPage() {
                                   : "bg-purple-100 text-purple-800 border border-purple-200"
                               }`}
                             >
-                              {isMaster ? "👑 Master Admin" : isAdmin ? "🏢 Admin" : "🔑 Receptionist"}
+                              {isMaster ? "ðŸ‘‘ Master Admin" : isAdmin ? "ðŸ¢ Admin" : "ðŸ”‘ Receptionist"}
                             </span>
                           </div>
 
@@ -611,65 +580,25 @@ export default function StaffManagementPage() {
                           </>
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
-                            {/* Staff Desk Password Badge (Always visible to Master Admin & Admin) */}
-                            <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-xs flex items-center gap-1.5 shadow-2xs">
-                              <Key className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span className="text-[11px] font-bold text-amber-800">Pass:</span>
-                              <span className="font-mono font-black text-amber-950 text-xs">
-                                {visiblePasswords[member.id] ? (member.password || "Pass@1234") : "••••••••"}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setVisiblePasswords((prev) => ({
-                                    ...prev,
-                                    [member.id]: !prev[member.id],
-                                  }))
-                                }
-                                className="p-1 hover:text-amber-950 text-amber-700 transition-colors cursor-pointer"
-                                title={visiblePasswords[member.id] ? "Hide password" : "Show password"}
+                            {/* WhatsApp OTP Status & 1-Tap Link */}
+                            {member.phone ? (
+                              <a
+                                href={`https://wa.me/${(member.phoneCountryCode || "+91").replace(/\D/g, "")}${member.phone.replace(/\D/g, "").slice(-10)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+                                title="Open WhatsApp Chat"
                               >
-                                {visiblePasswords[member.id] ? (
-                                  <EyeOff className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Eye className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(member.password || "Pass@1234");
-                                  setCopiedStaffId(member.id);
-                                  setTimeout(() => setCopiedStaffId(null), 2000);
-                                }}
-                                className="p-1 hover:text-amber-950 text-amber-700 transition-colors cursor-pointer"
-                                title="Copy password to clipboard"
-                              >
-                                {copiedStaffId === member.id ? (
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>WhatsApp: {member.phoneCountryCode || "+91"} {member.phone}</span>
+                              </a>
+                            ) : null}
 
-                            {/* Prominent Change Password Action Button */}
-                            {(activeRole === "master_admin" || (activeRole === "admin" && member.role === "receptionist")) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditPasswordMember(member);
-                                  setUpdatedPasswordValue(member.password || "");
-                                  setShowEditPassword(false);
-                                  setEditPasswordError(null);
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-orange-100/90 hover:bg-orange-200 border border-orange-200 text-[#964407] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
-                                title="Change or reset password in case it gets compromised"
-                              >
-                                <Lock className="w-3.5 h-3.5 text-[#c2652a]" />
-                                <span>Change Password</span>
-                              </button>
-                            )}
+                            {/* Google Sign-in / Gmail Tag */}
+                            <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs font-medium text-blue-800 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                              <span>Google: {member.email}</span>
+                            </div>
 
                             <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 flex items-center gap-1.5">
                               {member.hasSetPin ? (
@@ -714,7 +643,7 @@ export default function StaffManagementPage() {
               Add New Staff Account
             </h2>
             <p className="text-xs text-gray-500 mb-6">
-              Create credentials for your team. You will handover this email and password for their first login.
+              Create passwordless access for your team. Staff log in hassle-free using WhatsApp OTP and Google Sign-In.
             </p>
 
             <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
@@ -731,15 +660,43 @@ export default function StaffManagementPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">Work Email *</label>
+                <label className="block font-bold text-gray-700 mb-1">Gmail ID (for Google Sign-In) *</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="staffname@property.com"
+                  placeholder="staffname@gmail.com"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                 />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Must be an active @gmail.com address for single-tap Google Sign-In.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Mobile Number (for WhatsApp OTP Login) *</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={phoneCountryCode}
+                    onChange={(e) => setPhoneCountryCode(e.target.value)}
+                    placeholder="+91"
+                    className="w-20 px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-center text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                  />
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="9876543210 (10 digits)"
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Country code is editable (defaults to +91). Staff receives instant WhatsApp OTP to log in.
+                </p>
               </div>
 
               {/* Role Selection */}
@@ -751,9 +708,9 @@ export default function StaffManagementPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                 >
                   {activeRole === "master_admin" && (
-                    <option value="admin">🏢 Property Admin (Can manage single or multiple buildings)</option>
+                    <option value="admin">ðŸ¢ Property Admin (Can manage single or multiple buildings)</option>
                   )}
-                  <option value="receptionist">🔑 Receptionist (Front Desk Single Building)</option>
+                  <option value="receptionist">ðŸ”‘ Receptionist (Front Desk Single Building)</option>
                 </select>
               </div>
 
@@ -762,7 +719,7 @@ export default function StaffManagementPage() {
                 <div className="space-y-2 p-4 bg-orange-50/50 rounded-2xl border border-orange-200/70">
                   <div className="flex items-center justify-between">
                     <label className="block font-bold text-gray-800">
-                      🏢 Assign Buildings to this Admin * ({selectedPropertyIds.length} Selected)
+                      ðŸ¢ Assign Buildings to this Admin * ({selectedPropertyIds.length} Selected)
                     </label>
                     <button
                       type="button"
@@ -821,56 +778,13 @@ export default function StaffManagementPage() {
                 </div>
               )}
 
-              {/* Handover Password */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-gray-700">
-                    Initial Handover Password *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleGenerateRandomPassword}
-                    className="text-[11px] font-bold text-[#c2652a] hover:underline"
-                  >
-                    🎲 Generate Strong Password
-                  </button>
-                </div>
-                <div className="relative max-w-sm">
-                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter handover password"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 font-mono text-sm bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">
-                  💡 Hand over this email and password to the staff member. Upon login, they will set their personal 6-digit PIN.
-                </p>
-                <div className="flex items-center gap-2 p-2.5 bg-amber-50/80 border border-amber-200/90 rounded-xl text-amber-900 text-[11px] mt-2">
-                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    <strong>Security Protection:</strong> If credentials are ever compromised or forgotten, you can instantly change or generate a new password anytime from the <strong>Team Directory</strong>.
-                  </span>
-                </div>
-              </div>
-
               <div className="pt-3">
                 <button
                   type="submit"
                   disabled={isSubmitting}
                   className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold text-xs shadow-md shadow-orange-950/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 disabled:opacity-50"
                 >
-                  {isSubmitting ? "Provisioning Account..." : "Create Staff Account & Generate Credentials"}
+                  {isSubmitting ? "Creating Staff Account..." : "Create Staff Account"}
                   <CheckCircle2 className="w-4 h-4" />
                 </button>
               </div>
@@ -878,7 +792,7 @@ export default function StaffManagementPage() {
           </div>
         )}
 
-        {/* 🔑 RESET MASTER PIN MODAL (Smart Google vs Password Detection) */}
+        {/* ðŸ”‘ RESET MASTER PIN MODAL (Smart Google vs Password Detection) */}
         {resetTargetMember && (() => {
           const isGoogleAccount =
             (resetTargetMember?.email && resetTargetMember.email.toLowerCase().endsWith("@gmail.com")) ||
@@ -983,7 +897,7 @@ export default function StaffManagementPage() {
           );
         })()}
 
-        {/* 🔐 CONFIRMATION MODAL FOR ACCOUNT DELETION */}
+        {/* ðŸ” CONFIRMATION MODAL FOR ACCOUNT DELETION */}
         {deleteTargetMember && (() => {
           const isGoogleAccount =
             (typeof window !== "undefined" &&
@@ -1017,7 +931,7 @@ export default function StaffManagementPage() {
 
                 <form onSubmit={handleConfirmDeleteWithPassword} className="space-y-4">
                   <div className="p-3 bg-rose-50 rounded-2xl border border-rose-200 text-rose-900 text-xs leading-relaxed">
-                    ⚠️ <strong>Security Verification:</strong> Are you sure you want to permanently remove {deleteTargetMember.name}&apos;s account? Their login access will be immediately revoked.
+                    âš ï¸ <strong>Security Verification:</strong> Are you sure you want to permanently remove {deleteTargetMember.name}&apos;s account? Their login access will be immediately revoked.
                   </div>
 
                   {deleteError && (
@@ -1066,102 +980,7 @@ export default function StaffManagementPage() {
           );
         })()}
 
-        {/* MODAL 3: Update Staff Password Modal (Master Admin & Admin Hierarchy) */}
-        {editPasswordMember && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl border border-amber-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17]">
-              <div className="flex items-center justify-between border-b border-amber-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
-                    <Key className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Change Staff Password
-                    </h3>
-                    <p className="text-[11px] text-gray-500 font-medium">
-                      {editPasswordMember.name} • {editPasswordMember.role === "admin" ? "Property Admin" : "Desk Receptionist"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEditPasswordMember(null)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              <form onSubmit={handleSaveStaffPassword} className="space-y-4">
-                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-xs leading-relaxed">
-                  🛡️ <strong>Security Reset:</strong> If this account password was compromised, leaked, or forgotten, update it below. Changes take effect immediately in Firebase Authentication and cloud records.
-                </div>
-
-                {editPasswordError && (
-                  <div className="p-3 bg-rose-100 border border-rose-300 rounded-xl text-rose-900 font-bold">
-                    {editPasswordError}
-                  </div>
-                )}
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-gray-700">New Password *</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!";
-                        let res = "";
-                        for (let i = 0; i < 10; i++) res += chars.charAt(Math.floor(Math.random() * chars.length));
-                        setUpdatedPasswordValue(res);
-                      }}
-                      className="text-[10px] font-bold text-[#c2652a] hover:underline cursor-pointer"
-                    >
-                      🎲 Generate Random
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type={showEditPassword ? "text" : "password"}
-                      required
-                      minLength={6}
-                      value={updatedPasswordValue}
-                      onChange={(e) => setUpdatedPasswordValue(e.target.value)}
-                      placeholder="Enter new password (min 6 characters)"
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-800 cursor-pointer"
-                    >
-                      {showEditPassword ? <EyeOff className="w-4 h-4 text-[#c2652a]" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-[#f8ede3]">
-                  <button
-                    type="button"
-                    onClick={() => setEditPasswordMember(null)}
-                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStaffPassword || updatedPasswordValue.length < 6}
-                    className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer transition-all active:scale-98"
-                  >
-                    {isUpdatingStaffPassword ? "Updating..." : "Save New Password"}
-                    <Key className="w-4 h-4" />
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
       </div>
     </div>

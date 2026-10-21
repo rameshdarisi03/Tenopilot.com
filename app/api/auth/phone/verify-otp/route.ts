@@ -103,46 +103,96 @@ export async function POST(req: NextRequest) {
     try {
       if (db) {
         const pure10 = cleanPhone.replace(/\D/g, "").slice(-10);
-        const candidateDocs: any[] = [];
 
-        // 1. Try 10-digit format (e.g. 9206651295)
-        const phoneQ1 = query(collection(db, "users"), where("phone", "==", pure10));
-        const phoneSnap1 = await getDocs(phoneQ1);
-        phoneSnap1.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+        // 🌟 3A. CHECK STAFF_ACCOUNTS FIRST: If phone is enrolled as Staff, bind to Organization & Property
+        try {
+          let matchedStaffDoc: any = null;
+          const staffQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
+          const staffSnap = await getDocs(staffQ);
 
-        // 2. Try 12-digit format (e.g. 919206651295)
-        const phoneQ2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
-        const phoneSnap2 = await getDocs(phoneQ2);
-        phoneSnap2.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+          if (!staffSnap.empty) {
+            matchedStaffDoc = staffSnap.docs[0].data();
+          } else {
+            // Fallback scan for documents where phone was stored with country code/spaces
+            const allStaffSnap = await getDocs(collection(db, "staff_accounts"));
+            for (const sDoc of allStaffSnap.docs) {
+              const sData = sDoc.data();
+              const sPhone = (sData.phone || "").replace(/\D/g, "").slice(-10);
+              if (sPhone === pure10) {
+                matchedStaffDoc = sData;
+                break;
+              }
+            }
+          }
 
-        // 3. Try authEmail
-        const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
-        const emailSnap = await getDocs(emailQ);
-        emailSnap.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
-
-        if (candidateDocs.length > 0) {
-          const scored = candidateDocs.map((docData) => {
-            let score = 0;
-            const isPro =
-              docData.subscriptionStatus === "ACTIVE_PRO" ||
-              docData.plan === "PRO_MONTHLY" ||
-              docData.plan === "PRO_ANNUAL" ||
-              docData.plan === "VIP_PASS" ||
-              docData.subscriptionPlan === "pro" ||
-              (docData.planExpiresAt && new Date(docData.planExpiresAt).getTime() > Date.now());
-            if (isPro) score += 1000;
-            if (docData.onboardingCompleted === true) score += 100;
-            if (docData.assignedPropertyId) score += 50;
-            if (docData.email && !docData.email.startsWith("phone_") && !docData.email.includes("tenopilot.auth")) score += 25;
-            if (docData.uid && !docData.uid.startsWith("phone_")) score += 10;
-            return { docData, score };
-          });
-          scored.sort((a, b) => b.score - a.score);
-          existingProfile = scored[0].docData;
+          if (matchedStaffDoc && (matchedStaffDoc.role === "admin" || matchedStaffDoc.role === "receptionist")) {
+            const staffPropId = matchedStaffDoc.assignedPropertyId || (Array.isArray(matchedStaffDoc.assignedPropertyIds) ? matchedStaffDoc.assignedPropertyIds[0] : "");
+            existingProfile = {
+              uid: matchedStaffDoc.id || `staff_${pure10}`,
+              email: matchedStaffDoc.email || authEmail,
+              displayName: matchedStaffDoc.name || "Staff Member",
+              phone: cleanPhone,
+              role: matchedStaffDoc.role,
+              assignedPropertyId: staffPropId,
+              assignedPropertyIds: matchedStaffDoc.assignedPropertyIds || [staffPropId],
+              propertyName: matchedStaffDoc.propertyName || "Assigned Property",
+              organizationId: matchedStaffDoc.organizationId || matchedStaffDoc.orgId || "",
+              isStaff: true,
+              securityPin: matchedStaffDoc.securityPin || null,
+              hasSetPin: Boolean(matchedStaffDoc.hasSetPin || matchedStaffDoc.securityPin),
+              onboardingCompleted: true,
+              subscriptionStatus: "ACTIVE_PRO",
+              plan: "ORGANIZATION_STAFF",
+            };
+            isFullyOnboarded = true;
+          }
+        } catch (staffErr) {
+          console.warn("Notice checking staff_accounts in verify-otp:", staffErr);
         }
 
-        if (existingProfile?.onboardingCompleted === true && existingProfile?.assignedPropertyId) {
-          isFullyOnboarded = true;
+        // 🌟 3B. CHECK USERS COLLECTION (For PG Owners & Standard Users)
+        if (!existingProfile) {
+          const candidateDocs: any[] = [];
+
+          // 1. Try 10-digit format (e.g. 9206651295)
+          const phoneQ1 = query(collection(db, "users"), where("phone", "==", pure10));
+          const phoneSnap1 = await getDocs(phoneQ1);
+          phoneSnap1.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+
+          // 2. Try 12-digit format (e.g. 919206651295)
+          const phoneQ2 = query(collection(db, "users"), where("phone", "==", `91${pure10}`));
+          const phoneSnap2 = await getDocs(phoneQ2);
+          phoneSnap2.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+
+          // 3. Try authEmail
+          const emailQ = query(collection(db, "users"), where("email", "==", authEmail));
+          const emailSnap = await getDocs(emailQ);
+          emailSnap.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
+
+          if (candidateDocs.length > 0) {
+            const scored = candidateDocs.map((docData) => {
+              let score = 0;
+              const isPro =
+                docData.subscriptionStatus === "ACTIVE_PRO" ||
+                docData.plan === "PRO_MONTHLY" ||
+                docData.plan === "PRO_ANNUAL" ||
+                docData.plan === "VIP_PASS" ||
+                docData.subscriptionPlan === "pro" ||
+                (docData.planExpiresAt && new Date(docData.planExpiresAt).getTime() > Date.now());
+              if (isPro) score += 1000;
+              if (docData.onboardingCompleted === true) score += 100;
+              if (docData.assignedPropertyId) score += 50;
+              if (docData.email && !docData.email.startsWith("phone_") && !docData.email.includes("tenopilot.auth")) score += 25;
+              if (docData.uid && !docData.uid.startsWith("phone_")) score += 10;
+              return { docData, score };
+            });
+            scored.sort((a, b) => b.score - a.score);
+            existingProfile = scored[0].docData;
+          }
+
+          if (existingProfile?.onboardingCompleted === true && existingProfile?.assignedPropertyId) {
+            isFullyOnboarded = true;
+          }
         }
       }
     } catch (e) {

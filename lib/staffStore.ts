@@ -6,6 +6,8 @@ import {
   getDocs,
   deleteDoc,
   onSnapshot,
+  query,
+  where,
 } from "firebase/firestore";
 
 export type UserRole = "master_admin" | "admin" | "receptionist";
@@ -15,6 +17,7 @@ export interface StaffMember {
   name: string;
   email: string;
   phone: string;
+  phoneCountryCode?: string;
   role: UserRole;
   assignedPropertyId: string; // Primary default property
   assignedPropertyIds?: string[]; // Multi-property assignment e.g. ["sunshine-pg", "whitefield-pg"] or ["*"]
@@ -379,6 +382,47 @@ class StaffStore {
         } catch (e) {
           console.warn("Failed to delete staff_accounts doc:", e);
         }
+      }
+      if (target.phone) {
+        const pure10 = target.phone.replace(/\D/g, "").slice(-10);
+        if (pure10) {
+          try {
+            const saQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
+            const saSnap = await getDocs(saQ);
+            for (const saDoc of saSnap.docs) {
+              await deleteDoc(saDoc.ref);
+            }
+          } catch (e) {
+            console.warn("Failed to delete staff_accounts by purePhone:", e);
+          }
+        }
+      }
+
+      // 🌟 Zero-Trace Cleanup: Wipe any matching profile doc in users collection to leave zero traces of credentials
+      try {
+        const cleanEmail = (target.email || "").toLowerCase().trim();
+        if (cleanEmail) {
+          const uQ = query(collection(db, "users"), where("email", "==", cleanEmail));
+          const uSnap = await getDocs(uQ);
+          for (const uDoc of uSnap.docs) {
+            await deleteDoc(uDoc.ref);
+          }
+        }
+        if (target.phone) {
+          const pure10 = target.phone.replace(/\D/g, "").slice(-10);
+          if (pure10) {
+            const pQ = query(collection(db, "users"), where("phone", "==", pure10));
+            const pSnap = await getDocs(pQ);
+            for (const pDoc of pSnap.docs) {
+              const pData = pDoc.data();
+              if (pData?.isStaff || pData?.role === "admin" || pData?.role === "receptionist") {
+                await deleteDoc(pDoc.ref);
+              }
+            }
+          }
+        }
+      } catch (zeroTraceErr) {
+        console.warn("Notice during zero-trace staff deletion cleanup:", zeroTraceErr);
       }
     }
     return true;

@@ -54,7 +54,7 @@ export interface AuthUserProfile {
 }
 
 /**
- * 🔤 Clean Title-Case Name Sanitizer
+ * ðŸ”¤ Clean Title-Case Name Sanitizer
  */
 export function sanitizeTitleCase(input: string): string {
   if (!input) return "";
@@ -70,7 +70,7 @@ export function sanitizeTitleCase(input: string): string {
 }
 
 /**
- * 🛡️ Clean Enterprise Error Message Sanitizer
+ * ðŸ›¡ï¸ Clean Enterprise Error Message Sanitizer
  */
 export function getCleanAuthErrorMessage(err: any): string {
   if (!err) return "An unexpected error occurred. Please try again.";
@@ -155,7 +155,7 @@ export interface AccountStatusResult {
 }
 
 /**
- * 🔍 Proactive Account Registration Status Checker
+ * ðŸ” Proactive Account Registration Status Checker
  * Queries Firestore across:
  * 0. purged_accounts (explicit founder tombstone)
  * 1. staff_accounts
@@ -300,7 +300,7 @@ export async function checkAccountRegistrationStatus(identifier: string, exclude
 }
 
 /**
- * 🔍 Check if Email already exists in Firestore users or staff accounts
+ * ðŸ” Check if Email already exists in Firestore users or staff accounts
  */
 export async function checkIfEmailExists(email: string): Promise<boolean> {
   const status = await checkAccountRegistrationStatus(email);
@@ -316,7 +316,7 @@ export interface GoogleAuthResult {
 }
 
 /**
- * 🌐 Unified Google OAuth 2.0 Entry Engine (Idempotent for both Login and Signup)
+ * ðŸŒ Unified Google OAuth 2.0 Entry Engine (Idempotent for both Login and Signup)
  * - Existing Active User (with real active property): Returns destination = "PIN_PROMPT"
  * - New, Incomplete, or Purged User: Initializes clean workspace & returns destination = "/welcome"
  */
@@ -384,7 +384,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       }
     }
 
-    // 🌟 PATH A: EXISTING ACTIVE USER (Staff or Owner with real active property)
+    // ðŸŒŸ PATH A: EXISTING ACTIVE USER (Staff or Owner with real active property)
     if (isFullyOnboarded) {
       const resolvedRole = isStaff ? (staffAccountDoc.role || "admin") : (existingUserDoc?.role || "master_admin");
       const resolvedProp = activeAssignedPropId;
@@ -441,7 +441,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       };
     }
 
-    // 🌟 PATH B: NEW, INCOMPLETE, OR PURGED ACCOUNT -> CLEAN SLATE DIRECT TO /welcome
+    // ðŸŒŸ PATH B: NEW, INCOMPLETE, OR PURGED ACCOUNT -> CLEAN SLATE DIRECT TO /welcome
     // 1. Wipe any stale session artifacts in localStorage
     if (typeof window !== "undefined") {
       localStorage.removeItem("tenopilot_saved_session");
@@ -496,7 +496,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
 }
 
 /**
- * 🌐 Legacy compatibility wrapper for existing code
+ * ðŸŒ Legacy compatibility wrapper for existing code
  */
 export async function loginWithGoogle(
   isSignUpMode: boolean = false
@@ -511,7 +511,7 @@ export async function loginWithGoogle(
 }
 
 /**
- * 🔒 Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
+ * ðŸ”’ Single Source of Truth: Sync Security PIN to Cloud Firestore across Collections
  * Generates and writes a new sessionVersion to invalidate other active sessions
  */
 export async function syncUserSecurityPinToCloud(
@@ -590,7 +590,7 @@ export async function syncUserSecurityPinToCloud(
 }
 
 /**
- * 📧 Register New Customer with Email, Password & Send Email Verification Link
+ * ðŸ“§ Register New Customer with Email, Password & Send Email Verification Link
  * Equipped with Smart Self-Healing for orphaned / purged accounts.
  */
 export async function registerWithEmailPassword(
@@ -607,7 +607,7 @@ export async function registerWithEmailPassword(
       user = result.user;
     } catch (createErr: any) {
       if (createErr?.code === "auth/email-already-in-use") {
-        // 🔄 Smart Self-Healing: Attempt credential login to auto-resume orphaned / purged account
+        // ðŸ”„ Smart Self-Healing: Attempt credential login to auto-resume orphaned / purged account
         try {
           const signInRes = await signInWithEmailAndPassword(auth, cleanEmail, pass);
           user = signInRes.user;
@@ -688,7 +688,7 @@ export async function registerWithEmailPassword(
 }
 
 /**
- * 🏢 Provision Staff Account with Initial Password (via Secondary Auth Instance)
+ * ðŸ¢ Provision Staff Account with Initial Password (via Secondary Auth Instance)
  * Creates the user in Firebase Auth without logging out the currently active Master Admin!
  */
 export async function provisionStaffFirebaseAccount(staff: {
@@ -696,11 +696,12 @@ export async function provisionStaffFirebaseAccount(staff: {
   name: string;
   email: string;
   phone: string;
+  countryCode?: string;
   role: UserRole;
   assignedPropertyId: string;
   assignedPropertyIds?: string[];
   propertyName: string;
-  password: string;
+  password?: string;
   organizationId?: string;
   masterAdminUid?: string;
   ownerEmail?: string;
@@ -708,35 +709,9 @@ export async function provisionStaffFirebaseAccount(staff: {
   planExpiresAt?: string | null;
 }): Promise<StaffMember> {
   const cleanEmail = staff.email.trim().toLowerCase();
-
-  const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  };
-
-  let staffUid = `staff-${Date.now()}`;
-
-  try {
-    const secondaryApp =
-      getApps().find((a) => a.name === "SecondaryStaffAuth") ||
-      initializeApp(firebaseConfig, "SecondaryStaffAuth");
-
-    const secondaryAuth = getAuth(secondaryApp);
-
-    try {
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, cleanEmail, staff.password);
-      staffUid = userCred.user.uid;
-      await signOut(secondaryAuth);
-    } catch (createAuthErr: any) {
-      console.warn("Secondary auth user creation notice (might already exist):", createAuthErr);
-    }
-  } catch (secErr) {
-    console.warn("Secondary Firebase Auth app fallback:", secErr);
-  }
+  const cleanPhone = staff.phone ? staff.phone.trim() : "";
+  const purePhone = cleanPhone.replace(/\D/g, "").slice(-10);
+  const staffUid = staff.id || `staff-${Date.now()}`;
 
   const assignedIds = staff.assignedPropertyIds && staff.assignedPropertyIds.length > 0
     ? staff.assignedPropertyIds
@@ -764,9 +739,11 @@ export async function provisionStaffFirebaseAccount(staff: {
   try {
     await setDoc(doc(db, "staff_accounts", cleanEmail), {
       ...staffRecord,
-      password: staff.password,
+      purePhone,
+      countryCode: staff.countryCode || "+91",
       hasSetPin: false,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       organizationId: staff.organizationId || "",
       masterAdminUid: staff.masterAdminUid || "",
       ownerEmail: staff.ownerEmail || "",
@@ -775,6 +752,7 @@ export async function provisionStaffFirebaseAccount(staff: {
       subscriptionPlan: "pro",
       subscriptionStatus: "ACTIVE_PRO",
       planExpiresAt: staff.planExpiresAt || null,
+      authMethod: "PASSWORDLESS_WHATSAPP_GOOGLE",
     }, { merge: true });
 
     // 2. Save under property staff
@@ -817,7 +795,7 @@ export async function provisionStaffFirebaseAccount(staff: {
 }
 
 /**
- * 🔄 Resend Verification Link to Current User Inbox
+ * ðŸ”„ Resend Verification Link to Current User Inbox
  */
 export async function sendUserEmailVerification(): Promise<boolean> {
   const user = auth.currentUser;
@@ -831,7 +809,7 @@ export async function sendUserEmailVerification(): Promise<boolean> {
 }
 
 /**
- * 📱 Universal Phone-to-Email Cloud Resolver
+ * ðŸ“± Universal Phone-to-Email Cloud Resolver
  * Resolves 10-digit mobile phone numbers to registered work emails across staff_accounts, founder_invites, and users
  */
 export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
@@ -900,7 +878,7 @@ export async function resolvePhoneOrEmail(identifier: string): Promise<string> {
 }
 
 /**
- * 📧 Sign In with Email or Mobile Phone & Password
+ * ðŸ“§ Sign In with Email or Mobile Phone & Password
  */
 export async function loginWithEmailPassword(
   emailOrPhone: string,
@@ -937,7 +915,7 @@ export async function loginWithEmailPassword(
         throw new Error("Incorrect password. Please verify your password or click 'Forgot Password' to reset your access.");
       }
 
-      // 🔍 Proactively check database to raise instant differentiated guidance
+      // ðŸ” Proactively check database to raise instant differentiated guidance
       let regStatus: any = { exists: false };
       try {
         regStatus = await checkAccountRegistrationStatus(cleanEmail);
@@ -962,7 +940,7 @@ export async function loginWithEmailPassword(
 }
 
 /**
- * 🔑 Send Password Reset Link to User Inbox
+ * ðŸ”‘ Send Password Reset Link to User Inbox
  */
 export async function sendPasswordReset(email: string): Promise<boolean> {
   try {
@@ -975,7 +953,7 @@ export async function sendPasswordReset(email: string): Promise<boolean> {
 }
 
 /**
- * 🔐 Re-authenticate Current User before Sensitive Actions (Smart Google & Password Support)
+ * ðŸ” Re-authenticate Current User before Sensitive Actions (Smart Google & Password Support)
  */
 export async function reauthenticateCurrentAccount(password?: string): Promise<boolean> {
   const user = auth.currentUser;
@@ -1011,14 +989,14 @@ export async function reauthenticateCurrentAccount(password?: string): Promise<b
 }
 
 /**
- * 🚪 Logout Current Session
+ * ðŸšª Logout Current Session
  */
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
 }
 
 /**
- * 📡 Real-time Observer for Firebase Auth State
+ * ðŸ“¡ Real-time Observer for Firebase Auth State
  */
 export function subscribeToAuth(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
@@ -1033,7 +1011,7 @@ export interface PhoneAuthResult {
 }
 
 /**
- * 📱 WhatsApp Phone Authentication & Account Resolution Engine
+ * ðŸ“± WhatsApp Phone Authentication & Account Resolution Engine
  * Handles seamless credentialed sign-in / sign-up and links Firestore user record.
  */
 export async function loginOrRegisterWithPhone(
@@ -1097,7 +1075,7 @@ export async function loginOrRegisterWithPhone(
     console.warn("Notice collecting candidate docs in phone login:", lookupErr);
   }
 
-  // 🛡️ AUTHORITATIVE MASTER SSOT RESOLUTION:
+  // ðŸ›¡ï¸ AUTHORITATIVE MASTER SSOT RESOLUTION:
   // If the owner created an account via Google (or another UID) and paid for Pro,
   // ensure the phone login links to and inherits from the authoritative master account!
   if (candidateDocs.length > 0) {
