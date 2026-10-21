@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
-import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { saveOccupantToFirestore, sanitizeForFirestore } from "@/lib/firestoreService";
 import {
   sanitizePlainText,
   sanitizeDigitsOnly,
@@ -169,6 +169,77 @@ export const selfKycStore = {
     };
   },
 
+  // 🔄 Two-Way Reconciliation with propertyLayoutStore
+  // Ensures any bed placed on "Hold" across the property layout is GUARANTEED to appear in Active Invites
+  reconcileInvitesWithLayout(propertyId: string, currentList?: SelfKycInvite[]): SelfKycInvite[] {
+    const list = currentList ? [...currentList] : [...(INVITES_CACHE.get(propertyId) || [])];
+    const structure = propertyStore.getStructure(propertyId);
+    let changed = false;
+
+    // 1. Synthesize active invites for any beds currently marked as 'Hold' with candidate info
+    structure.forEach((fl) => {
+      fl.rooms.forEach((rm) => {
+        rm.beds.forEach((bd) => {
+          if (bd.status === "Hold" && bd.holdCandidate) {
+            const existingIdx = list.findIndex(
+              (i) => i.roomNumber === rm.roomNumber && i.bedCode === bd.bedCode && i.status === "ACTIVE"
+            );
+            if (existingIdx === -1) {
+              const inviteToken = bd.holdCandidate.inviteId || `inv-${rm.roomNumber}-${bd.bedCode}`;
+              const synthInvite: SelfKycInvite = {
+                id: inviteToken,
+                propertyId,
+                stayType: "Tenant",
+                roomNumber: rm.roomNumber,
+                bedCode: bd.bedCode,
+                rentAmount: rm.customRentAmount || 12000,
+                securityDeposit: (rm.customRentAmount || 12000) * 2,
+                candidateName: bd.holdCandidate.name || "Prospective Resident",
+                candidatePhone: bd.holdCandidate.phone || "",
+                candidateEmail: bd.holdCandidate.email || undefined,
+                status: "ACTIVE",
+                whatsappStatus: "SENT",
+                createdAt: bd.holdCandidate.heldAt || new Date().toISOString(),
+              };
+              list.unshift(synthInvite);
+              changed = true;
+            }
+          }
+        });
+      });
+    });
+
+    // 2. Mark any active invites whose bed has returned to 'Available' or 'Occupied' as no longer active
+    list.forEach((inv) => {
+      if (inv.status === "ACTIVE") {
+        let bedFound = false;
+        let isStillHold = false;
+        structure.forEach((fl) => {
+          fl.rooms.forEach((rm) => {
+            if (rm.roomNumber === inv.roomNumber) {
+              rm.beds.forEach((bd) => {
+                if (bd.bedCode === inv.bedCode) {
+                  bedFound = true;
+                  if (bd.status === "Hold") isStillHold = true;
+                }
+              });
+            }
+          });
+        });
+        if (bedFound && !isStillHold) {
+          inv.status = "COMPLETED";
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      INVITES_CACHE.set(propertyId, [...list]);
+      saveLocalCache(propertyId, "invs");
+    }
+    return list;
+  },
+
   subscribeInvites(propertyId: string, callback: (invs: SelfKycInvite[]) => void) {
     if (!INVITE_LISTENERS.has(propertyId)) {
       INVITE_LISTENERS.set(propertyId, new Set());
@@ -176,16 +247,23 @@ export const selfKycStore = {
     INVITE_LISTENERS.get(propertyId)!.add(callback);
 
     loadLocalCache(propertyId);
-    callback(INVITES_CACHE.get(propertyId) || []);
+    const initialList = this.reconcileInvitesWithLayout(propertyId);
+    callback(initialList);
 
-    // Setup Firestore listener
+    // Setup Firestore listener with two-way reconciliation
     if (!ACTIVE_UNSUBS.has(`invs_${propertyId}`)) {
       try {
         const colRef = collection(db, "properties", propertyId, "self_kyc_invites");
         const unsub = onSnapshot(colRef, (snap) => {
           const fetched: SelfKycInvite[] = snap.docs.map((d) => d.data() as SelfKycInvite);
-          fetched.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          INVITES_CACHE.set(propertyId, fetched);
+          const local = INVITES_CACHE.get(propertyId) || [];
+          const map = new Map<string, SelfKycInvite>();
+          local.forEach((i) => map.set(i.id, i));
+          fetched.forEach((i) => map.set(i.id, i));
+
+          const merged = selfKycStore.reconcileInvitesWithLayout(propertyId, Array.from(map.values()));
+          merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          INVITES_CACHE.set(propertyId, merged);
           saveLocalCache(propertyId, "invs");
           notifySubscribers(propertyId);
         }, (err) => {
@@ -195,6 +273,17 @@ export const selfKycStore = {
       } catch (e) {
         console.warn("Firestore offline, using local self-kyc invs:", e);
       }
+    }
+
+    // Auto-sync if building layout changes (e.g. bed placed on hold from another screen)
+    if (!ACTIVE_UNSUBS.has(`layout_sync_${propertyId}`)) {
+      const unsubLayout = propertyStore.subscribe(() => {
+        const refreshed = selfKycStore.reconcileInvitesWithLayout(propertyId);
+        INVITES_CACHE.set(propertyId, refreshed);
+        saveLocalCache(propertyId, "invs");
+        notifySubscribers(propertyId);
+      });
+      ACTIVE_UNSUBS.set(`layout_sync_${propertyId}`, unsubLayout);
     }
 
     return () => {
@@ -209,7 +298,7 @@ export const selfKycStore = {
 
   getInvites(propertyId: string): SelfKycInvite[] {
     loadLocalCache(propertyId);
-    return INVITES_CACHE.get(propertyId) || [];
+    return this.reconcileInvitesWithLayout(propertyId);
   },
 
   getInviteByToken(token: string): { invite?: SelfKycInvite; propertyId?: string } {
@@ -304,10 +393,11 @@ export const selfKycStore = {
     }));
     propertyStore.updateStructure(updated, invite.propertyId);
 
-    // Push to Firestore
+    // Push to Firestore with undefined sanitization
     try {
+      const sanitized = sanitizeForFirestore(invite);
       const docRef = doc(db, "properties", invite.propertyId, "self_kyc_invites", invite.id);
-      await setDoc(docRef, invite);
+      await setDoc(docRef, sanitized);
       // Global pointer for cross-device mobile lookup
       const lookupRef = doc(db, "self_kyc_invite_lookup", invite.id);
       await setDoc(lookupRef, {
@@ -321,31 +411,39 @@ export const selfKycStore = {
   },
 
   // 2. Revoke Invite & Release Bed back to Available
-  async revokeInvite(propertyId: string, inviteId: string): Promise<void> {
+  async revokeInvite(propertyId: string, inviteId: string, targetRoom?: string, targetBed?: string): Promise<void> {
     const list = INVITES_CACHE.get(propertyId) || [];
     const target = list.find((i) => i.id === inviteId);
-    if (!target) return;
+    if (target) {
+      target.status = "REVOKED";
+      INVITES_CACHE.set(propertyId, [...list]);
+      saveLocalCache(propertyId, "invs");
+      notifySubscribers(propertyId);
+    }
 
-    target.status = "REVOKED";
-    INVITES_CACHE.set(propertyId, [...list]);
-    saveLocalCache(propertyId, "invs");
-    notifySubscribers(propertyId);
+    const roomToRelease = target?.roomNumber || targetRoom;
+    const bedToRelease = target?.bedCode || targetBed;
 
     // Release bed in propertyStore
     const structure = propertyStore.getStructure(propertyId);
     const updated = structure.map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        if (rm.roomNumber !== target.roomNumber) return rm;
+        if (roomToRelease && rm.roomNumber !== roomToRelease) return rm;
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
-            if (bd.bedCode !== target.bedCode) return bd;
-            return {
-              ...bd,
-              status: "Available" as const,
-              holdCandidate: undefined,
-            };
+            const isMatch =
+              (bedToRelease && bd.bedCode === bedToRelease) ||
+              bd.holdCandidate?.inviteId === inviteId;
+            if (isMatch) {
+              return {
+                ...bd,
+                status: "Available" as const,
+                holdCandidate: undefined,
+              };
+            }
+            return bd;
           }),
         };
       }),
@@ -426,8 +524,9 @@ export const selfKycStore = {
     }
 
     try {
+      const sanitized = sanitizeForFirestore(submission);
       const docRef = doc(db, "properties", submission.propertyId, "self_kyc_submissions", submission.id);
-      await setDoc(docRef, submission);
+      await setDoc(docRef, sanitized);
     } catch (e) {
       console.warn("Firestore submitKyc write failed:", e);
     }

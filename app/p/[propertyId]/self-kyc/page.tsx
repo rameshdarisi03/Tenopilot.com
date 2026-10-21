@@ -304,6 +304,8 @@ export default function SelfKycDeskPage({
 
     setInviteDispatchLoading(false);
     setShowInviteModal(false);
+    setActiveTab("INVITES");
+    setInvites((prev) => [newInvite, ...prev.filter((i) => i.id !== newInvite.id)]);
     const emailNotice = newInvite.candidateEmail ? " & Email" : "";
     triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via WhatsApp${emailNotice}! Bed ${inviteRoomNumber}-${inviteBedCode} is now ON HOLD 🔒`);
   };
@@ -336,7 +338,8 @@ export default function SelfKycDeskPage({
     if (!confirm(`Are you sure you want to cancel this invite? Bed ${roomNum}-${bedCode} will return to Available.`)) {
       return;
     }
-    await selfKycStore.revokeInvite(propertyId, inviteId);
+    await selfKycStore.revokeInvite(propertyId, inviteId, roomNum, bedCode);
+    setInvites((prev) => prev.filter((i) => i.id !== inviteId && !(i.roomNumber === roomNum && i.bedCode === bedCode)));
     triggerToast(`Invite canceled. Bed ${roomNum}-${bedCode} is now Available 🟢`, "info");
   };
 
