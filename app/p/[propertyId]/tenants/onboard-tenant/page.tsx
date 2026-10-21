@@ -1360,22 +1360,75 @@ export default function OnboardTenantPage({
                 </div>
               )}
 
-              <div className="flex justify-between pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(1)}
-                  className="px-6 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs min-h-[48px]"
-                >
-                  ← Back to Details
-                </button>
-                <button
-                  type="button"
-                  disabled={!selectedBed}
-                  onClick={handleStep2Next}
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
-                >
-                  Proceed to KYC Upload <ArrowRight className="w-4 h-4" />
-                </button>
+              {/* STICKY BOTTOM ACTION BAR (Accessible across 100+ rooms without scrolling) */}
+              <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-md border-t border-gray-200 -mx-5 -mb-5 md:-mx-8 md:-mb-8 p-3.5 sm:p-4 md:px-8 rounded-b-2xl shadow-[0_-4px_25px_rgba(0,0,0,0.08)] space-y-2.5">
+                {selectedBed && (
+                  <div className="flex items-center justify-between text-xs pb-2 border-b border-gray-100 sm:hidden">
+                    <span className="font-bold text-emerald-800 flex items-center gap-1 truncate max-w-[55%]">
+                      ✓ Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                    </span>
+                    <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 rounded-lg px-2 py-0.5">
+                      <span className="text-[10px] font-bold text-gray-600">Rent: ₹</span>
+                      <input
+                        type="number"
+                        value={monthlyRent ? monthlyRent : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setMonthlyRent(val === "" ? 0 : parseInt(val, 10));
+                        }}
+                        className="w-16 font-mono font-bold text-xs bg-transparent border-0 p-0 text-gray-900 focus:ring-0"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="px-4 sm:px-6 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 text-xs shrink-0 flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all"
+                  >
+                    ← Back to Details
+                  </button>
+
+                  {/* Desktop / Tablet Center Selected Bed & Quick Tariff Indicator */}
+                  {selectedBed ? (
+                    <div className="hidden sm:flex items-center gap-2">
+                      <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 shadow-2xs">
+                        ✓ Selected: Room {selectedBed.roomNumber} ({selectedBed.bedCode})
+                      </span>
+                      <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1 shadow-2xs">
+                        <span className="text-xs font-bold text-gray-600">Rent: ₹</span>
+                        <input
+                          type="number"
+                          value={monthlyRent ? monthlyRent : ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            setMonthlyRent(val === "" ? 0 : parseInt(val, 10));
+                          }}
+                          className="w-20 font-mono font-bold text-xs bg-transparent border-0 p-0 text-gray-900 focus:ring-0"
+                        />
+                        <span className="text-[11px] text-gray-500 font-medium">/mo</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="hidden sm:inline-block text-xs font-medium text-gray-400">
+                      👈 Select a bed above to proceed
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={!selectedBed}
+                    onClick={handleStep2Next}
+                    className="flex-1 sm:flex-initial px-6 sm:px-8 py-3 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                  >
+                    <span>Proceed to KYC Upload</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
