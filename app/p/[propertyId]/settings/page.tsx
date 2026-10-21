@@ -103,6 +103,7 @@ export default function PropertySettingsPage({
   // Form State
   const [settings, setSettings] = useState<PropertySettingsData>(DEFAULT_PROPERTY_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   // Partners & Expense Categories State
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
@@ -1493,11 +1494,28 @@ export default function PropertySettingsPage({
                   {/* Input Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <div className="flex items-center gap-1 mb-1">
+                      <div className="flex items-center gap-1.5 mb-1">
                         <label className="text-xs font-bold text-gray-700">Custom Prefix *</label>
-                        <span title="Characters placed before each receipt number">
-                          <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                        </span>
+                        <div className="relative inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTooltip(activeTooltip === "prefix" ? null : "prefix")}
+                            onMouseEnter={() => setActiveTooltip("prefix")}
+                            onMouseLeave={() => setActiveTooltip(null)}
+                            className="p-0.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                            aria-label="Prefix info"
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                          </button>
+                          {activeTooltip === "prefix" && (
+                            <div className="absolute bottom-full left-0 mb-1.5 z-50 whitespace-nowrap flex flex-col items-start animate-in fade-in zoom-in-95">
+                              <div className="rounded-lg bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white shadow-xl">
+                                Prefix attached before each receipt number (e.g. INV- or REC-)
+                              </div>
+                              <div className="w-2 h-2 -mt-1 ml-2 rotate-45 bg-gray-900" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <input
                         type="text"
@@ -1516,15 +1534,35 @@ export default function PropertySettingsPage({
                         placeholder="e.g. INV- or REC-"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Prefix attached before each receipt number (e.g. INV- or REC-)
+                      </p>
                     </div>
 
                     {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" ? (
                       <div>
-                        <div className="flex items-center gap-1 mb-1">
+                        <div className="flex items-center gap-1.5 mb-1">
                           <label className="text-xs font-bold text-gray-700">Starting Serial Number *</label>
-                          <span title="Sequence starts counting from this number">
-                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                          </span>
+                          <div className="relative inline-flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => setActiveTooltip(activeTooltip === "startNum" ? null : "startNum")}
+                              onMouseEnter={() => setActiveTooltip("startNum")}
+                              onMouseLeave={() => setActiveTooltip(null)}
+                              className="p-0.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              aria-label="Starting number info"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                            </button>
+                            {activeTooltip === "startNum" && (
+                              <div className="absolute bottom-full left-0 mb-1.5 z-50 whitespace-nowrap flex flex-col items-start animate-in fade-in zoom-in-95">
+                                <div className="rounded-lg bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white shadow-xl">
+                                  Initial sequence starting number (e.g. 1001, 5001)
+                                </div>
+                                <div className="w-2 h-2 -mt-1 ml-2 rotate-45 bg-gray-900" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <input
                           type="number"
@@ -1543,18 +1581,41 @@ export default function PropertySettingsPage({
                           }
                           className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                         />
+                        <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                          Initial starting count for receipts (e.g. 1001, 5001)
+                        </p>
                       </div>
                     ) : (
                       <div className="flex flex-col justify-center">
-                        <div className="flex items-center gap-1 mb-1">
+                        <div className="flex items-center gap-1.5 mb-1">
                           <label className="text-xs font-bold text-gray-500">Pattern Guide</label>
-                          <span title="DDMMYY is dynamically generated from transaction date">
-                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                          </span>
+                          <div className="relative inline-flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => setActiveTooltip(activeTooltip === "dateGuide" ? null : "dateGuide")}
+                              onMouseEnter={() => setActiveTooltip("dateGuide")}
+                              onMouseLeave={() => setActiveTooltip(null)}
+                              className="p-0.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              aria-label="Pattern guide info"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                            </button>
+                            {activeTooltip === "dateGuide" && (
+                              <div className="absolute bottom-full left-0 mb-1.5 z-50 whitespace-nowrap flex flex-col items-start animate-in fade-in zoom-in-95">
+                                <div className="rounded-lg bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white shadow-xl">
+                                  DDMMYY is dynamically generated from transaction date
+                                </div>
+                                <div className="w-2 h-2 -mt-1 ml-2 rotate-45 bg-gray-900" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600 font-mono">
                           {settings.invoiceConfig?.prefix || "INV-"}DDMMYY-01
                         </div>
+                        <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                          Auto-formatted daily with transaction date stamp
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1579,10 +1640,10 @@ export default function PropertySettingsPage({
                   </div>
                 </div>
 
-                {/* 2. Outstanding Balance & Security Deposit Accounting Rule */}
-                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-                    <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                {/* 2. Outstanding Balance & Security Deposit Accounting Rule (Minimal Yes / No beside question) */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
@@ -1590,88 +1651,35 @@ export default function PropertySettingsPage({
                         Include Pending Security Deposit in Outstanding Balance
                       </h3>
                       <p className="text-[11px] text-gray-500">
-                        Controls whether unpaid security deposit is added into the tenant&apos;s total balance due &amp; overdue calculation.
+                        Controls whether unpaid security deposit is counted as part of tenant outstanding dues.
                       </p>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">
-                      Accounting Mode *
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            includeDepositInOutstanding: false,
-                          })
-                        }
-                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                          !settings.includeDepositInOutstanding
-                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
-                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="block font-bold text-xs">No (Separate Deposit Ledger)</span>
-                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold">
-                              Default
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block leading-relaxed">
-                            Outstanding balance reflects monthly rent only. Unpaid deposit is tracked on its own deposit badge.
-                          </span>
-                        </div>
-                        {!settings.includeDepositInOutstanding && (
-                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            includeDepositInOutstanding: true,
-                          })
-                        }
-                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                          settings.includeDepositInOutstanding
-                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
-                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <div>
-                          <span className="block font-bold text-xs">Yes (Combined Outstanding)</span>
-                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block leading-relaxed">
-                            Unpaid deposit is added to unpaid rent into a single combined balance due amount.
-                          </span>
-                        </div>
-                        {settings.includeDepositInOutstanding && (
-                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Calculation Formula Preview */}
-                  <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
-                        Live Balance Formula
-                      </span>
-                      <span className="font-mono font-bold text-xs text-blue-900 mt-0.5 block">
-                        {settings.includeDepositInOutstanding
-                          ? "Net Outstanding = Unpaid Monthly Rent + Unpaid Security Deposit + Arrears"
-                          : "Net Outstanding = Unpaid Monthly Rent + Arrears (Deposit tracked separately)"}
-                      </span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold shrink-0">
-                      {settings.includeDepositInOutstanding ? "Combined Mode" : "Independent Mode"}
-                    </span>
+                  {/* Yes / No Toggle Beside Question */}
+                  <div className="inline-flex items-center p-1 bg-gray-100 rounded-xl shrink-0 self-start sm:self-auto border border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, includeDepositInOutstanding: false })}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !settings.includeDepositInOutstanding
+                          ? "bg-white text-gray-900 shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      No
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, includeDepositInOutstanding: true })}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        settings.includeDepositInOutstanding
+                          ? "bg-[#c2652a] text-white shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      Yes
+                    </button>
                   </div>
                 </div>
               </div>
