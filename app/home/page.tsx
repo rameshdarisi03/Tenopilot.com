@@ -46,6 +46,8 @@ import { compressPaymentScreenshot } from "@/lib/imageCompression";
 import { EditProfileModal } from "@/components/dashboard/EditProfileModal";
 
 import { portfolioStore, PortfolioProperty } from "@/constants/portfolioStore";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function HomeWorkspacePage() {
   const router = useRouter();
@@ -254,7 +256,9 @@ export default function HomeWorkspacePage() {
     portfolioStore.initFirebaseListener(email);
     propertyStore.initFirebaseListener("sunshine-pg");
 
-    const syncAndRefreshProperties = () => {
+    let isSubscribed = true;
+
+    const syncAndRefreshProperties = async () => {
       let customProps = portfolioStore.getProperties();
 
       // Filter out demo Sunshine PG and dummy Main Executive PG for non-master real client accounts
@@ -268,6 +272,68 @@ export default function HomeWorkspacePage() {
         );
       }
 
+      // 🔒 STRICT RBAC GUARD 2: Property Admins only see their explicitly assigned buildings
+      if (role === "admin") {
+        let staffDoc: any = null;
+        if (email) {
+          try {
+            const sSnap = await getDoc(doc(db, "staff_accounts", email.toLowerCase()));
+            if (sSnap.exists()) {
+              staffDoc = sSnap.data();
+            }
+          } catch {}
+        }
+
+        const allStaff = staffStore.getAllGlobalStaff();
+        const match = allStaff.find((s) => s.email.toLowerCase() === email);
+        const assignedIds =
+          staffDoc?.assignedPropertyIds ||
+          (staffDoc?.assignedPropertyId ? [staffDoc.assignedPropertyId] : []) ||
+          match?.assignedPropertyIds ||
+          (match?.assignedPropertyId ? [match.assignedPropertyId] : []) ||
+          (profile?.assignedPropertyId ? [profile.assignedPropertyId] : []);
+
+        if (assignedIds.length > 0 && !assignedIds.includes("*")) {
+          customProps = customProps.filter((p) => assignedIds.includes(p.id));
+        }
+
+        // If portfolio listener hasn't loaded owner's portfolio or admin has assigned buildings
+        if (customProps.length === 0 && assignedIds.length > 0 && !assignedIds.includes("*")) {
+          const fallbackProps: PortfolioProperty[] = [];
+          for (const pid of assignedIds) {
+            if (pid && pid !== "sunshine-pg") {
+              try {
+                const propSnap = await getDoc(doc(db, "properties", pid));
+                const pData = propSnap.exists() ? propSnap.data() : null;
+                fallbackProps.push({
+                  id: pid,
+                  name: pData?.name || pData?.propertyName || staffDoc?.propertyName || match?.propertyName || profile?.propertyName || "Assigned Property",
+                  location: pData?.city ? `${pData.city}, India` : "India",
+                  bedsCount: pData?.approxBeds || 40,
+                  occupancyRate: "0.0%",
+                  collectionRate: "0%",
+                  status: "HEALTHY",
+                });
+              } catch {
+                fallbackProps.push({
+                  id: pid,
+                  name: staffDoc?.propertyName || match?.propertyName || profile?.propertyName || "Assigned Property",
+                  location: "India",
+                  bedsCount: 40,
+                  occupancyRate: "0.0%",
+                  collectionRate: "0%",
+                  status: "HEALTHY",
+                });
+              }
+            }
+          }
+          if (fallbackProps.length > 0 && isSubscribed) {
+            setProperties(fallbackProps);
+            return;
+          }
+        }
+      }
+
       // If newly registered tenant owner has NO properties yet, route them to 2-step onboarding wizard
       if (!isMasterAccount && customProps.length === 0 && isMasterAdminRole) {
         if (profile?.onboardingCompleted !== true) {
@@ -276,28 +342,14 @@ export default function HomeWorkspacePage() {
         }
       }
 
-      // 🔒 STRICT RBAC GUARD 2: Property Admins only see their explicitly assigned buildings
-      if (role === "admin") {
-        const allStaff = staffStore.getAllGlobalStaff();
-        const match = allStaff.find((s) => s.email.toLowerCase() === email);
-        const assignedIds =
-          match?.assignedPropertyIds ||
-          (match?.assignedPropertyId ? [match.assignedPropertyId] : []) ||
-          (profile?.assignedPropertyId ? [profile.assignedPropertyId] : []);
-
-        if (assignedIds.length > 0 && !assignedIds.includes("*")) {
-          customProps = customProps.filter((p) => assignedIds.includes(p.id));
-        }
-      }
-
       // Compute live real-time metrics ONLY for master platform demo account
       if (isMasterAccount) {
         const liveSunshine = computeLiveSunshineMetrics();
         const customWithoutSunshine = customProps.filter((p) => p.id !== "sunshine-pg");
-        setProperties([liveSunshine, ...customWithoutSunshine]);
+        if (isSubscribed) setProperties([liveSunshine, ...customWithoutSunshine]);
       } else {
         // Real customer account -> show ONLY their actual properties!
-        setProperties(customProps);
+        if (isSubscribed) setProperties(customProps);
       }
     };
 
@@ -329,6 +381,7 @@ export default function HomeWorkspacePage() {
     });
 
     return () => {
+      isSubscribed = false;
       unsubPortfolio();
       unsubProperty();
       unsubOccupant();
