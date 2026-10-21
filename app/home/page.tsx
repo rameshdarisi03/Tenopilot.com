@@ -70,9 +70,8 @@ export default function HomeWorkspacePage() {
   // Strict Onboarding Check: If owner has not completed onboarding, immediately route to /welcome
   useEffect(() => {
     if (!profile) return;
-    const isMasterAccount = profile.email?.toLowerCase() === "isharapandey01@gmail.com";
-    const isStaff = profile.role === "admin" || profile.role === "receptionist";
-    if (!isMasterAccount && !isStaff && profile.onboardingCompleted !== true) {
+    const isStaff = profile.role === "admin" || profile.role === "receptionist" || Boolean(profile.isStaff);
+    if (!isStaff && profile.onboardingCompleted !== true) {
       router.replace("/welcome");
     }
   }, [profile, router]);
@@ -231,8 +230,8 @@ export default function HomeWorkspacePage() {
     }
 
     const email = profile?.email?.toLowerCase() || savedSessionData?.email?.toLowerCase() || "";
-    const isMasterAccount = email === "isharapandey01@gmail.com";
-    const role = staffStore.getActiveRole() || savedSessionData?.role || "master_admin";
+    const isMasterAccount = false;
+    const role = staffStore.getActiveRole() || savedSessionData?.role || profile?.role || "master_admin";
     setActiveRole(role);
     const isMasterAdminRole = role === "master_admin";
 
@@ -241,10 +240,10 @@ export default function HomeWorkspacePage() {
       const allStaff = staffStore.getAllGlobalStaff();
       const match = allStaff.find((s) => s.email.toLowerCase() === email);
       const targetProperty =
-        (match?.assignedPropertyId && (isMasterAccount || match.assignedPropertyId !== "sunshine-pg") ? match.assignedPropertyId : null) ||
-        (profile?.assignedPropertyId && (isMasterAccount || profile.assignedPropertyId !== "sunshine-pg") ? profile.assignedPropertyId : null) ||
-        (savedSessionData?.assignedPropertyId && (isMasterAccount || savedSessionData.assignedPropertyId !== "sunshine-pg") ? savedSessionData.assignedPropertyId : null) ||
-        (isMasterAccount ? "sunshine-pg" : "");
+        match?.assignedPropertyId ||
+        profile?.assignedPropertyId ||
+        savedSessionData?.assignedPropertyId ||
+        "";
       if (targetProperty) {
         router.replace(`/p/${targetProperty}/overview`);
       }
@@ -391,7 +390,7 @@ export default function HomeWorkspacePage() {
       collectionRate: "0%",
       status: "HEALTHY",
       createdAt: new Date().toISOString(),
-      ownerEmail: profile?.email || "isharapandey01@gmail.com",
+      ownerEmail: profile?.email || "",
     };
 
     await initializeCleanProperty(

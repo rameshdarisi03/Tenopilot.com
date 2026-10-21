@@ -21,6 +21,19 @@ import {
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { StaffMember, UserRole, staffStore } from "./staffStore";
 
+/**
+ * Strips all keys with `undefined` values from an object to ensure 100% compliance with Firestore setDoc/updateDoc
+ */
+export function sanitizeFirestorePayload<T extends Record<string, any>>(obj: T): Partial<T> {
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
@@ -364,7 +377,6 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       }
     }
 
-    const isMasterTest = email === "isharapandey01@gmail.com";
     const isStaff = Boolean(staffAccountDoc);
 
     // Check whether the user is an active existing user who completed onboarding
@@ -373,10 +385,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
 
     if (isStaff) {
       isFullyOnboarded = true;
-      activeAssignedPropId = staffAccountDoc.assignedPropertyId || "";
-    } else if (isMasterTest) {
-      isFullyOnboarded = true;
-      activeAssignedPropId = "sunshine-pg";
+      activeAssignedPropId = staffAccountDoc.assignedPropertyId || staffAccountDoc.assignedPropertyIds?.[0] || "";
     } else if (!isPurgedAccount && existingUserDoc?.onboardingCompleted === true) {
       activeAssignedPropId = existingUserDoc.assignedPropertyId || "";
       if (activeAssignedPropId) {
@@ -384,39 +393,39 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       }
     }
 
-    // ðŸŒŸ PATH A: EXISTING ACTIVE USER (Staff or Owner with real active property)
+    // 🌟 PATH A: EXISTING ACTIVE USER (Staff or Owner with real active property)
     if (isFullyOnboarded) {
       const resolvedRole = isStaff ? (staffAccountDoc.role || "admin") : (existingUserDoc?.role || "master_admin");
       const resolvedProp = activeAssignedPropId;
-      const resolvedName = staffAccountDoc?.name || existingUserDoc?.displayName || (user.displayName ? sanitizeTitleCase(user.displayName) : "Property Owner");
-      const resolvedPin = staffAccountDoc?.securityPin || existingUserDoc?.securityPin;
-      const hasPin = Boolean(staffAccountDoc?.hasSetPin || existingUserDoc?.hasSetPin || resolvedPin);
+      const resolvedName = staffAccountDoc?.name || existingUserDoc?.displayName || (user.displayName ? sanitizeTitleCase(user.displayName) : (isStaff ? "Staff Member" : "Property Owner"));
+      const resolvedPin = staffAccountDoc?.securityPin || existingUserDoc?.securityPin || null;
+      const hasPin = Boolean(staffAccountDoc?.hasSetPin || existingUserDoc?.hasSetPin || (resolvedPin && resolvedPin !== ""));
 
       const profile: AuthUserProfile = {
         uid: user.uid,
         email: email,
         displayName: resolvedName,
-        organizationId: staffAccountDoc?.orgId || existingUserDoc?.organizationId || `org_${user.uid}`,
+        organizationId: staffAccountDoc?.orgId || staffAccountDoc?.organizationId || existingUserDoc?.organizationId || `org_${user.uid}`,
         role: resolvedRole,
-        assignedPropertyId: resolvedProp,
+        assignedPropertyId: resolvedProp || "",
         propertyName: staffAccountDoc?.propertyName || existingUserDoc?.propertyName || existingUserDoc?.pgName || "",
         primaryPropertyName: existingUserDoc?.primaryPropertyName || existingUserDoc?.propertyName || "",
         onboardingCompleted: true,
         hasSetPin: hasPin,
-        securityPin: resolvedPin,
-        plan: existingUserDoc?.plan || "10_DAY_TRIAL",
-        subscriptionPlan: existingUserDoc?.subscriptionPlan || (existingUserDoc?.plan?.startsWith("PRO_") ? "pro" : "trial"),
-        subscriptionStatus: existingUserDoc?.subscriptionStatus || "TRIAL",
-        planExpiresAt: existingUserDoc?.planExpiresAt,
+        securityPin: resolvedPin || null,
+        plan: existingUserDoc?.plan || (isStaff ? "ORGANIZATION_STAFF" : "10_DAY_TRIAL"),
+        subscriptionPlan: existingUserDoc?.subscriptionPlan || (isStaff ? "pro" : (existingUserDoc?.plan?.startsWith("PRO_") ? "pro" : "trial")),
+        subscriptionStatus: existingUserDoc?.subscriptionStatus || (isStaff ? "ACTIVE_PRO" : "TRIAL"),
+        planExpiresAt: existingUserDoc?.planExpiresAt || null,
         trialEndsAtMs: existingUserDoc?.trialEndsAtMs || null,
-        createdAt: existingUserDoc?.createdAt,
+        createdAt: existingUserDoc?.createdAt || new Date().toISOString(),
         tenantExtensionPacks: existingUserDoc?.tenantExtensionPacks || 0,
         maxPropertiesAllowed: existingUserDoc?.maxPropertiesAllowed || 1,
         primaryUid: existingUserDoc?.primaryUid || user.uid,
         isStaff: Boolean(isStaff || existingUserDoc?.isStaff),
       };
 
-      await setDoc(userDocRef, profile, { merge: true });
+      await setDoc(userDocRef, sanitizeFirestorePayload(profile), { merge: true });
 
       if (typeof window !== "undefined") {
         const sessionPayload = {
@@ -424,10 +433,10 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
           name: resolvedName,
           role: resolvedRole,
           propertyName: profile.propertyName || "",
-          assignedPropertyId: resolvedProp,
-          securityPin: resolvedPin,
+          assignedPropertyId: resolvedProp || "",
+          securityPin: resolvedPin || undefined,
           hasSetPin: hasPin,
-          phone: existingUserDoc?.phone || "",
+          phone: existingUserDoc?.phone || staffAccountDoc?.phone || "",
         };
         localStorage.setItem("tenopilot_saved_session", JSON.stringify(sessionPayload));
       }
@@ -480,7 +489,7 @@ export async function continueWithGoogle(): Promise<GoogleAuthResult | null> {
       subscriptionStatus: "TRIAL",
     };
 
-    await setDoc(userDocRef, freshProfile, { merge: true });
+    await setDoc(userDocRef, sanitizeFirestorePayload(freshProfile), { merge: true });
 
     return {
       user,
@@ -660,7 +669,7 @@ export async function registerWithEmailPassword(
     };
 
     const userDocRef = doc(db, "users", user.uid);
-    await setDoc(userDocRef, profile, { merge: true });
+    await setDoc(userDocRef, sanitizeFirestorePayload(profile), { merge: true });
 
     // Clear any purged account tombstone on fresh registration
     try {
@@ -1167,15 +1176,16 @@ export async function loginOrRegisterWithPhone(
 
     await setDoc(
       userDocRef,
-      {
+      sanitizeFirestorePayload({
         ...profile,
+        securityPin: resolvedPin || null,
         email: publicEmail,
         authEmail: authEmail,
         emailVerified: Boolean(publicEmail),
         phone: pure10,
         phoneVerified: true,
         authProvider: "whatsapp_phone",
-      },
+      }),
       { merge: true }
     );
 

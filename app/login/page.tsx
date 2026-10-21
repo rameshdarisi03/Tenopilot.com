@@ -552,8 +552,7 @@ export default function LoginPage() {
         result.profile.role === "admin" ||
         result.profile.role === "receptionist" ||
         match?.role === "admin" ||
-        match?.role === "receptionist" ||
-        userEmail === "isharapandey01@gmail.com";
+        match?.role === "receptionist";
 
       const gOwnerName = result.profile.displayName || match?.name || "Property Owner";
       const gPropName = isOwnerOnboarded ? (match?.propertyName || result.profile.propertyName || "") : "";
@@ -615,12 +614,7 @@ export default function LoginPage() {
 
       // 1. LOCAL-FIRST PRE-COMMIT: Update in-memory & localStorage immediately!
       // This guarantees that any real-time snapshot listener sees the exact matching PIN & version.
-      const isMasterTest = targetEmail === "isharapandey01@gmail.com";
-      const defaultDemoProp = isMasterTest ? "sunshine-pg" : "";
-      const cleanAssignedProp =
-        savedSession?.assignedPropertyId && (isMasterTest || savedSession.assignedPropertyId !== "sunshine-pg")
-          ? savedSession.assignedPropertyId
-          : defaultDemoProp;
+      const cleanAssignedProp = savedSession?.assignedPropertyId || match?.assignedPropertyId || "";
 
       if (match) {
         staffStore.setSecurityPinInMemory(match.id, finalPin, unifiedSessionVersion);
@@ -696,7 +690,7 @@ export default function LoginPage() {
 
       // 3. Determine Onboarding & Destination with 1.5s timeout
       let hasCompletedOnboarding = true;
-      if (!isMasterTest && role === "master_admin") {
+      if (role === "master_admin") {
         try {
           if (auth.currentUser) {
             const checkOnboardingPromise = (async () => {
@@ -906,9 +900,8 @@ export default function LoginPage() {
       const role = updatedSession.role || "master_admin";
       staffStore.setActiveRole(role);
 
-      const isMasterTest = updatedSession.email === "isharapandey01@gmail.com";
       let hasCompletedOnboarding = true;
-      if (!isMasterTest && role === "master_admin") {
+      if (role === "master_admin") {
         try {
           if (auth.currentUser) {
             const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));

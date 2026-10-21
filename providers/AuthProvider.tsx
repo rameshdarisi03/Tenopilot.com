@@ -84,8 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (currentUser) {
         const email = currentUser.email?.toLowerCase() || "";
-        const isMasterTest = email === "isharapandey01@gmail.com";
-        const orgId = isMasterTest ? "org_demo_meghana" : `org_${currentUser.uid}`;
 
         // Check local saved session first for freshest name & role
         let savedSessionName = "";
@@ -121,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch {}
 
+        const orgId = staffAccountDoc?.organizationId || staffAccountDoc?.orgId || `org_${currentUser.uid}`;
+
         const resolvedRole: UserRole =
           staffAccountDoc?.role ||
           staffMatch?.role ||
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           staffAccountDoc?.assignedPropertyId ||
           staffMatch?.assignedPropertyId ||
           savedAssignedProp ||
-          (isMasterTest ? "sunshine-pg" : "");
+          "";
 
         const userDocRef = doc(db, "users", currentUser.uid);
         
@@ -309,22 +309,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 };
                 setProfile(staffProf);
                 staffStore.setActiveRole(staffProf.role);
-              } else if (isMasterTest) {
-                const demoProf: UserProfile = {
-                  uid: currentUser.uid,
-                  email: email,
-                  displayName: sanitizeTitleCase(resolvedName),
-                  organizationId: orgId,
-                  role: "master_admin",
-                  assignedPropertyId: "sunshine-pg",
-                  isNewUser: false,
-                  onboardingCompleted: true,
-                  createdAt: new Date().toISOString(),
-                  plan: "10_DAY_TRIAL",
-                  subscriptionStatus: "TRIAL",
-                };
-                setProfile(demoProf);
-                staffStore.setActiveRole(demoProf.role);
               } else {
                 // 🛑 If user is currently on onboarding / signup pages, allow setup to proceed
                 if (pathname === "/signup" || pathname === "/welcome") {
@@ -429,12 +413,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGoogleUser = user?.providerData?.some((p) => p.providerId === "google.com");
     const isEmailUnverified = user && !isGoogleUser && !user.emailVerified;
 
-    const isMasterTestAccount = user?.email?.toLowerCase() === "isharapandey01@gmail.com";
-    const isStaffUser = profile?.role === "admin" || profile?.role === "receptionist";
-    const hasCompletedSetup =
-      isMasterTestAccount ||
-      isStaffUser ||
-      profile?.onboardingCompleted === true;
+    const isStaffUser = profile?.role === "admin" || profile?.role === "receptionist" || Boolean(profile?.isStaff);
+    const hasCompletedSetup = isStaffUser || profile?.onboardingCompleted === true;
 
     if (isProtectedPage) {
       // 🔒 If session is locked on app re-open OR user is not authenticated -> route immediately to /login PIN lock
