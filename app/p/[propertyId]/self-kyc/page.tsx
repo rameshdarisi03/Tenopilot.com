@@ -304,7 +304,8 @@ export default function SelfKycDeskPage({
 
     setInviteDispatchLoading(false);
     setShowInviteModal(false);
-    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName}! Bed ${inviteRoomNumber}-${inviteBedCode} is now ON HOLD 🔒`);
+    const emailNotice = newInvite.candidateEmail ? " & Email" : "";
+    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via WhatsApp${emailNotice}! Bed ${inviteRoomNumber}-${inviteBedCode} is now ON HOLD 🔒`);
   };
 
   // 1-Tap Share Invite Directly via WhatsApp Web / App
@@ -810,10 +811,18 @@ export default function SelfKycDeskPage({
                               ₹{inv.rentAmount.toLocaleString("en-IN")}/mo
                             </td>
                             <td className="py-3.5 px-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span>WhatsApp Sent</span>
-                              </span>
+                              <div className="flex flex-col gap-1 items-start">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>WhatsApp Sent</span>
+                                </span>
+                                {inv.candidateEmail && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                    <Check className="w-3 h-3 text-blue-600" />
+                                    <span>Email Sent</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                               <button
