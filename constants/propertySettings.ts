@@ -54,6 +54,7 @@ export interface PropertySettingsData {
     sharing3: number; // 3-Sharing Triple Room
     sharing4: number; // 4-Sharing Four Room
   };
+  includeDepositInOutstanding?: boolean; // When false (default), unpaid deposit is not mixed into monthly rent outstanding balance
   invoiceConfig?: InvoiceConfig;
 }
 
@@ -75,6 +76,7 @@ export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   managerPhone: "",
   qrProfiles: DEFAULT_QR_PROFILES,
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
+  includeDepositInOutstanding: false,
   invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
 };
 
@@ -89,6 +91,7 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   managerPhone: "+91 98765 43210",
   qrProfiles: DEFAULT_QR_PROFILES,
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
+  includeDepositInOutstanding: false,
   invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
 };
 
@@ -135,6 +138,9 @@ export const propertySettingsStore = {
               ...CLEAN_ZERO_PROPERTY_SETTINGS,
               ...existing,
               ...data,
+              includeDepositInOutstanding: data.includeDepositInOutstanding !== undefined
+                ? data.includeDepositInOutstanding
+                : (existing.includeDepositInOutstanding ?? false),
               rentalTiers: {
                 ...DEFAULT_PROPERTY_RENTAL_TIERS,
                 ...(existing.rentalTiers || {}),
@@ -186,6 +192,7 @@ export const propertySettingsStore = {
           const merged: PropertySettingsData = {
             ...CLEAN_ZERO_PROPERTY_SETTINGS,
             ...parsed,
+            includeDepositInOutstanding: parsed.includeDepositInOutstanding ?? false,
             rentalTiers: {
               ...DEFAULT_PROPERTY_RENTAL_TIERS,
               ...(parsed.rentalTiers || {}),
@@ -229,6 +236,9 @@ export const propertySettingsStore = {
     const updated: PropertySettingsData = {
       ...current,
       ...newSettings,
+      includeDepositInOutstanding: newSettings.includeDepositInOutstanding !== undefined
+        ? newSettings.includeDepositInOutstanding
+        : (current.includeDepositInOutstanding ?? false),
       rentalTiers: {
         ...DEFAULT_PROPERTY_RENTAL_TIERS,
         ...(current.rentalTiers || {}),
@@ -279,6 +289,9 @@ export const propertySettingsStore = {
           const merged: PropertySettingsData = {
             ...current,
             ...data,
+            includeDepositInOutstanding: data.includeDepositInOutstanding !== undefined
+              ? data.includeDepositInOutstanding
+              : (current.includeDepositInOutstanding ?? false),
             rentalTiers: {
               ...DEFAULT_PROPERTY_RENTAL_TIERS,
               ...(current.rentalTiers || {}),

@@ -78,7 +78,7 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "WHATSAPP" | "POLICE_REGISTER">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Mobile UX states for minimal, one-handed navigation
@@ -469,24 +469,6 @@ export default function PropertySettingsPage({
 
               <button
                 type="button"
-                onClick={() => setActiveTab("WHATSAPP")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "WHATSAPP"
-                    ? "bg-emerald-600 text-white border-emerald-600 shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <MessageSquare className={`w-4 h-4 shrink-0 ${activeTab === "WHATSAPP" ? "text-white" : "text-emerald-600"}`} />
-                <span>WhatsApp Cloud & Credits</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                  activeTab === "WHATSAPP" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
-                }`}>
-                  {whatsappCredits}
-                </span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setActiveTab("POLICE_REGISTER")}
                 className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
                   activeTab === "POLICE_REGISTER"
@@ -496,6 +478,19 @@ export default function PropertySettingsPage({
               >
                 <ShieldCheck className={`w-4 h-4 shrink-0 ${activeTab === "POLICE_REGISTER" ? "text-white" : "text-blue-600"}`} />
                 <span>Police & Legal Register 📜</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("CONFIG")}
+                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
+                  activeTab === "CONFIG"
+                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
+                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
+                }`}
+              >
+                <Sliders className={`w-4 h-4 shrink-0 ${activeTab === "CONFIG" ? "text-white" : "text-[#c2652a]"}`} />
+                <span>Config ⚙️</span>
               </button>
             </div>
           </div>
@@ -1308,177 +1303,6 @@ export default function PropertySettingsPage({
                     </div>
                   </div>
                 </div>
-
-                {/* Unified Invoice & Receipt Number Format */}
-                <div className="md:col-span-2 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
-                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                        Invoice & Receipt Number Format
-                      </h3>
-                      <p className="text-[11px] text-gray-500">
-                        Configure numbering format applied to all issued rent and deposit receipts
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Format Selection Cards */}
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-2">
-                      Format Style *
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            invoiceConfig: {
-                              formatType: "SEQUENTIAL",
-                              prefix: settings.invoiceConfig?.prefix || "INV-",
-                              startNumber: settings.invoiceConfig?.startNumber || 1001,
-                            },
-                          })
-                        }
-                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                          (settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL"
-                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
-                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <div>
-                          <span className="block font-bold text-xs">🔢 Sequential Serial</span>
-                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block">
-                            Starts from chosen starting number
-                          </span>
-                        </div>
-                        {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" && (
-                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSettings({
-                            ...settings,
-                            invoiceConfig: {
-                              formatType: "DATE_BASED",
-                              prefix: settings.invoiceConfig?.prefix || "INV-",
-                              startNumber: settings.invoiceConfig?.startNumber || 1001,
-                            },
-                          })
-                        }
-                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                          settings.invoiceConfig?.formatType === "DATE_BASED"
-                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
-                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <div>
-                          <span className="block font-bold text-xs">📅 Date-Stamped (DDMMYY)</span>
-                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block">
-                            Date code + daily sequence
-                          </span>
-                        </div>
-                        {settings.invoiceConfig?.formatType === "DATE_BASED" && (
-                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Input Fields */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="text-xs font-bold text-gray-700">Custom Prefix *</label>
-                        <span title="Characters placed before each receipt number">
-                          <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                        </span>
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={settings.invoiceConfig?.prefix ?? "INV-"}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            invoiceConfig: {
-                              formatType: settings.invoiceConfig?.formatType || "SEQUENTIAL",
-                              prefix: e.target.value.toUpperCase(),
-                              startNumber: settings.invoiceConfig?.startNumber || 1001,
-                            },
-                          })
-                        }
-                        placeholder="e.g. INV- or REC-"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                    </div>
-
-                    {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" ? (
-                      <div>
-                        <div className="flex items-center gap-1 mb-1">
-                          <label className="text-xs font-bold text-gray-700">Starting Serial Number *</label>
-                          <span title="Sequence starts counting from this number">
-                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                          </span>
-                        </div>
-                        <input
-                          type="number"
-                          min="1"
-                          required
-                          value={settings.invoiceConfig?.startNumber ?? 1001}
-                          onChange={(e) =>
-                            setSettings({
-                              ...settings,
-                              invoiceConfig: {
-                                formatType: settings.invoiceConfig?.formatType || "SEQUENTIAL",
-                                prefix: settings.invoiceConfig?.prefix || "INV-",
-                                startNumber: Math.max(1, parseInt(e.target.value) || 1),
-                              },
-                            })
-                          }
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col justify-center">
-                        <div className="flex items-center gap-1 mb-1">
-                          <label className="text-xs font-bold text-gray-500">Pattern Guide</label>
-                          <span title="DDMMYY is dynamically generated from transaction date">
-                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                          </span>
-                        </div>
-                        <div className="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600 font-mono">
-                          {settings.invoiceConfig?.prefix || "INV-"}DDMMYY-01
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Live Sample Preview */}
-                  <div className="p-3.5 rounded-xl bg-orange-50/70 border border-orange-200 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-orange-800 uppercase tracking-wider block">
-                        Live Sample Preview
-                      </span>
-                      <span className="font-mono font-extrabold text-base text-gray-900 mt-0.5 block">
-                        {getInvoiceNumberPreview(
-                          settings.invoiceConfig?.formatType || "SEQUENTIAL",
-                          settings.invoiceConfig?.prefix || "INV-",
-                          settings.invoiceConfig?.startNumber || 1001
-                        )}
-                      </span>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full bg-orange-100 text-[#c2652a] text-[10px] font-bold">
-                      Active Template
-                    </span>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -1581,6 +1405,277 @@ export default function PropertySettingsPage({
                 </div>
               </div>
             )}
+
+            {activeTab === "CONFIG" && (
+              <div className="max-w-3xl space-y-6 animate-in fade-in">
+                {/* 1. Invoice & Receipt Number Customization */}
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                        Invoice & Receipt Numbers
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        Configure numbering format for all issued receipts and invoices.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Format Selection Cards */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">
+                      Format Style *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            invoiceConfig: {
+                              formatType: "SEQUENTIAL",
+                              prefix: settings.invoiceConfig?.prefix || "INV-",
+                              startNumber: settings.invoiceConfig?.startNumber || 1001,
+                            },
+                          })
+                        }
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          (settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL"
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-bold text-xs">🔢 Sequential Serial</span>
+                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block">
+                            Starts from chosen number
+                          </span>
+                        </div>
+                        {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            invoiceConfig: {
+                              formatType: "DATE_BASED",
+                              prefix: settings.invoiceConfig?.prefix || "INV-",
+                              startNumber: settings.invoiceConfig?.startNumber || 1001,
+                            },
+                          })
+                        }
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          settings.invoiceConfig?.formatType === "DATE_BASED"
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-bold text-xs">📅 Date-Stamped (DDMMYY)</span>
+                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block">
+                            Date code + counter
+                          </span>
+                        </div>
+                        {settings.invoiceConfig?.formatType === "DATE_BASED" && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <label className="text-xs font-bold text-gray-700">Custom Prefix *</label>
+                        <span title="Characters placed before each receipt number">
+                          <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={settings.invoiceConfig?.prefix ?? "INV-"}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            invoiceConfig: {
+                              formatType: settings.invoiceConfig?.formatType || "SEQUENTIAL",
+                              prefix: e.target.value.toUpperCase(),
+                              startNumber: settings.invoiceConfig?.startNumber || 1001,
+                            },
+                          })
+                        }
+                        placeholder="e.g. INV- or REC-"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+
+                    {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" ? (
+                      <div>
+                        <div className="flex items-center gap-1 mb-1">
+                          <label className="text-xs font-bold text-gray-700">Starting Serial Number *</label>
+                          <span title="Sequence starts counting from this number">
+                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={settings.invoiceConfig?.startNumber ?? 1001}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              invoiceConfig: {
+                                formatType: settings.invoiceConfig?.formatType || "SEQUENTIAL",
+                                prefix: settings.invoiceConfig?.prefix || "INV-",
+                                startNumber: Math.max(1, parseInt(e.target.value) || 1),
+                              },
+                            })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col justify-center">
+                        <div className="flex items-center gap-1 mb-1">
+                          <label className="text-xs font-bold text-gray-500">Pattern Guide</label>
+                          <span title="DDMMYY is dynamically generated from transaction date">
+                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-pointer" />
+                          </span>
+                        </div>
+                        <div className="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600 font-mono">
+                          {settings.invoiceConfig?.prefix || "INV-"}DDMMYY-01
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Live Sample Preview */}
+                  <div className="p-3.5 rounded-xl bg-orange-50/70 border border-orange-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-orange-800 uppercase tracking-wider block">
+                        Live Sample Preview
+                      </span>
+                      <span className="font-mono font-extrabold text-base text-gray-900 mt-0.5 block">
+                        {getInvoiceNumberPreview(
+                          settings.invoiceConfig?.formatType || "SEQUENTIAL",
+                          settings.invoiceConfig?.prefix || "INV-",
+                          settings.invoiceConfig?.startNumber || 1001
+                        )}
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-orange-100 text-[#c2652a] text-[10px] font-bold">
+                      Active Template
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Outstanding Balance & Security Deposit Accounting Rule */}
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                        Include Pending Security Deposit in Outstanding Balance
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        Controls whether unpaid security deposit is added into the tenant&apos;s total balance due &amp; overdue calculation.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">
+                      Accounting Mode *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            includeDepositInOutstanding: false,
+                          })
+                        }
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          !settings.includeDepositInOutstanding
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="block font-bold text-xs">No (Separate Deposit Ledger)</span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold">
+                              Default
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block leading-relaxed">
+                            Outstanding balance reflects monthly rent only. Unpaid deposit is tracked on its own deposit badge.
+                          </span>
+                        </div>
+                        {!settings.includeDepositInOutstanding && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            includeDepositInOutstanding: true,
+                          })
+                        }
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          settings.includeDepositInOutstanding
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-bold text-xs">Yes (Combined Outstanding)</span>
+                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block leading-relaxed">
+                            Unpaid deposit is added to unpaid rent into a single combined balance due amount.
+                          </span>
+                        </div>
+                        {settings.includeDepositInOutstanding && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Calculation Formula Preview */}
+                  <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
+                        Live Balance Formula
+                      </span>
+                      <span className="font-mono font-bold text-xs text-blue-900 mt-0.5 block">
+                        {settings.includeDepositInOutstanding
+                          ? "Net Outstanding = Unpaid Monthly Rent + Unpaid Security Deposit + Arrears"
+                          : "Net Outstanding = Unpaid Monthly Rent + Arrears (Deposit tracked separately)"}
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold shrink-0">
+                      {settings.includeDepositInOutstanding ? "Combined Mode" : "Independent Mode"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </form>
 
           {/* CUSTOM DELETE CONFIRMATION MODAL */}
@@ -1623,222 +1718,6 @@ export default function PropertySettingsPage({
               </div>
             </div>
           )}
-          {/* TAB: WHATSAPP CLOUD GATEWAY & CREDIT WALLET */}
-          {activeTab === "WHATSAPP" && (
-            <div className="space-y-6 animate-in fade-in text-xs">
-              {/* 1. Wallet Balance & Recharge Card */}
-              <div className="bg-gradient-to-br from-[#064e3b] via-[#047857] to-[#059669] text-white p-6 rounded-3xl shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="space-y-1.5 z-10">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 border border-emerald-300/30 text-emerald-200 text-[10px] font-bold uppercase tracking-wider">
-                      Official Meta WhatsApp Cloud Gateway
-                    </span>
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-100">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live & Connected
-                    </span>
-                  </div>
-                  <h3 className="font-extrabold text-xl tracking-tight">WhatsApp Credit Wallet</h3>
-                  <p className="text-xs text-emerald-100/90 max-w-md">
-                    Send 1-click automated rent reminders, payment receipts, and tenant KYC check-in links directly to residents' WhatsApp.
-                  </p>
-                </div>
-
-                <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-center sm:text-right shrink-0 z-10 w-full sm:w-auto">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200 block">
-                    Available Balance
-                  </span>
-                  <div className="flex items-baseline justify-center sm:justify-end gap-1.5 my-1">
-                    <span className="text-3xl font-black font-mono tabular-nums text-white">
-                      {whatsappCredits}
-                    </span>
-                    <span className="text-xs text-emerald-200 font-bold">Credits</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowWhatsAppWalletModal(true)}
-                    className="mt-2 w-full px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-900 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5 fill-current text-emerald-700" />
-                    <span>Recharge Credits</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 2. Message Templates Preview */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-gray-700">Automated WhatsApp Templates Preview</h4>
-                  <span className="text-[10px] text-gray-400">Meta-approved utility templates</span>
-                </div>
-
-                {/* Mobile Segmented Switcher */}
-                <div className="md:hidden flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMobileTemplate("REMINDER")}
-                    className={`flex-1 py-2 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer text-center ${
-                      selectedMobileTemplate === "REMINDER"
-                        ? "bg-white text-emerald-800 shadow-xs"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    1. Reminders
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMobileTemplate("RECEIPT")}
-                    className={`flex-1 py-2 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer text-center ${
-                      selectedMobileTemplate === "RECEIPT"
-                        ? "bg-white text-purple-800 shadow-xs"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    2. Receipts
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMobileTemplate("KYC")}
-                    className={`flex-1 py-2 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer text-center ${
-                      selectedMobileTemplate === "KYC"
-                        ? "bg-white text-blue-800 shadow-xs"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    3. Digital KYC
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div
-                    className={`bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3 ${
-                      selectedMobileTemplate === "REMINDER" ? "block" : "hidden md:block"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                      <MessageSquare className="w-4 h-4" />
-                      <span>Rent Payment Reminders</span>
-                    </div>
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
-                      👋 <strong>Hello Rahul</strong>,<br /><br />
-                      Friendly rent reminder for <strong>{settings.propertyName || "TenoPilot PG"}</strong>:<br />
-                      🏠 Room 204 (Bed A)<br />
-                      💰 Amount: ₹8,500<br />
-                      📅 Due: 5th of this month<br /><br />
-                      💳 Pay via UPI ID: {settings.upiPaymentId || "manager@upi"}
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Auto-dispatched on 1-tap bulk reminder
-                    </span>
-                  </div>
-
-                  <div
-                    className={`bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3 ${
-                      selectedMobileTemplate === "RECEIPT" ? "block" : "hidden md:block"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-purple-700 font-bold">
-                      <CreditCard className="w-4 h-4" />
-                      <span>Payment Confirmation</span>
-                    </div>
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
-                      ✅ <strong>Payment Received</strong><br /><br />
-                      We have received your rent payment of <strong>₹8,500</strong> for {settings.propertyName || "TenoPilot PG"}.<br /><br />
-                      🧾 Receipt: REC-948271<br />
-                      🏠 Room: 204<br /><br />
-                      Thank you for being a valued resident!
-                    </div>
-                    <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Sent when recording tenant payment
-                    </span>
-                  </div>
-
-                  <div
-                    className={`bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs space-y-3 ${
-                      selectedMobileTemplate === "KYC" ? "block" : "hidden md:block"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-blue-700 font-bold">
-                      <Sparkles className="w-4 h-4" />
-                      <span>Digital KYC & Check-In</span>
-                    </div>
-                    <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 font-mono text-[11px] text-gray-700 leading-relaxed">
-                      🏢 <strong>Welcome to {settings.propertyName || "TenoPilot PG"}!</strong><br /><br />
-                      Please complete your digital KYC and sign the digital tenant agreement:<br /><br />
-                      🔗 tenopilot.com/self-onboard/...<br /><br />
-                      Upload Aadhaar & complete check-in.
-                    </div>
-                    <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Sent on tenant booking / invitation
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Transaction & Delivery Logs Table */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div>
-                    <h3 className="font-bold text-sm sm:text-base text-gray-900">Recent WhatsApp Dispatch Logs</h3>
-                    <p className="text-[11px] text-gray-500">Live delivery records and credit usage audit trail</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowWhatsAppWalletModal(true)}
-                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-50 font-bold text-xs text-gray-700 cursor-pointer"
-                  >
-                    View All Logs
-                  </button>
-                </div>
-
-                {whatsappTransactions.length === 0 ? (
-                  <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <Clock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-gray-600">No message transactions recorded yet</p>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      Automated WhatsApp reminders and receipts will appear here in real-time.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {whatsappTransactions.slice(0, 10).map((tx) => {
-                      const isCreditAdd = tx.amount > 0;
-                      return (
-                        <div
-                          key={tx.id}
-                          className="p-3 rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-between gap-2"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-bold text-xs ${
-                                isCreditAdd ? "bg-emerald-100 text-emerald-800" : "bg-purple-100 text-purple-800"
-                              }`}
-                            >
-                              {isCreditAdd ? <Plus className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
-                            </div>
-                            <div className="min-w-0">
-                              <span className="font-bold text-gray-900 block truncate text-xs">{tx.description}</span>
-                              <span className="text-[10px] text-gray-400 font-medium block truncate">
-                                {new Date(tx.timestamp).toLocaleString("en-IN")} • Status:{" "}
-                                <span className="text-emerald-600 font-bold uppercase">{tx.status}</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="text-right font-mono shrink-0">
-                            <span className={`font-bold block text-xs ${isCreditAdd ? "text-emerald-700" : "text-gray-900"}`}>
-                              {isCreditAdd ? `+${tx.amount}` : `${tx.amount}`} Credits
-                            </span>
-                            <span className="text-[10px] text-gray-400">Bal: {tx.balanceAfter}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* TAB 5: POLICE & LEGAL RESIDENT REGISTER */}
           {activeTab === "POLICE_REGISTER" && (
             <PoliceVerificationRegister propertyId={propertyId} />
@@ -1875,15 +1754,6 @@ export default function PropertySettingsPage({
               >
                 <Save className="w-4 h-4" />
                 <span>Save Partner Ratios</span>
-              </button>
-            ) : activeTab === "WHATSAPP" ? (
-              <button
-                type="button"
-                onClick={() => setShowWhatsAppWalletModal(true)}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-              >
-                <Zap className="w-4 h-4 fill-current text-emerald-300" />
-                <span>Recharge ({whatsappCredits} Credits)</span>
               </button>
             ) : activeTab === "POLICE_REGISTER" ? (
               <div className="flex-1 text-center py-2 px-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 font-bold text-xs flex items-center justify-center gap-1.5">

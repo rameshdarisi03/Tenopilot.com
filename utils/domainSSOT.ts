@@ -431,6 +431,7 @@ export function calculateOccupantFinancialStatement(
   const history = occupant.paymentHistory || [];
 
   const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
+  const includeDepositInOutstanding = Boolean(settings?.includeDepositInOutstanding);
   let desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant.dueDay ?? 5;
 
   if (isAnniversary && occupant.joiningDate) {
@@ -539,8 +540,12 @@ export function calculateOccupantFinancialStatement(
     }
 
     const totalPaid = totalRentPaid + totalDepositPaid;
-    const netOutstandingBalance = remainingRentDue + remainingDepositDue;
-    const isFullyPaid = netOutstandingBalance === 0;
+    const netOutstandingBalance = includeDepositInOutstanding
+      ? remainingRentDue + remainingDepositDue
+      : remainingRentDue;
+    const isFullyPaid = includeDepositInOutstanding
+      ? netOutstandingBalance === 0
+      : remainingRentDue === 0;
     const isPartialPaid = !isFullyPaid && totalPaid > 0;
 
     const isOverdue = !isFullyPaid && isPastGrace;
@@ -640,8 +645,12 @@ export function calculateOccupantFinancialStatement(
     ? 0
     : Math.max(0, proRataRent - totalRentPaidFromReceipts);
 
-  // Net Outstanding Balance strictly equals remaining rent + remaining deposit + prior arrears
-  const netOutstandingBalance = remainingRentDue + remainingDepositDue + priorArrears;
+  // Net Outstanding Balance:
+  // When includeDepositInOutstanding is true: remaining rent + remaining deposit + prior arrears
+  // When includeDepositInOutstanding is false (default): remaining rent + prior arrears (deposit tracked on separate deposit badge)
+  const netOutstandingBalance = includeDepositInOutstanding
+    ? remainingRentDue + remainingDepositDue + priorArrears
+    : remainingRentDue + priorArrears;
 
   // Gross package required for cycle
   const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears;
@@ -655,7 +664,9 @@ export function calculateOccupantFinancialStatement(
     : totalRentPaidFromReceipts;
   const totalPaid = effectiveDepositPaid + effectiveRentPaid;
 
-  const isFullyPaid = netOutstandingBalance === 0;
+  const isFullyPaid = includeDepositInOutstanding
+    ? netOutstandingBalance === 0
+    : remainingRentDue === 0 && priorArrears === 0;
   const isPartialPaid = !isFullyPaid && (totalRentPaidFromReceipts > 0 || totalDepositPaidFromReceipts > 0);
   const isOverdue = !isFullyPaid && (isPastGrace || priorArrears > 0 || occupant.paymentStatus === "Overdue");
 
