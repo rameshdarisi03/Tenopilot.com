@@ -10,7 +10,7 @@ export interface SESSendParams {
   propertyId: string;
   propertyName?: string;
   replyToEmail?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
   params?: {
     otpCode?: string;
     roomNumber?: string;
@@ -40,6 +40,7 @@ export interface SESSendParams {
     totalDeductions?: number | string;
     netRefunded?: number | string;
     notes?: string;
+    rejectionReason?: string;
   };
   attachments?: {
     name: string;
@@ -728,6 +729,75 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 
       const text = `TenoPilot.com 🚀\n\nCongratulations, ${ownerName}! 🎉\n\nWelcome to TenoPilot Pro! Your subscription for ${pName} (${planName}) has been successfully activated.\n\nAttached is your official Tax Invoice & Payment Receipt (#${invoiceNo}) for your records.\n\n${invoiceUrl ? `Download Official Tax Invoice PDF: ${invoiceUrl}\n\n` : ""}We are thrilled to partner with you to put your coliving operations on autopilot. If you need any assistance, reach our Founder Support Desk at +91 92066 51295.\n\nWarm regards,\nTeam TenoPilot 🏢✨`;
 
+      return { subject, html, text };
+    }
+
+    case "KYC_CORRECTION_REQUEST": {
+      const subject = `⚠️ Action Required: Resident Verification Update — ${pName}`;
+      const candidateName = payload.recipientName || "Resident";
+      const reason = p.rejectionReason || p.customBody || "Please re-upload clear identity documents.";
+      const reuploadUrl = p.onboardUrl || "https://tenopilot.com";
+      const roomStay = p.roomNumber ? `Room ${p.roomNumber}${p.bedCode ? ` (${p.bedCode})` : ""}` : "Accommodation";
+
+      const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:28px 12px;background-color:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c140e;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e8dfd8;box-shadow:0 12px 36px rgba(28,20,14,0.08);">
+    
+    <!-- Top Warning Header Banner -->
+    <div style="background:linear-gradient(135deg,#991b1b 0%,#b91c1c 50%,#dc2626 100%);padding:32px 24px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.2);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.3);">
+        ⚠️ ACTION REQUIRED
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:22px;font-weight:800;">Verification Needs Correction</h1>
+      <p style="margin:0;color:#fecaca;font-size:13px;">${pName} • Pre-Joining KYC Desk</p>
+    </div>
+
+    <!-- Main Content -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#1c140e;">Dear <strong>${candidateName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 20px 0;line-height:1.65;">
+        Thank you for submitting your pre-joining details for <strong>${roomStay}</strong> at <strong>${pName}</strong>. During our manager's verification review, we noticed that some information or document proofs require correction.
+      </p>
+
+      <!-- Reason Box -->
+      <div style="background:#fff1f2;border-radius:18px;padding:20px;margin-bottom:24px;border:1.5px solid #fecdd3;">
+        <h3 style="margin:0 0 10px 0;font-size:12px;font-weight:800;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px;">
+          📋 Manager's Review Note:
+        </h3>
+        <p style="margin:0;font-size:14.5px;color:#881337;font-weight:600;line-height:1.5;">
+          "${reason}"
+        </p>
+      </div>
+
+      <!-- CTA Button -->
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${reuploadUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background:#c2652a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(194,101,42,0.35);">
+          🔄 Re-Upload / Correct Details 👉
+        </a>
+      </div>
+
+      <p style="font-size:12.5px;color:#64748b;margin:0 0 16px 0;line-height:1.6;text-align:center;">
+        Please update your submission as soon as possible so your bed reservation can be finalized and approved.
+      </p>
+
+      <div style="background:#f1f5f9;border-radius:10px;padding:10px 14px;font-size:11px;color:#64748b;line-height:1.4;text-align:center;">
+        🔗 Direct Link: <a href="${reuploadUrl}" style="color:#c2652a;word-break:break-all;">${reuploadUrl}</a>
+      </div>
+    </div>
+
+    ${getCompliantEmailFooter(pName)}
+  </div>
+</body>
+</html>`;
+
+      const text = `Action Required: Resident Verification Update for ${pName}\n\nHello ${candidateName},\nYour pre-joining KYC submission for ${roomStay} requires an update.\n\nManager's Note: "${reason}"\n\nPlease re-upload or correct your details at:\n${reuploadUrl}\n\n— ${pName} Management Desk`;
       return { subject, html, text };
     }
 

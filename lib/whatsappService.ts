@@ -7,7 +7,7 @@ export interface WhatsAppSendParams {
   propertyId: string;
   propertyName?: string;
   occupantId?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
@@ -34,6 +34,7 @@ export interface WhatsAppSendParams {
     ownerPhone?: string;
     ownerEmail?: string;
     planName?: string;
+    rejectionReason?: string;
   };
 }
 
@@ -230,6 +231,31 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `We are thrilled to partner with you to put your coliving operations on autopilot. If you need any assistance, our Founder Support Desk is always here for you at *+91 92066 51295*.\n\n` +
         `Warm regards,\n` +
         `*Team TenoPilot* 🏢✨`
+      );
+    }
+
+    case "KYC_CORRECTION_REQUEST": {
+      const candidateName = payload.recipientName || "Resident";
+      const reason = p.rejectionReason || p.customMessage || "Please re-upload clear identity documents.";
+      const reuploadUrl = p.onboardUrl || "https://tenopilot.com";
+      const roomStay = p.roomNumber ? `Room ${p.roomNumber}${p.bedCode ? ` (${p.bedCode})` : ""}` : "Accommodation";
+
+      return (
+        `*${pName}* 🏢\n` +
+        `Resident Onboarding Verification\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `⚠️ *Action Required: Verification Update*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Hello *${candidateName}*,\n\n` +
+        `Your pre-joining KYC submission for *${roomStay}* at *${pName}* was reviewed by property management.\n\n` +
+        `📝 *Reason for Update / Re-upload*:\n` +
+        `"${reason}"\n\n` +
+        `Please click the link below to update your details or re-upload clear photos so we can approve your check-in:\n\n` +
+        `👉 *Update Verification Here*:\n` +
+        `${reuploadUrl}\n\n` +
+        `If you have questions, please contact reception desk.\n\n` +
+        `Warm regards,\n` +
+        `*${pName} Management Desk*`
       );
     }
 

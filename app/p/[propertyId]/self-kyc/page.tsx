@@ -421,14 +421,83 @@ export default function SelfKycDeskPage({
     }
 
     setReviewActionLoading(true);
+    const subToReject = activeReviewSubmission;
+    const currentReason = rejectionReason.trim();
+
     try {
       await selfKycStore.rejectSubmission(
         propertyId,
-        activeReviewSubmission.id,
-        rejectionReason.trim()
+        subToReject.id,
+        currentReason
       );
+
+      const settings = propertySettingsStore.getSettings(propertyId);
+      const propName = settings?.propertyName || "Ramesh Residencies";
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+      const reuploadUrl = subToReject.inviteId
+        ? `${origin}/self-onboard/${subToReject.inviteId}?p=${propertyId}`
+        : `${origin}/p/${propertyId}/self-kyc-checkin`;
+
+      // 1. Dispatch Instant WhatsApp Notification
+      try {
+        await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            messages: [
+              {
+                toPhone: subToReject.phone,
+                recipientName: subToReject.name,
+                propertyId,
+                propertyName: propName,
+                type: "KYC_CORRECTION_REQUEST",
+                params: {
+                  roomNumber: subToReject.roomNumber,
+                  bedCode: subToReject.bedCode,
+                  rejectionReason: currentReason,
+                  onboardUrl: reuploadUrl,
+                },
+              },
+            ],
+          }),
+        });
+      } catch (err) {
+        console.warn("WhatsApp rejection notification failed:", err);
+      }
+
+      // 2. Dispatch Email Notification if candidate email is available
+      if (subToReject.email) {
+        try {
+          await fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              messages: [
+                {
+                  toEmail: subToReject.email,
+                  recipientName: subToReject.name,
+                  propertyId,
+                  propertyName: propName,
+                  type: "KYC_CORRECTION_REQUEST",
+                  params: {
+                    roomNumber: subToReject.roomNumber,
+                    bedCode: subToReject.bedCode,
+                    rejectionReason: currentReason,
+                    onboardUrl: reuploadUrl,
+                  },
+                },
+              ],
+            }),
+          });
+        } catch (err) {
+          console.warn("Email rejection notification failed:", err);
+        }
+      }
+
       triggerToast(
-        `Submission for ${activeReviewSubmission.name} rejected. Bed ${activeReviewSubmission.roomNumber}-${activeReviewSubmission.bedCode} released to Available.`
+        `Submission for ${subToReject.name} rejected. Bed ${subToReject.roomNumber}-${subToReject.bedCode} released. Candidate notified via WhatsApp${subToReject.email ? " & Email" : ""}!`
       );
       setActiveReviewSubmission(null);
       setShowRejectionInput(false);

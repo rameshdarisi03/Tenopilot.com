@@ -2,6 +2,8 @@
 
 import { use, useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -149,6 +151,56 @@ export default function TenantSelfOnboardingPage({
     return unsubscribe;
   }, [propertyId]);
 
+  // Existing resident phone numbers (to block duplicate mobile numbers on public registration)
+  const [existingResidentPhones, setExistingResidentPhones] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const targetProp = invitePropertyId || propertyId;
+    if (!targetProp) return;
+    async function loadOccupants() {
+      try {
+        const snap = await getDocs(collection(db, "properties", targetProp, "occupants"));
+        const set = new Set<string>();
+        snap.docs.forEach((d) => {
+          const occ = d.data();
+          if (occ.phone && occ.lifecycleStatus !== "Past") {
+            const digits = occ.phone.replace(/\D/g, "").slice(-10);
+            if (digits.length === 10) set.add(digits);
+          }
+        });
+        setExistingResidentPhones(set);
+      } catch (e) {
+        console.warn("Notice checking existing occupants:", e);
+      }
+    }
+    loadOccupants();
+  }, [invitePropertyId, propertyId]);
+
+  // Validation: Mobile and Emergency must not be identical
+  const cleanCandidateMobile = useMemo(() => {
+    return (invite?.candidatePhone || phone).replace(/\D/g, "").slice(-10);
+  }, [invite?.candidatePhone, phone]);
+
+  const cleanEmergencyDigits = useMemo(() => {
+    return emergencyPhone.replace(/\D/g, "").slice(-10);
+  }, [emergencyPhone]);
+
+  const isEmergencySameAsMobile = useMemo(() => {
+    return Boolean(
+      cleanCandidateMobile &&
+      cleanEmergencyDigits &&
+      cleanCandidateMobile.length === 10 &&
+      cleanEmergencyDigits.length === 10 &&
+      cleanCandidateMobile === cleanEmergencyDigits
+    );
+  }, [cleanCandidateMobile, cleanEmergencyDigits]);
+
+  // Validation: On public walk-in form, primary mobile must not already belong to an active resident
+  const isPhoneAlreadyRegistered = useMemo(() => {
+    const digits = phone.replace(/\D/g, "").slice(-10);
+    return digits.length === 10 && existingResidentPhones.has(digits);
+  }, [phone, existingResidentPhones]);
+
   // Property Branding & Name
   const propertySettings = propertySettingsStore.getSettings(invitePropertyId || propertyId);
   const propertyName = propertySettings?.propertyName || "Ramesh Residencies";
@@ -289,7 +341,7 @@ export default function TenantSelfOnboardingPage({
 
     const cleanCandPhone = (invite?.candidatePhone || phone).replace(/\D/g, "").slice(-10);
     if (cleanEmerPhone === cleanCandPhone) {
-      setErrorMessage("Emergency contact phone number cannot be the same as your own mobile number.");
+      setErrorMessage("Emergency contact phone number cannot be the same as your primary mobile number.");
       return;
     }
 
@@ -371,6 +423,11 @@ export default function TenantSelfOnboardingPage({
       return;
     }
 
+    if (existingResidentPhones.has(cleanPhone)) {
+      setErrorMessage("This mobile number is already registered with an active resident in this property.");
+      return;
+    }
+
     const cleanEmergency = sanitizeDigitsOnly(emergencyPhone, 10);
     if (cleanEmergency.length < 10) {
       setErrorMessage("Please enter a valid 10-digit emergency contact phone number.");
@@ -378,7 +435,7 @@ export default function TenantSelfOnboardingPage({
     }
 
     if (cleanPhone === cleanEmergency) {
-      setErrorMessage("Emergency contact phone number cannot be the same as your own mobile number.");
+      setErrorMessage("Emergency contact phone number cannot be the same as your primary mobile number.");
       return;
     }
 
@@ -647,22 +704,33 @@ export default function TenantSelfOnboardingPage({
                     <span>Emergency Contact Number *</span>
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
-                      type="tel"
-                      required
-                      maxLength={10}
-                      value={emergencyPhone}
-                      onChange={(e) => setEmergencyPhone(e.target.value)}
-                      placeholder="10-digit phone number *"
-                      className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
-                    />
-                    <input
-                      type="text"
-                      value={emergencyName}
-                      onChange={(e) => setEmergencyName(e.target.value)}
-                      placeholder="Contact Name (optional)"
-                      className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-medium text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
-                    />
+                    <div>
+                      <input
+                        type="tel"
+                        required
+                        maxLength={10}
+                        value={emergencyPhone}
+                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        placeholder="10-digit phone number *"
+                        className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                          isEmergencySameAsMobile ? "border-rose-500 bg-rose-50/40" : "border-gray-300 bg-white"
+                        }`}
+                      />
+                      {isEmergencySameAsMobile && (
+                        <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                          <span>⚠️</span> Emergency contact cannot be your own mobile number.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={emergencyName}
+                        onChange={(e) => setEmergencyName(e.target.value)}
+                        placeholder="Contact Name (optional)"
+                        className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-medium text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -899,7 +967,7 @@ export default function TenantSelfOnboardingPage({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || isEmergencySameAsMobile}
               className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               {submitting ? (
@@ -1089,9 +1157,18 @@ export default function TenantSelfOnboardingPage({
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="10-digit mobile number"
-                      className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                      className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
+                        isPhoneAlreadyRegistered
+                          ? "border-rose-500 bg-rose-50/40 text-rose-950 focus:border-rose-500"
+                          : "border-gray-300 focus:border-[#c2652a]"
+                      }`}
                     />
                   </div>
+                  {isPhoneAlreadyRegistered && (
+                    <p className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1.5 animate-in fade-in">
+                      <span>⚠️</span> This mobile number is already registered with an active resident in this property.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1147,22 +1224,33 @@ export default function TenantSelfOnboardingPage({
                     <span>Emergency Contact Number *</span>
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
-                      type="tel"
-                      required
-                      maxLength={10}
-                      value={emergencyPhone}
-                      onChange={(e) => setEmergencyPhone(e.target.value)}
-                      placeholder="10-digit phone number *"
-                      className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
-                    />
-                    <input
-                      type="text"
-                      value={emergencyName}
-                      onChange={(e) => setEmergencyName(e.target.value)}
-                      placeholder="Contact Name (optional)"
-                      className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-medium text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
-                    />
+                    <div>
+                      <input
+                        type="tel"
+                        required
+                        maxLength={10}
+                        value={emergencyPhone}
+                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        placeholder="10-digit phone number *"
+                        className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                          isEmergencySameAsMobile ? "border-rose-500 bg-rose-50/40" : "border-gray-300 bg-white"
+                        }`}
+                      />
+                      {isEmergencySameAsMobile && (
+                        <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
+                          <span>⚠️</span> Emergency contact cannot be your own mobile number.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={emergencyName}
+                        onChange={(e) => setEmergencyName(e.target.value)}
+                        placeholder="Contact Name (optional)"
+                        className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-medium text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1396,7 +1484,7 @@ export default function TenantSelfOnboardingPage({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || isEmergencySameAsMobile || isPhoneAlreadyRegistered}
               className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               {submitting ? (
