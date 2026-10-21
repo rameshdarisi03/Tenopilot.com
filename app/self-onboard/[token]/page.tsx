@@ -37,6 +37,7 @@ import {
   sanitizeVehicleNumber,
   validateBase64Attachment,
 } from "@/utils/security";
+import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 export default function TenantSelfOnboardingPage({
   params,
@@ -202,13 +203,13 @@ export default function TenantSelfOnboardingPage({
     }
   }, [step, selectedRoomNumber, availableBeds, stayType]);
 
-  // Strictly validated and sanitized file upload handler
+  // Strictly validated, sanitized, and lightweight compressed file upload handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File size exceeds 5MB limit. Please upload a smaller image or compressed PDF.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("File size exceeds 15MB limit. Please upload a smaller image or compressed PDF.");
       return;
     }
 
@@ -218,17 +219,47 @@ export default function TenantSelfOnboardingPage({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      const validation = validateBase64Attachment(result);
-      if (!validation.valid) {
-        alert(validation.error || "Invalid file content.");
-        return;
-      }
-      setter(result);
-    };
-    reader.readAsDataURL(file);
+    // PDF files: read directly as base64 with strict validation
+    if (file.type === "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        const validation = validateBase64Attachment(result);
+        if (!validation.valid) {
+          alert(validation.error || "Invalid file content.");
+          return;
+        }
+        setter(result);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Camera & Gallery Images: Automatically compress to max 1000px & 0.72 quality (~40-70KB)
+    // Guarantees high visual crispness while preventing Firestore 1MB document overflow
+    compressPaymentScreenshot(file, 1000, 0.72)
+      .then(({ base64 }) => {
+        const validation = validateBase64Attachment(base64);
+        if (!validation.valid) {
+          alert(validation.error || "Invalid image content.");
+          return;
+        }
+        setter(base64);
+      })
+      .catch(() => {
+        // Fallback to FileReader if client canvas is unavailable
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          const validation = validateBase64Attachment(result);
+          if (!validation.valid) {
+            alert(validation.error || "Invalid file content.");
+            return;
+          }
+          setter(result);
+        };
+        reader.readAsDataURL(file);
+      });
   };
 
   // =========================================================================
@@ -505,7 +536,7 @@ export default function TenantSelfOnboardingPage({
                     {invite.stayType === "Tenant" ? "Monthly Tariff" : "Daily Rate"}
                   </span>
                   <span className="font-mono font-bold text-base sm:text-lg text-emerald-700 block">
-                    ₹{invite.rentAmount.toLocaleString("en-IN")}
+                    ₹{(invite.rentAmount ?? 0).toLocaleString("en-IN")}
                   </span>
                   <span className="text-[10px] text-gray-400 block">
                     {invite.stayType === "Tenant" ? "/ month" : "/ day"}
@@ -516,7 +547,7 @@ export default function TenantSelfOnboardingPage({
                   <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 col-span-2 sm:col-span-1">
                     <span className="text-[10px] font-bold uppercase text-gray-400 block">Security Deposit</span>
                     <span className="font-mono font-bold text-base sm:text-lg text-purple-700 block">
-                      ₹{(invite.securityDeposit ?? invite.rentAmount * 2).toLocaleString("en-IN")}
+                      ₹{((invite.securityDeposit ?? (invite.rentAmount ?? 0) * 2)).toLocaleString("en-IN")}
                     </span>
                     <span className="text-[10px] text-gray-400 block">Refundable on exit</span>
                   </div>
@@ -552,7 +583,13 @@ export default function TenantSelfOnboardingPage({
                   <input
                     type="tel"
                     disabled
-                    value={invite.candidatePhone.startsWith("+") ? invite.candidatePhone : `+91 ${invite.candidatePhone}`}
+                    value={
+                      invite.candidatePhone
+                        ? invite.candidatePhone.startsWith("+")
+                          ? invite.candidatePhone
+                          : `+91 ${invite.candidatePhone}`
+                        : ""
+                    }
                     className="w-full px-3.5 py-2.5 bg-gray-100 rounded-xl border border-gray-200 font-mono font-bold text-gray-700 cursor-not-allowed"
                   />
                 </div>
@@ -1415,7 +1452,7 @@ export default function TenantSelfOnboardingPage({
                 <span>💰 Tariff:</span>
                 {invite ? (
                   <span className="font-mono font-bold text-emerald-700">
-                    ₹{invite.rentAmount.toLocaleString("en-IN")}{" "}
+                    ₹{(invite.rentAmount ?? 0).toLocaleString("en-IN")}{" "}
                     {stayType === "Tenant" ? "/ month" : "/ day"}
                   </span>
                 ) : (

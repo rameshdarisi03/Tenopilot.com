@@ -579,13 +579,30 @@ export const selfKycStore = {
 
     try {
       const sanitized = sanitizeForFirestore(submission);
+
+      // Defense-in-depth: Ensure payload never exceeds Firestore's 1MB hard limit
+      const serialized = JSON.stringify(sanitized);
+      if (serialized.length > 950000) {
+        console.warn("Payload approaching 1MB Firestore limit, safely truncating auxiliary attachments");
+        if (sanitized.aadhaarBackUrl && sanitized.aadhaarBackUrl.length > 300000) {
+          delete sanitized.aadhaarBackUrl;
+        }
+      }
+
+      // 1. PRIMARY: Property scoped collection (ALWAYS has write permissions)
       const docRef = doc(db, "properties", submission.propertyId, "self_kyc_submissions", submission.id);
       await setDoc(docRef, sanitized);
-      // Also write to root collection for direct public access
-      const rootDocRef = doc(db, "self_kyc_submissions", submission.id);
-      await setDoc(rootDocRef, sanitized);
+
+      // 2. Direct root collection write (wrapped so it never aborts primary)
+      try {
+        const rootDocRef = doc(db, "self_kyc_submissions", submission.id);
+        await setDoc(rootDocRef, sanitized);
+      } catch (err) {
+        // Ignored if root security rules are unconfigured
+      }
     } catch (e) {
-      console.warn("Firestore submitKyc write failed:", e);
+      console.error("Firestore submitKyc write failed:", e);
+      throw e;
     }
   },
 

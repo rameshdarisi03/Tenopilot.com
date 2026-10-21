@@ -347,7 +347,9 @@ export default function SelfKycDeskPage({
   const handleCopyInviteUrl = (inviteToken: string) => {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
     const url = `${origin}/self-onboard/${inviteToken}?p=${propertyId}`;
-    navigator.clipboard?.writeText(url);
+    if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
     triggerToast("📋 Invite link copied to clipboard!", "info");
   };
 
@@ -701,14 +703,14 @@ export default function SelfKycDeskPage({
                           <div className="flex justify-between items-center">
                             <span className="text-gray-500 font-medium">Monthly Rent:</span>
                             <span className="font-mono font-bold text-[#c2652a]">
-                              ₹{sub.rentAmount.toLocaleString("en-IN")} / mo
+                              ₹{(sub.rentAmount ?? 0).toLocaleString("en-IN")} / mo
                             </span>
                           </div>
-                          {sub.securityDeposit !== undefined && (
+                          {sub.securityDeposit != null && (
                             <div className="flex justify-between items-center">
                               <span className="text-gray-500 font-medium">Security Deposit:</span>
                               <span className="font-mono font-bold text-gray-900">
-                                ₹{sub.securityDeposit.toLocaleString("en-IN")}
+                                ₹{Number(sub.securityDeposit).toLocaleString("en-IN")}
                               </span>
                             </div>
                           )}
@@ -818,7 +820,7 @@ export default function SelfKycDeskPage({
                               </span>
                             </td>
                             <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
-                              ₹{inv.rentAmount.toLocaleString("en-IN")}/mo
+                              ₹{(inv.rentAmount ?? 0).toLocaleString("en-IN")}/mo
                             </td>
                             <td className="py-3.5 px-4">
                               <div className="flex flex-col gap-1 items-start">
@@ -835,6 +837,16 @@ export default function SelfKycDeskPage({
                               </div>
                             </td>
                             <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                              <a
+                                href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                                title="Open candidate onboarding link in new tab"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Open</span>
+                              </a>
                               <button
                                 onClick={() => handleShareInviteViaWhatsApp(inv)}
                                 className="px-2.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
@@ -924,7 +936,7 @@ export default function SelfKycDeskPage({
                               Room {sub.roomNumber} ({sub.bedCode})
                             </td>
                             <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
-                              ₹{sub.rentAmount.toLocaleString("en-IN")}/mo
+                              ₹{(sub.rentAmount ?? 0).toLocaleString("en-IN")}/mo
                             </td>
                             <td className="py-3.5 px-4 text-gray-600">
                               <span className="font-semibold">{sub.reviewedBy || "Staff"}</span>
@@ -1362,14 +1374,14 @@ export default function SelfKycDeskPage({
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 font-medium">Monthly Rent:</span>
                     <span className="font-mono font-bold text-[#c2652a]">
-                      ₹{activeReviewSubmission.rentAmount.toLocaleString("en-IN")} / mo
+                      ₹{(activeReviewSubmission.rentAmount ?? 0).toLocaleString("en-IN")} / mo
                     </span>
                   </div>
-                  {activeReviewSubmission.securityDeposit !== undefined && (
+                  {activeReviewSubmission.securityDeposit != null && (
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600 font-medium">Security Deposit:</span>
                       <span className="font-mono font-bold text-gray-900">
-                        ₹{activeReviewSubmission.securityDeposit.toLocaleString("en-IN")}
+                        ₹{Number(activeReviewSubmission.securityDeposit).toLocaleString("en-IN")}
                       </span>
                     </div>
                   )}
