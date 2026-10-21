@@ -88,6 +88,15 @@ export default function StaffManagementPage({
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tenopilot_current_property_id", propertyId);
+      if (propertySettings?.propertyName) {
+        localStorage.setItem("tenopilot_current_property_name", propertySettings.propertyName);
+      }
+    }
+  }, [propertyId, propertySettings]);
+
+  useEffect(() => {
     staffStore.initFirebaseListener(propertyId);
     setStaffList(staffStore.getStaff(propertyId));
 
@@ -445,7 +454,7 @@ export default function StaffManagementPage({
               </div>
 
               <Link
-                href="/staff-management"
+                href={`/staff-management?propertyId=${propertyId}`}
                 className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] text-white text-xs font-bold transition-all shadow-lg hover:shadow-orange-950/50 flex items-center gap-2 active:scale-95 cursor-pointer"
               >
                 <Users className="w-4 h-4" /> Manage Organization Staff →
@@ -469,7 +478,7 @@ export default function StaffManagementPage({
               </div>
 
               <Link
-                href="/staff-management"
+                href={`/staff-management?propertyId=${propertyId}`}
                 className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a8451f] text-white font-bold text-xs shadow-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto transition-all"
               >
                 <span>Go to Staff Management</span>
@@ -985,6 +994,20 @@ export default function StaffManagementPage({
                   </select>
                 </div>
               )}
+
+              {/* Assigned Building */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Assigned Front Desk Building</label>
+                <div className="flex items-center justify-between p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs font-bold text-amber-950">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#c2652a] shrink-0" />
+                    <span>{propertySettings.propertyName}</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-[#964407] border border-amber-300">
+                    Default (Same Property)
+                  </span>
+                </div>
+              </div>
 
               {/* Account Status */}
               <div>

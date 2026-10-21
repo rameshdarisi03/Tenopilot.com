@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
+import { propertySettingsStore } from "@/constants/propertySettings";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   reauthenticateCurrentAccount,
@@ -105,6 +106,29 @@ export default function StaffManagementPage() {
 
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
 
+  const receptionistProperties = properties.filter(
+    (p) => p.name !== "All Properties" && p.id !== "*"
+  );
+
+  const resolvedCurrentPropertyName = (() => {
+    if (receptionistProperties.length > 0) {
+      const match = receptionistProperties.find((p) => p.id === assignedPropertyId);
+      if (match && match.name !== "All Properties") return match.name;
+      if (receptionistProperties[0].name !== "All Properties") return receptionistProperties[0].name;
+    }
+    if (assignedPropertyId) {
+      const s = propertySettingsStore.getSettings(assignedPropertyId);
+      if (s?.propertyName && s.propertyName !== "All Properties" && s.propertyName !== "Sunshine Luxury PG") {
+        return s.propertyName;
+      }
+    }
+    if (typeof window !== "undefined") {
+      const savedName = localStorage.getItem("tenopilot_current_property_name");
+      if (savedName && savedName !== "All Properties") return savedName;
+    }
+    return "Assigned Building";
+  })();
+
   useEffect(() => {
     // Initialize Real-time Firestore Portfolio Listener
     // If user is Property Admin or has organization owner, listen using appropriate owner email if known
@@ -135,25 +159,72 @@ export default function StaffManagementPage() {
         } catch {}
       }
 
+      if (adminStaffDoc?.ownerEmail) {
+        portfolioStore.initFirebaseListener(adminStaffDoc.ownerEmail);
+      }
+
+      const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const queryPropId = urlParams?.get("propertyId") || "";
+      const localPropId = typeof window !== "undefined" ? localStorage.getItem("tenopilot_current_property_id") || "" : "";
+      const localPropName = typeof window !== "undefined" ? localStorage.getItem("tenopilot_current_property_name") || "" : "";
+
       const assignedPropId =
+        queryPropId ||
+        localPropId ||
         adminStaffDoc?.assignedPropertyId ||
         profile?.assignedPropertyId ||
         savedSession?.assignedPropertyId ||
         "";
 
-      const assignedPropName =
-        adminStaffDoc?.propertyName ||
-        profile?.propertyName ||
-        savedSession?.propertyName ||
-        "Assigned Property";
+      let assignedPropName = "";
+      if (queryPropId) {
+        const s = propertySettingsStore.getSettings(queryPropId);
+        if (s?.propertyName && s.propertyName !== "Sunshine Luxury PG" && s.propertyName !== "All Properties") {
+          assignedPropName = s.propertyName;
+        }
+      }
+      if (!assignedPropName && localPropId) {
+        const s = propertySettingsStore.getSettings(localPropId);
+        if (s?.propertyName && s.propertyName !== "Sunshine Luxury PG" && s.propertyName !== "All Properties") {
+          assignedPropName = s.propertyName;
+        }
+      }
+      if (!assignedPropName && localPropName && localPropName !== "All Properties") {
+        assignedPropName = localPropName;
+      }
+      if (!assignedPropName && adminStaffDoc?.propertyName && adminStaffDoc.propertyName !== "All Properties") {
+        assignedPropName = adminStaffDoc.propertyName;
+      }
+      if (!assignedPropName && profile?.propertyName && profile.propertyName !== "All Properties") {
+        assignedPropName = profile.propertyName;
+      }
+      if (!assignedPropName && savedSession?.propertyName && savedSession.propertyName !== "All Properties") {
+        assignedPropName = savedSession.propertyName;
+      }
+
+      if (!assignedPropName && assignedPropId) {
+        const liveMatch = portfolioStore.getProperties().find((p) => p.id === assignedPropId);
+        if (liveMatch && liveMatch.name !== "All Properties") {
+          assignedPropName = liveMatch.name;
+        } else {
+          const s = propertySettingsStore.getSettings(assignedPropId);
+          if (s?.propertyName && s.propertyName !== "Sunshine Luxury PG" && s.propertyName !== "All Properties") {
+            assignedPropName = s.propertyName;
+          }
+        }
+      }
+
+      if (!assignedPropName || assignedPropName === "All Properties") {
+        assignedPropName = "Assigned Building";
+      }
 
       if (!isMasterAdmin && assignedPropId && assignedPropId !== "sunshine-pg") {
-        // Property Admin scope: strictly their assigned building(s)
+        // Property Admin scope: strictly their assigned building
         propList = [{ id: assignedPropId, name: assignedPropName }];
       } else {
         const liveProps = portfolioStore.getProperties();
         propList = liveProps
-          .filter((p) => p.id !== "sunshine-pg" && p.name !== "Sunshine Luxury PG")
+          .filter((p) => p.id !== "sunshine-pg" && p.name !== "Sunshine Luxury PG" && p.name !== "All Properties" && p.id !== "*")
           .map((p) => ({ id: p.id, name: p.name }));
 
         if (propList.length === 0 && assignedPropId && assignedPropId !== "sunshine-pg") {
@@ -163,7 +234,13 @@ export default function StaffManagementPage() {
 
       setProperties(propList);
       if (propList.length > 0) {
-        setAssignedPropertyId((prev) => (!prev || prev === "sunshine-pg" ? propList[0].id : prev));
+        setAssignedPropertyId((prev) =>
+          prev && propList.some((p) => p.id === prev)
+            ? prev
+            : assignedPropId && propList.some((p) => p.id === assignedPropId)
+            ? assignedPropId
+            : propList[0].id
+        );
       }
     };
 
@@ -683,9 +760,13 @@ export default function StaffManagementPage() {
         return;
       }
 
-      const primaryPropId = role === "admin" ? selectedPropertyIds[0] : assignedPropertyId;
+      const primaryPropId =
+        role === "admin"
+          ? selectedPropertyIds[0] || assignedPropertyId
+          : assignedPropertyId || (receptionistProperties[0]?.id || "");
+
       const selectedProps = properties.filter((p) =>
-        role === "admin" ? selectedPropertyIds.includes(p.id) : p.id === assignedPropertyId
+        role === "admin" ? selectedPropertyIds.includes(p.id) : p.id === primaryPropId
       );
 
       const propDisplayName =
@@ -693,7 +774,7 @@ export default function StaffManagementPage() {
           ? selectedPropertyIds.length === properties.length
             ? "All Properties"
             : selectedProps.map((p) => p.name).join(", ")
-          : selectedProps[0]?.name || "Assigned PG";
+          : resolvedCurrentPropertyName || selectedProps[0]?.name || "Assigned PG";
 
       // For Property Admins creating Receptionists, inherit the organization's owner attributes
       let staffOrgId = profile?.organizationId || `org_${profile?.uid || "admin"}`;
@@ -1311,17 +1392,29 @@ export default function StaffManagementPage() {
                   <label className="block font-bold text-gray-700 mb-1">
                     Assigned Front Desk Building *
                   </label>
-                  <select
-                    value={assignedPropertyId}
-                    onChange={(e) => setAssignedPropertyId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
-                  >
-                    {properties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                  {activeRole === "admin" || receptionistProperties.length <= 1 ? (
+                    <div className="flex items-center justify-between p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs font-bold text-amber-950">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        <span>{resolvedCurrentPropertyName}</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-[#964407] border border-amber-300">
+                        Default (Same Property)
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={assignedPropertyId}
+                      onChange={(e) => setAssignedPropertyId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                    >
+                      {receptionistProperties.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               )}
 
@@ -1655,18 +1748,30 @@ export default function StaffManagementPage() {
                   </div>
                 ) : (
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">Assigned Property *</label>
-                    <select
-                      value={editAssignedPropertyId}
-                      onChange={(e) => setEditAssignedPropertyId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
-                    >
-                      {properties.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block font-bold text-gray-700 mb-1">Assigned Front Desk Building *</label>
+                    {activeRole === "admin" || receptionistProperties.length <= 1 ? (
+                      <div className="flex items-center justify-between p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs font-bold text-amber-950">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-[#c2652a] shrink-0" />
+                          <span>{editingStaff.propertyName || resolvedCurrentPropertyName}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-[#964407] border border-amber-300">
+                          Default (Same Property)
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        value={editAssignedPropertyId}
+                        onChange={(e) => setEditAssignedPropertyId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                      >
+                        {receptionistProperties.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
 
