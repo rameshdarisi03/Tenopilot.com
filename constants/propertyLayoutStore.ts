@@ -8,10 +8,17 @@ import { Occupant } from "./mockOccupants";
 export interface BedSlotConfig {
   id: string;
   bedCode: string;
-  status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest";
+  status: "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" | "Hold";
   occupant?: Occupant;
   vacatingDate?: string;
   guestCheckoutDate?: string;
+  holdCandidate?: {
+    name: string;
+    phone: string;
+    email?: string;
+    inviteId?: string;
+    heldAt?: string;
+  };
 }
 
 export interface RoomConfig {

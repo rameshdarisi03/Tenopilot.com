@@ -1,0 +1,1355 @@
+"use client";
+
+import { use, useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import {
+  ScanFace,
+  Users,
+  QrCode,
+  Send,
+  Plus,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Eye,
+  ShieldCheck,
+  Phone,
+  Mail,
+  Home,
+  Car,
+  Building2,
+  Calendar,
+  Lock,
+  ArrowRight,
+  Printer,
+  Sparkles,
+  ExternalLink,
+  ChevronDown,
+  X,
+  FileText,
+  UserCheck2,
+  AlertCircle,
+  Copy,
+  Check,
+  MessageSquare,
+  RefreshCw,
+  Search,
+} from "lucide-react";
+import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
+import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
+import {
+  selfKycStore,
+  SelfKycSubmission,
+  SelfKycInvite,
+} from "@/lib/selfKycStore";
+import { propertyStore } from "@/constants/propertyLayoutStore";
+import { occupantStore } from "@/constants/mockOccupants";
+import { propertySettingsStore } from "@/constants/propertySettings";
+import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
+import { buildWhatsAppUrl } from "@/utils/security";
+import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
+
+export default function SelfKycDeskPage({
+  params,
+}: {
+  params: Promise<{ propertyId: string }>;
+}) {
+  const resolvedParams = use(params);
+  const propertyId = resolvedParams?.propertyId || "ramesh-residencies";
+
+  const [activeTab, setActiveTab] = useState<"PENDING" | "INVITES" | "APPROVED">("PENDING");
+  const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
+  const [invites, setInvites] = useState<SelfKycInvite[]>([]);
+  const [propertyStructure, setPropertyStructure] = useState(() =>
+    propertyStore.getStructure(propertyId)
+  );
+
+  // Standee Modal State
+  const [showStandeeModal, setShowStandeeModal] = useState(false);
+
+  // Send Invite Modal State
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteStayType, setInviteStayType] = useState<"Tenant" | "Guest">("Tenant");
+  const [inviteRoomNumber, setInviteRoomNumber] = useState("");
+  const [inviteBedCode, setInviteBedCode] = useState("");
+  const [inviteCandidateName, setInviteCandidateName] = useState("");
+  const [inviteCandidatePhone, setInviteCandidatePhone] = useState("");
+  const [inviteCountryCode, setInviteCountryCode] = useState("+91");
+  const [inviteCandidateEmail, setInviteCandidateEmail] = useState("");
+  const [inviteRentAmount, setInviteRentAmount] = useState<number>(12000);
+  const [inviteDepositAmount, setInviteDepositAmount] = useState<number>(24000);
+  const [inviteDispatchLoading, setInviteDispatchLoading] = useState(false);
+
+  // Review & Verification Modal State
+  const [activeReviewSubmission, setActiveReviewSubmission] = useState<SelfKycSubmission | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [showRejectionInput, setShowRejectionInput] = useState(false);
+  const [zoomDocUrl, setZoomDocUrl] = useState<string | null>(null);
+  const [reviewActionLoading, setReviewActionLoading] = useState(false);
+
+  // Toast Notification
+  const [toastMessage, setToastMessage] = useState<{
+    text: string;
+    type?: "success" | "error" | "info";
+  } | null>(null);
+
+  const triggerToast = (text: string, type: "success" | "error" | "info" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Subscriptions to self-kyc store and layout store
+  useEffect(() => {
+    propertyStore.initFirebaseListener(propertyId);
+    setPropertyStructure(propertyStore.getStructure(propertyId));
+
+    const unsubStructure = propertyStore.subscribe(() => {
+      setPropertyStructure(propertyStore.getStructure(propertyId));
+    });
+
+    const unsubSubs = selfKycStore.subscribeSubmissions(propertyId, (list) => {
+      setSubmissions(list);
+    });
+
+    const unsubInvs = selfKycStore.subscribeInvites(propertyId, (list) => {
+      setInvites(list);
+    });
+
+    return () => {
+      unsubStructure();
+      unsubSubs();
+      unsubInvs();
+    };
+  }, [propertyId]);
+
+  // Derived lists
+  const pendingSubmissions = useMemo(
+    () => submissions.filter((s) => s.status === "PENDING"),
+    [submissions]
+  );
+  const approvedSubmissions = useMemo(
+    () => submissions.filter((s) => s.status === "APPROVED"),
+    [submissions]
+  );
+  const activeInvites = useMemo(
+    () => invites.filter((i) => i.status === "ACTIVE"),
+    [invites]
+  );
+
+  // List of available rooms & beds for invite creation
+  const availableBeds = useMemo(() => {
+    const list: { roomNumber: string; bedCode: string; floorName: string; tariff: number }[] = [];
+    propertyStructure.forEach((fl) => {
+      fl.rooms.forEach((rm) => {
+        rm.beds.forEach((bd) => {
+          if (bd.status === "Available") {
+            list.push({
+              roomNumber: rm.roomNumber,
+              bedCode: bd.bedCode,
+              floorName: fl.floorName,
+              tariff: rm.customRentAmount || 12000,
+            });
+          }
+        });
+      });
+    });
+    return list;
+  }, [propertyStructure]);
+
+  // When room changes in invite modal, auto-pick first available bed and tariff
+  const availableRoomsList = useMemo(() => {
+    const set = new Set<string>();
+    availableBeds.forEach((b) => set.add(b.roomNumber));
+    return Array.from(set);
+  }, [availableBeds]);
+
+  const handleRoomSelect = (roomNum: string) => {
+    setInviteRoomNumber(roomNum);
+    const firstBed = availableBeds.find((b) => b.roomNumber === roomNum);
+    if (firstBed) {
+      setInviteBedCode(firstBed.bedCode);
+      setInviteRentAmount(firstBed.tariff);
+      setInviteDepositAmount(firstBed.tariff * 2);
+    }
+  };
+
+  // Open Invite Modal helper
+  const handleOpenInviteModal = () => {
+    if (availableBeds.length > 0) {
+      const first = availableBeds[0];
+      setInviteRoomNumber(first.roomNumber);
+      setInviteBedCode(first.bedCode);
+      setInviteRentAmount(first.tariff);
+      setInviteDepositAmount(first.tariff * 2);
+    } else {
+      setInviteRoomNumber("");
+      setInviteBedCode("");
+    }
+    setInviteCandidateName("");
+    setInviteCandidatePhone("");
+    setInviteCandidateEmail("");
+    setShowInviteModal(true);
+  };
+
+  // Handle Send Invite Submit (Dispatches WhatsApp + Email, Puts Bed on Hold)
+  const handleSendInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteRoomNumber || !inviteBedCode) {
+      triggerToast("Please select an available room and bed.", "error");
+      return;
+    }
+    const cleanPhone = inviteCandidatePhone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      triggerToast("Mobile phone number must be at least 10 digits.", "error");
+      return;
+    }
+
+    setInviteDispatchLoading(true);
+
+    const token = `inv-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const fullPhone = `${inviteCountryCode} ${cleanPhone}`;
+
+    const newInvite: SelfKycInvite = {
+      id: token,
+      propertyId,
+      stayType: inviteStayType,
+      roomNumber: inviteRoomNumber,
+      bedCode: inviteBedCode,
+      rentAmount: inviteRentAmount,
+      securityDeposit: inviteStayType === "Tenant" ? inviteDepositAmount : undefined,
+      guestDailyRate: inviteStayType === "Guest" ? Math.round(inviteRentAmount / 30) : undefined,
+      candidateName: inviteCandidateName.trim(),
+      candidatePhone: fullPhone,
+      candidateEmail: inviteCandidateEmail.trim() || undefined,
+      status: "ACTIVE",
+      whatsappStatus: "SENT",
+      emailStatus: inviteCandidateEmail ? "SENT" : undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    // 1. Create Invite & Put Bed on Hold in propertyStore & Firestore
+    await selfKycStore.createInvite(newInvite);
+
+    // 2. Build portal invite link
+    const portalOrigin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+    const inviteLink = `${portalOrigin}/self-onboard/${token}`;
+
+    // 3. Attempt WhatsApp dispatch
+    try {
+      const settings = propertySettingsStore.getSettings(propertyId);
+      const propName = settings?.propertyName || "Ramesh Residencies";
+      const waMsg =
+        `Hello ${newInvite.candidateName}! 👋\n\n` +
+        `Welcome to *${propName}*. Your bed has been placed on hold:\n` +
+        `🏠 *Room ${newInvite.roomNumber} (Bed ${newInvite.bedCode})*\n` +
+        `💰 *Tariff*: ₹${newInvite.rentAmount.toLocaleString("en-IN")} / month\n\n` +
+        `👉 Please complete your 2-minute digital Self-KYC check-in here:\n` +
+        `${inviteLink}\n\n` +
+        `Takes under 2 minutes. Once submitted, management will approve your check-in!`;
+
+      // Open or dispatch WhatsApp
+      await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: fullPhone,
+          message: waMsg,
+          propertyId,
+        }),
+      }).catch((e) => console.warn("WhatsApp dispatch API error:", e));
+    } catch (e) {
+      console.warn("Dispatch error:", e);
+    }
+
+    setInviteDispatchLoading(false);
+    setShowInviteModal(false);
+    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName}! Bed ${inviteRoomNumber}-${inviteBedCode} is now ON HOLD 🔒`);
+  };
+
+  // Revoke Invite (Returns bed to Available)
+  const handleRevokeInvite = async (inviteId: string, roomNum: string, bedCode: string) => {
+    if (!confirm(`Are you sure you want to cancel this invite? Bed ${roomNum}-${bedCode} will return to Available.`)) {
+      return;
+    }
+    await selfKycStore.revokeInvite(propertyId, inviteId);
+    triggerToast(`Invite canceled. Bed ${roomNum}-${bedCode} is now Available 🟢`, "info");
+  };
+
+  // Copy Invite URL
+  const handleCopyInviteUrl = (inviteToken: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+    const url = `${origin}/self-onboard/${inviteToken}`;
+    navigator.clipboard?.writeText(url);
+    triggerToast("📋 Invite link copied to clipboard!", "info");
+  };
+
+  // Approve Submission
+  const handleApproveSubmission = async () => {
+    if (!activeReviewSubmission) return;
+    setReviewActionLoading(true);
+
+    try {
+      const createdResident = await selfKycStore.approveSubmission(
+        activeReviewSubmission,
+        "PG Admin"
+      );
+      fireCelebrationConfetti();
+      triggerToast(
+        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${createdResident.bedCode}) updated.`
+      );
+      setActiveReviewSubmission(null);
+    } catch (e) {
+      console.error(e);
+      triggerToast("Error approving KYC submission. Please try again.", "error");
+    } finally {
+      setReviewActionLoading(false);
+    }
+  };
+
+  // Reject Submission
+  const handleRejectSubmission = async () => {
+    if (!activeReviewSubmission) return;
+    if (!rejectionReason.trim()) {
+      triggerToast("Please provide a reason for rejection / re-upload.", "error");
+      return;
+    }
+
+    setReviewActionLoading(true);
+    try {
+      await selfKycStore.rejectSubmission(
+        propertyId,
+        activeReviewSubmission.id,
+        rejectionReason.trim()
+      );
+      triggerToast(
+        `Submission for ${activeReviewSubmission.name} rejected. Bed ${activeReviewSubmission.roomNumber}-${activeReviewSubmission.bedCode} released to Available.`
+      );
+      setActiveReviewSubmission(null);
+      setShowRejectionInput(false);
+      setRejectionReason("");
+    } catch (e) {
+      console.error(e);
+      triggerToast("Error rejecting submission.", "error");
+    } finally {
+      setReviewActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-[#fcf9f8] text-gray-900 font-sans antialiased overflow-hidden selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
+      {/* Sidebar */}
+      <PropertySidebar propertyId={propertyId} />
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Global Property Header */}
+        <PropertyHeader propertyId={propertyId} />
+
+        {/* Floating Toast Notification */}
+        {toastMessage && (
+          <div
+            className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold animate-in fade-in slide-in-from-top-4 ${
+              toastMessage.type === "error"
+                ? "bg-red-50 text-red-900 border-red-300"
+                : toastMessage.type === "info"
+                ? "bg-blue-50 text-blue-900 border-blue-300"
+                : "bg-emerald-50 text-emerald-950 border-emerald-300"
+            }`}
+          >
+            {toastMessage.type === "error" ? (
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            )}
+            <span>{toastMessage.text}</span>
+          </div>
+        )}
+
+        {/* Scrollable Main Body */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+          {/* Header & Quick Action Buttons */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+            <div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mb-1">
+                <Link href={`/p/${propertyId}/overview`} className="hover:underline">
+                  Portfolio
+                </Link>
+                <span>/</span>
+                <span className="text-[#c2652a] font-bold">Self-KYC Desk</span>
+              </div>
+              <h1 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2.5">
+                <span>Self-KYC Digital Gate Desk</span>
+                {pendingSubmissions.length > 0 && (
+                  <span className="text-xs font-black bg-rose-500 text-white px-2.5 py-0.5 rounded-full shadow-xs animate-pulse">
+                    {pendingSubmissions.length} Pending
+                  </span>
+                )}
+              </h1>
+              <p className="text-xs text-gray-500 mt-1 max-w-xl">
+                Dispatch invite links with automated bed hold, print reception desk QR standees, and review submitted tenant documents with 1-click check-in.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                onClick={() => setShowStandeeModal(true)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+              >
+                <Printer className="w-4 h-4 text-[#c2652a]" />
+                <span>4" × 6" Desk Standee QR</span>
+              </button>
+
+              <button
+                onClick={handleOpenInviteModal}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#964407] to-[#c2652a] hover:opacity-95 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Send Self-KYC Invite</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Metric Overview Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Pending Verifications
+                </p>
+                <p className="font-serif text-2xl font-extrabold text-rose-600 mt-0.5">
+                  {pendingSubmissions.length}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Awaiting owner sign-off</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <Clock className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Active Invites (On Hold)
+                </p>
+                <p className="font-serif text-2xl font-extrabold text-blue-600 mt-0.5">
+                  {activeInvites.length}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Beds locked for candidates</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Lock className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Approved Residents
+                </p>
+                <p className="font-serif text-2xl font-extrabold text-emerald-600 mt-0.5">
+                  {approvedSubmissions.length}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Digital check-ins completed</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Available Beds Matrix
+                </p>
+                <p className="font-serif text-2xl font-extrabold text-amber-800 mt-0.5">
+                  {availableBeds.length}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Ready for new check-in</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                <Home className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("PENDING")}
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "PENDING"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span>Pending Verifications</span>
+              {pendingSubmissions.length > 0 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500 text-white font-black">
+                  {pendingSubmissions.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("INVITES")}
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "INVITES"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span>Active Invites (On Hold)</span>
+              {activeInvites.length > 0 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold">
+                  {activeInvites.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("APPROVED")}
+              className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === "APPROVED"
+                  ? "border-[#c2652a] text-[#c2652a]"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span>Approved Residents ({approvedSubmissions.length})</span>
+            </button>
+          </div>
+
+          {/* TAB 1: PENDING VERIFICATIONS */}
+          {activeTab === "PENDING" && (
+            <div className="space-y-4">
+              {pendingSubmissions.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-2xl font-bold">
+                    ✓
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    All caught up! Zero pending KYC submissions.
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    New applicants who scan the reception desk QR or complete a self-KYC link will appear here for your review and approval.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pendingSubmissions.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="p-5 rounded-3xl bg-white border border-gray-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                    >
+                      <div>
+                        {/* Top Badge Row */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                            sub.stayType === "Guest"
+                              ? "bg-purple-100 text-purple-900 border border-purple-200"
+                              : "bg-blue-100 text-blue-900 border border-blue-200"
+                          }`}>
+                            {sub.stayType === "Guest" ? "🟣 Guest Stay" : "🔵 Monthly Tenant"}
+                          </span>
+
+                          <span className="text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-rose-500" />
+                            <span>Pending Review</span>
+                          </span>
+                        </div>
+
+                        {/* Candidate Header */}
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={sub.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sub.name)}`}
+                            alt={sub.name}
+                            className="w-12 h-12 rounded-2xl object-cover border border-gray-200 bg-gray-50"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-gray-900 truncate">
+                              {sub.name}
+                            </h4>
+                            <p className="text-xs text-gray-500 font-mono truncate">
+                              {sub.phone}
+                            </p>
+                            <span className="text-[10px] text-gray-400 block mt-0.5">
+                              {sub.submissionType === "WALK_IN_QR" ? "Lobby QR Scan" : "Invite Link"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Room & Tariff Box */}
+                        <div className="mt-3.5 p-3 rounded-2xl bg-[#fff8f6] border border-[#d7c2b9]/60 text-xs space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Assigned Bed:</span>
+                            <span className="font-bold text-gray-900">
+                              Room {sub.roomNumber} ({sub.bedCode})
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Monthly Rent:</span>
+                            <span className="font-mono font-bold text-[#c2652a]">
+                              ₹{sub.rentAmount.toLocaleString("en-IN")} / mo
+                            </span>
+                          </div>
+                          {sub.securityDeposit !== undefined && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-500 font-medium">Security Deposit:</span>
+                              <span className="font-mono font-bold text-gray-900">
+                                ₹{sub.securityDeposit.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                            <span className="text-gray-500 font-medium">Move-In Date:</span>
+                            <span className="font-semibold text-gray-900">
+                              {sub.joiningDate}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Document Proof Badge Indicator */}
+                        <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-gray-600">
+                          <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                            <span>Aadhaar: {sub.aadhaarNumber ? `✓ ${sub.aadhaarNumber.slice(-4)}` : "Uploaded"}</span>
+                          </span>
+                          {sub.vehicleNumbers && sub.vehicleNumbers.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200 flex items-center gap-1 font-mono">
+                              <Car className="w-3 h-3 text-slate-600" />
+                              <span>{sub.vehicleNumbers.length} Vehicle</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Review Button */}
+                      <button
+                        onClick={() => {
+                          setActiveReviewSubmission(sub);
+                          setShowRejectionInput(false);
+                          setRejectionReason("");
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Review & Verify KYC</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: ACTIVE INVITES */}
+          {activeTab === "INVITES" && (
+            <div className="space-y-4">
+              {activeInvites.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-2xl font-bold">
+                    ✉️
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    No active self-KYC invite links.
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Click <strong>"+ Send Self-KYC Invite"</strong> to generate a link for an incoming tenant and lock their room on hold.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#fff8f6] border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
+                        <tr>
+                          <th className="py-3 px-4">Candidate</th>
+                          <th className="py-3 px-4">Contact</th>
+                          <th className="py-3 px-4">Reserved Bed</th>
+                          <th className="py-3 px-4">Tariff</th>
+                          <th className="py-3 px-4">Delivery Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {activeInvites.map((inv) => (
+                          <tr key={inv.id} className="hover:bg-gray-50/80 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-gray-900">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                  inv.stayType === "Guest"
+                                    ? "bg-purple-100 text-purple-900"
+                                    : "bg-blue-100 text-blue-900"
+                                }`}>
+                                  {inv.stayType}
+                                </span>
+                                <span>{inv.candidateName}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
+                              <div>{inv.candidatePhone}</div>
+                              {inv.candidateEmail && (
+                                <div className="text-[10px] font-sans text-gray-400">{inv.candidateEmail}</div>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-gray-900">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-900 border border-rose-300 font-mono text-[11px]">
+                                <Lock className="w-3 h-3 text-rose-600" />
+                                <span>Room {inv.roomNumber} ({inv.bedCode})</span>
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
+                              ₹{inv.rentAmount.toLocaleString("en-IN")}/mo
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>WhatsApp Sent</span>
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                onClick={() => handleCopyInviteUrl(inv.id)}
+                                className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer"
+                                title="Copy self-onboard link"
+                              >
+                                <Copy className="w-3.5 h-3.5 inline mr-1" /> Link
+                              </button>
+                              <button
+                                onClick={() => handleRevokeInvite(inv.id, inv.roomNumber, inv.bedCode)}
+                                className="px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all cursor-pointer"
+                                title="Cancel invite & release bed to available"
+                              >
+                                <X className="w-3.5 h-3.5 inline mr-1" /> Revoke
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: APPROVED RESIDENTS */}
+          {activeTab === "APPROVED" && (
+            <div className="space-y-4">
+              {approvedSubmissions.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-gray-200 shadow-2xs space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mx-auto text-2xl font-bold">
+                    📋
+                  </div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    No approved self-KYC history yet.
+                  </h3>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Approved applicants will be stored here for future compliance audit and quick navigation to their tenant profiles.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-gray-200 shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#fff8f6] border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
+                        <tr>
+                          <th className="py-3 px-4">Resident</th>
+                          <th className="py-3 px-4">Mobile</th>
+                          <th className="py-3 px-4">Allocated Room</th>
+                          <th className="py-3 px-4">Tariff</th>
+                          <th className="py-3 px-4">Approved By</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {approvedSubmissions.map((sub) => (
+                          <tr key={sub.id} className="hover:bg-gray-50/80 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-gray-900">
+                              <div className="flex items-center gap-2.5">
+                                <img
+                                  src={sub.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sub.name)}`}
+                                  alt={sub.name}
+                                  className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                />
+                                <div>
+                                  <span className="block font-bold">{sub.name}</span>
+                                  <span className="text-[10px] font-sans text-gray-400">
+                                    Joined on {sub.joiningDate}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
+                              {sub.phone}
+                            </td>
+                            <td className="py-3.5 px-4 font-bold text-gray-900">
+                              Room {sub.roomNumber} ({sub.bedCode})
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
+                              ₹{sub.rentAmount.toLocaleString("en-IN")}/mo
+                            </td>
+                            <td className="py-3.5 px-4 text-gray-600">
+                              <span className="font-semibold">{sub.reviewedBy || "Staff"}</span>
+                              <span className="block text-[10px] text-gray-400">
+                                {sub.reviewedAt ? new Date(sub.reviewedAt).toLocaleDateString("en-IN") : "Verified"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <Link
+                                href={`/p/${propertyId}/tenants`}
+                                className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-800 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Directory</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: SEND SELF-KYC INVITE (Room, Bed, Rent, Phone -> Bed to Hold)    */}
+      {/* ========================================================================= */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-white">
+              <div>
+                <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 flex items-center gap-1.5">
+                  <Send className="w-4 h-4 text-[#c2652a]" />
+                  <span>Send Self-KYC Invite</span>
+                </h3>
+                <p className="text-[11px] text-gray-500 font-medium">
+                  Locks target bed to <strong>ON HOLD 🔒</strong> and dispatches digital check-in link.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSendInviteSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              {/* Stay Type Toggle: Tenant vs Guest */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Stay Category *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInviteStayType("Tenant");
+                      setInviteDepositAmount(inviteRentAmount * 2);
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                      inviteStayType === "Tenant"
+                        ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs"
+                        : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>Monthly Tenant</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInviteStayType("Guest")}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                      inviteStayType === "Guest"
+                        ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                        : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Short-Term Guest</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bed Selector: Available Beds Only */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Home className="w-3.5 h-3.5 text-[#c2652a]" />
+                    <span>Select Available Bed * (Will be placed on Hold)</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    {availableBeds.length} Vacant
+                  </span>
+                </div>
+
+                {availableBeds.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                    ⚠️ No vacant beds available right now! Please vacate or resolve a bed first.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 mb-1">Room</label>
+                      <select
+                        value={inviteRoomNumber}
+                        onChange={(e) => handleRoomSelect(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
+                      >
+                        {availableRoomsList.map((rm) => (
+                          <option key={rm} value={rm}>
+                            Room {rm}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 mb-1">Bed Code</label>
+                      <select
+                        value={inviteBedCode}
+                        onChange={(e) => {
+                          setInviteBedCode(e.target.value);
+                          const target = availableBeds.find(
+                            (b) => b.roomNumber === inviteRoomNumber && b.bedCode === e.target.value
+                          );
+                          if (target) {
+                            setInviteRentAmount(target.tariff);
+                            setInviteDepositAmount(target.tariff * 2);
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
+                      >
+                        {availableBeds
+                          .filter((b) => b.roomNumber === inviteRoomNumber)
+                          .map((b) => (
+                            <option key={b.bedCode} value={b.bedCode}>
+                              Bed {b.bedCode}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Candidate Info */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Candidate Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. John Doe"
+                    value={inviteCandidateName}
+                    onChange={(e) => setInviteCandidateName(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Candidate Mobile Phone *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={inviteCountryCode}
+                      onChange={(e) => setInviteCountryCode(e.target.value)}
+                      className="w-16 px-2.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-center text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] shrink-0 bg-gray-50"
+                    />
+                    <input
+                      type="tel"
+                      required
+                      placeholder="9876543210"
+                      value={inviteCandidatePhone}
+                      onChange={(e) => setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                      className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Email Address (Optional)</label>
+                  <input
+                    type="email"
+                    placeholder="candidate@example.com"
+                    value={inviteCandidateEmail}
+                    onChange={(e) => setInviteCandidateEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+              </div>
+
+              {/* Tariff & Deposit Config */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Monthly Rent (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={inviteRentAmount}
+                    onChange={(e) => setInviteRentAmount(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                {inviteStayType === "Tenant" ? (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Security Deposit (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      value={inviteDepositAmount}
+                      onChange={(e) => setInviteDepositAmount(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">
+                      Suggested Daily Rate (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={Math.round(inviteRentAmount / 30)}
+                      disabled
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-100 text-xs font-mono font-bold text-gray-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 font-bold hover:bg-gray-50 text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviteDispatchLoading || availableBeds.length === 0}
+                  className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {inviteDispatchLoading ? (
+                    <span>Dispatching...</span>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Lock Bed on Hold & Send Invite</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: REVIEW & VERIFY KYC SUBMISSION (Photo, Aadhaar Zoom, Approve)    */}
+      {/* ========================================================================= */}
+      {activeReviewSubmission && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-3xl w-full max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-white">
+              <div className="flex items-center gap-3">
+                <img
+                  src={activeReviewSubmission.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(activeReviewSubmission.name)}`}
+                  alt={activeReviewSubmission.name}
+                  className="w-10 h-10 rounded-full object-cover border border-gray-300"
+                />
+                <div>
+                  <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 flex items-center gap-2">
+                    <span>{activeReviewSubmission.name}</span>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-900">
+                      {activeReviewSubmission.stayType}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Target: Room {activeReviewSubmission.roomNumber} (Bed {activeReviewSubmission.bedCode}) • Submitted on {new Date(activeReviewSubmission.submittedAt).toLocaleDateString("en-IN")}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveReviewSubmission(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: 2 Columns */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+              {/* Left Column: KYC Documents Inspection */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>KYC Document Proofs</span>
+                  </h4>
+                  <span className="text-[10px] text-gray-400">Click photo to zoom</span>
+                </div>
+
+                {/* 1. Selfie Photo */}
+                <div className="p-3 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+                  <label className="font-bold text-gray-700 block">1. Live Selfie Profile Photo</label>
+                  {activeReviewSubmission.photoUrl ? (
+                    <img
+                      src={activeReviewSubmission.photoUrl}
+                      alt="Applicant Selfie"
+                      onClick={() => setZoomDocUrl(activeReviewSubmission.photoUrl || null)}
+                      className="w-full h-44 object-cover rounded-xl border border-gray-200 cursor-zoom-in hover:opacity-90 transition-opacity"
+                    />
+                  ) : (
+                    <div className="h-28 rounded-xl bg-gray-200/50 flex items-center justify-center text-gray-400 italic">
+                      No photo provided
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Aadhaar Front & Back Images */}
+                <div className="p-3 rounded-2xl bg-gray-50 border border-gray-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-gray-700">2. Aadhaar / Govt ID Cards</label>
+                    {activeReviewSubmission.aadhaarNumber && (
+                      <span className="font-mono font-bold text-[#c2652a]">
+                        Aadhaar: {activeReviewSubmission.aadhaarNumber}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {activeReviewSubmission.aadhaarFrontUrl ? (
+                      <div>
+                        <span className="text-[10px] text-gray-400 block mb-1">Front Side</span>
+                        <img
+                          src={activeReviewSubmission.aadhaarFrontUrl}
+                          alt="Aadhaar Front"
+                          onClick={() => setZoomDocUrl(activeReviewSubmission.aadhaarFrontUrl || null)}
+                          className="w-full h-28 object-cover rounded-xl border border-gray-200 cursor-zoom-in hover:opacity-90 transition-opacity"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-28 rounded-xl bg-gray-200/50 flex items-center justify-center text-gray-400 italic">
+                        No front ID
+                      </div>
+                    )}
+
+                    {activeReviewSubmission.aadhaarBackUrl ? (
+                      <div>
+                        <span className="text-[10px] text-gray-400 block mb-1">Back Side</span>
+                        <img
+                          src={activeReviewSubmission.aadhaarBackUrl}
+                          alt="Aadhaar Back"
+                          onClick={() => setZoomDocUrl(activeReviewSubmission.aadhaarBackUrl || null)}
+                          className="w-full h-28 object-cover rounded-xl border border-gray-200 cursor-zoom-in hover:opacity-90 transition-opacity"
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-28 rounded-xl bg-gray-200/50 flex items-center justify-center text-gray-400 italic">
+                        No back ID
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Demographics & Allocation */}
+              <div className="space-y-4">
+                <h4 className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                  <UserCheck2 className="w-4 h-4 text-[#c2652a]" />
+                  <span>Applicant Information</span>
+                </h4>
+
+                {/* Personal Info Box */}
+                <div className="p-3.5 rounded-2xl bg-white border border-gray-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-medium">Full Name:</span>
+                    <span className="font-bold text-gray-900">{activeReviewSubmission.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-medium">Primary Mobile:</span>
+                    <span className="font-mono font-bold text-gray-900">{activeReviewSubmission.phone}</span>
+                  </div>
+                  {activeReviewSubmission.email && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-medium">Email Address:</span>
+                      <span className="font-semibold text-gray-800">{activeReviewSubmission.email}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                    <span className="text-gray-500 font-medium">Emergency Contact:</span>
+                    <span className="font-mono font-bold text-rose-700">
+                      {activeReviewSubmission.emergencyContact?.phone || "Not Provided"}
+                    </span>
+                  </div>
+                  {activeReviewSubmission.workplace && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-medium">Workplace / College:</span>
+                      <span className="font-semibold text-amber-950">{activeReviewSubmission.workplace}</span>
+                    </div>
+                  )}
+                  {activeReviewSubmission.vehicleNumbers && activeReviewSubmission.vehicleNumbers.length > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-medium">Registered Vehicles:</span>
+                      <span className="font-mono font-bold text-gray-900">
+                        {activeReviewSubmission.vehicleNumbers.join(", ")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Allocation & Pricing Confirmation */}
+                <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-orange-950">Target Room & Bed:</span>
+                    <span className="font-mono font-black text-orange-900 text-sm">
+                      Room {activeReviewSubmission.roomNumber} ({activeReviewSubmission.bedCode})
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 font-medium">Monthly Rent:</span>
+                    <span className="font-mono font-bold text-[#c2652a]">
+                      ₹{activeReviewSubmission.rentAmount.toLocaleString("en-IN")} / mo
+                    </span>
+                  </div>
+                  {activeReviewSubmission.securityDeposit !== undefined && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 font-medium">Security Deposit:</span>
+                      <span className="font-mono font-bold text-gray-900">
+                        ₹{activeReviewSubmission.securityDeposit.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-orange-200">
+                    <span className="text-gray-600 font-medium">Agreed Joining Date:</span>
+                    <span className="font-bold text-gray-900">
+                      {activeReviewSubmission.joiningDate}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Rejection Input Box (if toggled) */}
+                {showRejectionInput && (
+                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 space-y-2 animate-in fade-in">
+                    <label className="font-bold text-red-950 block">Reason for Rejection / Re-upload Request *</label>
+                    <textarea
+                      rows={2}
+                      placeholder="e.g. Aadhaar back photo is blurry. Please retake and re-upload."
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-red-300 text-xs text-red-950 bg-white focus:ring-1 focus:ring-red-600"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectionInput(false)}
+                        className="px-3 py-1.5 rounded-xl border border-gray-300 text-gray-600 text-xs font-bold hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRejectSubmission}
+                        disabled={reviewActionLoading}
+                        className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+                      >
+                        Confirm Rejection
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 sm:p-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3">
+              <div>
+                {!showRejectionInput && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectionInput(true)}
+                    className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>Request Correction / Reject</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveReviewSubmission(null)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-xs font-bold hover:bg-gray-50 cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApproveSubmission}
+                  disabled={reviewActionLoading}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+                >
+                  {reviewActionLoading ? (
+                    <span>Approving...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve & Check-In Resident</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* DOCUMENT ZOOM MODAL                                                       */}
+      {/* ========================================================================= */}
+      {zoomDocUrl && (
+        <div
+          className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setZoomDocUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+            <img
+              src={zoomDocUrl}
+              alt="Zoomed Document"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/20"
+            />
+            <button
+              onClick={() => setZoomDocUrl(null)}
+              className="mt-3 px-4 py-2 rounded-xl bg-white/20 text-white font-bold text-xs hover:bg-white/30 backdrop-blur-xs"
+            >
+              Close Zoom (Click anywhere)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Standee Modal */}
+      <SelfKycDeskStandeeModal
+        propertyId={propertyId}
+        isOpen={showStandeeModal}
+        onClose={() => setShowStandeeModal(false)}
+      />
+    </div>
+  );
+}

@@ -16,7 +16,9 @@ import {
   X,
   LogOut,
   Sparkles,
+  ScanFace,
 } from "lucide-react";
+import { selfKycStore } from "@/lib/selfKycStore";
 
 import { useState, useEffect } from "react";
 import { staffStore, UserRole } from "@/lib/staffStore";
@@ -38,6 +40,8 @@ export function PropertySidebar({
   const [activeRole, setActiveRole] = useState<UserRole>(() => staffStore.getActiveRole());
   const { profile, logout } = useAuth();
   const propertyId = propPropertyId || profile?.assignedPropertyId || "";
+  const [showFastTrackModal, setShowFastTrackModal] = useState(false);
+  const [pendingKycCount, setPendingKycCount] = useState<number>(0);
 
   useEffect(() => {
     const unsubscribe = staffStore.subscribe(() => {
@@ -68,6 +72,12 @@ export function PropertySidebar({
       icon: Wallet,
     },
     {
+      name: "Self-KYC Desk",
+      href: `/p/${propertyId}/self-kyc`,
+      icon: ScanFace,
+      badge: pendingKycCount > 0 ? `${pendingKycCount} Pending` : undefined,
+    },
+    {
       name: "Complaints Desk",
       href: `/p/${propertyId}/complaints`,
       icon: Wrench,
@@ -94,7 +104,14 @@ export function PropertySidebar({
   const userInitials = displayName.split(" ").map(n => n.charAt(0)).join("").toUpperCase().slice(0, 2) || (activeRole === "master_admin" ? "MA" : "PA");
   const roleDisplay = activeRole === "master_admin" ? "Master Admin 👑" : activeRole === "admin" ? "Property Admin 🏢" : "Receptionist 🔑";
 
-  const [showFastTrackModal, setShowFastTrackModal] = useState(false);
+  useEffect(() => {
+    if (!propertyId) return;
+    const unsub = selfKycStore.subscribeSubmissions(propertyId, (subs) => {
+      const pending = subs.filter((s) => s.status === "PENDING").length;
+      setPendingKycCount(pending);
+    });
+    return () => unsub();
+  }, [propertyId]);
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#fff8f6] border-r border-[#d7c2b9]/60 select-none">
@@ -163,6 +180,7 @@ export function PropertySidebar({
                 pathname === item.href ||
                 (item.name === "Tenants & Guests" && pathname?.includes("tenants")) ||
                 (item.name === "Financial Hub" && pathname?.includes("financial-hub")) ||
+                (item.name === "Self-KYC Desk" && pathname?.includes("self-kyc")) ||
                 (item.name === "Overview" && pathname?.includes("overview"));
 
               const Icon = item.icon;
@@ -172,14 +190,21 @@ export function PropertySidebar({
                   key={item.href}
                   href={item.href}
                   onClick={() => onMobileClose && onMobileClose()}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     isActive
                       ? "bg-[#201a17] text-white shadow-sm"
                       : "text-[#554339] hover:bg-[#f8ede3] hover:text-[#964407]"
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? "text-amber-400" : "text-[#554339]"}`} />
-                  <span>{item.name}</span>
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-4 h-4 ${isActive ? "text-amber-400" : "text-[#554339]"}`} />
+                    <span>{item.name}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="text-[10px] font-extrabold bg-rose-500 text-white px-2 py-0.5 rounded-full shadow-2xs animate-pulse">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}

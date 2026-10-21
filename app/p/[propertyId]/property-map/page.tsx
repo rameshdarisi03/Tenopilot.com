@@ -119,7 +119,7 @@ function PropertyMapContent({
   const [selectedFloor, setSelectedFloor] = useState<string>("ALL FLOORS");
   const [selectedRoom, setSelectedRoom] = useState<string>("ALL ROOMS");
   const [activeFilterStatus, setActiveFilterStatus] = useState<
-    "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest"
+    "ALL" | "Available" | "Occupied" | "Vacating" | "Booked" | "Guest" | "Hold"
   >(() => {
     const f = searchParams?.get("filter")?.toLowerCase();
     if (f === "available" || f === "vacant") return "Available";
@@ -127,6 +127,7 @@ function PropertyMapContent({
     if (f === "vacating") return "Vacating";
     if (f === "booked") return "Booked";
     if (f === "guest" || f === "guests") return "Guest";
+    if (f === "hold" || f === "onhold") return "Hold";
     return "ALL";
   });
 
@@ -143,6 +144,8 @@ function PropertyMapContent({
       setActiveFilterStatus("Booked");
     } else if (f === "guest" || f === "guests") {
       setActiveFilterStatus("Guest");
+    } else if (f === "hold" || f === "onhold") {
+      setActiveFilterStatus("Hold");
     }
   }, [searchParams]);
 
@@ -194,6 +197,7 @@ function PropertyMapContent({
     let vacating = 0;
     let booked = 0;
     let guest = 0;
+    let hold = 0;
 
     propertyGrid.forEach((floor) => {
       floor.rooms.forEach((room) => {
@@ -212,7 +216,9 @@ function PropertyMapContent({
               ? bed.occupant
               : undefined);
 
-          const effectiveStatus = primaryOcc
+          const effectiveStatus = bed.status === "Hold"
+            ? "Hold"
+            : primaryOcc
             ? primaryOcc.lifecycleStatus === "Notice"
               ? "Vacating"
               : primaryOcc.stayType === "Guest"
@@ -229,14 +235,15 @@ function PropertyMapContent({
           else if (effectiveStatus === "Vacating") vacating++;
           else if (effectiveStatus === "Booked") booked++;
           else if (effectiveStatus === "Guest") guest++;
+          else if (effectiveStatus === "Hold") hold++;
           else available++;
         });
       });
     });
 
-    const total = available + occupied + vacating + booked + guest;
+    const total = available + occupied + vacating + booked + guest + hold;
 
-    return { total, available, occupied, vacating, booked, guest };
+    return { total, available, occupied, vacating, booked, guest, hold };
   }, [propertyGrid, propertyId]);
 
   // Exact SVG Donut Ring Arc Calculations (Zero grey gaps - 100% split between color arcs)
@@ -309,7 +316,9 @@ function PropertyMapContent({
                   ? bd.occupant
                   : undefined);
 
-              const effStatus = primaryOcc
+              const effStatus = bd.status === "Hold"
+                ? "Hold"
+                : primaryOcc
                 ? primaryOcc.lifecycleStatus === "Notice"
                   ? "Vacating"
                   : primaryOcc.stayType === "Guest"
@@ -542,6 +551,17 @@ function PropertyMapContent({
                 >
                   <span className="w-2 h-2 rounded-full bg-purple-500"></span> GUESTS (<span suppressHydrationWarning>{bedCounts.guest}</span>)
                 </button>
+
+                <button
+                  onClick={() => setActiveFilterStatus("Hold")}
+                  className={`px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                    activeFilterStatus === "Hold"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span> ON HOLD (<span suppressHydrationWarning>{bedCounts.hold || 0}</span>)
+                </button>
               </div>
             </div>
 
@@ -686,7 +706,9 @@ function PropertyMapContent({
                                   let icon = <User className="w-3.5 h-3.5" />;
                                   let statusLabel: string = bed.status;
 
-                                  const effectiveStatus = primaryOcc
+                                  const effectiveStatus = bed.status === "Hold"
+                                    ? "Hold"
+                                    : primaryOcc
                                     ? primaryOcc.lifecycleStatus === "Notice"
                                       ? "Vacating"
                                       : primaryOcc.stayType === "Guest"
@@ -698,11 +720,12 @@ function PropertyMapContent({
                                       : "Booked"
                                     : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
 
-                                  const isGuestBed = effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest" || (!primaryOcc && nextOcc?.stayType === "Guest");
-                                  const isBookedBed = effectiveStatus === "Booked" && !primaryOcc && !!nextOcc;
-                                  const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "08 Aug 2026";
+                                  const isHoldBed = effectiveStatus === "Hold" || bed.status === "Hold";
+                                  const isGuestBed = !isHoldBed && (effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest" || (!primaryOcc && nextOcc?.stayType === "Guest"));
+                                  const isBookedBed = !isHoldBed && (effectiveStatus === "Booked" && !primaryOcc && !!nextOcc);
+                                  const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "";
                                   
-                                  // Evaluate if promised vacating date is past/overdue (e.g. 08 Aug vs today 09 Aug)
+                                  // Evaluate if promised vacating date is past/overdue (strictly day + 1 after promised vacating date)
                                   let isOverdueVacating = false;
                                   if (effectiveStatus === "Vacating" && rawVacDate) {
                                     const today = new Date();
@@ -710,15 +733,19 @@ function PropertyMapContent({
                                     const parsedVac = new Date(rawVacDate);
                                     if (!isNaN(parsedVac.getTime())) {
                                       parsedVac.setHours(0, 0, 0, 0);
-                                      isOverdueVacating = parsedVac < today;
-                                    } else {
-                                      if (rawVacDate.includes("08 Aug") || rawVacDate.includes("06 Aug") || rawVacDate.includes("07 Aug")) {
-                                        isOverdueVacating = true;
-                                      }
+                                      const dayPlusOneCutoff = new Date(parsedVac);
+                                      dayPlusOneCutoff.setDate(dayPlusOneCutoff.getDate() + 1);
+                                      isOverdueVacating = today > dayPlusOneCutoff;
                                     }
                                   }
 
-                                  if (effectiveStatus === "Available" && !nextOcc) {
+                                  if (isHoldBed) {
+                                    badgeStyle =
+                                      "bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 ring-1 ring-rose-400";
+                                    statusLabel = bed.holdCandidate?.name
+                                      ? `Hold (${bed.holdCandidate.name})`
+                                      : "On Hold (Self-KYC)";
+                                  } else if (effectiveStatus === "Available" && !nextOcc) {
                                     badgeStyle =
                                       "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
                                     statusLabel = "Available";
@@ -728,8 +755,8 @@ function PropertyMapContent({
                                     statusLabel = primaryOcc ? primaryOcc.name : nextOcc ? nextOcc.name : "Guest";
                                   } else if (effectiveStatus === "Vacating") {
                                     badgeStyle = isOverdueVacating
-                                      ? "bg-red-50 text-red-900 border-red-300 hover:bg-red-100 animate-pulse shadow-sm"
-                                      : "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100";
+                                      ? "bg-red-50 text-red-900 border-red-300 hover:bg-red-100 animate-pulse shadow-sm ring-1 ring-red-400"
+                                      : "bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100 animate-pulse shadow-sm ring-1 ring-orange-300";
                                     statusLabel = isOverdueVacating
                                       ? `Overdue (${primaryOcc?.name || "Move-Out"})`
                                       : `Vacating (${primaryOcc?.name || "Notice"})`;
@@ -760,6 +787,13 @@ function PropertyMapContent({
                                       }
                                       className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all text-center group cursor-pointer active:scale-95 relative ${badgeStyle}`}
                                     >
+                                      {/* 🔒 TOP-RIGHT HOLD BADGE PILL */}
+                                      {isHoldBed && (
+                                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-rose-200 text-rose-950 border border-rose-300 px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-0.5">
+                                          HOLD 🔒
+                                        </span>
+                                      )}
+
                                       {/* 🟣 TOP-RIGHT GUEST BADGE PILL */}
                                       {isGuestBed && (
                                         <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-purple-200 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs">
@@ -785,13 +819,18 @@ function PropertyMapContent({
                                       </span>
 
                                       {/* Active Occupant Status Badge */}
+                                      {isHoldBed && (
+                                        <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full bg-rose-200 text-rose-950 border border-rose-300">
+                                          🔒 Self-KYC Active
+                                        </span>
+                                      )}
                                       {effectiveStatus === "Vacating" && (
-                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full ${
+                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full animate-pulse ${
                                           isOverdueVacating
                                             ? "bg-red-200 text-red-950 border border-red-400 font-extrabold"
-                                            : "bg-orange-200/80 text-orange-950"
+                                            : "bg-orange-200 text-orange-950 border border-orange-300"
                                         }`}>
-                                          {isOverdueVacating ? "🚨 OVERDUE: " : "Vacating: "}{rawVacDate}
+                                          {isOverdueVacating ? "🚨 OVERDUE: " : "🟠 Vacating: "}{rawVacDate || "Notice"}
                                         </span>
                                       )}
                                       {isGuestBed && primaryOcc && (
@@ -972,6 +1011,46 @@ function PropertyMapContent({
                     : undefined);
 
                 const displayOcc = activeOcc || nextOcc;
+
+                if (activeBedSlot.bed.status === "Hold") {
+                  return (
+                    <div className="space-y-5 text-xs text-center py-6">
+                      <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
+                        🔒
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 mb-2">
+                          ON HOLD • SELF-KYC IN PROGRESS
+                        </span>
+                        <h4 className="font-serif font-bold text-lg text-gray-900">
+                          Bed is Locked for Incoming Resident
+                        </h4>
+                        <p className="text-gray-500 mt-1 max-w-xs mx-auto">
+                          A digital Self-KYC invite has been generated for {activeBedSlot.floorName} Room {activeBedSlot.roomNumber} ({activeBedSlot.bed.bedCode}). Bed cannot be booked by others until resolved.
+                        </p>
+                      </div>
+
+                      {activeBedSlot.bed.holdCandidate && (
+                        <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200 text-left space-y-1.5">
+                          <p className="font-bold text-rose-950 text-xs">
+                            Candidate: {activeBedSlot.bed.holdCandidate.name}
+                          </p>
+                          <p className="text-[11px] text-rose-800 font-mono">
+                            Phone: {activeBedSlot.bed.holdCandidate.phone}
+                          </p>
+                        </div>
+                      )}
+
+                      <Link
+                        href={`/p/${propertyId}/self-kyc`}
+                        className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all block cursor-pointer"
+                      >
+                        <span>Open Self-KYC Desk</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  );
+                }
 
                 if (displayOcc) {
                   const isBooked = !activeOcc && !!nextOcc;
