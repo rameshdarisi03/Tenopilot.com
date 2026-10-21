@@ -33,6 +33,7 @@ import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModa
 import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
+import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import {
   Search,
   Plus,
@@ -815,7 +816,7 @@ export default function TenantsDirectoryPage({
       // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit)
       newReceipts.push({
         id: `rcpt_comb_${Date.now()}`,
-        receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
         month: `${currentBillingMonth} + Security Deposit`,
         amount: totalCollected,
         rentAmount: effectiveRent,
@@ -836,7 +837,7 @@ export default function TenantsDirectoryPage({
       if (effectiveRent > 0) {
         newReceipts.push({
           id: `rcpt_rent_${Date.now()}`,
-          receiptNo: `RCP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
           month: currentBillingMonth,
           amount: effectiveRent,
           rentAmount: effectiveRent,
@@ -858,7 +859,7 @@ export default function TenantsDirectoryPage({
       if (effectiveDeposit > 0) {
         newReceipts.push({
           id: `rcpt_dep_${Date.now() + 1}`,
-          receiptNo: `DEP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
           month: "Security Deposit",
           amount: effectiveDeposit,
           rentAmount: 0,

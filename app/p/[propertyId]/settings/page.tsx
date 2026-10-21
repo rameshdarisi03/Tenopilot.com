@@ -33,6 +33,7 @@ import {
   ArrowUpRight,
   Wallet,
   Lock,
+  FileText,
 } from "lucide-react";
 import {
   propertySettingsStore,
@@ -42,6 +43,7 @@ import {
   PaymentQRProfile,
   DEFAULT_QR_PROFILES,
 } from "@/constants/propertySettings";
+import { getInvoiceNumberPreview } from "@/lib/invoiceNumberEngine";
 import {
   partnerStore,
   PartnerConfig,
@@ -76,7 +78,7 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "WHATSAPP" | "POLICE_REGISTER">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "WHATSAPP" | "POLICE_REGISTER" | "CONFIG">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Mobile UX states for minimal, one-handed navigation
@@ -490,6 +492,19 @@ export default function PropertySettingsPage({
               >
                 <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
                 <span>Police & Legal Register 📜</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("CONFIG")}
+                className={`pb-2.5 pt-1.5 px-3 sm:px-3.5 rounded-xl sm:rounded-none sm:border-b-2 flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  activeTab === "CONFIG"
+                    ? "bg-orange-50 text-[#c2652a] sm:bg-transparent sm:border-[#c2652a] font-extrabold shadow-2xs sm:shadow-none"
+                    : "text-gray-500 hover:text-gray-900 sm:border-transparent bg-white sm:bg-transparent border border-gray-200 sm:border-0"
+                }`}
+              >
+                <Sliders className="w-4 h-4 text-[#c2652a] shrink-0" />
+                <span>Config</span>
               </button>
             </div>
           </div>
@@ -1400,6 +1415,180 @@ export default function PropertySettingsPage({
                     <p className="text-[10px] text-gray-400 mt-1">
                       e.g., tenopilot.sunshine@okicici (Google Pay / PhonePe / Paytm)
                     </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "CONFIG" && (
+              <div className="max-w-2xl space-y-6 animate-in fade-in">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                        Invoice & Receipt Numbers
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        Configure numbering format for all issued receipts and invoices.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Format Selection Cards */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">
+                      Format Style *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            invoiceConfig: {
+                              formatType: "SEQUENTIAL",
+                              prefix: settings.invoiceConfig?.prefix || "INV-",
+                              startNumber: settings.invoiceConfig?.startNumber || 1001,
+                            },
+                          })
+                        }
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          (settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL"
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-bold text-xs">🔢 Sequential Serial</span>
+                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block">
+                            Starts from chosen number
+                          </span>
+                        </div>
+                        {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            invoiceConfig: {
+                              formatType: "DATE_BASED",
+                              prefix: settings.invoiceConfig?.prefix || "INV-",
+                              startNumber: settings.invoiceConfig?.startNumber || 1001,
+                            },
+                          })
+                        }
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          settings.invoiceConfig?.formatType === "DATE_BASED"
+                            ? "border-[#c2652a] bg-orange-50/70 text-[#c2652a] ring-1 ring-[#c2652a]"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-bold text-xs">📅 Date-Stamped (DDMMYY)</span>
+                          <span className="text-[10px] text-gray-400 font-normal mt-0.5 block">
+                            Date code + counter
+                          </span>
+                        </div>
+                        {settings.invoiceConfig?.formatType === "DATE_BASED" && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Input Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        <label className="text-xs font-bold text-gray-700">Custom Prefix *</label>
+                        <span title="Characters placed before each receipt number">
+                          <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={settings.invoiceConfig?.prefix ?? "INV-"}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            invoiceConfig: {
+                              formatType: settings.invoiceConfig?.formatType || "SEQUENTIAL",
+                              prefix: e.target.value.toUpperCase(),
+                              startNumber: settings.invoiceConfig?.startNumber || 1001,
+                            },
+                          })
+                        }
+                        placeholder="e.g. INV- or REC-"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+
+                    {(settings.invoiceConfig?.formatType || "SEQUENTIAL") === "SEQUENTIAL" ? (
+                      <div>
+                        <div className="flex items-center gap-1 mb-1">
+                          <label className="text-xs font-bold text-gray-700">Starting Serial Number *</label>
+                          <span title="Sequence starts counting from this number">
+                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={settings.invoiceConfig?.startNumber ?? 1001}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              invoiceConfig: {
+                                formatType: settings.invoiceConfig?.formatType || "SEQUENTIAL",
+                                prefix: settings.invoiceConfig?.prefix || "INV-",
+                                startNumber: Math.max(1, parseInt(e.target.value) || 1),
+                              },
+                            })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col justify-center">
+                        <div className="flex items-center gap-1 mb-1">
+                          <label className="text-xs font-bold text-gray-500">Pattern Guide</label>
+                          <span title="DDMMYY is dynamically generated from transaction date">
+                            <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                          </span>
+                        </div>
+                        <div className="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600 font-mono">
+                          {settings.invoiceConfig?.prefix || "INV-"}DDMMYY-01
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Live Sample Preview */}
+                  <div className="p-3.5 rounded-xl bg-orange-50/70 border border-orange-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-orange-800 uppercase tracking-wider block">
+                        Live Sample Preview
+                      </span>
+                      <span className="font-mono font-extrabold text-base text-gray-900 mt-0.5 block">
+                        {getInvoiceNumberPreview(
+                          settings.invoiceConfig?.formatType || "SEQUENTIAL",
+                          settings.invoiceConfig?.prefix || "INV-",
+                          settings.invoiceConfig?.startNumber || 1001
+                        )}
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-orange-100 text-[#c2652a] text-[10px] font-bold">
+                      Active Template
+                    </span>
                   </div>
                 </div>
               </div>

@@ -29,6 +29,7 @@ import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect"
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
+import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
 import {
@@ -907,7 +908,7 @@ export default function IndividualTenantProfilePage({
         depositAmount: effectiveDeposit,
         mode: modeLabel,
         paidTo: paidTo || "Main Business Account",
-        receiptNo: `#REC-${Math.floor(10000 + Math.random() * 90000)}`,
+        receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
         status: "PAID",
       });
     } else {
@@ -922,7 +923,7 @@ export default function IndividualTenantProfilePage({
           depositAmount: 0,
           mode: modeLabel,
           paidTo: paidTo || "Main Business Account",
-          receiptNo: `#REC-${Math.floor(10000 + Math.random() * 90000)}`,
+          receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
           status: "PAID",
         });
       }
@@ -938,7 +939,7 @@ export default function IndividualTenantProfilePage({
           depositAmount: effectiveDeposit,
           mode: modeLabel,
           paidTo: paidTo || "Main Business Account",
-          receiptNo: `#DEP-${Math.floor(10000 + Math.random() * 90000)}`,
+          receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
           status: "PAID",
         });
       }

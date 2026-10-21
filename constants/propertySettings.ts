@@ -14,6 +14,18 @@ export interface PaymentQRProfile {
   partnerName?: string; // "Main Business Pool" | "Petty Cash Desk" | Partner Name
 }
 
+export interface InvoiceConfig {
+  formatType: "SEQUENTIAL" | "DATE_BASED";
+  prefix: string;
+  startNumber: number;
+}
+
+export const DEFAULT_INVOICE_CONFIG: InvoiceConfig = {
+  formatType: "SEQUENTIAL",
+  prefix: "INV-",
+  startNumber: 1001,
+};
+
 export const DEFAULT_QR_PROFILES: PaymentQRProfile[] = [];
 
 export const PAY_BY_CASH_PROFILE: PaymentQRProfile = {
@@ -42,6 +54,7 @@ export interface PropertySettingsData {
     sharing3: number; // 3-Sharing Triple Room
     sharing4: number; // 4-Sharing Four Room
   };
+  invoiceConfig?: InvoiceConfig;
 }
 
 export const DEFAULT_PROPERTY_RENTAL_TIERS = {
@@ -62,6 +75,7 @@ export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   managerPhone: "",
   qrProfiles: DEFAULT_QR_PROFILES,
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
+  invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
 };
 
 export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
@@ -75,6 +89,7 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   managerPhone: "+91 98765 43210",
   qrProfiles: DEFAULT_QR_PROFILES,
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
+  invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
 };
 
 // In-Memory Multi-Tenant Cache & Active Listeners Map
@@ -125,6 +140,11 @@ export const propertySettingsStore = {
                 ...(existing.rentalTiers || {}),
                 ...(data.rentalTiers || {}),
               },
+              invoiceConfig: {
+                ...DEFAULT_INVOICE_CONFIG,
+                ...(existing.invoiceConfig || {}),
+                ...(data.invoiceConfig || {}),
+              },
             };
             PROPERTY_SETTINGS_MAP.set(propertyId, merged);
             if (typeof window !== "undefined") {
@@ -170,6 +190,10 @@ export const propertySettingsStore = {
               ...DEFAULT_PROPERTY_RENTAL_TIERS,
               ...(parsed.rentalTiers || {}),
             },
+            invoiceConfig: {
+              ...DEFAULT_INVOICE_CONFIG,
+              ...(parsed.invoiceConfig || {}),
+            },
           };
           PROPERTY_SETTINGS_MAP.set(propertyId, merged);
           return merged;
@@ -209,6 +233,11 @@ export const propertySettingsStore = {
         ...DEFAULT_PROPERTY_RENTAL_TIERS,
         ...(current.rentalTiers || {}),
         ...(newSettings.rentalTiers || {}),
+      },
+      invoiceConfig: {
+        ...DEFAULT_INVOICE_CONFIG,
+        ...(current.invoiceConfig || {}),
+        ...(newSettings.invoiceConfig || {}),
       },
     };
 
@@ -254,6 +283,11 @@ export const propertySettingsStore = {
               ...DEFAULT_PROPERTY_RENTAL_TIERS,
               ...(current.rentalTiers || {}),
               ...(data.rentalTiers || {}),
+            },
+            invoiceConfig: {
+              ...DEFAULT_INVOICE_CONFIG,
+              ...(current.invoiceConfig || {}),
+              ...(data.invoiceConfig || {}),
             },
           };
           PROPERTY_SETTINGS_MAP.set(propertyId, merged);

@@ -10,6 +10,7 @@ import { autoProvisionBuildingFromRoster } from "./autoBuildingProvisioner";
 import { FastTrackParsedRow } from "./fastTrackHeuristicParser";
 import { saveOccupantToFirestore } from "./firestoreService";
 import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
+import { generateReceiptNumber } from "./invoiceNumberEngine";
 
 export interface BatchIngestOptions {
   autoProvisionBuilding: boolean;
@@ -174,6 +175,10 @@ export async function executeFastTrackBatchIngest(
 
     // 1. If security deposit was paid during historical move-in
     if (isDepositPaid) {
+      const depReceiptNo = generateReceiptNumber(settings, {
+        date: row.joiningDate || now,
+        manualSequence: idx * 2 + 1,
+      });
       paymentHistory.push({
         id: `pay_dep_${Date.now()}_${idx}`,
         month: "Security Deposit",
@@ -182,13 +187,17 @@ export async function executeFastTrackBatchIngest(
         depositAmount: deposit,
         rentAmount: 0,
         mode: "UPI",
-        receiptNo: `REC-DEP-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        receiptNo: depReceiptNo,
         status: "PAID",
       });
     }
 
     // 2. If current month rent is marked as paid
     if (isRentPaid) {
+      const rentReceiptNo = generateReceiptNumber(settings, {
+        date: currentCycleInvoiceDate,
+        manualSequence: idx * 2 + 2,
+      });
       paymentHistory.push({
         id: `pay_rent_${Date.now()}_${idx}`,
         month: currentMonthStr,
@@ -197,7 +206,7 @@ export async function executeFastTrackBatchIngest(
         rentAmount: rent,
         depositAmount: 0,
         mode: row.paymentMode || "UPI",
-        receiptNo: `REC-RENT-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        receiptNo: rentReceiptNo,
         status: "PAID",
       });
     }
