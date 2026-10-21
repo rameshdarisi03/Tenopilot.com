@@ -58,6 +58,7 @@ export default function SelfKycDeskPage({
   const propertyId = resolvedParams?.propertyId || "ramesh-residencies";
 
   const [activeTab, setActiveTab] = useState<"PENDING" | "INVITES" | "APPROVED">("PENDING");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
   const [invites, setInvites] = useState<SelfKycInvite[]>([]);
   const [propertyStructure, setPropertyStructure] = useState(() =>
@@ -293,9 +294,45 @@ export default function SelfKycDeskPage({
         activeReviewSubmission,
         "PG Admin"
       );
+
+      // 💬 Automated WhatsApp Welcome & Agreement Notification
+      try {
+        const settings = propertySettingsStore.getSettings(propertyId);
+        const propName = settings?.propertyName || "TenoPilot PG";
+        const cleanPhone = createdResident.phone.replace(/\D/g, "");
+        const fullPhone = cleanPhone.length === 10 ? `+91 ${cleanPhone}` : createdResident.phone;
+
+        fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            messages: [
+              {
+                toPhone: fullPhone,
+                recipientName: createdResident.name,
+                propertyId,
+                propertyName: propName,
+                type: "ONBOARDING_INVITE",
+                params: {
+                  roomNumber: createdResident.roomNumber,
+                  bedCode: createdResident.bedCode,
+                  dueDate: createdResident.joiningDate,
+                  paidDate: createdResident.joiningDate,
+                  amount: createdResident.rentAmount,
+                  onboardUrl: `https://tenopilot.com/p/${propertyId}/tenants/${createdResident.id}`,
+                },
+              },
+            ],
+          }),
+        }).catch((e) => console.warn("WhatsApp welcome dispatch notice:", e));
+      } catch (waErr) {
+        console.warn("Welcome dispatch catch:", waErr);
+      }
+
       fireCelebrationConfetti();
       triggerToast(
-        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${createdResident.bedCode}) updated.`
+        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${createdResident.bedCode}) updated. Welcome notice sent via WhatsApp.`
       );
       setActiveReviewSubmission(null);
     } catch (e) {
@@ -338,12 +375,19 @@ export default function SelfKycDeskPage({
   return (
     <div className="flex h-screen bg-[#fcf9f8] text-gray-900 font-sans antialiased overflow-hidden selection:bg-[#c2652a]/20 selection:text-[#c2652a]">
       {/* Sidebar */}
-      <PropertySidebar propertyId={propertyId} />
+      <PropertySidebar
+        propertyId={propertyId}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Global Property Header */}
-        <PropertyHeader propertyId={propertyId} />
+        <PropertyHeader
+          propertyId={propertyId}
+          onMobileMenuToggle={() => setMobileMenuOpen(true)}
+        />
 
         {/* Floating Toast Notification */}
         {toastMessage && (
@@ -392,6 +436,7 @@ export default function SelfKycDeskPage({
 
             <div className="flex items-center gap-2.5 flex-wrap">
               <button
+                type="button"
                 onClick={() => setShowStandeeModal(true)}
                 className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer active:scale-95"
               >
@@ -400,11 +445,12 @@ export default function SelfKycDeskPage({
               </button>
 
               <button
+                type="button"
                 onClick={handleOpenInviteModal}
                 className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#964407] to-[#c2652a] hover:opacity-95 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all cursor-pointer active:scale-95"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Send Self-KYC Invite</span>
+                <span>+ Send Invite Link</span>
               </button>
             </div>
           </div>

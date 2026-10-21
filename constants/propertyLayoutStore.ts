@@ -4,6 +4,7 @@
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Occupant } from "./mockOccupants";
+import { sanitizeForFirestore } from "@/lib/firestoreService";
 
 export interface BedSlotConfig {
   id: string;
@@ -142,8 +143,9 @@ export const propertyStore = {
     if (typeof window !== "undefined" && db) {
       try {
         const docRef = doc(db, `properties/${propertyId}/layout/structure`);
+        const sanitizedFloors = sanitizeForFirestore(newStructure);
         await setDoc(docRef, {
-          floors: newStructure,
+          floors: sanitizedFloors,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
       } catch (e) {

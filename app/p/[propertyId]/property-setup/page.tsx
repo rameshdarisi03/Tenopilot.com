@@ -23,6 +23,7 @@ import {
   Bed,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   X,
   ArrowRight,
   ShieldCheck,
@@ -353,10 +354,47 @@ export default function PropertySetupPage({
     setNewFloorName("");
   };
 
+  // Real-time Room Number Conflict Checkers
+  const isRoomDuplicateInAddModal = useMemo(() => {
+    const clean = newRoomNumber.trim().toLowerCase();
+    if (!clean) return false;
+    return propertyStructure.some((fl) =>
+      (fl.rooms || []).some((r) => r.roomNumber.trim().toLowerCase() === clean)
+    );
+  }, [newRoomNumber, propertyStructure]);
+
+  const isRoomDuplicateInEditModal = useMemo(() => {
+    if (!activeEditRoom) return false;
+    const clean = newRoomNumber.trim().toLowerCase();
+    if (!clean) return false;
+    return propertyStructure.some((fl) =>
+      (fl.rooms || []).some(
+        (r) =>
+          r.id !== activeEditRoom.room.id &&
+          r.roomNumber.trim().toLowerCase() === clean
+      )
+    );
+  }, [newRoomNumber, activeEditRoom, propertyStructure]);
+
   // Handle Add Room Submit (Supports 1 to 26 Beds — Bed A to Bed Z)
   const handleAddRoomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeAddRoomFloorId) return;
+
+    const cleanRoomNum = newRoomNumber.trim();
+    if (!cleanRoomNum) {
+      triggerToast("⚠️ Please enter a valid room number.");
+      return;
+    }
+
+    // Uniqueness validation across property
+    const isConflict = propertyStructure.some((fl) =>
+      (fl.rooms || []).some((r) => r.roomNumber.trim().toLowerCase() === cleanRoomNum.toLowerCase())
+    );
+    if (isConflict) {
+      triggerToast(`⚠️ Room "${cleanRoomNum}" already exists! Please choose a unique room number.`);
+      return;
+    }
 
     const bedLetters = Array.from({ length: 26 }, (_, i) => `BED ${String.fromCharCode(65 + i)}`);
     const beds: BedSlotConfig[] = [];
@@ -375,7 +413,7 @@ export default function PropertySetupPage({
 
     const newRoom: RoomConfig = {
       id: `rm-${Date.now()}`,
-      roomNumber: newRoomNumber,
+      roomNumber: cleanRoomNum,
       sharingType: count,
       beds,
       customRentAmount: customRent,
@@ -387,13 +425,14 @@ export default function PropertySetupPage({
       if (fl.id !== activeAddRoomFloorId) return fl;
       return {
         ...fl,
-        totalBeds: fl.totalBeds + count,
-        rooms: [...fl.rooms, newRoom],
+        totalBeds: (fl.totalBeds || 0) + count,
+        rooms: [...(fl.rooms || []), newRoom],
       };
     });
 
     updateLayoutStructure(updated);
-    triggerToast(`✓ Added Room ${newRoomNumber} (${count} Sharing - Bed A to ${bedLetters[count - 1]})`);
+    setOpenFloorIds((prev) => Array.from(new Set([...prev, activeAddRoomFloorId])));
+    triggerToast(`✓ Added Room ${cleanRoomNum} (${count} Sharing - Bed A to ${bedLetters[count - 1]})`);
     setActiveAddRoomFloorId(null);
     setNewRoomNumber("");
     setNewRoomSpecialTag("");
@@ -407,6 +446,25 @@ export default function PropertySetupPage({
     if (!activeEditRoom) return;
 
     const { floorId, room } = activeEditRoom;
+    const cleanRoomNum = newRoomNumber.trim();
+    if (!cleanRoomNum) {
+      triggerToast("⚠️ Please enter a valid room number.");
+      return;
+    }
+
+    // Uniqueness validation across other rooms in the property
+    const isConflict = propertyStructure.some((fl) =>
+      (fl.rooms || []).some(
+        (r) =>
+          r.id !== room.id &&
+          r.roomNumber.trim().toLowerCase() === cleanRoomNum.toLowerCase()
+      )
+    );
+    if (isConflict) {
+      triggerToast(`⚠️ Room "${cleanRoomNum}" already exists! Please choose a unique room number.`);
+      return;
+    }
+
     const occupiedCount = room.beds.filter((b) => b.status !== "Available" && b.occupant).length;
 
     if (newSharingCapacity < occupiedCount) {
@@ -439,12 +497,12 @@ export default function PropertySetupPage({
       const diff = updatedBeds.length - room.beds.length;
       return {
         ...fl,
-        totalBeds: fl.totalBeds + diff,
-        rooms: fl.rooms.map((rm) => {
+        totalBeds: (fl.totalBeds || 0) + diff,
+        rooms: (fl.rooms || []).map((rm) => {
           if (rm.id !== room.id) return rm;
           return {
             ...rm,
-            roomNumber: newRoomNumber,
+            roomNumber: cleanRoomNum,
             sharingType: updatedBeds.length,
             beds: updatedBeds,
             customRentAmount: customRent,
@@ -456,7 +514,7 @@ export default function PropertySetupPage({
     });
 
     updateLayoutStructure(updatedStructure);
-    triggerToast(`✓ Updated Room ${newRoomNumber} (${updatedBeds.length} Beds Capacity)`);
+    triggerToast(`✓ Updated Room ${cleanRoomNum} (${updatedBeds.length} Beds Capacity)`);
     setActiveEditRoom(null);
     setNewRoomNumber("");
     setNewRoomSpecialTag("");
@@ -930,8 +988,18 @@ export default function PropertySetupPage({
                     placeholder="601"
                     value={newRoomNumber}
                     onChange={(e) => setNewRoomNumber(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    className={`w-full px-3 py-2.5 rounded-xl border font-semibold text-gray-900 focus:ring-1 ${
+                      isRoomDuplicateInAddModal
+                        ? "border-rose-400 bg-rose-50/50 focus:ring-rose-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
                   />
+                  {isRoomDuplicateInAddModal && (
+                    <p className="text-[11px] font-bold text-rose-600 mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>Room "{newRoomNumber.trim()}" already exists in this property! Please enter a unique room number.</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1055,7 +1123,8 @@ export default function PropertySetupPage({
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                    disabled={isRoomDuplicateInAddModal || !newRoomNumber.trim()}
+                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold shadow-md cursor-pointer transition-all"
                   >
                     Create Room
                   </button>
@@ -1097,8 +1166,18 @@ export default function PropertySetupPage({
                     required
                     value={newRoomNumber}
                     onChange={(e) => setNewRoomNumber(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    className={`w-full px-3 py-2.5 rounded-xl border font-semibold text-gray-900 focus:ring-1 ${
+                      isRoomDuplicateInEditModal
+                        ? "border-rose-400 bg-rose-50/50 focus:ring-rose-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
                   />
+                  {isRoomDuplicateInEditModal && (
+                    <p className="text-[11px] font-bold text-rose-600 mt-1.5 flex items-center gap-1.5 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>Room "{newRoomNumber.trim()}" already exists in this property! Please enter a unique room number.</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1239,7 +1318,8 @@ export default function PropertySetupPage({
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold shadow-md"
+                    disabled={isRoomDuplicateInEditModal || !newRoomNumber.trim()}
+                    className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold shadow-md cursor-pointer transition-all"
                   >
                     Save Changes
                   </button>

@@ -34,6 +34,7 @@ import {
   Wallet,
   Lock,
   FileText,
+  FileCheck,
 } from "lucide-react";
 import {
   propertySettingsStore,
@@ -1680,6 +1681,39 @@ export default function PropertySettingsPage({
                     >
                       Yes
                     </button>
+                  </div>
+                </div>
+
+                {/* 📜 House Rules & Regulations (Rental Lease Annexure) */}
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                      <FileCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                        House Rules & Regulations (Rental Lease Annexure)
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        Paste your property-specific house rules, curfew, visitor policy, and notice terms. These will be automatically attached to the tenant's legal rental agreement.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Terms, House Rules & Guidelines (Optional)
+                    </label>
+                    <textarea
+                      rows={6}
+                      value={settings.houseRulesAndRegulations || ""}
+                      onChange={(e) => setSettings({ ...settings, houseRulesAndRegulations: e.target.value })}
+                      placeholder={"Paste your PG / Hostel terms here, e.g.:\n1. Gate closes strictly at 10:30 PM.\n2. 30-day notice period mandatory before vacating.\n3. Visitors allowed in reception lounge only from 10 AM to 7 PM.\n4. Smoking and alcohol strictly prohibited on premises.\n5. Electricity consumed above 100 units will be charged as per sub-meter reading."}
+                      className="w-full p-3.5 rounded-xl border border-gray-300 font-sans text-xs text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] leading-relaxed resize-y"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1.5">
+                      If left blank, the rental agreement will generate cleanly with core tenancy details only and no generic filler rules.
+                    </p>
                   </div>
                 </div>
               </div>

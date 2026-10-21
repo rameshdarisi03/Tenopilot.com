@@ -2796,6 +2796,7 @@ export default function IndividualTenantProfilePage({
 
                       <button
                         onClick={() => {
+                          const effectiveDeposit = occupantState.securityDeposit ?? occupantState.rentAmount * 2;
                           downloadRentalAgreementPdf({
                             tenantName: occupantState.name,
                             phone: occupantState.phone,
@@ -2803,11 +2804,14 @@ export default function IndividualTenantProfilePage({
                             bedCode: occupantState.bedCode,
                             joiningDate: occupantState.joiningDate,
                             monthlyRent: occupantState.rentAmount,
-                            securityDeposit: 25000,
+                            securityDeposit: effectiveDeposit,
+                            propertyTitle: displayPropertyName,
+                            propertyAddress: propertySettings?.propertyAddress,
+                            houseRulesAndRegulations: propertySettings?.houseRulesAndRegulations,
                           });
-                          triggerToast("✓ Downloaded Rental Agreement Document!");
+                          triggerToast("✓ Downloaded Rental Agreement PDF!");
                         }}
-                        className="py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all"
+                        className="py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
                       >
                         <Download className="w-4 h-4" /> Download PDF
                       </button>
@@ -4972,17 +4976,27 @@ export default function IndividualTenantProfilePage({
                 <p><strong>ROOM & BED:</strong> Room {occupantState.roomNumber} ({occupantState.bedCode})</p>
                 <p><strong>START DATE:</strong> {occupantState.joiningDate}</p>
                 <p><strong>MONTHLY RENT:</strong> ₹{occupantState.rentAmount.toLocaleString("en-IN")}</p>
-                <p><strong>SECURITY DEPOSIT:</strong> ₹25,000</p>
-                <p className="text-[10px] text-gray-500 font-sans border-t border-gray-300 pt-2">
-                  This legally binding rental agreement is stored in TenoPilot organization records and can be downloaded or printed anytime by both property owner and tenant.
-                </p>
+                <p><strong>SECURITY DEPOSIT:</strong> ₹{(occupantState.securityDeposit ?? occupantState.rentAmount * 2).toLocaleString("en-IN")}</p>
+
+                {propertySettings?.houseRulesAndRegulations?.trim() ? (
+                  <div className="pt-2 border-t border-gray-300 space-y-1">
+                    <p className="font-bold text-gray-800 uppercase text-[10px]">House Rules & Regulations (Annexure):</p>
+                    <div className="text-[11px] font-sans text-gray-700 whitespace-pre-line leading-relaxed pl-2 border-l-2 border-[#c2652a]">
+                      {propertySettings.houseRulesAndRegulations.trim()}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-gray-500 font-sans border-t border-gray-300 pt-2">
+                    This legally binding rental agreement is stored in TenoPilot organization records and can be downloaded or printed anytime by both property owner and tenant.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setViewAgreementModal(false)}
-                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs"
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 text-xs cursor-pointer"
                 >
                   Close
                 </button>
@@ -4990,10 +5004,23 @@ export default function IndividualTenantProfilePage({
                 <button
                   type="button"
                   onClick={() => {
+                    const effectiveDeposit = occupantState.securityDeposit ?? occupantState.rentAmount * 2;
+                    downloadRentalAgreementPdf({
+                      tenantName: occupantState.name,
+                      phone: occupantState.phone,
+                      roomNumber: occupantState.roomNumber,
+                      bedCode: occupantState.bedCode,
+                      joiningDate: occupantState.joiningDate,
+                      monthlyRent: occupantState.rentAmount,
+                      securityDeposit: effectiveDeposit,
+                      propertyTitle: displayPropertyName,
+                      propertyAddress: propertySettings?.propertyAddress,
+                      houseRulesAndRegulations: propertySettings?.houseRulesAndRegulations,
+                    });
                     setViewAgreementModal(false);
                     triggerToast("✓ Rental Agreement PDF Downloaded");
                   }}
-                  className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md"
+                  className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
                 >
                   <Download className="w-4 h-4" /> Download PDF
                 </button>

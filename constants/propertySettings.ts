@@ -56,6 +56,7 @@ export interface PropertySettingsData {
   };
   includeDepositInOutstanding?: boolean; // When false (default), unpaid deposit is not mixed into monthly rent outstanding balance
   invoiceConfig?: InvoiceConfig;
+  houseRulesAndRegulations?: string; // Optional custom rules, curfew, terms to attach to rental agreements
 }
 
 export const DEFAULT_PROPERTY_RENTAL_TIERS = {

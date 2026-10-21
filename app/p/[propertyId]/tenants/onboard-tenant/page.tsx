@@ -1714,6 +1714,15 @@ export default function OnboardTenantPage({
                   </p>
                 </div>
 
+                {settings?.houseRulesAndRegulations?.trim() && (
+                  <div className="pt-2 border-t border-gray-300 space-y-1">
+                    <p className="font-bold text-gray-800 uppercase text-[10px]">House Rules & Regulations (Annexure):</p>
+                    <div className="text-[10px] font-sans text-gray-700 whitespace-pre-line leading-relaxed pl-2 border-l-2 border-[#c2652a]">
+                      {settings.houseRulesAndRegulations.trim()}
+                    </div>
+                  </div>
+                )}
+
                 <div className="border-t border-gray-300 pt-3 text-[10px] text-gray-600 font-sans leading-normal">
                   By clicking <strong>Agree & Onboard Tenant</strong> below, the property owner confirms room allocation and generates the digital rental agreement record.
                 </div>
