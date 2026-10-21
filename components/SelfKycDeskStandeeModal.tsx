@@ -1,47 +1,128 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 import {
   X,
-  Printer,
-  Download,
-  ExternalLink,
-  Sparkles,
-  Check,
+  Camera,
+  IdCard,
   ShieldCheck,
-  QrCode,
-  ScanFace,
-  Home,
+  Zap,
+  Download,
+  FileText,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { toPng, toBlob } from "html-to-image";
+import { jsPDF } from "jspdf";
 
 interface SelfKycDeskStandeeModalProps {
   propertyId: string;
   isOpen: boolean;
   onClose: () => void;
+  propertyName?: string;
 }
 
 export function SelfKycDeskStandeeModal({
   propertyId,
   isOpen,
   onClose,
+  propertyName = "Your Property",
 }: SelfKycDeskStandeeModalProps) {
+  const [portalUrl, setPortalUrl] = useState(`https://www.tenopilot.com/p/${propertyId}/self-kyc-checkin`);
+  const [isGeneratingPng, setIsGeneratingPng] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
+  const [bgBase64, setBgBase64] = useState<string>("");
+
+  const posterRef = useRef<HTMLDivElement>(null);
+  const [settings, setSettings] = useState(() => propertySettingsStore.getSettings(propertyId));
+
+  useEffect(() => {
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setSettings(propertySettingsStore.getSettings(propertyId));
+    return propertySettingsStore.subscribe(() => {
+      setSettings(propertySettingsStore.getSettings(propertyId));
+    });
+  }, [propertyId]);
+
+  // Preload background image as Base64 Data URL so html-to-image renders with zero CORS/cross-origin taint issues
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      fetch("/images/self-kyc-poster-background.jpg")
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch image");
+          return res.blob();
+        })
+        .then((blob) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === "string") {
+              setBgBase64(reader.result);
+            }
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch((e) => {
+          console.warn("Notice: background image fetch for base64 preload:", e);
+        });
+    }
+  }, []);
+
+  // Robust resolver: Never display raw building IDs (e.g., "Prop 1788438308277")
+  const isRawBuildingId = (val?: string) => !val || val === "Your Property" || /^prop[-_\s]?\d+/i.test(val.trim());
+
+  let realPgName = "";
+  if (propertyName && !isRawBuildingId(propertyName)) {
+    realPgName = propertyName;
+  } else if (settings?.propertyName && !isRawBuildingId(settings.propertyName)) {
+    realPgName = settings.propertyName;
+  } else {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("tenopilot_saved_session");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.propertyName && !isRawBuildingId(parsed.propertyName)) {
+            realPgName = parsed.propertyName;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  if (!realPgName) {
+    realPgName = settings?.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "Ramesh Residencies");
+  }
+
+  const cleanPgName = realPgName.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const baseDomain = isLocal ? window.location.origin : "https://www.tenopilot.com";
+      setPortalUrl(`${baseDomain}/p/${propertyId}/self-kyc-checkin`);
+    }
+  }, [propertyId]);
 
   if (!isOpen) return null;
 
-  const currentSettings = propertySettingsStore.getSettings(propertyId);
-  const propertyName = currentSettings?.propertyName || "Ramesh Residencies";
-  const portalUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/p/${propertyId}/self-kyc-checkin`
-      : `https://tenopilot.com/p/${propertyId}/self-kyc-checkin`;
-
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(
-    portalUrl
-  )}&margin=10`;
+  // Universal Cross-Platform Blob Downloader
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.setAttribute("download", filename);
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    }, 2000);
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard?.writeText(portalUrl);
@@ -49,318 +130,342 @@ export function SelfKycDeskStandeeModal({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handlePrint = () => {
-    window.print();
+  // 1-Click High-Resolution A4 PDF Poster Download (Direct 1:1 replica of the live preview)
+  const handleDownloadPdf = async () => {
+    const el = posterRef.current;
+    if (!el) return;
+    setIsGeneratingPdf(true);
+
+    try {
+      // Capture the exact preview element at 300+ DPI sharpness
+      const dataUrl = await toPng(el, {
+        pixelRatio: 3,
+        cacheBust: true,
+      });
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      // Fit standard A4 dimensions (210mm x 297mm)
+      pdf.addImage(dataUrl, "PNG", 0, 0, 210, 297, undefined, "FAST");
+      
+      const pdfBlob = pdf.output("blob");
+      triggerBlobDownload(pdfBlob, `${cleanPgName}_Self_KYC_Standee_A4.pdf`);
+    } catch (err: any) {
+      console.error("Error generating standee PDF:", err);
+      try {
+        const dataUrl = await toPng(el, { pixelRatio: 2 });
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        pdf.addImage(dataUrl, "PNG", 0, 0, 210, 297);
+        pdf.save(`${cleanPgName}_Self_KYC_Standee_A4.pdf`);
+      } catch (fallbackErr) {
+        alert("Notice: Could not generate PDF. Please try downloading as PNG.");
+      }
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
-  // 🎨 Generates true 4" × 6" high-resolution Standee Card PNG (1200 × 1800 px) matching preview
-  const handleDownloadStandeePng = async () => {
-    setDownloading(true);
+  // 1-Click High-Resolution PNG Poster Download (Direct 1:1 replica of the live preview)
+  const handleDownloadPng = async () => {
+    const el = posterRef.current;
+    if (!el) return;
+    setIsGeneratingPng(true);
+
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = 1200;
-      canvas.height = 1800;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      // 1. Warm Scandinavian / Ambient Acrylic Background
-      const bgGrad = ctx.createLinearGradient(0, 0, 1200, 1800);
-      bgGrad.addColorStop(0, "#fffbf7");
-      bgGrad.addColorStop(0.5, "#ffffff");
-      bgGrad.addColorStop(1, "#fcf7f2");
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, 1200, 1800);
-
-      // Card Border & Drop Shadow accent
-      ctx.strokeStyle = "#e8d8cc";
-      ctx.lineWidth = 12;
-      ctx.strokeRect(30, 30, 1140, 1740);
-
-      // 2. Top Header Brand Pill
-      const headGrad = ctx.createLinearGradient(70, 70, 1130, 270);
-      headGrad.addColorStop(0, "#964407");
-      headGrad.addColorStop(1, "#c2652a");
-      ctx.fillStyle = headGrad;
-      roundRect(ctx, 70, 70, 1060, 210, 36);
-      ctx.fill();
-
-      // Top Tagline
-      ctx.fillStyle = "#fed7aa";
-      ctx.font = "bold 32px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("DIGITAL SELF CHECK-IN", 600, 140);
-
-      // Property Name
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 56px serif";
-      ctx.fillText(propertyName.length > 25 ? propertyName.substring(0, 23) + "..." : propertyName, 600, 220);
-
-      // 3. Central QR Code Frame
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "#c2652a";
-      ctx.lineWidth = 6;
-      roundRect(ctx, 160, 330, 880, 880, 48);
-      ctx.fill();
-      ctx.stroke();
-
-      // Load QR Image
-      const qrImg = new Image();
-      qrImg.crossOrigin = "anonymous";
-      await new Promise<void>((resolve, reject) => {
-        qrImg.onload = () => resolve();
-        qrImg.onerror = reject;
-        qrImg.src = qrImageUrl;
+      const blob = await toBlob(el, {
+        pixelRatio: 3,
+        cacheBust: true,
       });
-      ctx.drawImage(qrImg, 220, 390, 760, 760);
 
-      // 4. "SCAN WITH ANY CAMERA / GPAY" Pill
-      ctx.fillStyle = "#fffbeb";
-      ctx.strokeStyle = "#fde68a";
-      ctx.lineWidth = 4;
-      roundRect(ctx, 270, 1250, 660, 80, 40);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#964407";
-      ctx.font = "bold 34px sans-serif";
-      ctx.fillText("📷 SCAN WITH ANY CAMERA / GPAY", 600, 1303);
-
-      // 5. 3-Step Instruction Box
-      ctx.fillStyle = "#f8fafc";
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 4;
-      roundRect(ctx, 100, 1370, 1000, 260, 32);
-      ctx.fill();
-      ctx.stroke();
-
-      // Steps texts
-      const steps = [
-        "1.  Scan QR & select your preferred available bed",
-        "2.  Upload live selfie photo & Aadhaar card",
-        "3.  Instant front desk approval & keys handover",
-      ];
-      ctx.fillStyle = "#1e293b";
-      ctx.font = "600 34px sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(steps[0], 140, 1435);
-      ctx.fillText(steps[1], 140, 1515);
-      ctx.fillText(steps[2], 140, 1595);
-
-      // 6. Footer Tag
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "bold 26px sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText("ZERO APP DOWNLOAD REQUIRED", 100, 1700);
-      ctx.textAlign = "right";
-      ctx.fillText("POWERED BY TENOPILOT.COM", 1100, 1700);
-
-      // Trigger download
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${propertyId}-reception-desk-standee-4x6.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, "image/png");
-    } catch (e) {
-      console.error("Standee PNG generation failed:", e);
-      window.open(qrImageUrl, "_blank");
+      if (blob) {
+        triggerBlobDownload(blob, `${cleanPgName}_Self_KYC_Standee.png`);
+      } else {
+        const dataUrl = await toPng(el, { pixelRatio: 3 });
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `${cleanPgName}_Self_KYC_Standee.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err: any) {
+      console.error("Error generating standee PNG:", err);
+      try {
+        const dataUrl = await toPng(el, { pixelRatio: 2 });
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `${cleanPgName}_Self_KYC_Standee.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (fallbackErr) {
+        alert("Notice: Could not generate image. Please try downloading PDF instead.");
+      }
     } finally {
-      setDownloading(false);
+      setIsGeneratingPng(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none animate-in fade-in">
-      <div className="bg-white rounded-3xl border border-gray-200 shadow-2xl max-w-lg w-full max-h-[95vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 bg-gradient-to-r from-orange-50 via-amber-50 to-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#c2652a] text-white flex items-center justify-center shadow-md">
-              <ScanFace className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
-                  Reception Desk Standee QR
-                </h3>
-                <span className="text-[10px] font-extrabold bg-[#c2652a] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  4" × 6" Desk Size
-                </span>
-              </div>
-              <p className="text-xs text-gray-500">
-                Compact desk-standee format (~25% A4 / Paytm acrylic stand size)
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-gray-200 text-gray-400 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <>
+      {/* SCREEN MODAL VIEW */}
+      <div
+        className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:hidden animate-in fade-in overflow-y-auto"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-gray-200 overflow-hidden my-auto flex flex-col md:flex-row max-h-[96vh] animate-in zoom-in-95"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Left Column: Live A4 Poster Preview */}
+          <div className="flex-1 bg-neutral-900/10 p-3 sm:p-6 overflow-y-auto flex items-center justify-center border-b md:border-b-0 md:border-r border-gray-200">
+            {/* The Actual Scaled Poster Component with Photorealistic Scandinavian Interior Background */}
+            <div
+              ref={posterRef}
+              className="w-full max-w-[390px] aspect-[1/1.414] rounded-none shadow-2xl border-0 p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden text-center select-none bg-[#FAF7F2]"
+            >
+              {/* Background image layer */}
+              {bgBase64 ? (
+                <img
+                  src={bgBase64}
+                  alt="Poster Background"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                />
+              ) : (
+                <img
+                  src="/images/self-kyc-poster-background.jpg"
+                  alt="Poster Background"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  crossOrigin="anonymous"
+                />
+              )}
 
-        {/* Scrollable Preview Body (Fixed vertical alignment to ensure full card visibility without mobile cropping) */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-b from-stone-100 via-orange-50/20 to-stone-100 flex flex-col items-center justify-start sm:justify-center py-6">
-          {/* Printable Acrylic Standee Canvas with Complementing Ambient Warm Wood & Acrylic Aesthetic */}
-          <div
-            ref={printRef}
-            id="reception-standee-printable"
-            className="w-[280px] sm:w-[320px] bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border-2 border-[#c2652a]/20 p-5 flex flex-col items-center text-center relative overflow-hidden transition-all my-auto"
-            style={{
-              backgroundImage: "radial-gradient(#fed7aa 0.65px, transparent 0.65px), radial-gradient(#fed7aa 0.65px, #ffffff 0.65px)",
-              backgroundSize: "26px 26px",
-              backgroundPosition: "0 0, 13px 13px",
-            }}
-          >
-            {/* Top Brand Banner */}
-            <div className="w-full bg-gradient-to-br from-[#964407] to-[#c2652a] text-white p-3 rounded-2xl shadow-md mb-3">
-              <span className="text-[9px] font-black uppercase tracking-widest block text-amber-200 opacity-90">
-                DIGITAL SELF CHECK-IN
-              </span>
-              <h2 className="font-serif font-extrabold text-sm sm:text-base leading-tight mt-0.5 truncate">
-                {propertyName}
-              </h2>
-            </div>
-
-            {/* High-Contrast Central QR Code with acrylic bevel */}
-            <div className="p-2.5 bg-white rounded-2xl border-2 border-dashed border-[#c2652a]/50 shadow-md my-1">
-              <img
-                src={qrImageUrl}
-                alt="Reception Self-KYC QR"
-                className="w-48 h-48 sm:w-52 sm:h-52 object-contain rounded-xl"
+              {/* Subtle Ambient Radial Glow on Center to enhance text contrast */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 50% 45%, rgba(255, 255, 255, 0.40) 0%, rgba(255, 255, 255, 0.05) 70%, transparent 100%)",
+                }}
               />
-            </div>
 
-            {/* Call to action badge */}
-            <div className="mt-3 flex items-center justify-center gap-1.5 px-3 py-1 bg-amber-50 rounded-full border border-amber-200 text-[#964407] text-[11px] font-black tracking-wide shadow-2xs">
-              <QrCode className="w-3.5 h-3.5 text-[#c2652a]" />
-              <span>SCAN WITH ANY CAMERA / GPAY</span>
-            </div>
+              {/* 1. Top Authority Header: TenoPilot Brand & Roof Emblem */}
+              <div className="pt-0.5 relative z-10 flex flex-col items-center justify-center shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <div className="text-[#C25E2E] flex items-center justify-center">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2L2 9.5V11H4V20H9V14H15V20H20V11H22V9.5L12 2Z" />
+                    </svg>
+                  </div>
+                  <span className="font-black text-xs sm:text-sm tracking-[0.18em] uppercase text-[#1F1714]">
+                    TenoPilot
+                  </span>
+                </div>
+                <p className="text-[7px] sm:text-[8px] font-black tracking-[0.24em] uppercase text-[#6B5A51] mt-0.5">
+                  Resident Experience
+                </p>
+              </div>
 
-            {/* Simple 3-Step Instruction Box */}
-            <div className="mt-3 w-full bg-slate-50/90 border border-slate-200/80 rounded-xl p-2.5 text-left text-[10px] space-y-1 text-slate-700 shadow-2xs">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded-full bg-[#c2652a] text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                  1
-                </span>
-                <span className="font-semibold truncate">Scan QR & pick available bed</span>
+              {/* 2. Hero Headline */}
+              <div className="my-0.5 relative z-10 shrink-0">
+                <h1 className="text-2xl sm:text-[28px] font-black text-[#1F1714] tracking-tight leading-none">
+                  Digital
+                </h1>
+                <h2 className="text-2xl sm:text-[28px] font-black text-[#C25E2E] tracking-tight leading-tight mt-0.5">
+                  Self Check-In
+                </h2>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded-full bg-[#c2652a] text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                  2
-                </span>
-                <span className="font-semibold truncate">Upload selfie & Aadhaar photo</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded-full bg-[#c2652a] text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                  3
-                </span>
-                <span className="font-semibold truncate">Instant front desk confirmation</span>
-              </div>
-            </div>
 
-            {/* Footer Tag */}
-            <div className="mt-3 pt-2 border-t border-slate-100 w-full flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-              <span>Zero App Download</span>
-              <span>Powered by TenoPilot</span>
+              {/* 3. Highlighted PG Name Badge (Cream Translucent Pill) */}
+              <div className="my-0.5 relative z-10 flex flex-col items-center justify-center shrink-0">
+                <div className="bg-[#FAF3EB]/90 backdrop-blur-sm px-4 sm:px-5 py-1 sm:py-1.5 rounded-full shadow-xs border border-[#E8DACB] max-w-[90%] flex items-center justify-center gap-1.5">
+                  <span className="text-sm sm:text-base leading-none">🏨</span>
+                  <span className="font-serif font-bold text-xs sm:text-sm text-[#241A15] tracking-wide truncate">
+                    {realPgName}
+                  </span>
+                </div>
+                <p className="text-[7.5px] sm:text-[8px] font-semibold text-[#786457] mt-0.5 tracking-wider">
+                  Quick. Secure. Hassle-Free.
+                </p>
+              </div>
+
+              {/* 4. Central QR Code Card with Corner Brackets & Terracotta Button */}
+              <div className="relative z-10 my-0.5 flex flex-col items-center justify-center shrink-0">
+                <div className="bg-white p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-xl border border-[#EADBCC] flex flex-col items-center justify-center relative">
+                  {/* Subtle Terracotta Corner Accents */}
+                  <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-[#C25E2E] rounded-tl pointer-events-none" />
+                  <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-[#C25E2E] rounded-tr pointer-events-none" />
+                  <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-[#C25E2E] rounded-bl pointer-events-none" />
+                  <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-[#C25E2E] rounded-br pointer-events-none" />
+
+                  <QRCodeCanvas
+                    id={`self-kyc-qr-${propertyId}`}
+                    value={portalUrl}
+                    size={130}
+                    fgColor="#1F1714"
+                    bgColor="#FFFFFF"
+                    level="H"
+                    includeMargin={false}
+                  />
+
+                  {/* "Scan to Start" Terracotta Action Pill */}
+                  <div className="mt-2.5 bg-gradient-to-r from-[#B84E1F] via-[#C25E2E] to-[#CD6734] text-white px-4 sm:px-5 py-1 sm:py-1.5 rounded-xl shadow-md flex items-center justify-center gap-1.5 border border-white/20">
+                    <Camera className="w-3.5 h-3.5 text-white" />
+                    <span className="text-[8.5px] sm:text-[9.5px] font-black tracking-widest uppercase text-white">
+                      Scan to Start
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. 3-Feature Glassmorphic Pill Cards */}
+              <div className="relative z-10 my-0.5 shrink-0 flex justify-center w-full px-1">
+                <div className="bg-white/80 backdrop-blur-md border border-white/60 shadow-xs px-2.5 py-2 sm:py-2.5 rounded-2xl w-full max-w-[325px] flex items-center justify-around divide-x divide-[#E5D7CA]">
+                  {/* Feature 1 */}
+                  <div className="flex flex-col items-center flex-1 px-1">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#FAECE1] border border-[#F2D7C3] flex items-center justify-center mb-1 text-[#C25E2E]">
+                      <IdCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                    </div>
+                    <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                      Verify Your Identity
+                    </span>
+                  </div>
+
+                  {/* Feature 2 */}
+                  <div className="flex flex-col items-center flex-1 px-1">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#FAECE1] border border-[#F2D7C3] flex items-center justify-center mb-1 text-[#C25E2E]">
+                      <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                    </div>
+                    <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                      Secure & Private
+                    </span>
+                  </div>
+
+                  {/* Feature 3 */}
+                  <div className="flex flex-col items-center flex-1 px-1">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#FAECE1] border border-[#F2D7C3] flex items-center justify-center mb-1 text-[#C25E2E]">
+                      <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
+                    </div>
+                    <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center">
+                      Get Instant Approval
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6. Bottom Clean Authority Footer */}
+              <div className="relative z-10 pt-1 pb-0.5 shrink-0 text-center">
+                <p className="text-[7.5px] sm:text-[8px] font-extrabold tracking-[0.16em] uppercase text-[#54443B] font-sans flex items-center justify-center gap-1.5">
+                  <span>Zero App Download Required</span>
+                  <span className="text-[#C25E2E]">•</span>
+                  <span>Powered by TenoPilot.com</span>
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-gray-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={handleCopyLink}
-              className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <ExternalLink className="w-3.5 h-3.5" />}
-              <span>{copied ? "Link Copied!" : "Copy URL"}</span>
-            </button>
-            <a
-              href={portalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-all"
-            >
-              <span>Test Walk-in Portal</span>
-              <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
-            </a>
-          </div>
+          {/* Right Column: Actions & Controls Panel */}
+          <div className="w-full md:w-80 p-5 sm:p-6 flex flex-col justify-between space-y-6 bg-white">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Self-KYC Desk Standee</h3>
+                  <p className="text-xs text-gray-500">Premium printable check-in QR poster</p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={handleDownloadStandeePng}
-              disabled={downloading}
-              className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl border border-[#c2652a]/40 bg-orange-50 text-[#c2652a] text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>{downloading ? "Generating..." : "Download Standee PNG"}</span>
-            </button>
-            <button
-              onClick={handlePrint}
-              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print 4" × 6" Standee</span>
-            </button>
+              {/* Active Property Info Badge */}
+              <div className="p-3 bg-orange-50/60 rounded-xl border border-orange-200/80 space-y-1.5">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-orange-800">
+                  Active Property Desk
+                </span>
+                <p className="font-extrabold text-sm text-gray-900">{realPgName}</p>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <input
+                    type="text"
+                    readOnly
+                    value={portalUrl}
+                    className="w-full text-[11px] font-mono bg-white px-2 py-1 rounded border border-orange-200 text-gray-600 truncate select-all focus:outline-none"
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className="shrink-0 p-1 rounded bg-orange-100 hover:bg-orange-200 text-[#C25E2E] transition-colors"
+                    title="Copy Link"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Feature Highlights */}
+              <div className="space-y-2 text-xs text-gray-600">
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Warm Scandinavian boutique interior design</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Dynamic property pill with elegant serif font</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>100% 1:1 match between Preview, PNG and PDF</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Ready for 4&quot; × 6&quot; acrylic desk stand or A4 framing</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons Stack */}
+            <div className="space-y-2.5 pt-4 border-t border-gray-100">
+              {/* Primary Download A4 PDF */}
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#BA5324] to-[#C25E2E] hover:from-[#a8471c] hover:to-[#b05226] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-98"
+              >
+                <FileText className="w-4 h-4" />
+                <span>{isGeneratingPdf ? "Downloading A4 PDF..." : "Download Standee (PDF)"}</span>
+              </button>
+
+              {/* Secondary Download High-Res PNG */}
+              <button
+                type="button"
+                onClick={handleDownloadPng}
+                disabled={isGeneratingPng}
+                className="w-full py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#C25E2E] font-bold text-xs flex items-center justify-center gap-2 border border-orange-200 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{isGeneratingPng ? "Rendering PNG..." : "Download Standee (PNG)"}</span>
+              </button>
+
+              {/* Test in New Tab Link */}
+              <a
+                href={portalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-2 rounded-xl text-center text-gray-500 hover:text-gray-800 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                <span>Open Registration Form in New Tab</span>
+                <ExternalLink className="w-3 h-3 text-gray-400" />
+              </a>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Embedded Print CSS targeting 4x6 / A6 standalone output */}
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #reception-standee-printable,
-          #reception-standee-printable * {
-            visibility: visible !important;
-          }
-          #reception-standee-printable {
-            position: fixed !important;
-            left: 50% !important;
-            top: 50% !important;
-            transform: translate(-50%, -50%) scale(1.15) !important;
-            width: 105mm !important;
-            max-width: 105mm !important;
-            height: 148mm !important;
-            box-shadow: none !important;
-            border: 2px solid #c2652a !important;
-            margin: 0 !important;
-            padding: 10mm !important;
-          }
-        }
-      `}</style>
-    </div>
+    </>
   );
-}
-
-// Helper to draw rounded rectangle on canvas
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
 }
