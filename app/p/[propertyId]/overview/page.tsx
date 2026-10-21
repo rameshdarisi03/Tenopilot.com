@@ -48,6 +48,7 @@ import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { subscribeToComplaints, Complaint } from "@/lib/complaintStore";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { useAuth } from "@/providers/AuthProvider";
 import { calculateOccupantFinancialStatement, calculatePropertyRentComplianceSummary } from "@/utils/domainSSOT";
@@ -217,10 +218,20 @@ export default function PropertyOverviewPage({
     const unsubProp = propertyStore.subscribe(() => setStructure(propertyStore.getStructure(propertyId)));
     const unsubComp = subscribeToComplaints(propertyId, (list) => setComplaints(list || []));
 
+    const unsubFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants && fsOccupants.length > 0) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+      } else {
+        occupantStore.setOccupantsFromFirestore([], propertyId);
+      }
+      setOccupants(occupantStore.getOccupants(propertyId));
+    });
+
     return () => {
       unsubOcc();
       unsubProp();
       unsubComp();
+      unsubFirestore();
     };
   }, [propertyId]);
 

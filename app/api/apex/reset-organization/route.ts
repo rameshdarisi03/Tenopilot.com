@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, getDocs, collection, deleteDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, deleteDoc, setDoc, query, where } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { sanitizeForFirestore } from "@/lib/firestoreService";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,9 +25,10 @@ export async function POST(req: NextRequest) {
 
     const cleanEmail = (email || "").toLowerCase().trim();
 
-    // 1. Resolve all property IDs associated with this customer / account
+    // 1. Resolve all property IDs associated with this customer / account exhaustively
     const propertyIdSet = new Set<string>((Array.isArray(propertyIds) ? propertyIds : [propertyIds]).filter(Boolean));
 
+    // A. Check properties collection
     if (cleanEmail || userId) {
       try {
         const propsSnap = await getDocs(collection(db, "properties"));
@@ -41,7 +43,57 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (e) {
-        console.warn("Property auto-discovery error:", e);
+        console.warn("Property auto-discovery error from properties collection:", e);
+      }
+
+      // B. Check users collection (assignedPropertyId & assignedPropertyIds)
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        for (const uDoc of usersSnap.docs) {
+          const uData = uDoc.data() as any;
+          const uEmail = (uData.email || "").toLowerCase().trim();
+          if (uEmail === cleanEmail || uDoc.id === userId) {
+            if (uData.assignedPropertyId) propertyIdSet.add(uData.assignedPropertyId);
+            if (Array.isArray(uData.assignedPropertyIds)) {
+              uData.assignedPropertyIds.forEach((pid: string) => {
+                if (pid && pid !== "*") propertyIdSet.add(pid);
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Property auto-discovery error from users collection:", e);
+      }
+
+      // C. Check portfolio_properties & portfolios
+      try {
+        const portSnap = await getDocs(collection(db, "portfolio_properties"));
+        for (const pDoc of portSnap.docs) {
+          const pData = pDoc.data() as any;
+          if (cleanEmail && (pData.ownerEmail || "").toLowerCase().trim() === cleanEmail) {
+            propertyIdSet.add(pDoc.id);
+          }
+        }
+      } catch (e) {
+        console.warn("Property auto-discovery error from portfolio_properties:", e);
+      }
+
+      // D. Check users/portfolio_{sanitizedEmail}
+      if (cleanEmail) {
+        try {
+          const sanitizedKey = cleanEmail.replace(/[^a-z0-9]/g, "_");
+          const portDocSnap = await getDoc(doc(db, "users", `portfolio_${sanitizedKey}`));
+          if (portDocSnap.exists()) {
+            const portData = portDocSnap.data();
+            if (Array.isArray(portData?.properties)) {
+              portData.properties.forEach((p: any) => {
+                if (p.id) propertyIdSet.add(p.id);
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Property auto-discovery error from users/portfolio doc:", e);
+        }
       }
     }
 
@@ -90,6 +142,16 @@ export async function POST(req: NextRequest) {
               }
             }
 
+            // Remove phone index if present
+            if (oData.phone) {
+              const cleanPhone = String(oData.phone).replace(/\D/g, "").slice(-10);
+              if (cleanPhone.length === 10) {
+                try {
+                  await deleteDoc(doc(db, "occupants_by_phone", cleanPhone));
+                } catch {}
+              }
+            }
+
             await deleteDoc(doc(db, "properties", propId, "occupants", oDoc.id));
             deletedTenantsCount++;
           }
@@ -111,27 +173,24 @@ export async function POST(req: NextRequest) {
                 ...floor,
                 rooms: (floor.rooms || []).map((room: any) => ({
                   ...room,
-                  beds: (room.beds || []).map((bed: any) => ({
-                    ...bed,
-                    status: "Available",
-                    isOccupied: false,
-                    occupant: undefined,
-                    occupantId: undefined,
-                    occupantName: undefined,
-                    vacatingDate: undefined,
-                    guestCheckoutDate: undefined,
-                  })),
+                  beds: (room.beds || []).map((bed: any) => {
+                    const cleanedBed: any = {
+                      id: bed.id,
+                      bedCode: bed.bedCode,
+                      status: "Available",
+                    };
+                    return cleanedBed;
+                  }),
                 })),
               }));
 
-              await setDoc(
-                layoutDocRef,
-                {
-                  floors: updatedFloors,
-                  updatedAt: new Date().toISOString(),
-                },
-                { merge: true }
-              );
+              const sanitizedData = sanitizeForFirestore({
+                floors: updatedFloors,
+                updatedAt: new Date().toISOString(),
+              });
+
+              // Overwrite without merge to strip old occupant nested maps
+              await setDoc(layoutDocRef, sanitizedData);
               resetLayoutsCount++;
             }
           }
