@@ -2164,9 +2164,20 @@ export default function IndividualTenantProfilePage({
               const isPast = occupantState.lifecycleStatus === "Past";
               const audit = occupantState.checkoutSettlement;
 
+              const depStatus = topStmt.depositStatusLabel || occupantState.depositStatus || "PAID";
+              const isCleared = topStmt.isDepositCleared || depStatus === "PAID";
+
               let headline = `₹${(occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2)).toLocaleString("en-IN")}`;
-              let subtext = occupantState.depositStatus || "PAID 🟢";
-              let subtextColor = "text-purple-700 font-extrabold";
+              let subtext = isCleared
+                ? "PAID 🟢"
+                : depStatus === "PARTIAL"
+                ? `PARTIAL (₹${topStmt.remainingDepositDue.toLocaleString("en-IN")} DUE) 🟡`
+                : `PENDING (₹${topStmt.remainingDepositDue.toLocaleString("en-IN")} DUE) 🔴`;
+              let subtextColor = isCleared
+                ? "text-emerald-700 font-extrabold"
+                : depStatus === "PARTIAL"
+                ? "text-amber-700 font-extrabold"
+                : "text-rose-700 font-extrabold";
 
               if (isPast) {
                 if (audit) {
