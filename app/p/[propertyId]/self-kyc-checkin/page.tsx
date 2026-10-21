@@ -39,6 +39,7 @@ import {
   sanitizeVehicleNumber,
   validateBase64Attachment,
 } from "@/utils/security";
+import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
 export default function WalkInSelfKycCheckinPage({
   params,
@@ -148,12 +149,13 @@ export default function WalkInSelfKycCheckinPage({
     setSelectedBedTariff(tariff);
   };
 
+  // Strictly validated, sanitized, and lightweight compressed file upload handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File size exceeds 5MB limit. Please upload a smaller image or compressed PDF.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("File size exceeds 15MB limit. Please upload a smaller image or compressed PDF.");
       return;
     }
 
@@ -163,17 +165,47 @@ export default function WalkInSelfKycCheckinPage({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      const validation = validateBase64Attachment(result);
-      if (!validation.valid) {
-        alert(validation.error || "Invalid file content.");
-        return;
-      }
-      setter(result);
-    };
-    reader.readAsDataURL(file);
+    // PDF files: read directly as base64 with strict validation
+    if (file.type === "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        const validation = validateBase64Attachment(result);
+        if (!validation.valid) {
+          alert(validation.error || "Invalid file content.");
+          return;
+        }
+        setter(result);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Camera & Gallery Images: Automatically compress to max 1000px & 0.72 quality (~40-70KB)
+    // Guarantees high visual crispness while preventing Firestore 1MB document overflow
+    compressPaymentScreenshot(file, 1000, 0.72)
+      .then(({ base64 }) => {
+        const validation = validateBase64Attachment(base64);
+        if (!validation.valid) {
+          alert(validation.error || "Invalid image content.");
+          return;
+        }
+        setter(base64);
+      })
+      .catch(() => {
+        // Fallback to FileReader if client canvas is unavailable
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          const validation = validateBase64Attachment(result);
+          if (!validation.valid) {
+            alert(validation.error || "Invalid file content.");
+            return;
+          }
+          setter(result);
+        };
+        reader.readAsDataURL(file);
+      });
   };
 
   const handleSubmitWalkInKYC = async (e: React.FormEvent) => {
