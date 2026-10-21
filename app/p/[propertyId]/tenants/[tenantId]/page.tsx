@@ -2167,14 +2167,16 @@ export default function IndividualTenantProfilePage({
                               </div>
                             )}
 
-                            <div className="flex items-center justify-between py-1 text-gray-700">
-                              <span className="flex items-center gap-2">
-                                🔒 Pending Security Deposit
-                              </span>
-                              <span className="font-bold font-mono text-gray-900 text-sm">
-                                ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
-                              </span>
-                            </div>
+                            {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                              <div className="flex items-center justify-between py-1 text-gray-700">
+                                <span className="flex items-center gap-2">
+                                  🔒 Pending Security Deposit
+                                </span>
+                                <span className="font-bold font-mono text-gray-900 text-sm">
+                                  ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            )}
 
                             <div className="pt-3 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
                               <span className="text-xs">Total Net Outstanding:</span>
@@ -2229,14 +2231,16 @@ export default function IndividualTenantProfilePage({
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between py-1 text-gray-700">
-                            <span className="flex items-center gap-1.5">
-                              🔒 Pending Security Deposit
-                            </span>
-                            <span className="font-bold font-mono text-gray-900">
-                              ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
-                            </span>
-                          </div>
+                          {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                            <div className="flex items-center justify-between py-1 text-gray-700">
+                              <span className="flex items-center gap-1.5">
+                                🔒 Pending Security Deposit
+                              </span>
+                              <span className="font-bold font-mono text-gray-900">
+                                ₹{topStmt.remainingDepositDue.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
 
                           <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900 text-xs">
                             <span>Total Net Outstanding:</span>

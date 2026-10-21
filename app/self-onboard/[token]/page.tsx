@@ -41,6 +41,12 @@ import {
 } from "@/utils/security";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
+const formatBedLabel = (bedCode?: string): string => {
+  if (!bedCode) return "";
+  const trimmed = bedCode.trim();
+  return /^bed\s+/i.test(trimmed) ? trimmed : `Bed ${trimmed}`;
+};
+
 export default function TenantSelfOnboardingPage({
   params,
 }: {
@@ -581,7 +587,7 @@ export default function TenantSelfOnboardingPage({
                 <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200">
                   <span className="text-[10px] font-bold uppercase text-gray-400 block">Assigned Room & Bed</span>
                   <span className="font-serif font-bold text-base sm:text-lg text-gray-900 block">
-                    Room {invite.roomNumber} ({invite.bedCode})
+                    Room {invite.roomNumber} ({formatBedLabel(invite.bedCode)})
                   </span>
                   <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5">
                     Locked on Hold 🔒
@@ -1075,7 +1081,7 @@ export default function TenantSelfOnboardingPage({
                         >
                           <div>
                             <span className="font-serif font-bold text-xs text-gray-900 block">
-                              Room {slot.roomNumber} ({slot.bedCode})
+                              Room {slot.roomNumber} ({formatBedLabel(slot.bedCode)})
                             </span>
                             <span className="text-[10px] text-gray-500 block">{slot.roomType}</span>
                           </div>
@@ -1533,7 +1539,7 @@ export default function TenantSelfOnboardingPage({
               <p className="text-gray-700 flex items-center justify-between">
                 <span>🏢 Room & Bed:</span>
                 <span className="font-bold text-gray-900">
-                  Room {selectedRoomNumber || invite?.roomNumber} ({selectedBedCode || invite?.bedCode})
+                  Room {selectedRoomNumber || invite?.roomNumber} ({formatBedLabel(selectedBedCode || invite?.bedCode)})
                 </span>
               </p>
               <p className="text-gray-700 flex items-center justify-between">

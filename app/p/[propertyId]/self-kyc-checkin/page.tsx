@@ -43,6 +43,12 @@ import {
 } from "@/utils/security";
 import { compressPaymentScreenshot } from "@/lib/imageCompression";
 
+const formatBedLabel = (bedCode?: string): string => {
+  if (!bedCode) return "";
+  const trimmed = bedCode.trim();
+  return /^bed\s+/i.test(trimmed) ? trimmed : `Bed ${trimmed}`;
+};
+
 export default function WalkInSelfKycCheckinPage({
   params,
 }: {
@@ -534,7 +540,7 @@ export default function WalkInSelfKycCheckinPage({
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-serif font-bold text-base text-gray-900">
-                              Room {item.roomNumber} ({item.bed.bedCode})
+                              Room {item.roomNumber} ({formatBedLabel(item.bed.bedCode)})
                             </span>
                             <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md">
                               {item.roomType}

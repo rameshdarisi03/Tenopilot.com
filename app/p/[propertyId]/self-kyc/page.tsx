@@ -2,6 +2,8 @@
 
 import { use, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   ScanFace,
   Users,
@@ -29,6 +31,7 @@ import {
   FileText,
   UserCheck2,
   AlertCircle,
+  AlertTriangle,
   Copy,
   Check,
   MessageSquare,
@@ -71,6 +74,7 @@ export default function SelfKycDeskPage({
   // Send Invite Modal State
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteStayType, setInviteStayType] = useState<"Tenant" | "Guest">("Tenant");
+  const [inviteCheckInDate, setInviteCheckInDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [inviteRoomNumber, setInviteRoomNumber] = useState("");
   const [inviteBedCode, setInviteBedCode] = useState("");
   const [inviteCandidateName, setInviteCandidateName] = useState("");
@@ -80,6 +84,67 @@ export default function SelfKycDeskPage({
   const [inviteRentAmount, setInviteRentAmount] = useState<number>(12000);
   const [inviteDepositAmount, setInviteDepositAmount] = useState<number>(24000);
   const [inviteDispatchLoading, setInviteDispatchLoading] = useState(false);
+
+  // Active resident phone lookup map (to detect conflict in Send Invite modal)
+  const [existingResidentMap, setExistingResidentMap] = useState<
+    Map<string, { name: string; roomNumber: string; bedCode: string }>
+  >(new Map());
+
+  useEffect(() => {
+    if (!propertyId) return;
+
+    const buildMap = (occupantsList: any[]) => {
+      const map = new Map<string, { name: string; roomNumber: string; bedCode: string }>();
+      occupantsList.forEach((occ) => {
+        if (occ.phone && occ.lifecycleStatus !== "Past") {
+          const digits = String(occ.phone).replace(/\D/g, "").slice(-10);
+          if (digits.length === 10) {
+            map.set(digits, {
+              name: occ.name || "Active Resident",
+              roomNumber: occ.roomNumber || "",
+              bedCode: occ.bedCode || "",
+            });
+          }
+        }
+      });
+      return map;
+    };
+
+    // 1. Instantly populate from occupantStore (0ms latency from memory/cache)
+    try {
+      const localOccs = occupantStore.getOccupants(propertyId);
+      if (localOccs && localOccs.length > 0) {
+        setExistingResidentMap(buildMap(localOccs));
+      }
+    } catch (e) {
+      console.warn("Failed reading local occupantStore:", e);
+    }
+
+    // 2. Fetch latest from Firestore SSOT
+    async function loadOccupants() {
+      try {
+        const snap = await getDocs(collection(db, "properties", propertyId, "occupants"));
+        const fromFs: any[] = [];
+        snap.docs.forEach((d) => fromFs.push(d.data()));
+        if (fromFs.length > 0) {
+          setExistingResidentMap(buildMap(fromFs));
+        }
+      } catch (e) {
+        console.warn("Notice checking existing occupants:", e);
+      }
+    }
+    loadOccupants();
+  }, [propertyId]);
+
+  // Conflict calculation in Send Invite modal
+  const cleanCandidateDigits = useMemo(() => {
+    return inviteCandidatePhone.replace(/\D/g, "").slice(-10);
+  }, [inviteCandidatePhone]);
+
+  const existingResidentConflict = useMemo(() => {
+    if (cleanCandidateDigits.length !== 10) return null;
+    return existingResidentMap.get(cleanCandidateDigits) || null;
+  }, [cleanCandidateDigits, existingResidentMap]);
 
   // Review & Verification Modal State
   const [activeReviewSubmission, setActiveReviewSubmission] = useState<SelfKycSubmission | null>(null);
@@ -166,13 +231,29 @@ export default function SelfKycDeskPage({
     });
   }, [invites, pendingSubmissions, approvedSubmissions]);
 
-  // List of available rooms & beds for invite creation
+  // Helper to prevent redundant "Bed Bed" prefix
+  const formatBedLabel = (bedCode?: string): string => {
+    if (!bedCode) return "";
+    const trimmed = bedCode.trim();
+    if (/^bed\s+/i.test(trimmed)) return trimmed;
+    return `Bed ${trimmed}`;
+  };
+
+  // List of available rooms & beds for invite creation (dynamically filtered for target check-in date)
   const availableBeds = useMemo(() => {
     const list: { roomNumber: string; bedCode: string; floorName: string; tariff: number }[] = [];
+    const targetDate = inviteCheckInDate || new Date().toISOString().split("T")[0];
+
     propertyStructure.forEach((fl) => {
       fl.rooms.forEach((rm) => {
         rm.beds.forEach((bd) => {
-          if (bd.status === "Available") {
+          const isDirectlyAvailable = bd.status === "Available";
+          const isVacatingBeforeTarget =
+            (bd.status === "Occupied" || bd.status === "Booked") &&
+            bd.vacatingDate &&
+            bd.vacatingDate <= targetDate;
+
+          if (isDirectlyAvailable || isVacatingBeforeTarget) {
             list.push({
               roomNumber: rm.roomNumber,
               bedCode: bd.bedCode,
@@ -184,7 +265,7 @@ export default function SelfKycDeskPage({
       });
     });
     return list;
-  }, [propertyStructure]);
+  }, [propertyStructure, inviteCheckInDate]);
 
   // When room changes in invite modal, auto-pick first available bed and tariff
   const availableRoomsList = useMemo(() => {
@@ -203,8 +284,30 @@ export default function SelfKycDeskPage({
     }
   };
 
+  // Keep room and bed in sync when check-in date or availableBeds change
+  useEffect(() => {
+    if (!showInviteModal) return;
+    if (availableBeds.length > 0) {
+      const isCurrentStillValid = availableBeds.some(
+        (b) => b.roomNumber === inviteRoomNumber && b.bedCode === inviteBedCode
+      );
+      if (!isCurrentStillValid) {
+        const first = availableBeds[0];
+        setInviteRoomNumber(first.roomNumber);
+        setInviteBedCode(first.bedCode);
+        setInviteRentAmount(first.tariff);
+        setInviteDepositAmount(first.tariff * 2);
+      }
+    } else {
+      setInviteRoomNumber("");
+      setInviteBedCode("");
+    }
+  }, [availableBeds, showInviteModal, inviteRoomNumber, inviteBedCode]);
+
   // Open Invite Modal helper
   const handleOpenInviteModal = () => {
+    const today = new Date().toISOString().split("T")[0];
+    setInviteCheckInDate(today);
     if (availableBeds.length > 0) {
       const first = availableBeds[0];
       setInviteRoomNumber(first.roomNumber);
@@ -231,6 +334,14 @@ export default function SelfKycDeskPage({
     const cleanPhone = inviteCandidatePhone.replace(/\D/g, "");
     if (cleanPhone.length < 10) {
       triggerToast("Mobile phone number must be at least 10 digits.", "error");
+      return;
+    }
+
+    if (existingResidentConflict) {
+      triggerToast(
+        `This mobile number is already registered with ${existingResidentConflict.name} in Room ${existingResidentConflict.roomNumber}.`,
+        "error"
+      );
       return;
     }
 
@@ -271,7 +382,7 @@ export default function SelfKycDeskPage({
       const waMsg =
         `Hello ${newInvite.candidateName}! 👋\n\n` +
         `Welcome to *${propName}*. Your bed has been placed on hold:\n` +
-        `🏠 *Room ${newInvite.roomNumber} (Bed ${newInvite.bedCode})*\n` +
+        `🏠 *Room ${newInvite.roomNumber} (${formatBedLabel(newInvite.bedCode)})*\n` +
         `💰 *Tariff*: ₹${newInvite.rentAmount.toLocaleString("en-IN")} / month\n\n` +
         `👉 Please complete your 2-minute digital Self-KYC check-in here:\n` +
         `${inviteLink}\n\n` +
@@ -336,7 +447,7 @@ export default function SelfKycDeskPage({
     setActiveTab("INVITES");
     setInvites((prev) => [newInvite, ...prev.filter((i) => i.id !== newInvite.id)]);
     const emailNotice = newInvite.candidateEmail ? " & Email" : "";
-    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via WhatsApp${emailNotice}! Bed ${inviteRoomNumber}-${inviteBedCode} is now ON HOLD 🔒`);
+    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via WhatsApp${emailNotice}! Room ${inviteRoomNumber} (${formatBedLabel(inviteBedCode)}) is now ON HOLD 🔒`);
   };
 
   // 1-Tap Share Invite Directly via WhatsApp Web / App
@@ -350,7 +461,7 @@ export default function SelfKycDeskPage({
     const msg =
       `Hello ${inv.candidateName}! 👋\n\n` +
       `Welcome to *${propName}*. Your bed has been placed on hold:\n` +
-      `🏠 *Room ${inv.roomNumber} (Bed ${inv.bedCode})*\n` +
+      `🏠 *Room ${inv.roomNumber} (${formatBedLabel(inv.bedCode)})*\n` +
       `💰 *Tariff*: ₹${inv.rentAmount.toLocaleString("en-IN")} / month\n\n` +
       `👉 Please complete your 2-minute digital Self-KYC check-in here:\n` +
       `${url}\n\n` +
@@ -364,12 +475,12 @@ export default function SelfKycDeskPage({
 
   // Revoke Invite (Returns bed to Available)
   const handleRevokeInvite = async (inviteId: string, roomNum: string, bedCode: string) => {
-    if (!confirm(`Are you sure you want to cancel this invite? Bed ${roomNum}-${bedCode} will return to Available.`)) {
+    if (!confirm(`Are you sure you want to cancel this invite? Room ${roomNum} (${formatBedLabel(bedCode)}) will return to Available.`)) {
       return;
     }
     await selfKycStore.revokeInvite(propertyId, inviteId, roomNum, bedCode);
     setInvites((prev) => prev.filter((i) => i.id !== inviteId && !(i.roomNumber === roomNum && i.bedCode === bedCode)));
-    triggerToast(`Invite canceled. Bed ${roomNum}-${bedCode} is now Available 🟢`, "info");
+    triggerToast(`Invite canceled. Room ${roomNum} (${formatBedLabel(bedCode)}) is now Available 🟢`, "info");
   };
 
   // Copy Invite URL
@@ -430,7 +541,7 @@ export default function SelfKycDeskPage({
 
       fireCelebrationConfetti();
       triggerToast(
-        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${createdResident.bedCode}) updated. Welcome notice sent via WhatsApp.`
+        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${formatBedLabel(createdResident.bedCode)}) updated. Welcome notice sent via WhatsApp.`
       );
       setActiveReviewSubmission(null);
       setActiveTab("APPROVED");
@@ -728,7 +839,7 @@ export default function SelfKycDeskPage({
                                 : "bg-rose-50 text-rose-900 border-rose-300"
                             }`}>
                               <Lock className="w-3 h-3 text-rose-600" />
-                              <span>Room {inv.roomNumber} ({inv.bedCode})</span>
+                              <span>Room {inv.roomNumber} ({formatBedLabel(inv.bedCode)})</span>
                             </span>
 
                             {lastRejection ? (
@@ -834,7 +945,7 @@ export default function SelfKycDeskPage({
                                     : "bg-rose-50 text-rose-900 border-rose-300"
                                 }`}>
                                   <Lock className="w-3 h-3 text-rose-600" />
-                                  <span>Room {inv.roomNumber} ({inv.bedCode})</span>
+                                  <span>Room {inv.roomNumber} ({formatBedLabel(inv.bedCode)})</span>
                                   <span className="text-[9px] font-bold text-rose-700 ml-1">On Hold</span>
                                 </span>
                               </td>
@@ -980,7 +1091,7 @@ export default function SelfKycDeskPage({
                           <div className="flex justify-between items-center">
                             <span className="text-gray-500 font-medium">Assigned Bed:</span>
                             <span className="font-bold text-gray-900">
-                              Room {sub.roomNumber} ({sub.bedCode})
+                              Room {sub.roomNumber} ({formatBedLabel(sub.bedCode)})
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
@@ -1090,7 +1201,7 @@ export default function SelfKycDeskPage({
                               {sub.phone}
                             </td>
                             <td className="py-3.5 px-4 font-bold text-gray-900">
-                              Room {sub.roomNumber} ({sub.bedCode})
+                              Room {sub.roomNumber} ({formatBedLabel(sub.bedCode)})
                             </td>
                             <td className="py-3.5 px-4 font-mono font-bold text-[#c2652a]">
                               ₹{(sub.rentAmount ?? 0).toLocaleString("en-IN")}/mo
@@ -1192,13 +1303,31 @@ export default function SelfKycDeskPage({
                     <span>Select Available Bed * (Will be placed on Hold)</span>
                   </label>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    {availableBeds.length} Vacant
+                    {availableBeds.length} Available
                   </span>
+                </div>
+
+                {/* Target Check-in Date Picker */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-[#c2652a]" />
+                    <span>Target Check-In Date *</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={inviteCheckInDate}
+                    onChange={(e) => setInviteCheckInDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Dynamically filters beds that are currently vacant or vacating on/before this date.
+                  </p>
                 </div>
 
                 {availableBeds.length === 0 ? (
                   <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                    ⚠️ No vacant beds available right now! Please vacate or resolve a bed first.
+                    ⚠️ No vacant beds available for this check-in date! Please select another date or vacate a bed.
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -1237,7 +1366,7 @@ export default function SelfKycDeskPage({
                           .filter((b) => b.roomNumber === inviteRoomNumber)
                           .map((b) => (
                             <option key={b.bedCode} value={b.bedCode}>
-                              Bed {b.bedCode}
+                              {formatBedLabel(b.bedCode)}
                             </option>
                           ))}
                       </select>
@@ -1275,9 +1404,24 @@ export default function SelfKycDeskPage({
                       placeholder="9876543210"
                       value={inviteCandidatePhone}
                       onChange={(e) => setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
-                      className="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
+                        existingResidentConflict
+                          ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-[#c2652a]"
+                      }`}
                     />
                   </div>
+                  {existingResidentConflict && (
+                    <div className="mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                      <div className="leading-tight">
+                        <span className="font-bold">⚠️ Mobile number already registered!</span>
+                        <p className="text-[11px] text-red-600 mt-0.5">
+                          Already registered with <strong>{existingResidentConflict.name}</strong> in Room {existingResidentConflict.roomNumber} ({formatBedLabel(existingResidentConflict.bedCode)}).
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1346,15 +1490,15 @@ export default function SelfKycDeskPage({
                 </button>
                 <button
                   type="submit"
-                  disabled={inviteDispatchLoading || availableBeds.length === 0}
+                  disabled={inviteDispatchLoading || availableBeds.length === 0 || Boolean(existingResidentConflict)}
                   className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                 >
                   {inviteDispatchLoading ? (
-                    <span>Dispatching...</span>
+                    <span>Sending...</span>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Lock Bed on Hold & Send Invite</span>
+                      <span>Send Link</span>
                     </>
                   )}
                 </button>
@@ -1386,7 +1530,7 @@ export default function SelfKycDeskPage({
                     </span>
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Target: Room {activeReviewSubmission.roomNumber} (Bed {activeReviewSubmission.bedCode}) • Submitted on {new Date(activeReviewSubmission.submittedAt).toLocaleDateString("en-IN")}
+                    Target: Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)}) • Submitted on {new Date(activeReviewSubmission.submittedAt).toLocaleDateString("en-IN")}
                   </p>
                 </div>
               </div>
@@ -1525,7 +1669,7 @@ export default function SelfKycDeskPage({
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-orange-950">Target Room & Bed:</span>
                     <span className="font-mono font-black text-orange-900 text-sm">
-                      Room {activeReviewSubmission.roomNumber} ({activeReviewSubmission.bedCode})
+                      Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)})
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -1583,45 +1727,35 @@ export default function SelfKycDeskPage({
               </div>
             </div>
 
-            {/* Modal Footer Actions */}
-            <div className="p-4 sm:p-5 border-t border-gray-100 bg-white flex items-center justify-between gap-3">
-              <div>
-                {!showRejectionInput && (
-                  <button
-                    type="button"
-                    onClick={() => setShowRejectionInput(true)}
-                    className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    <span>Request Correction / Reject</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
+            {/* Modal Footer Actions: Simple names right-aligned */}
+            <div className="p-4 sm:p-5 border-t border-gray-100 bg-white flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveReviewSubmission(null);
+                  setShowRejectionInput(false);
+                }}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+              {!showRejectionInput && (
                 <button
                   type="button"
-                  onClick={() => setActiveReviewSubmission(null)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-xs font-bold hover:bg-gray-50 cursor-pointer"
+                  onClick={() => setShowRejectionInput(true)}
+                  className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-colors cursor-pointer"
                 >
-                  Close
+                  Reject
                 </button>
-                <button
-                  type="button"
-                  onClick={handleApproveSubmission}
-                  disabled={reviewActionLoading}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95"
-                >
-                  {reviewActionLoading ? (
-                    <span>Approving...</span>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Approve & Check-In Resident</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={handleApproveSubmission}
+                disabled={reviewActionLoading}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                {reviewActionLoading ? "Approving..." : "Approve"}
+              </button>
             </div>
           </div>
         </div>
