@@ -32,6 +32,13 @@ import { selfKycStore, SelfKycSubmission } from "@/lib/selfKycStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
+import {
+  sanitizePlainText,
+  sanitizeDigitsOnly,
+  sanitizeEmailAddress,
+  sanitizeVehicleNumber,
+  validateBase64Attachment,
+} from "@/utils/security";
 
 export default function WalkInSelfKycCheckinPage({
   params,
@@ -66,6 +73,17 @@ export default function WalkInSelfKycCheckinPage({
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([""]);
 
+  // Phone OTP Verification State for Walk-In
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpVerificationToken, setOtpVerificationToken] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [otpSuccessMsg, setOtpSuccessMsg] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
   // Document uploads
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
   const [aadhaarFront, setAadhaarFront] = useState<string | null>(null);
@@ -79,6 +97,13 @@ export default function WalkInSelfKycCheckinPage({
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
+
+  // Cooldown countdown
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   // Real-time synchronization of property layout
   useEffect(() => {
@@ -141,12 +166,99 @@ export default function WalkInSelfKycCheckinPage({
     setSelectedBedTariff(tariff);
   };
 
+  // Dispatch OTP for Walk-In Phone
+  const handleSendWalkInOtp = async () => {
+    setOtpError("");
+    setOtpSuccessMsg("");
+    const cleanDigits = phone.replace(/\D/g, "").slice(-10);
+    if (cleanDigits.length !== 10) {
+      setOtpError("Please enter your valid 10-digit mobile number first.");
+      return;
+    }
+
+    setOtpSending(true);
+    try {
+      const res = await fetch("/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanDigits }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setOtpError(data.message || "Failed to dispatch verification code.");
+        return;
+      }
+      setOtpVerificationToken(data.verificationToken);
+      setOtpSent(true);
+      setCooldown(data.cooldownSeconds || 45);
+      setOtpSuccessMsg(`Code sent to WhatsApp (+91 ${cleanDigits})`);
+    } catch {
+      setOtpError("Network error. Please check your internet connection.");
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Verify OTP for Walk-In Phone
+  const handleVerifyWalkInOtp = async () => {
+    setOtpError("");
+    const cleanOtp = otpCode.trim();
+    if (cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
+      setOtpError("Please enter the complete 6-digit code.");
+      return;
+    }
+
+    setOtpVerifying(true);
+    try {
+      const cleanDigits = phone.replace(/\D/g, "").slice(-10);
+      const res = await fetch("/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: cleanDigits,
+          otp: cleanOtp,
+          verificationToken: otpVerificationToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setOtpError(data.message || "Invalid verification code.");
+        return;
+      }
+      setIsPhoneVerified(true);
+      setOtpSent(false);
+      setOtpError("");
+    } catch {
+      setOtpError("Verification error. Please try again.");
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size exceeds 5MB limit. Please upload a smaller image or compressed PDF.");
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Unsupported file format. Please upload JPG, PNG, WebP or PDF documents only.");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      setter(event.target?.result as string);
+      const result = event.target?.result as string;
+      const validation = validateBase64Attachment(result);
+      if (!validation.valid) {
+        alert(validation.error || "Invalid file content.");
+        return;
+      }
+      setter(result);
     };
     reader.readAsDataURL(file);
   };
@@ -161,20 +273,31 @@ export default function WalkInSelfKycCheckinPage({
       return;
     }
 
-    if (!fullName.trim()) {
+    const cleanName = sanitizePlainText(fullName, 100);
+    if (!cleanName.trim()) {
       setErrorMessage("Please enter your full legal name.");
       return;
     }
 
-    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanPhone = sanitizeDigitsOnly(phone, 10);
     if (cleanPhone.length < 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number.");
       return;
     }
 
-    const cleanEmergency = emergencyPhone.replace(/\D/g, "");
+    if (!isPhoneVerified) {
+      setErrorMessage("Please verify your mobile number with the 6-digit WhatsApp OTP before submitting.");
+      return;
+    }
+
+    const cleanEmergency = sanitizeDigitsOnly(emergencyPhone, 10);
     if (cleanEmergency.length < 10) {
       setErrorMessage("Please enter a valid 10-digit emergency contact phone number.");
+      return;
+    }
+
+    if (cleanPhone === cleanEmergency) {
+      setErrorMessage("Emergency contact phone number cannot be the same as your own mobile number.");
       return;
     }
 
@@ -185,7 +308,9 @@ export default function WalkInSelfKycCheckinPage({
 
     setSubmitting(true);
     try {
-      const cleanVehicles = vehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
+      const cleanVehicles = vehicleNumbers
+        .map((v) => sanitizeVehicleNumber(v))
+        .filter(Boolean);
       const submissionId = `sub-walkin-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const rentAmount = selectedBedTariff || 8500;
       const securityDeposit = stayType === "Tenant" ? rentAmount * 2 : undefined;
@@ -203,19 +328,19 @@ export default function WalkInSelfKycCheckinPage({
         guestDailyRate,
         guestCheckoutDate: stayType === "Guest" ? guestCheckoutDate : undefined,
         joiningDate: joiningDate || new Date().toISOString().split("T")[0],
-        name: fullName.trim(),
+        name: cleanName,
         phone: cleanPhone,
         countryCode: "+91",
-        email: email.trim() || undefined,
+        email: email.trim() ? sanitizeEmailAddress(email) : undefined,
         emergencyContact: {
-          name: emergencyName.trim() || "Emergency Contact",
+          name: sanitizePlainText(emergencyName || "Emergency Contact", 100),
           phone: cleanEmergency,
         },
-        workplace: workplace.trim() || undefined,
-        purposeOfVisit: stayType === "Guest" ? purposeOfVisit.trim() : undefined,
+        workplace: workplace.trim() ? sanitizePlainText(workplace, 150) : undefined,
+        purposeOfVisit: stayType === "Guest" && purposeOfVisit.trim() ? sanitizePlainText(purposeOfVisit, 200) : undefined,
         vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
         photoUrl: selfiePhoto || undefined,
-        aadhaarNumber: aadhaarNumber.trim() || undefined,
+        aadhaarNumber: aadhaarNumber.trim() ? sanitizeDigitsOnly(aadhaarNumber, 16) : undefined,
         aadhaarFrontUrl: aadhaarFront || undefined,
         aadhaarBackUrl: aadhaarBack || undefined,
         agreedToHouseRules: true,
@@ -539,20 +664,138 @@ export default function WalkInSelfKycCheckinPage({
                   />
                 </div>
 
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Mobile Phone Number *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-gray-400 font-mono font-bold text-xs">+91</span>
-                    <input
-                      type="tel"
-                      required
-                      maxLength={10}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="98765 43210"
-                      className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
-                    />
+                <div className="sm:col-span-2 p-3.5 bg-gray-50 rounded-2xl border border-gray-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-gray-800 text-xs">
+                      Mobile Phone Number *
+                    </label>
+                    {isPhoneVerified ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Verified
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-amber-600" /> Verification Required
+                      </span>
+                    )}
                   </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-mono font-bold text-xs">
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        required
+                        disabled={isPhoneVerified}
+                        maxLength={10}
+                        value={phone}
+                        onChange={(e) => {
+                          setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                          setIsPhoneVerified(false);
+                          setOtpSent(false);
+                          setOtpError("");
+                        }}
+                        placeholder="98765 43210"
+                        className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-sm ${
+                          isPhoneVerified
+                            ? "bg-gray-100 text-gray-700 border-gray-200 cursor-not-allowed"
+                            : "bg-white text-gray-900 border-gray-300 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                        }`}
+                      />
+                    </div>
+
+                    {!isPhoneVerified && !otpSent && (
+                      <button
+                        type="button"
+                        onClick={handleSendWalkInOtp}
+                        disabled={otpSending || phone.replace(/\D/g, "").length !== 10}
+                        className="py-2.5 px-4 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap transition-all"
+                      >
+                        {otpSending ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Sending OTP...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Verify via WhatsApp</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {isPhoneVerified && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsPhoneVerified(false);
+                          setOtpSent(false);
+                        }}
+                        className="text-[11px] font-bold text-gray-500 hover:text-gray-900 underline px-2 py-1 cursor-pointer"
+                      >
+                        Change Number
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Inline OTP Input when otpSent */}
+                  {!isPhoneVerified && otpSent && (
+                    <div className="p-3 bg-white rounded-xl border border-[#c2652a]/30 space-y-2 mt-2">
+                      <div className="flex items-center justify-between text-xs text-gray-600">
+                        <span className="font-semibold">Enter 6-digit WhatsApp OTP:</span>
+                        {cooldown > 0 ? (
+                          <span className="font-mono text-gray-400 text-[11px]">Resend in {cooldown}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendWalkInOtp}
+                            className="text-[11px] font-bold text-[#c2652a] hover:underline cursor-pointer"
+                          >
+                            Resend OTP
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          autoFocus
+                          value={otpCode}
+                          onChange={(e) => {
+                            setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                            setOtpError("");
+                          }}
+                          placeholder="••••••"
+                          className="flex-1 py-2 px-3 rounded-lg border border-gray-300 font-mono font-bold text-center tracking-[0.3em] text-base"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyWalkInOtp}
+                          disabled={otpVerifying || otpCode.length !== 6}
+                          className="py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          {otpVerifying ? "Verifying..." : "Verify Code"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {otpError && (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{otpError}</span>
+                    </p>
+                  )}
+                  {otpSuccessMsg && !otpError && !isPhoneVerified && (
+                    <p className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{otpSuccessMsg}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>

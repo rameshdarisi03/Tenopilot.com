@@ -38,6 +38,109 @@ export function normalizePhoneNumber(phone: string): string {
 }
 
 /**
+ * Sanitizes plain text input by stripping all HTML tags, script injection tokens,
+ * dangerous URI protocols, and null bytes while enforcing length limits.
+ */
+export function sanitizePlainText(input: unknown, maxLength: number = 200): string {
+  if (typeof input !== "string") return "";
+
+  // 1. Cap length early to prevent ReDoS
+  let clean = input.slice(0, maxLength * 2);
+
+  // 2. Strip null bytes and control chars
+  clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+
+  // 3. Strip HTML, XML, script tags
+  clean = clean.replace(/<[^>]*>?/gm, "");
+
+  // 4. Strip dangerous pseudo-protocols
+  clean = clean.replace(/(?:javascript|vbscript|data):/gi, "");
+
+  // 5. Escape angle brackets and quotes
+  clean = clean
+    .replace(/</g, "")
+    .replace(/>/g, "")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+
+  // 6. Collapse consecutive whitespace & enforce max length
+  return clean.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+/**
+ * Sanitizes digits-only input (e.g. phone, Aadhaar, pincode).
+ */
+export function sanitizeDigitsOnly(input: unknown, maxLength: number = 20): string {
+  if (!input) return "";
+  const str = String(input);
+  return str.replace(/\D/g, "").slice(0, maxLength);
+}
+
+/**
+ * Validates and sanitizes email address.
+ */
+export function sanitizeEmailAddress(input: unknown): string {
+  if (typeof input !== "string") return "";
+  const clean = input.trim().toLowerCase().slice(0, 120);
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(clean)) return "";
+  return clean;
+}
+
+/**
+ * Sanitizes vehicle registration numbers (e.g. KA-01-AB-1234 -> KA01AB1234 or KA-01-AB-1234).
+ */
+export function sanitizeVehicleNumber(input: unknown): string {
+  if (typeof input !== "string") return "";
+  return input.toUpperCase().replace(/[^A-Z0-9\-]/g, "").slice(0, 15);
+}
+
+/**
+ * Strict validator for uploaded Base64 attachments (Selfie, Aadhaar Front, Aadhaar Back).
+ * Protects against SVG script injection (XSS), disguised HTML/executables, and oversized DoS payloads.
+ */
+export function validateBase64Attachment(
+  dataUrl: unknown,
+  maxBytes: number = 5 * 1024 * 1024
+): { valid: boolean; error?: string; cleanDataUrl?: string } {
+  if (!dataUrl || typeof dataUrl !== "string") {
+    return { valid: false, error: "Empty or invalid file payload." };
+  }
+
+  // Allowed MIME prefixes
+  const ALLOWED_PREFIXES = [
+    "data:image/jpeg;base64,",
+    "data:image/jpg;base64,",
+    "data:image/png;base64,",
+    "data:image/webp;base64,",
+    "data:application/pdf;base64,",
+  ];
+
+  const matchedPrefix = ALLOWED_PREFIXES.find((p) => dataUrl.startsWith(p));
+  if (!matchedPrefix) {
+    return {
+      valid: false,
+      error: "Unsupported file format. Only JPG, PNG, WebP, and PDF files are permitted. SVGs and executable files are blocked.",
+    };
+  }
+
+  const base64Data = dataUrl.slice(matchedPrefix.length);
+  // Base64 regex check: only standard base64 characters
+  if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+    return { valid: false, error: "Corrupted base64 payload." };
+  }
+
+  // Calculate approximate file size in bytes
+  const estimatedBytes = (base64Data.length * 3) / 4;
+  if (estimatedBytes > maxBytes) {
+    const mbLimit = Math.round(maxBytes / (1024 * 1024));
+    return { valid: false, error: `File size exceeds the ${mbLimit}MB limit. Please upload a smaller photo.` };
+  }
+
+  return { valid: true, cleanDataUrl: dataUrl };
+}
+
+/**
  * Normalizes and formats a phone number for WhatsApp links (wa.me) or WhatsApp Business API.
  * Ensures the international country code (default 91 for India) is correctly formatted without duplicates.
  * Prevents double country codes like '9191...' or '91 +91...'.

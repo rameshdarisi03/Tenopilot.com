@@ -14,6 +14,13 @@ import {
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import {
+  sanitizePlainText,
+  sanitizeDigitsOnly,
+  sanitizeEmailAddress,
+  sanitizeVehicleNumber,
+  validateBase64Attachment,
+} from "@/utils/security";
 
 export interface SelfKycSubmission {
   id: string;
@@ -354,7 +361,37 @@ export const selfKycStore = {
   },
 
   // 3. Submit KYC (From Tenant Portal)
-  async submitKyc(submission: SelfKycSubmission): Promise<void> {
+  async submitKyc(rawSubmission: SelfKycSubmission): Promise<void> {
+    // 🛡️ Enterprise Defense-in-Depth Sanitization
+    const cleanPhoto = rawSubmission.photoUrl ? validateBase64Attachment(rawSubmission.photoUrl) : null;
+    const cleanFront = rawSubmission.aadhaarFrontUrl ? validateBase64Attachment(rawSubmission.aadhaarFrontUrl) : null;
+    const cleanBack = rawSubmission.aadhaarBackUrl ? validateBase64Attachment(rawSubmission.aadhaarBackUrl) : null;
+
+    const submission: SelfKycSubmission = {
+      ...rawSubmission,
+      name: sanitizePlainText(rawSubmission.name, 100),
+      phone: sanitizeDigitsOnly(rawSubmission.phone, 15),
+      countryCode: rawSubmission.countryCode || "+91",
+      email: rawSubmission.email ? sanitizeEmailAddress(rawSubmission.email) : undefined,
+      workplace: rawSubmission.workplace ? sanitizePlainText(rawSubmission.workplace, 150) : undefined,
+      occupation: rawSubmission.occupation ? sanitizePlainText(rawSubmission.occupation, 100) : undefined,
+      purposeOfVisit: rawSubmission.purposeOfVisit ? sanitizePlainText(rawSubmission.purposeOfVisit, 200) : undefined,
+      address: rawSubmission.address ? sanitizePlainText(rawSubmission.address, 300) : undefined,
+      emergencyContact: {
+        name: sanitizePlainText(rawSubmission.emergencyContact?.name || "Emergency Contact", 100),
+        phone: sanitizeDigitsOnly(rawSubmission.emergencyContact?.phone || "", 15),
+        relation: rawSubmission.emergencyContact?.relation ? sanitizePlainText(rawSubmission.emergencyContact.relation, 50) : undefined,
+      },
+      vehicleNumbers: rawSubmission.vehicleNumbers?.map((v) => sanitizeVehicleNumber(v)).filter(Boolean),
+      aadhaarNumber: rawSubmission.aadhaarNumber ? sanitizeDigitsOnly(rawSubmission.aadhaarNumber, 16) : undefined,
+      // Only keep attachments if they passed strict MIME prefix and size validation
+      photoUrl: cleanPhoto?.valid ? cleanPhoto.cleanDataUrl : undefined,
+      aadhaarFrontUrl: cleanFront?.valid ? cleanFront.cleanDataUrl : undefined,
+      aadhaarBackUrl: cleanBack?.valid ? cleanBack.cleanDataUrl : undefined,
+      submittedAt: rawSubmission.submittedAt || new Date().toISOString(),
+      status: "PENDING", // Always PENDING on incoming submission
+    };
+
     const list = SUBMISSIONS_CACHE.get(submission.propertyId) || [];
     SUBMISSIONS_CACHE.set(submission.propertyId, [submission, ...list.filter((s) => s.id !== submission.id)]);
     saveLocalCache(submission.propertyId, "subs");
