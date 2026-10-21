@@ -88,6 +88,9 @@ export default function ApexCommandClientsPage() {
   const [resetConfigConfirmInput, setResetConfigConfirmInput] = useState("");
   const [isResettingConfig, setIsResettingConfig] = useState(false);
 
+  // Track accounts where Reset Tenants was performed during this session
+  const [tenantsResetMap, setTenantsResetMap] = useState<Record<string, boolean>>({});
+
   // Selected account for 1-Click +10 Days Extension confirmation modal
   const [accountToExtend, setAccountToExtend] = useState<ScannedAccountRecord | null>(null);
   const [isExtending, setIsExtending] = useState(false);
@@ -602,13 +605,20 @@ export default function ApexCommandClientsPage() {
       const data = await res.json();
       if (data.success) {
         triggerToast(`✓ ${data.message}`);
+        const emailKey = accountToResetTenants.email.toLowerCase().trim();
+        setTenantsResetMap((prev) => ({ ...prev, [emailKey]: true }));
         // Update local state tenant count for this account to 0
         setAccounts((prev) =>
           prev.map((a) =>
-            a.email.toLowerCase() === accountToResetTenants.email.toLowerCase()
+            a.email.toLowerCase() === emailKey
               ? { ...a, totalTenants: 0 }
               : a
           )
+        );
+        setSelectedCustomer360((prev) =>
+          prev && prev.email.toLowerCase() === emailKey
+            ? { ...prev, totalTenants: 0 }
+            : prev
         );
         setAccountToResetTenants(null);
         setResetTenantsConfirmInput("");
@@ -2741,27 +2751,52 @@ export default function ApexCommandClientsPage() {
                 </div>
 
                 {/* Reset Property Config */}
-                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/40 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-purple-300">Reset Property Config</h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Layout Wipe</span>
+                {(() => {
+                  const clientEmail = (selectedCustomer360.email || "").toLowerCase().trim();
+                  const isTenantsReset = Boolean(tenantsResetMap[clientEmail]) || (selectedCustomer360.totalTenants === 0);
+
+                  return (
+                    <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      isTenantsReset
+                        ? "bg-purple-950/20 border-purple-500/40 opacity-100"
+                        : "bg-white/[0.02] border-white/5 opacity-40 cursor-not-allowed"
+                    }`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-bold ${isTenantsReset ? "text-purple-300" : "text-gray-400"}`}>Reset Property Config</h4>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            isTenantsReset
+                              ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                              : "bg-white/5 text-gray-500 border-white/10"
+                          }`}>
+                            Layout Wipe
+                          </span>
+                        </div>
+                        <p className={`text-[11px] mt-0.5 ${isTenantsReset ? "text-purple-200/70" : "text-gray-500"}`}>
+                          {isTenantsReset
+                            ? "Wipes floor and room layout configurations. Shows empty layout ready for fresh setup or AI import."
+                            : "🔒 Locked: Perform 'Reset Tenants' first to wipe tenant records before erasing property layout."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!isTenantsReset}
+                        onClick={() => {
+                          if (!isTenantsReset) return;
+                          setAccountToResetConfig(selectedCustomer360);
+                          setSelectedCustomer360(null);
+                        }}
+                        className={`px-4 py-2 rounded-xl font-bold text-xs shrink-0 transition-all ${
+                          isTenantsReset
+                            ? "bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/30 cursor-pointer active:scale-95"
+                            : "bg-gray-800 text-gray-500 border border-white/5 cursor-not-allowed opacity-50"
+                        }`}
+                      >
+                        Reset Property Config
+                      </button>
                     </div>
-                    <p className="text-[11px] text-purple-200/70 mt-0.5">
-                      Wipes floor and room layout configurations. Shows empty layout ready for fresh setup or AI import.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAccountToResetConfig(selectedCustomer360);
-                      setSelectedCustomer360(null);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/30 shrink-0 cursor-pointer transition-all active:scale-95"
-                  >
-                    Reset Property Config
-                  </button>
-                </div>
+                  );
+                })()}
 
                 {/* Zero-Footprint Deep Purge */}
                 <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/40 flex items-center justify-between gap-3">

@@ -22,6 +22,7 @@ export interface ScannedAccountRecord {
   city?: string;
   plan?: string;
   totalBeds?: number;
+  totalTenants?: number;
   createdAt: string;
   lastActive?: string;
   hasStorageFootprints?: boolean;
