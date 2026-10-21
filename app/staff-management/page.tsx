@@ -201,19 +201,27 @@ export default function StaffManagementPage() {
     }
 
     const cleanGmail = email.trim().toLowerCase();
-    if (!cleanGmail || !cleanGmail.endsWith("@gmail.com")) {
-      setErrorMessage("Please enter a valid personal or work @gmail.com address (e.g. staffname@gmail.com). Google Sign-In requires an active Gmail address.");
+    const rawDigits = phone.replace(/\D/g, "");
+    const pure10 = rawDigits.slice(-10);
+
+    // Either one or both must be accepted
+    if (!cleanGmail && !pure10) {
+      setErrorMessage("Please provide either a Gmail ID (for Google Sign-In) or a Mobile Number (for WhatsApp OTP), or both.");
       return;
     }
 
-    const pure10 = phone.replace(/\D/g, "");
-    if (pure10.length !== 10) {
+    if (cleanGmail && !cleanGmail.endsWith("@gmail.com")) {
+      setErrorMessage("Gmail ID must end with @gmail.com (e.g. staffname@gmail.com). Google Sign-In requires an active Gmail address.");
+      return;
+    }
+
+    if (phone.trim() && pure10.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number for WhatsApp OTP login.");
       return;
     }
 
     const cleanCountryCode = phoneCountryCode.trim() || "+91";
-    const fullPhone = `${cleanCountryCode} ${pure10}`;
+    const fullPhone = pure10 ? `${cleanCountryCode} ${pure10}` : "";
 
     if (role === "admin" && selectedPropertyIds.length === 0) {
       setErrorMessage("Please select at least one building to assign this Admin to.");
@@ -258,7 +266,11 @@ export default function StaffManagementPage() {
         planExpiresAt: profile?.planExpiresAt || null,
       });
 
-      setSuccessMessage(`✅ Staff account for ${name.trim()} enrolled! They can now log in hassle-free via WhatsApp OTP (${fullPhone}) or Google Sign-In (${cleanGmail}).`);
+      const enabledMethods: string[] = [];
+      if (cleanGmail) enabledMethods.push(`Google Sign-In (${cleanGmail})`);
+      if (fullPhone) enabledMethods.push(`WhatsApp OTP (${fullPhone})`);
+
+      setSuccessMessage(`✅ Staff account for ${name.trim()} enrolled! Login enabled via ${enabledMethods.join(" and ")}.`);
       setName("");
       setEmail("");
       setPhone("");
@@ -537,15 +549,17 @@ export default function StaffManagementPage() {
                                   : "bg-purple-100 text-purple-800 border border-purple-200"
                               }`}
                             >
-                              {isMaster ? "ðŸ‘‘ Master Admin" : isAdmin ? "ðŸ¢ Admin" : "ðŸ”‘ Receptionist"}
+                              {isMaster ? "👑 Master Admin" : isAdmin ? "🏢 Admin" : "🔑 Receptionist"}
                             </span>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                            {member.email && !member.email.endsWith("@phone.tenopilot.auth") && (
                             <span className="flex items-center gap-1">
                               <Mail className="w-3.5 h-3.5" />
                               {member.email}
                             </span>
+                          )}
                             {member.phone && (
                               <span className="flex items-center gap-1">
                                 <Phone className="w-3.5 h-3.5" />
@@ -595,10 +609,12 @@ export default function StaffManagementPage() {
                             ) : null}
 
                             {/* Google Sign-in / Gmail Tag */}
-                            <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs font-medium text-blue-800 flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              <span>Google: {member.email}</span>
-                            </div>
+                            {member.email && !member.email.endsWith("@phone.tenopilot.auth") ? (
+                              <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs font-medium text-blue-800 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                <span>Google: {member.email}</span>
+                              </div>
+                            ) : null}
 
                             <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 flex items-center gap-1.5">
                               {member.hasSetPin ? (
@@ -660,10 +676,12 @@ export default function StaffManagementPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">Gmail ID (for Google Sign-In) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-gray-700">Gmail ID (for Google Sign-In)</label>
+                  <span className="text-[10px] text-gray-400 font-medium">Optional if Mobile Number is provided</span>
+                </div>
                 <input
                   type="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="staffname@gmail.com"
@@ -675,11 +693,13 @@ export default function StaffManagementPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">Mobile Number (for WhatsApp OTP Login) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-gray-700">Mobile Number (for WhatsApp OTP Login)</label>
+                  <span className="text-[10px] text-gray-400 font-medium">Optional if Gmail ID is provided</span>
+                </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    required
                     value={phoneCountryCode}
                     onChange={(e) => setPhoneCountryCode(e.target.value)}
                     placeholder="+91"
@@ -687,7 +707,6 @@ export default function StaffManagementPage() {
                   />
                   <input
                     type="tel"
-                    required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="9876543210 (10 digits)"
@@ -699,6 +718,13 @@ export default function StaffManagementPage() {
                 </p>
               </div>
 
+              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-center gap-2 text-[11px] text-amber-900">
+                <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Flexible Enrolment:</strong> You can provide either <strong>Gmail ID</strong>, <strong>Mobile Number</strong>, or <strong>both</strong>. The system will automatically link and allow login with whichever credentials you supply.
+                </span>
+              </div>
+
               {/* Role Selection */}
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Assigned Role *</label>
@@ -708,9 +734,9 @@ export default function StaffManagementPage() {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                 >
                   {activeRole === "master_admin" && (
-                    <option value="admin">ðŸ¢ Property Admin (Can manage single or multiple buildings)</option>
+                    <option value="admin">🏢 Property Admin (Can manage single or multiple buildings)</option>
                   )}
-                  <option value="receptionist">ðŸ”‘ Receptionist (Front Desk Single Building)</option>
+                  <option value="receptionist">🔑 Receptionist (Front Desk Single Building)</option>
                 </select>
               </div>
 
@@ -719,7 +745,7 @@ export default function StaffManagementPage() {
                 <div className="space-y-2 p-4 bg-orange-50/50 rounded-2xl border border-orange-200/70">
                   <div className="flex items-center justify-between">
                     <label className="block font-bold text-gray-800">
-                      ðŸ¢ Assign Buildings to this Admin * ({selectedPropertyIds.length} Selected)
+                      🏢 Assign Buildings to this Admin * ({selectedPropertyIds.length} Selected)
                     </label>
                     <button
                       type="button"

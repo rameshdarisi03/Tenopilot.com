@@ -694,8 +694,8 @@ export async function registerWithEmailPassword(
 export async function provisionStaffFirebaseAccount(staff: {
   id: string;
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   countryCode?: string;
   role: UserRole;
   assignedPropertyId: string;
@@ -708,10 +708,12 @@ export async function provisionStaffFirebaseAccount(staff: {
   ownerPhone?: string;
   planExpiresAt?: string | null;
 }): Promise<StaffMember> {
-  const cleanEmail = staff.email.trim().toLowerCase();
+  const cleanEmail = staff.email ? staff.email.trim().toLowerCase() : "";
   const cleanPhone = staff.phone ? staff.phone.trim() : "";
   const purePhone = cleanPhone.replace(/\D/g, "").slice(-10);
   const staffUid = staff.id || `staff-${Date.now()}`;
+  const effectiveEmail = cleanEmail || (purePhone ? `${purePhone}@phone.tenopilot.auth` : "");
+  const staffAccountDocId = cleanEmail || (purePhone ? `phone_${purePhone}` : staffUid);
 
   const assignedIds = staff.assignedPropertyIds && staff.assignedPropertyIds.length > 0
     ? staff.assignedPropertyIds
@@ -720,8 +722,9 @@ export async function provisionStaffFirebaseAccount(staff: {
   const staffRecord: StaffMember = {
     id: staff.id || staffUid,
     name: staff.name.trim(),
-    email: cleanEmail,
-    phone: staff.phone ? staff.phone.trim() : "",
+    email: effectiveEmail,
+    phone: cleanPhone,
+    phoneCountryCode: staff.countryCode || "+91",
     role: staff.role,
     assignedPropertyId: staff.assignedPropertyId,
     assignedPropertyIds: assignedIds,
@@ -735,25 +738,32 @@ export async function provisionStaffFirebaseAccount(staff: {
     hasSetPin: false,
   };
 
+  const payload = {
+    ...staffRecord,
+    purePhone: purePhone || null,
+    countryCode: staff.countryCode || "+91",
+    hasSetPin: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    organizationId: staff.organizationId || "",
+    masterAdminUid: staff.masterAdminUid || "",
+    ownerEmail: staff.ownerEmail || "",
+    ownerPhone: staff.ownerPhone || "",
+    plan: "ORGANIZATION_STAFF",
+    subscriptionPlan: "pro",
+    subscriptionStatus: "ACTIVE_PRO",
+    planExpiresAt: staff.planExpiresAt || null,
+    authMethod: "PASSWORDLESS_WHATSAPP_GOOGLE",
+  };
+
   // 1. Save in staff_accounts collection in Firestore
   try {
-    await setDoc(doc(db, "staff_accounts", cleanEmail), {
-      ...staffRecord,
-      purePhone,
-      countryCode: staff.countryCode || "+91",
-      hasSetPin: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      organizationId: staff.organizationId || "",
-      masterAdminUid: staff.masterAdminUid || "",
-      ownerEmail: staff.ownerEmail || "",
-      ownerPhone: staff.ownerPhone || "",
-      plan: "ORGANIZATION_STAFF",
-      subscriptionPlan: "pro",
-      subscriptionStatus: "ACTIVE_PRO",
-      planExpiresAt: staff.planExpiresAt || null,
-      authMethod: "PASSWORDLESS_WHATSAPP_GOOGLE",
-    }, { merge: true });
+    await setDoc(doc(db, "staff_accounts", staffAccountDocId), payload, { merge: true });
+
+    // If both email and phone are present, also store at phone index doc for instant O(1) lookup
+    if (cleanEmail && purePhone) {
+      await setDoc(doc(db, "staff_accounts", `phone_${purePhone}`), payload, { merge: true });
+    }
 
     // 2. Save under property staff
     if (staff.assignedPropertyId) {
@@ -764,9 +774,10 @@ export async function provisionStaffFirebaseAccount(staff: {
     if (staffUid && !staffUid.startsWith("staff-")) {
       await setDoc(doc(db, "users", staffUid), {
         uid: staffUid,
-        email: cleanEmail,
+        email: effectiveEmail,
         displayName: staff.name.trim(),
-        phone: staff.phone ? staff.phone.trim() : "",
+        phone: cleanPhone,
+        purePhone: purePhone || null,
         role: staff.role,
         assignedPropertyId: staff.assignedPropertyId,
         assignedPropertyIds: assignedIds,
