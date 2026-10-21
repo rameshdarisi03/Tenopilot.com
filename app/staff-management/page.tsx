@@ -655,12 +655,9 @@ export default function StaffManagementPage() {
         {/* TAB 2: Add Staff Member */}
         {activeTab === "add" && (
           <div className="bg-white rounded-3xl border border-[#e8dfd8] p-6 sm:p-8 shadow-xs max-w-2xl">
-            <h2 className="font-serif font-bold text-2xl text-gray-900 mb-1">
+            <h2 className="font-serif font-bold text-2xl text-gray-900 mb-6">
               Add New Staff Account
             </h2>
-            <p className="text-xs text-gray-500 mb-6">
-              Create passwordless access for your team. Staff log in hassle-free using WhatsApp OTP and Google Sign-In.
-            </p>
 
             <form onSubmit={handleCreateStaff} className="space-y-4 text-xs">
               <div>
@@ -676,10 +673,7 @@ export default function StaffManagementPage() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-gray-700">Gmail ID (for Google Sign-In)</label>
-                  <span className="text-[10px] text-gray-400 font-medium">Optional if Mobile Number is provided</span>
-                </div>
+                <label className="block font-bold text-gray-700 mb-1">Gmail ID (for Google Sign-In)</label>
                 <input
                   type="email"
                   value={email}
@@ -687,16 +681,10 @@ export default function StaffManagementPage() {
                   placeholder="staffname@gmail.com"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white"
                 />
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Must be an active @gmail.com address for single-tap Google Sign-In.
-                </p>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-gray-700">Mobile Number (for WhatsApp OTP Login)</label>
-                  <span className="text-[10px] text-gray-400 font-medium">Optional if Gmail ID is provided</span>
-                </div>
+                <label className="block font-bold text-gray-700 mb-1">Mobile Number (for WhatsApp OTP Login)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -713,9 +701,6 @@ export default function StaffManagementPage() {
                     className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
                   />
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Country code is editable (defaults to +91). Staff receives instant WhatsApp OTP to log in.
-                </p>
               </div>
 
               <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-center gap-2 text-[11px] text-amber-900">
