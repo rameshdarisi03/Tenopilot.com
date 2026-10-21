@@ -321,37 +321,101 @@ export async function checkIfEmailExists(email: string): Promise<boolean> {
 }
 
 /**
- * 🛡️ Real-time conflict verification for Staff creation
+ * 🛡️ Real-time conflict verification for Staff creation and editing
  * Checks if a Gmail ID or Mobile Number is already in use by another organization or as a staff/admin/owner.
- * Note: Strictly ignores tenant records.
+ * Note: STRICTLY filters to staff roles (master_admin, admin, receptionist) and completely excludes tenants.
  */
+export interface StaffCredentialConflictResult {
+  emailConflict: boolean;
+  phoneConflict: boolean;
+  emailConflictType?: "same_org" | "other_org";
+  phoneConflictType?: "same_org" | "other_org";
+  emailConflictDetails?: {
+    name?: string;
+    role?: string;
+    propertyName?: string;
+  };
+  phoneConflictDetails?: {
+    name?: string;
+    role?: string;
+    propertyName?: string;
+  };
+  conflictingEmailRole?: string;
+  conflictingPhoneRole?: string;
+}
+
+export function formatStaffRoleDisplay(role?: string): string {
+  if (role === "master_admin") return "Master Admin";
+  if (role === "admin") return "Admin";
+  if (role === "receptionist") return "Receptionist";
+  return "Staff";
+}
+
 export async function checkStaffCredentialConflict(params: {
   email?: string;
   phone?: string;
   excludeStaffId?: string;
-}): Promise<{
-  emailConflict: boolean;
-  phoneConflict: boolean;
-  conflictingEmailRole?: string;
-  conflictingPhoneRole?: string;
-}> {
+  excludeEmail?: string;
+  excludePhone?: string;
+  currentOrgId?: string;
+  currentOwnerEmail?: string;
+  currentMasterUid?: string;
+}): Promise<StaffCredentialConflictResult> {
   let emailConflict = false;
   let phoneConflict = false;
+  let emailConflictType: "same_org" | "other_org" | undefined;
+  let phoneConflictType: "same_org" | "other_org" | undefined;
+  let emailConflictDetails: { name?: string; role?: string; propertyName?: string } | undefined;
+  let phoneConflictDetails: { name?: string; role?: string; propertyName?: string } | undefined;
   let conflictingEmailRole: string | undefined;
   let conflictingPhoneRole: string | undefined;
+
+  const curOrg = (params.currentOrgId || "").trim();
+  const curOwner = (params.currentOwnerEmail || "").trim().toLowerCase();
+  const curMasterUid = (params.currentMasterUid || "").trim();
+
+  const isSameOrgRecord = (data: any): boolean => {
+    const docOrg = (data?.organizationId || data?.orgId || "").trim();
+    const docOwner = (data?.ownerEmail || "").trim().toLowerCase();
+    const docMaster = (data?.masterAdminUid || "").trim();
+
+    if (curOrg && docOrg && curOrg === docOrg) return true;
+    if (curOwner && docOwner && curOwner === docOwner) return true;
+    if (curMasterUid && docMaster && curMasterUid === docMaster) return true;
+    if (curOwner && data?.email && curOwner === data.email.trim().toLowerCase()) return true;
+    return false;
+  };
 
   try {
     // 1. Check Email Conflict
     const cleanEmail = (params.email || "").trim().toLowerCase();
+    const excludeEmailClean = (params.excludeEmail || "").trim().toLowerCase();
+
     if (cleanEmail && cleanEmail.includes("@")) {
       // Check staff_accounts
       try {
         const saDoc = await getDoc(doc(db, "staff_accounts", cleanEmail));
         if (saDoc.exists()) {
           const saData = saDoc.data();
-          if (!params.excludeStaffId || saData?.id !== params.excludeStaffId) {
+          const role = saData?.role;
+          const isStaffRole =
+            (role === "master_admin" || role === "admin" || role === "receptionist" || saData?.isStaff === true) &&
+            role !== "tenant";
+
+          const isSelf =
+            (params.excludeStaffId && saData?.id === params.excludeStaffId) ||
+            (excludeEmailClean && cleanEmail === excludeEmailClean);
+
+          if (isStaffRole && !isSelf) {
             emailConflict = true;
-            conflictingEmailRole = saData?.role || "staff";
+            conflictingEmailRole = role;
+            const sameOrg = isSameOrgRecord(saData);
+            emailConflictType = sameOrg ? "same_org" : "other_org";
+            emailConflictDetails = {
+              name: saData?.name || "Staff Member",
+              role: formatStaffRoleDisplay(role),
+              propertyName: saData?.propertyName || "Assigned Property",
+            };
           }
         }
       } catch (e) {
@@ -366,10 +430,24 @@ export async function checkStaffCredentialConflict(params: {
           for (const uDoc of uSnap.docs) {
             const uData = uDoc.data();
             const role = uData?.role;
-            const isStaffOrAdmin = role === "master_admin" || role === "admin" || role === "receptionist" || uData?.isStaff === true;
-            if (isStaffOrAdmin && (!params.excludeStaffId || uData?.id !== params.excludeStaffId)) {
+            const isStaffRole =
+              (role === "master_admin" || role === "admin" || role === "receptionist" || uData?.isStaff === true) &&
+              role !== "tenant";
+
+            const isSelf =
+              (params.excludeStaffId && (uData?.id === params.excludeStaffId || uDoc.id === params.excludeStaffId)) ||
+              (excludeEmailClean && cleanEmail === excludeEmailClean);
+
+            if (isStaffRole && !isSelf) {
               emailConflict = true;
               conflictingEmailRole = role || "master_admin";
+              const sameOrg = isSameOrgRecord(uData);
+              emailConflictType = sameOrg ? "same_org" : "other_org";
+              emailConflictDetails = {
+                name: uData?.displayName || uData?.name || "Staff Member",
+                role: formatStaffRoleDisplay(role),
+                propertyName: uData?.primaryPropertyName || uData?.propertyName || "Assigned Property",
+              };
               break;
             }
           }
@@ -382,58 +460,114 @@ export async function checkStaffCredentialConflict(params: {
     // 2. Check Phone Conflict
     const rawDigits = (params.phone || "").replace(/\D/g, "");
     const pure10 = rawDigits.slice(-10);
+    const excludePure10 = (params.excludePhone || "").replace(/\D/g, "").slice(-10);
+
     if (pure10.length === 10) {
-      // Check staff_accounts direct doc phone_{pure10}
-      try {
-        const saPhoneDoc = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
-        if (saPhoneDoc.exists()) {
-          const saData = saPhoneDoc.data();
-          if (!params.excludeStaffId || saData?.id !== params.excludeStaffId) {
-            phoneConflict = true;
-            conflictingPhoneRole = saData?.role || "staff";
+      const isPhoneSelf = excludePure10 && pure10 === excludePure10;
+
+      if (!isPhoneSelf) {
+        // A. Check staff_accounts direct doc phone_{pure10}
+        try {
+          const saPhoneDoc = await getDoc(doc(db, "staff_accounts", `phone_${pure10}`));
+          if (saPhoneDoc.exists()) {
+            const saData = saPhoneDoc.data();
+            const role = saData?.role;
+            const isStaffRole =
+              (role === "master_admin" || role === "admin" || role === "receptionist" || saData?.isStaff === true) &&
+              role !== "tenant";
+
+            const isStaffIdSelf = params.excludeStaffId && saData?.id === params.excludeStaffId;
+
+            if (isStaffRole && !isStaffIdSelf) {
+              phoneConflict = true;
+              conflictingPhoneRole = role;
+              const sameOrg = isSameOrgRecord(saData);
+              phoneConflictType = sameOrg ? "same_org" : "other_org";
+              phoneConflictDetails = {
+                name: saData?.name || "Staff Member",
+                role: formatStaffRoleDisplay(role),
+                propertyName: saData?.propertyName || "Assigned Property",
+              };
+            }
           }
+        } catch {}
+
+        // B. Check staff_accounts query by purePhone
+        if (!phoneConflict) {
+          try {
+            const saQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
+            const saSnap = await getDocs(saQ);
+            for (const docItem of saSnap.docs) {
+              const saData = docItem.data();
+              const role = saData?.role;
+              const isStaffRole =
+                (role === "master_admin" || role === "admin" || role === "receptionist" || saData?.isStaff === true) &&
+                role !== "tenant";
+
+              const isStaffIdSelf = params.excludeStaffId && saData?.id === params.excludeStaffId;
+
+              if (isStaffRole && !isStaffIdSelf) {
+                phoneConflict = true;
+                conflictingPhoneRole = role;
+                const sameOrg = isSameOrgRecord(saData);
+                phoneConflictType = sameOrg ? "same_org" : "other_org";
+                phoneConflictDetails = {
+                  name: saData?.name || "Staff Member",
+                  role: formatStaffRoleDisplay(role),
+                  propertyName: saData?.propertyName || "Assigned Property",
+                };
+                break;
+              }
+            }
+          } catch {}
         }
-      } catch {}
 
-      // Check staff_accounts query by purePhone
-      if (!phoneConflict) {
-        try {
-          const saQ = query(collection(db, "staff_accounts"), where("purePhone", "==", pure10));
-          const saSnap = await getDocs(saQ);
-          for (const docItem of saSnap.docs) {
-            const saData = docItem.data();
-            if (!params.excludeStaffId || saData?.id !== params.excludeStaffId) {
-              phoneConflict = true;
-              conflictingPhoneRole = saData?.role || "staff";
-              break;
-            }
-          }
-        } catch {}
-      }
+        // C. Check users collection (owners & staff only, strictly ignore tenants)
+        if (!phoneConflict) {
+          try {
+            const pQ = query(collection(db, "users"), where("phone", "==", pure10));
+            const pSnap = await getDocs(pQ);
+            for (const pDoc of pSnap.docs) {
+              const pData = pDoc.data();
+              const role = pData?.role;
+              const isStaffRole =
+                (role === "master_admin" || role === "admin" || role === "receptionist" || pData?.isStaff === true) &&
+                role !== "tenant";
 
-      // Check users collection (owners & staff only, strictly ignore tenants)
-      if (!phoneConflict) {
-        try {
-          const pQ = query(collection(db, "users"), where("phone", "==", pure10));
-          const pSnap = await getDocs(pQ);
-          for (const pDoc of pSnap.docs) {
-            const pData = pDoc.data();
-            const role = pData?.role;
-            const isStaffOrAdmin = role === "master_admin" || role === "admin" || role === "receptionist" || pData?.isStaff === true;
-            if (isStaffOrAdmin && (!params.excludeStaffId || pData?.id !== params.excludeStaffId)) {
-              phoneConflict = true;
-              conflictingPhoneRole = role || "master_admin";
-              break;
+              const isStaffIdSelf =
+                params.excludeStaffId && (pData?.id === params.excludeStaffId || pDoc.id === params.excludeStaffId);
+
+              if (isStaffRole && !isStaffIdSelf) {
+                phoneConflict = true;
+                conflictingPhoneRole = role || "master_admin";
+                const sameOrg = isSameOrgRecord(pData);
+                phoneConflictType = sameOrg ? "same_org" : "other_org";
+                phoneConflictDetails = {
+                  name: pData?.displayName || pData?.name || "Staff Member",
+                  role: formatStaffRoleDisplay(role),
+                  propertyName: pData?.primaryPropertyName || pData?.propertyName || "Assigned Property",
+                };
+                break;
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
       }
     }
   } catch (err) {
     console.warn("checkStaffCredentialConflict global error:", err);
   }
 
-  return { emailConflict, phoneConflict, conflictingEmailRole, conflictingPhoneRole };
+  return {
+    emailConflict,
+    phoneConflict,
+    emailConflictType,
+    phoneConflictType,
+    emailConflictDetails,
+    phoneConflictDetails,
+    conflictingEmailRole,
+    conflictingPhoneRole,
+  };
 }
 
 export interface GoogleAuthResult {
@@ -928,6 +1062,127 @@ export async function provisionStaffFirebaseAccount(staff: {
   await staffStore.addGlobalStaff(staffRecord);
 
   return staffRecord;
+}
+
+/**
+ * 🛠️ Updates an existing staff account across Firestore, phone lookup indexes, and local store
+ * Enables enrolling / updating mobile number at any time so WhatsApp OTP login works immediately.
+ */
+export async function updateStaffFirebaseAccount(params: {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  countryCode?: string;
+  role: UserRole;
+  assignedPropertyId: string;
+  assignedPropertyIds?: string[];
+  propertyName: string;
+  status?: "Active" | "Inactive";
+  oldEmail?: string;
+  oldPhone?: string;
+  organizationId?: string;
+  masterAdminUid?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
+}): Promise<StaffMember> {
+  const cleanEmail = params.email ? params.email.trim().toLowerCase() : "";
+  const oldCleanEmail = params.oldEmail ? params.oldEmail.trim().toLowerCase() : "";
+  const cleanPhone = params.phone ? params.phone.trim() : "";
+  const purePhone = cleanPhone.replace(/\D/g, "").slice(-10);
+  const oldPurePhone = (params.oldPhone || "").replace(/\D/g, "").slice(-10);
+  const staffUid = params.id;
+  const effectiveEmail = cleanEmail || (purePhone ? `${purePhone}@phone.tenopilot.auth` : "");
+  const staffAccountDocId = cleanEmail || (purePhone ? `phone_${purePhone}` : staffUid);
+
+  const assignedIds =
+    params.assignedPropertyIds && params.assignedPropertyIds.length > 0
+      ? params.assignedPropertyIds
+      : [params.assignedPropertyId];
+
+  const updatedStaff: StaffMember = {
+    id: staffUid,
+    name: params.name.trim(),
+    email: effectiveEmail,
+    phone: cleanPhone,
+    phoneCountryCode: params.countryCode || "+91",
+    role: params.role,
+    assignedPropertyId: params.assignedPropertyId,
+    assignedPropertyIds: assignedIds,
+    propertyName: params.propertyName,
+    status: params.status || "Active",
+    joinedDate: new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }),
+  };
+
+  const payload: any = {
+    ...updatedStaff,
+    purePhone: purePhone || null,
+    countryCode: params.countryCode || "+91",
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (params.organizationId) payload.organizationId = params.organizationId;
+  if (params.masterAdminUid) payload.masterAdminUid = params.masterAdminUid;
+  if (params.ownerEmail) payload.ownerEmail = params.ownerEmail;
+  if (params.ownerPhone) payload.ownerPhone = params.ownerPhone;
+
+  try {
+    // 1. Clean up old phone doc if phone changed
+    if (oldPurePhone && oldPurePhone !== purePhone) {
+      await deleteDoc(doc(db, "staff_accounts", `phone_${oldPurePhone}`)).catch(() => {});
+    }
+
+    // 2. Clean up old email doc if email changed
+    if (oldCleanEmail && cleanEmail && oldCleanEmail !== cleanEmail) {
+      await deleteDoc(doc(db, "staff_accounts", oldCleanEmail)).catch(() => {});
+    }
+
+    // 3. Save new staff account doc in staff_accounts
+    await setDoc(doc(db, "staff_accounts", staffAccountDocId), payload, { merge: true });
+
+    // 4. Save phone index doc if purePhone exists (enables instant WhatsApp OTP phone login)
+    if (purePhone) {
+      await setDoc(doc(db, "staff_accounts", `phone_${purePhone}`), payload, { merge: true });
+    }
+
+    // 5. Update under property staff subcollection
+    if (params.assignedPropertyId) {
+      await setDoc(
+        doc(db, "properties", params.assignedPropertyId, "staff", staffUid),
+        updatedStaff,
+        { merge: true }
+      );
+    }
+
+    // 6. Update users collection if user doc exists
+    if (staffUid && !staffUid.startsWith("staff-")) {
+      await setDoc(
+        doc(db, "users", staffUid),
+        {
+          displayName: params.name.trim(),
+          phone: cleanPhone,
+          purePhone: purePhone || null,
+          role: params.role,
+          assignedPropertyId: params.assignedPropertyId,
+          assignedPropertyIds: assignedIds,
+          propertyName: params.propertyName,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ).catch(() => {});
+    }
+  } catch (fsErr) {
+    console.warn("Firestore staff update error:", fsErr);
+  }
+
+  // 7. Update staffStore in-memory and local storage
+  await staffStore.updateGlobalStaff(updatedStaff);
+
+  return updatedStaff;
 }
 
 /**

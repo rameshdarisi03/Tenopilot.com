@@ -269,6 +269,16 @@ class StaffStore {
     return false; // Receptionist cannot delete anyone
   }
 
+  canUserEditStaff(callerRole: UserRole, targetRole: UserRole): boolean {
+    if (callerRole === "master_admin") {
+      return true; // Master Admin can edit any staff member
+    }
+    if (callerRole === "admin") {
+      return targetRole === "receptionist"; // Admin can edit Receptionists (including those created by another Admin)
+    }
+    return false; // Receptionists cannot edit staff accounts
+  }
+
   canUserCreateRole(callerRole: UserRole, targetRole: UserRole): boolean {
     if (callerRole === "master_admin") {
       return true; // Master Admin can create any role (Admin or Receptionist)
@@ -354,6 +364,22 @@ class StaffStore {
     this.notify();
 
     // Also sync to assigned property buckets in Firestore
+    if (member.assignedPropertyId) {
+      await this.addStaff(member.assignedPropertyId, member);
+    }
+    return true;
+  }
+
+  async updateGlobalStaff(member: StaffMember): Promise<boolean> {
+    const exists = this.globalStaffList.some((s) => s.id === member.id);
+    if (exists) {
+      this.globalStaffList = this.globalStaffList.map((s) => (s.id === member.id ? { ...s, ...member } : s));
+    } else {
+      this.globalStaffList = [member, ...this.globalStaffList];
+    }
+    this.saveGlobalStaffToStorage();
+    this.notify();
+
     if (member.assignedPropertyId) {
       await this.addStaff(member.assignedPropertyId, member);
     }

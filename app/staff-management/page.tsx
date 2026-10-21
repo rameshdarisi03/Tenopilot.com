@@ -28,6 +28,7 @@ import {
   Square,
   Check,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { portfolioStore } from "@/constants/portfolioStore";
@@ -35,8 +36,10 @@ import { useAuth } from "@/providers/AuthProvider";
 import {
   reauthenticateCurrentAccount,
   provisionStaffFirebaseAccount,
+  updateStaffFirebaseAccount,
   syncUserSecurityPinToCloud,
   checkStaffCredentialConflict,
+  formatStaffRoleDisplay,
 } from "@/lib/authService";
 import { collection, getDocs, getDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -57,9 +60,28 @@ export default function StaffManagementPage() {
   // Real-time conflict validation states: "idle" | "checking" | "available" | "conflict"
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
   const [phoneStatus, setPhoneStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
+  const [emailConflictMsg, setEmailConflictMsg] = useState<string | null>(null);
+  const [phoneConflictMsg, setPhoneConflictMsg] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole>("admin");
   const [assignedPropertyId, setAssignedPropertyId] = useState("");
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+
+  // Edit Staff Modal State
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhoneCountryCode, setEditPhoneCountryCode] = useState("+91");
+  const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState<UserRole>("receptionist");
+  const [editAssignedPropertyId, setEditAssignedPropertyId] = useState("");
+  const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
+  const [editStatus, setEditStatus] = useState<"Active" | "Inactive">("Active");
+  const [editEmailStatus, setEditEmailStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
+  const [editPhoneStatus, setEditPhoneStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
+  const [editEmailConflictMsg, setEditEmailConflictMsg] = useState<string | null>(null);
+  const [editPhoneConflictMsg, setEditPhoneConflictMsg] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -205,52 +227,195 @@ export default function StaffManagementPage() {
     };
   }, [router, profile]);
 
-  // Real-time debounced conflict checking for Gmail ID
+  // Real-time debounced conflict checking for Gmail ID (Add Form)
   useEffect(() => {
     const cleanGmail = email.trim().toLowerCase();
     if (!cleanGmail) {
       setEmailStatus("idle");
+      setEmailConflictMsg(null);
       return;
     }
 
     if (!cleanGmail.endsWith("@gmail.com")) {
       setEmailStatus("idle");
+      setEmailConflictMsg(null);
       return;
     }
 
     setEmailStatus("checking");
     const timer = setTimeout(async () => {
       try {
-        const { emailConflict } = await checkStaffCredentialConflict({ email: cleanGmail });
-        setEmailStatus(emailConflict ? "conflict" : "available");
+        const res = await checkStaffCredentialConflict({
+          email: cleanGmail,
+          currentOrgId: profile?.organizationId,
+          currentOwnerEmail: profile?.email,
+          currentMasterUid: profile?.uid,
+        });
+        if (res.emailConflict) {
+          setEmailStatus("conflict");
+          if (res.emailConflictType === "same_org" && res.emailConflictDetails) {
+            setEmailConflictMsg(
+              `Already enrolled in this organization as ${res.emailConflictDetails.name} (${res.emailConflictDetails.role} - ${res.emailConflictDetails.propertyName}).`
+            );
+          } else {
+            setEmailConflictMsg("This email ID is already in use by another organization.");
+          }
+        } else {
+          setEmailStatus("available");
+          setEmailConflictMsg(null);
+        }
       } catch {
         setEmailStatus("idle");
+        setEmailConflictMsg(null);
       }
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [email]);
+  }, [email, profile]);
 
-  // Real-time debounced conflict checking for Mobile Number
+  // Real-time debounced conflict checking for Mobile Number (Add Form)
   useEffect(() => {
     const pure10 = phone.replace(/\D/g, "").slice(-10);
     if (!pure10 || pure10.length < 10) {
       setPhoneStatus("idle");
+      setPhoneConflictMsg(null);
       return;
     }
 
     setPhoneStatus("checking");
     const timer = setTimeout(async () => {
       try {
-        const { phoneConflict } = await checkStaffCredentialConflict({ phone: pure10 });
-        setPhoneStatus(phoneConflict ? "conflict" : "available");
+        const res = await checkStaffCredentialConflict({
+          phone: pure10,
+          currentOrgId: profile?.organizationId,
+          currentOwnerEmail: profile?.email,
+          currentMasterUid: profile?.uid,
+        });
+        if (res.phoneConflict) {
+          setPhoneStatus("conflict");
+          if (res.phoneConflictType === "same_org" && res.phoneConflictDetails) {
+            setPhoneConflictMsg(
+              `Already enrolled in this organization as ${res.phoneConflictDetails.name} (${res.phoneConflictDetails.role} - ${res.phoneConflictDetails.propertyName}).`
+            );
+          } else {
+            setPhoneConflictMsg("This mobile number is already in use by another organization.");
+          }
+        } else {
+          setPhoneStatus("available");
+          setPhoneConflictMsg(null);
+        }
       } catch {
         setPhoneStatus("idle");
+        setPhoneConflictMsg(null);
       }
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [phone]);
+  }, [phone, profile]);
+
+  // Real-time debounced conflict checking for Edit Gmail ID
+  useEffect(() => {
+    if (!editingStaff) return;
+    const cleanGmail = editEmail.trim().toLowerCase();
+    const oldEmail = (editingStaff.email || "").trim().toLowerCase();
+
+    // If unchanged and valid
+    if (cleanGmail && cleanGmail === oldEmail && !cleanGmail.endsWith("@phone.tenopilot.auth")) {
+      setEditEmailStatus("available");
+      setEditEmailConflictMsg(null);
+      return;
+    }
+
+    if (!cleanGmail || cleanGmail.endsWith("@phone.tenopilot.auth") || !cleanGmail.endsWith("@gmail.com")) {
+      setEditEmailStatus("idle");
+      setEditEmailConflictMsg(null);
+      return;
+    }
+
+    setEditEmailStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkStaffCredentialConflict({
+          email: cleanGmail,
+          excludeStaffId: editingStaff.id,
+          excludeEmail: editingStaff.email,
+          currentOrgId: profile?.organizationId,
+          currentOwnerEmail: profile?.email,
+          currentMasterUid: profile?.uid,
+        });
+        if (res.emailConflict) {
+          setEditEmailStatus("conflict");
+          if (res.emailConflictType === "same_org" && res.emailConflictDetails) {
+            setEditEmailConflictMsg(
+              `Already enrolled in this organization as ${res.emailConflictDetails.name} (${res.emailConflictDetails.role} - ${res.emailConflictDetails.propertyName}).`
+            );
+          } else {
+            setEditEmailConflictMsg("This email ID is already in use by another organization.");
+          }
+        } else {
+          setEditEmailStatus("available");
+          setEditEmailConflictMsg(null);
+        }
+      } catch {
+        setEditEmailStatus("idle");
+        setEditEmailConflictMsg(null);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [editEmail, editingStaff, profile]);
+
+  // Real-time debounced conflict checking for Edit Mobile Number
+  useEffect(() => {
+    if (!editingStaff) return;
+    const pure10 = editPhone.replace(/\D/g, "").slice(-10);
+    const oldPure10 = (editingStaff.phone || "").replace(/\D/g, "").slice(-10);
+
+    // If unchanged and already 10 digits
+    if (pure10 && pure10 === oldPure10 && pure10.length === 10) {
+      setEditPhoneStatus("available");
+      setEditPhoneConflictMsg(null);
+      return;
+    }
+
+    if (!pure10 || pure10.length < 10) {
+      setEditPhoneStatus("idle");
+      setEditPhoneConflictMsg(null);
+      return;
+    }
+
+    setEditPhoneStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkStaffCredentialConflict({
+          phone: pure10,
+          excludeStaffId: editingStaff.id,
+          excludePhone: editingStaff.phone,
+          currentOrgId: profile?.organizationId,
+          currentOwnerEmail: profile?.email,
+          currentMasterUid: profile?.uid,
+        });
+        if (res.phoneConflict) {
+          setEditPhoneStatus("conflict");
+          if (res.phoneConflictType === "same_org" && res.phoneConflictDetails) {
+            setEditPhoneConflictMsg(
+              `Already enrolled in this organization as ${res.phoneConflictDetails.name} (${res.phoneConflictDetails.role} - ${res.phoneConflictDetails.propertyName}).`
+            );
+          } else {
+            setEditPhoneConflictMsg("This mobile number is already in use by another organization.");
+          }
+        } else {
+          setEditPhoneStatus("available");
+          setEditPhoneConflictMsg(null);
+        }
+      } catch {
+        setEditPhoneStatus("idle");
+        setEditPhoneConflictMsg(null);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [editPhone, editingStaff, profile]);
 
 
 
@@ -267,6 +432,164 @@ export default function StaffManagementPage() {
       setSelectedPropertyIds([]);
     } else {
       setSelectedPropertyIds(properties.map((p) => p.id));
+    }
+  };
+
+  const handleOpenEditModal = (member: StaffMember) => {
+    setEditingStaff(member);
+    setEditName(member.name || "");
+    const cleanMail =
+      member.email && !member.email.endsWith("@phone.tenopilot.auth") ? member.email : "";
+    setEditEmail(cleanMail);
+    setEditPhoneCountryCode(member.phoneCountryCode || "+91");
+    const rawDigits = (member.phone || "").replace(/\D/g, "").slice(-10);
+    setEditPhone(rawDigits);
+    setEditRole(member.role);
+    setEditAssignedPropertyId(member.assignedPropertyId || (properties[0]?.id || ""));
+    setEditSelectedPropertyIds(
+      member.assignedPropertyIds && member.assignedPropertyIds.length > 0
+        ? member.assignedPropertyIds
+        : [member.assignedPropertyId || ""]
+    );
+    setEditStatus(member.status || "Active");
+    setEditError(null);
+    setEditEmailConflictMsg(null);
+    setEditPhoneConflictMsg(null);
+    setEditEmailStatus(cleanMail ? "available" : "idle");
+    setEditPhoneStatus(rawDigits.length === 10 ? "available" : "idle");
+  };
+
+  const toggleEditPropertySelection = (propId: string) => {
+    if (editSelectedPropertyIds.includes(propId)) {
+      setEditSelectedPropertyIds(editSelectedPropertyIds.filter((id) => id !== propId));
+    } else {
+      setEditSelectedPropertyIds([...editSelectedPropertyIds, propId]);
+    }
+  };
+
+  const toggleEditSelectAllProperties = () => {
+    if (editSelectedPropertyIds.length === properties.length) {
+      setEditSelectedPropertyIds([]);
+    } else {
+      setEditSelectedPropertyIds(properties.map((p) => p.id));
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+    setEditError(null);
+
+    if (!editName.trim()) {
+      setEditError("Please enter the staff member's full name.");
+      return;
+    }
+
+    const cleanGmail = editEmail.trim().toLowerCase();
+    const rawDigits = editPhone.replace(/\D/g, "");
+    const pure10 = rawDigits.slice(-10);
+
+    if (!cleanGmail && !pure10) {
+      setEditError("Please provide either a Gmail ID (for Google Sign-In) or a Mobile Number (for WhatsApp OTP), or both.");
+      return;
+    }
+
+    if (cleanGmail && !cleanGmail.endsWith("@gmail.com")) {
+      setEditError("Gmail ID must end with @gmail.com (e.g. staffname@gmail.com). Google Sign-In requires an active Gmail address.");
+      return;
+    }
+
+    if (editPhone.trim() && pure10.length !== 10) {
+      setEditError("Please enter a valid 10-digit mobile number for WhatsApp OTP login.");
+      return;
+    }
+
+    if (editRole === "admin" && editSelectedPropertyIds.length === 0) {
+      setEditError("Please select at least one building to assign this Admin to.");
+      return;
+    }
+
+    if (editEmailStatus === "conflict") {
+      setEditError(editEmailConflictMsg || "This Gmail ID is already in use.");
+      return;
+    }
+
+    if (editPhoneStatus === "conflict") {
+      setEditError(editPhoneConflictMsg || "This mobile number is already in use.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      const cleanCountryCode = editPhoneCountryCode.trim() || "+91";
+      const fullPhone = pure10 ? `${cleanCountryCode} ${pure10}` : "";
+
+      const selectedProps = properties.filter((p) =>
+        editRole === "admin" ? editSelectedPropertyIds.includes(p.id) : p.id === editAssignedPropertyId
+      );
+
+      const propDisplayName =
+        editRole === "admin"
+          ? editSelectedPropertyIds.length === properties.length
+            ? "All Properties"
+            : selectedProps.map((p) => p.name).join(", ")
+          : selectedProps[0]?.name || "Assigned PG";
+
+      const primaryPropId =
+        editRole === "admin" ? editSelectedPropertyIds[0] || editAssignedPropertyId : editAssignedPropertyId;
+
+      await updateStaffFirebaseAccount({
+        id: editingStaff.id,
+        name: editName.trim(),
+        email: cleanGmail,
+        phone: fullPhone,
+        countryCode: cleanCountryCode,
+        role: editRole,
+        assignedPropertyId: primaryPropId,
+        assignedPropertyIds: editRole === "admin" ? editSelectedPropertyIds : [editAssignedPropertyId],
+        propertyName: propDisplayName,
+        status: editStatus,
+        oldEmail: editingStaff.email,
+        oldPhone: editingStaff.phone,
+        organizationId: profile?.organizationId,
+        masterAdminUid: profile?.uid,
+        ownerEmail: profile?.email,
+        ownerPhone: profile?.phone,
+      });
+
+      // Update in-memory state
+      setStaffList((prev) =>
+        prev.map((s) =>
+          s.id === editingStaff.id
+            ? {
+                ...s,
+                name: editName.trim(),
+                email: cleanGmail || (pure10 ? `${pure10}@phone.tenopilot.auth` : s.email),
+                phone: fullPhone,
+                phoneCountryCode: cleanCountryCode,
+                role: editRole,
+                assignedPropertyId: primaryPropId,
+                assignedPropertyIds: editRole === "admin" ? editSelectedPropertyIds : [editAssignedPropertyId],
+                propertyName: propDisplayName,
+                status: editStatus,
+              }
+            : s
+        )
+      );
+
+      const enabledMethods: string[] = [];
+      if (cleanGmail) enabledMethods.push(`Google Sign-In (${cleanGmail})`);
+      if (fullPhone) enabledMethods.push(`WhatsApp OTP (${fullPhone})`);
+
+      setSuccessMessage(
+        `✅ Updated account for ${editName.trim()}! Login enabled via ${enabledMethods.join(" and ")}.`
+      );
+      setEditingStaff(null);
+    } catch (err: any) {
+      setEditError(err?.message || "Failed to update staff account. Please try again.");
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -315,12 +638,12 @@ export default function StaffManagementPage() {
     }
 
     if (emailStatus === "conflict") {
-      setErrorMessage("Sorry, this Gmail ID is already in use by another organization. Please try with a different ID.");
+      setErrorMessage(emailConflictMsg || "This Gmail ID is already in use.");
       return;
     }
 
     if (phoneStatus === "conflict") {
-      setErrorMessage("Sorry, this mobile number is already in use by another organization. Please try with a different mobile number.");
+      setErrorMessage(phoneConflictMsg || "This mobile number is already in use.");
       return;
     }
 
@@ -331,18 +654,31 @@ export default function StaffManagementPage() {
       const checkResult = await checkStaffCredentialConflict({
         email: cleanGmail || undefined,
         phone: pure10 || undefined,
+        currentOrgId: profile?.organizationId,
+        currentOwnerEmail: profile?.email,
+        currentMasterUid: profile?.uid,
       });
 
       if (checkResult.emailConflict) {
         setEmailStatus("conflict");
-        setErrorMessage("Sorry, this Gmail ID is already in use by another organization. Please try with a different ID.");
+        const msg =
+          checkResult.emailConflictType === "same_org" && checkResult.emailConflictDetails
+            ? `Already enrolled in this organization as ${checkResult.emailConflictDetails.name} (${checkResult.emailConflictDetails.role} - ${checkResult.emailConflictDetails.propertyName}).`
+            : "This email ID is already in use by another organization.";
+        setEmailConflictMsg(msg);
+        setErrorMessage(msg);
         setIsSubmitting(false);
         return;
       }
 
       if (checkResult.phoneConflict) {
         setPhoneStatus("conflict");
-        setErrorMessage("Sorry, this mobile number is already in use by another organization. Please try with a different mobile number.");
+        const msg =
+          checkResult.phoneConflictType === "same_org" && checkResult.phoneConflictDetails
+            ? `Already enrolled in this organization as ${checkResult.phoneConflictDetails.name} (${checkResult.phoneConflictDetails.role} - ${checkResult.phoneConflictDetails.propertyName}).`
+            : "This mobile number is already in use by another organization.";
+        setPhoneConflictMsg(msg);
+        setErrorMessage(msg);
         setIsSubmitting(false);
         return;
       }
@@ -634,6 +970,7 @@ export default function StaffManagementPage() {
                   const isMaster = member.role === "master_admin";
                   const isAdmin = member.role === "admin";
                   const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role) && !isMaster;
+                  const canEdit = staffStore.canUserEditStaff(activeRole, member.role) || member.email === profile?.email;
 
                   // Property Display String
                   const assignedCount = member.assignedPropertyIds?.length || 1;
@@ -763,6 +1100,18 @@ export default function StaffManagementPage() {
                           </div>
                         )}
 
+                        {/* Edit Staff Account */}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(member)}
+                            className="p-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#c2652a] transition-colors cursor-pointer active:scale-95"
+                            title="Edit Staff Account Details & Mobile Number"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+
                         {/* Delete Account (Requires Password) */}
                         {canDelete && (
                           <button
@@ -835,9 +1184,9 @@ export default function StaffManagementPage() {
                     )}
                   </div>
                 </div>
-                {emailStatus === "conflict" && (
+                {emailStatus === "conflict" && emailConflictMsg && (
                   <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
-                    <span>Sorry, this Gmail ID is already in use by another organization. Please try with a different ID.</span>
+                    <span>{emailConflictMsg}</span>
                   </p>
                 )}
               </div>
@@ -883,9 +1232,9 @@ export default function StaffManagementPage() {
                     </div>
                   </div>
                 </div>
-                {phoneStatus === "conflict" && (
+                {phoneStatus === "conflict" && phoneConflictMsg && (
                   <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
-                    <span>Sorry, this mobile number is already in use by another organization. Please try with a different mobile number.</span>
+                    <span>{phoneConflictMsg}</span>
                   </p>
                 )}
               </div>
@@ -1101,7 +1450,291 @@ export default function StaffManagementPage() {
           );
         })()}
 
-        {/* 🗑️ CONFIRMATION MODAL FOR ACCOUNT DELETION */}
+        {/* ✏️ EDIT STAFF ACCOUNT MODAL */}
+        {editingStaff && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in overflow-y-auto">
+            <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-xl w-full p-6 sm:p-7 space-y-5 animate-in zoom-in-95 text-xs text-[#201a17] my-8 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#f8ede3] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-orange-100 text-[#964407]">
+                    <Pencil className="w-5 h-5 text-[#c2652a]" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-gray-900">
+                      Edit Staff Account
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      Update credentials, mobile enrollment & permissions for {editingStaff.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingStaff(null)}
+                  className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {editError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveEdit} className="space-y-4">
+                {/* Full Name */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Staff Full Name"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                  />
+                </div>
+
+                {/* Gmail ID (for Google Sign-In) */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Gmail ID (for Google Sign-In)</label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="staffname@gmail.com"
+                      className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
+                        editEmailStatus === "conflict"
+                          ? "border-rose-400 focus:ring-rose-500 bg-rose-50/20"
+                          : editEmailStatus === "available"
+                          ? "border-emerald-400 focus:ring-emerald-500"
+                          : "border-gray-300 focus:ring-[#c2652a]"
+                      }`}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {editEmailStatus === "checking" && (
+                        <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                      )}
+                      {editEmailStatus === "available" && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      )}
+                      {editEmailStatus === "conflict" && (
+                        <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shadow-2xs">
+                          <X className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {editEmailStatus === "conflict" && editEmailConflictMsg && (
+                    <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                      <span>{editEmailConflictMsg}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Mobile Number (for WhatsApp OTP Login) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-gray-700">Mobile Number (for WhatsApp OTP Login)</label>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                      Enables Instant 1-Tap Login
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editPhoneCountryCode}
+                      onChange={(e) => setEditPhoneCountryCode(e.target.value)}
+                      placeholder="+91"
+                      className="w-20 px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-center text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                    />
+                    <div className="relative flex-1">
+                      <input
+                        type="tel"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="9876543210 (10 digits)"
+                        className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
+                          editPhoneStatus === "conflict"
+                            ? "border-rose-400 focus:ring-rose-500 bg-rose-50/20"
+                            : editPhoneStatus === "available"
+                            ? "border-emerald-400 focus:ring-emerald-500"
+                            : "border-gray-300 focus:ring-[#c2652a]"
+                        }`}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        {editPhoneStatus === "checking" && (
+                          <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                        )}
+                        {editPhoneStatus === "available" && (
+                          <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </div>
+                        )}
+                        {editPhoneStatus === "conflict" && (
+                          <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shadow-2xs">
+                            <X className="w-3.5 h-3.5 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {editPhoneStatus === "conflict" && editPhoneConflictMsg && (
+                    <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                      <span>{editPhoneConflictMsg}</span>
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                    Saving a 10-digit number enables this staff member to immediately sign in using WhatsApp OTP.
+                  </p>
+                </div>
+
+                {/* Role Selection */}
+                {editingStaff.role !== "master_admin" && (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Assigned Role *</label>
+                    <select
+                      value={editRole}
+                      disabled={activeRole === "admin"}
+                      onChange={(e) => setEditRole(e.target.value as UserRole)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs disabled:bg-gray-100 disabled:text-gray-500"
+                    >
+                      {activeRole === "master_admin" && (
+                        <option value="admin">🏢 Property Admin (Manage single or multiple buildings)</option>
+                      )}
+                      <option value="receptionist">🔑 Receptionist (Front-Desk staff for assigned property)</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Building Assignment */}
+                {editRole === "admin" ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block font-bold text-gray-700">Assigned Buildings *</label>
+                      {properties.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={toggleEditSelectAllProperties}
+                          className="text-[10px] text-[#c2652a] hover:underline font-bold"
+                        >
+                          {editSelectedPropertyIds.length === properties.length ? "Deselect All" : "Select All"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-gray-50 rounded-2xl border border-gray-200 max-h-40 overflow-y-auto">
+                      {properties.map((p) => {
+                        const isChecked = editSelectedPropertyIds.includes(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => toggleEditPropertySelection(p.id)}
+                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                              isChecked
+                                ? "border-[#c2652a] bg-orange-50/60 text-[#c2652a] font-bold"
+                                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-100 font-medium"
+                            }`}
+                          >
+                            {isChecked ? (
+                              <CheckSquare className="w-4 h-4 text-[#c2652a] shrink-0" />
+                            ) : (
+                              <Square className="w-4 h-4 text-gray-400 shrink-0" />
+                            )}
+                            <span className="truncate text-xs">{p.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Assigned Property *</label>
+                    <select
+                      value={editAssignedPropertyId}
+                      onChange={(e) => setEditAssignedPropertyId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                    >
+                      {properties.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Account Status */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Account Status</label>
+                  <div className="inline-flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setEditStatus("Active")}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        editStatus === "Active"
+                          ? "bg-emerald-600 text-white shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      Active 🟢
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditStatus("Inactive")}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        editStatus === "Inactive"
+                          ? "bg-gray-700 text-white shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      Inactive ⚪
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-[#f8ede3]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingStaff(null)}
+                    className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      isSavingEdit ||
+                      editEmailStatus === "checking" ||
+                      editPhoneStatus === "checking" ||
+                      editEmailStatus === "conflict" ||
+                      editPhoneStatus === "conflict"
+                    }
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] hover:from-[#a8451f] hover:to-[#964407] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-98"
+                  >
+                    {isSavingEdit ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Save Staff Details</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
         {deleteTargetMember && (() => {
           const isGoogleAccount =
             (typeof window !== "undefined" &&

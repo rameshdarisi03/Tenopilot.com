@@ -5,7 +5,14 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { staffStore, StaffMember, UserRole } from "@/lib/staffStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { reauthenticateCurrentAccount, syncUserSecurityPinToCloud } from "@/lib/authService";
+import {
+  reauthenticateCurrentAccount,
+  syncUserSecurityPinToCloud,
+  updateStaffFirebaseAccount,
+  checkStaffCredentialConflict,
+  formatStaffRoleDisplay,
+} from "@/lib/authService";
+import { useAuth } from "@/providers/AuthProvider";
 import Link from "next/link";
 import {
   Users,
@@ -24,6 +31,9 @@ import {
   RotateCcw,
   Building2,
   ArrowRight,
+  Pencil,
+  Check,
+  Loader2,
 } from "lucide-react";
 
 export default function StaffManagementPage({
@@ -51,6 +61,23 @@ export default function StaffManagementPage({
   const [isResettingPin, setIsResettingPin] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const { profile } = useAuth();
+
+  // Edit Staff Modal State
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhoneCountryCode, setEditPhoneCountryCode] = useState("+91");
+  const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState<UserRole>("receptionist");
+  const [editStatus, setEditStatus] = useState<"Active" | "Inactive">("Active");
+  const [editEmailStatus, setEditEmailStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
+  const [editPhoneStatus, setEditPhoneStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
+  const [editEmailConflictMsg, setEditEmailConflictMsg] = useState<string | null>(null);
+  const [editPhoneConflictMsg, setEditPhoneConflictMsg] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   const [propertySettings] = useState(() =>
     propertySettingsStore.getSettings(propertyId)
   );
@@ -74,6 +101,201 @@ export default function StaffManagementPage({
   const handleGenerateRandomPin = () => {
     const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
     setResetNewPin(randomPin);
+  };
+
+  // Real-time debounced conflict checking for Edit Gmail ID
+  useEffect(() => {
+    if (!editingStaff) return;
+    const cleanGmail = editEmail.trim().toLowerCase();
+    const oldEmail = (editingStaff.email || "").trim().toLowerCase();
+
+    // If unchanged and valid
+    if (cleanGmail && cleanGmail === oldEmail && !cleanGmail.endsWith("@phone.tenopilot.auth")) {
+      setEditEmailStatus("available");
+      setEditEmailConflictMsg(null);
+      return;
+    }
+
+    if (!cleanGmail || cleanGmail.endsWith("@phone.tenopilot.auth") || !cleanGmail.endsWith("@gmail.com")) {
+      setEditEmailStatus("idle");
+      setEditEmailConflictMsg(null);
+      return;
+    }
+
+    setEditEmailStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkStaffCredentialConflict({
+          email: cleanGmail,
+          excludeStaffId: editingStaff.id,
+          excludeEmail: editingStaff.email,
+          currentOrgId: profile?.organizationId,
+          currentOwnerEmail: profile?.email,
+          currentMasterUid: profile?.uid,
+        });
+        if (res.emailConflict) {
+          setEditEmailStatus("conflict");
+          if (res.emailConflictType === "same_org" && res.emailConflictDetails) {
+            setEditEmailConflictMsg(
+              `Already enrolled in this organization as ${res.emailConflictDetails.name} (${res.emailConflictDetails.role} - ${res.emailConflictDetails.propertyName}).`
+            );
+          } else {
+            setEditEmailConflictMsg("This email ID is already in use by another organization.");
+          }
+        } else {
+          setEditEmailStatus("available");
+          setEditEmailConflictMsg(null);
+        }
+      } catch {
+        setEditEmailStatus("idle");
+        setEditEmailConflictMsg(null);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [editEmail, editingStaff, profile]);
+
+  // Real-time debounced conflict checking for Edit Mobile Number
+  useEffect(() => {
+    if (!editingStaff) return;
+    const pure10 = editPhone.replace(/\D/g, "").slice(-10);
+    const oldPure10 = (editingStaff.phone || "").replace(/\D/g, "").slice(-10);
+
+    // If unchanged and already 10 digits
+    if (pure10 && pure10 === oldPure10 && pure10.length === 10) {
+      setEditPhoneStatus("available");
+      setEditPhoneConflictMsg(null);
+      return;
+    }
+
+    if (!pure10 || pure10.length < 10) {
+      setEditPhoneStatus("idle");
+      setEditPhoneConflictMsg(null);
+      return;
+    }
+
+    setEditPhoneStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkStaffCredentialConflict({
+          phone: pure10,
+          excludeStaffId: editingStaff.id,
+          excludePhone: editingStaff.phone,
+          currentOrgId: profile?.organizationId,
+          currentOwnerEmail: profile?.email,
+          currentMasterUid: profile?.uid,
+        });
+        if (res.phoneConflict) {
+          setEditPhoneStatus("conflict");
+          if (res.phoneConflictType === "same_org" && res.phoneConflictDetails) {
+            setEditPhoneConflictMsg(
+              `Already enrolled in this organization as ${res.phoneConflictDetails.name} (${res.phoneConflictDetails.role} - ${res.phoneConflictDetails.propertyName}).`
+            );
+          } else {
+            setEditPhoneConflictMsg("This mobile number is already in use by another organization.");
+          }
+        } else {
+          setEditPhoneStatus("available");
+          setEditPhoneConflictMsg(null);
+        }
+      } catch {
+        setEditPhoneStatus("idle");
+        setEditPhoneConflictMsg(null);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [editPhone, editingStaff, profile]);
+
+  const handleOpenEditModal = (member: StaffMember) => {
+    setEditingStaff(member);
+    setEditName(member.name || "");
+    const cleanMail =
+      member.email && !member.email.endsWith("@phone.tenopilot.auth") ? member.email : "";
+    setEditEmail(cleanMail);
+    setEditPhoneCountryCode(member.phoneCountryCode || "+91");
+    const rawDigits = (member.phone || "").replace(/\D/g, "").slice(-10);
+    setEditPhone(rawDigits);
+    setEditRole(member.role);
+    setEditStatus(member.status || "Active");
+    setEditError(null);
+    setEditEmailConflictMsg(null);
+    setEditPhoneConflictMsg(null);
+    setEditEmailStatus(cleanMail ? "available" : "idle");
+    setEditPhoneStatus(rawDigits.length === 10 ? "available" : "idle");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+    setEditError(null);
+
+    if (!editName.trim()) {
+      setEditError("Please enter staff member's full name.");
+      return;
+    }
+
+    const cleanGmail = editEmail.trim().toLowerCase();
+    const rawDigits = editPhone.replace(/\D/g, "");
+    const pure10 = rawDigits.slice(-10);
+
+    if (!cleanGmail && !pure10) {
+      setEditError("Please provide either a Gmail ID (for Google Sign-In) or a Mobile Number (for WhatsApp OTP), or both.");
+      return;
+    }
+
+    if (cleanGmail && !cleanGmail.endsWith("@gmail.com")) {
+      setEditError("Gmail ID must end with @gmail.com (e.g. staffname@gmail.com). Google Sign-In requires an active Gmail address.");
+      return;
+    }
+
+    if (editPhone.trim() && pure10.length !== 10) {
+      setEditError("Please enter a valid 10-digit mobile number for WhatsApp OTP login.");
+      return;
+    }
+
+    if (editEmailStatus === "conflict") {
+      setEditError(editEmailConflictMsg || "This Gmail ID is already in use.");
+      return;
+    }
+
+    if (editPhoneStatus === "conflict") {
+      setEditError(editPhoneConflictMsg || "This mobile number is already in use.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      const cleanCountryCode = editPhoneCountryCode.trim() || "+91";
+      const fullPhone = pure10 ? `${cleanCountryCode} ${pure10}` : "";
+
+      await updateStaffFirebaseAccount({
+        id: editingStaff.id,
+        name: editName.trim(),
+        email: cleanGmail,
+        phone: fullPhone,
+        countryCode: cleanCountryCode,
+        role: editRole,
+        assignedPropertyId: editingStaff.assignedPropertyId || propertyId,
+        assignedPropertyIds: editingStaff.assignedPropertyIds || [propertyId],
+        propertyName: editingStaff.propertyName || propertySettings.propertyName,
+        status: editStatus,
+        oldEmail: editingStaff.email,
+        oldPhone: editingStaff.phone,
+        organizationId: profile?.organizationId,
+        masterAdminUid: profile?.uid,
+        ownerEmail: profile?.email,
+        ownerPhone: profile?.phone,
+      });
+
+      triggerToast(`✅ Updated account for ${editName.trim()}! Login credentials updated.`);
+      setEditingStaff(null);
+    } catch (err: any) {
+      setEditError(err?.message || "Failed to update staff account. Please try again.");
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   // Open Reset PIN Dialog
@@ -324,6 +546,7 @@ export default function StaffManagementPage({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredStaff.map((member) => {
                 const canDelete = staffStore.canUserDeleteStaff(activeRole, member.role) && member.role !== "master_admin";
+                const canEdit = staffStore.canUserEditStaff(activeRole, member.role) || member.email === profile?.email;
 
                 return (
                   <div
@@ -405,6 +628,18 @@ export default function StaffManagementPage({
                         >
                           <RotateCcw className="w-3 h-3" /> PIN: {member.securityPin || "123456"}
                         </button>
+
+                        {/* Edit Staff Details & Mobile Number */}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(member)}
+                            className="px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-[#c2652a] text-xs font-bold flex items-center gap-1 border border-orange-200 transition-colors cursor-pointer"
+                            title="Edit Staff Details & Mobile Number"
+                          >
+                            <Pencil className="w-3 h-3" /> Edit
+                          </button>
+                        )}
                       </div>
 
                       {/* Delete Account Button (Protected with Password) */}
@@ -587,6 +822,235 @@ export default function StaffManagementPage({
           </div>
         );
       })()}
+
+      {/* ✏️ EDIT STAFF ACCOUNT MODAL */}
+      {editingStaff && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#e8dfd8] shadow-2xl max-w-lg w-full p-6 sm:p-7 space-y-4 animate-in zoom-in-95 text-xs text-[#201a17] my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#f8ede3] pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-orange-100 text-[#964407]">
+                  <Pencil className="w-5 h-5 text-[#c2652a]" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-gray-900">
+                    Edit Staff Account
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Update credentials & mobile enrollment for {editingStaff.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingStaff(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              {/* Full Name */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Staff Full Name"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                />
+              </div>
+
+              {/* Gmail ID (for Google Sign-In) */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Gmail ID (for Google Sign-In)</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="staffname@gmail.com"
+                    className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
+                      editEmailStatus === "conflict"
+                        ? "border-rose-400 focus:ring-rose-500 bg-rose-50/20"
+                        : editEmailStatus === "available"
+                        ? "border-emerald-400 focus:ring-emerald-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                    {editEmailStatus === "checking" && (
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                    )}
+                    {editEmailStatus === "available" && (
+                      <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                    {editEmailStatus === "conflict" && (
+                      <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shadow-2xs">
+                        <X className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {editEmailStatus === "conflict" && editEmailConflictMsg && (
+                  <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <span>{editEmailConflictMsg}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Mobile Number (for WhatsApp OTP Login) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-gray-700">Mobile Number (for WhatsApp OTP Login)</label>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                    Enables Instant 1-Tap Login
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editPhoneCountryCode}
+                    onChange={(e) => setEditPhoneCountryCode(e.target.value)}
+                    placeholder="+91"
+                    className="w-20 px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-center text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs"
+                  />
+                  <div className="relative flex-1">
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="9876543210 (10 digits)"
+                      className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border font-medium text-gray-900 focus:ring-2 bg-white text-xs transition-colors ${
+                        editPhoneStatus === "conflict"
+                          ? "border-rose-400 focus:ring-rose-500 bg-rose-50/20"
+                          : editPhoneStatus === "available"
+                          ? "border-emerald-400 focus:ring-emerald-500"
+                          : "border-gray-300 focus:ring-[#c2652a]"
+                      }`}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {editPhoneStatus === "checking" && (
+                        <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                      )}
+                      {editPhoneStatus === "available" && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      )}
+                      {editPhoneStatus === "conflict" && (
+                        <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shadow-2xs">
+                          <X className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {editPhoneStatus === "conflict" && editPhoneConflictMsg && (
+                  <p className="text-[11px] font-semibold text-rose-600 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                    <span>{editPhoneConflictMsg}</span>
+                  </p>
+                )}
+                <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                  Saving a 10-digit number enables this staff member to immediately sign in using WhatsApp OTP.
+                </p>
+              </div>
+
+              {/* Role Selection */}
+              {editingStaff.role !== "master_admin" && (
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Assigned Role *</label>
+                  <select
+                    value={editRole}
+                    disabled={activeRole === "admin"}
+                    onChange={(e) => setEditRole(e.target.value as UserRole)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a] bg-white text-xs disabled:bg-gray-100 disabled:text-gray-500"
+                  >
+                    {activeRole === "master_admin" && (
+                      <option value="admin">🏢 Property Admin (Manage assigned building)</option>
+                    )}
+                    <option value="receptionist">🔑 Receptionist (Front-Desk staff)</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Account Status */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Account Status</label>
+                <div className="inline-flex items-center p-1 bg-gray-100 rounded-xl border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setEditStatus("Active")}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      editStatus === "Active"
+                        ? "bg-emerald-600 text-white shadow-xs font-extrabold"
+                        : "text-gray-500 hover:text-gray-900"
+                    }`}
+                  >
+                    Active 🟢
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditStatus("Inactive")}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      editStatus === "Inactive"
+                        ? "bg-gray-700 text-white shadow-xs font-extrabold"
+                        : "text-gray-500 hover:text-gray-900"
+                    }`}
+                  >
+                    Inactive ⚪
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-[#f8ede3]">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaff(null)}
+                  className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    isSavingEdit ||
+                    editEmailStatus === "checking" ||
+                    editPhoneStatus === "checking" ||
+                    editEmailStatus === "conflict" ||
+                    editPhoneStatus === "conflict"
+                  }
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#c2652a] to-[#a8451f] hover:from-[#a8451f] hover:to-[#964407] text-white font-bold disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-98"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Save Staff Details</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
