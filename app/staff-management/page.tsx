@@ -38,7 +38,7 @@ import {
   syncUserSecurityPinToCloud,
   checkStaffCredentialConflict,
 } from "@/lib/authService";
-import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { collection, getDocs, getDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export default function StaffManagementPage() {
@@ -58,7 +58,7 @@ export default function StaffManagementPage() {
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
   const [phoneStatus, setPhoneStatus] = useState<"idle" | "checking" | "available" | "conflict">("idle");
   const [role, setRole] = useState<UserRole>("admin");
-  const [assignedPropertyId, setAssignedPropertyId] = useState("sunshine-pg");
+  const [assignedPropertyId, setAssignedPropertyId] = useState("");
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -85,27 +85,63 @@ export default function StaffManagementPage() {
 
   useEffect(() => {
     // Initialize Real-time Firestore Portfolio Listener
+    // If user is Property Admin or has organization owner, listen using appropriate owner email if known
     portfolioStore.initFirebaseListener(profile?.email);
 
-    const refreshProperties = () => {
-      const liveProps = portfolioStore.getProperties();
-      const isDemoAccount = profile?.email === "isharapandey01@gmail.com";
-
-      let propList = liveProps.map((p) => ({ id: p.id, name: p.name }));
-      if (!isDemoAccount) {
-        propList = propList.filter((p) => p.id !== "sunshine-pg");
+    const refreshProperties = async () => {
+      let savedSession: any = {};
+      if (typeof window !== "undefined") {
+        try {
+          savedSession = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}");
+        } catch {}
       }
-      if (propList.length === 0) {
-        if (isDemoAccount) {
-          propList = [{ id: "sunshine-pg", name: "Sunshine Luxury PG" }];
-        } else if (profile?.assignedPropertyId && profile.assignedPropertyId !== "sunshine-pg") {
-          propList = [{ id: profile.assignedPropertyId, name: "Primary Property" }];
+
+      const userRole = staffStore.getActiveRole() || profile?.role || savedSession.role || "master_admin";
+      const isMasterAdmin = userRole === "master_admin";
+
+      let propList: { id: string; name: string }[] = [];
+
+      // If user is Property Admin or Receptionist, their allowed building is strictly their assigned property
+      const currentEmail = profile?.email || savedSession.email || "";
+      let adminStaffDoc: any = null;
+      if (currentEmail) {
+        try {
+          const sSnap = await getDoc(doc(db, "staff_accounts", currentEmail.toLowerCase()));
+          if (sSnap.exists()) {
+            adminStaffDoc = sSnap.data();
+          }
+        } catch {}
+      }
+
+      const assignedPropId =
+        adminStaffDoc?.assignedPropertyId ||
+        profile?.assignedPropertyId ||
+        savedSession?.assignedPropertyId ||
+        "";
+
+      const assignedPropName =
+        adminStaffDoc?.propertyName ||
+        profile?.propertyName ||
+        savedSession?.propertyName ||
+        "Assigned Property";
+
+      if (!isMasterAdmin && assignedPropId && assignedPropId !== "sunshine-pg") {
+        // Property Admin scope: strictly their assigned building(s)
+        propList = [{ id: assignedPropId, name: assignedPropName }];
+      } else {
+        const liveProps = portfolioStore.getProperties();
+        propList = liveProps
+          .filter((p) => p.id !== "sunshine-pg" && p.name !== "Sunshine Luxury PG")
+          .map((p) => ({ id: p.id, name: p.name }));
+
+        if (propList.length === 0 && assignedPropId && assignedPropId !== "sunshine-pg") {
+          propList = [{ id: assignedPropId, name: assignedPropName }];
         }
       }
 
       setProperties(propList);
-      if (propList.length > 0 && (!assignedPropertyId || assignedPropertyId === "sunshine-pg")) {
-        setAssignedPropertyId(propList[0].id);
+      if (propList.length > 0) {
+        setAssignedPropertyId((prev) => (!prev || prev === "sunshine-pg" ? propList[0].id : prev));
       }
     };
 
@@ -115,7 +151,7 @@ export default function StaffManagementPage() {
     const currentRole = staffStore.getActiveRole();
     setActiveRole(currentRole);
 
-    // ðŸ”’ If Receptionist tries to access staff management, immediately redirect to their assigned building
+    // 🔒 If Receptionist tries to access staff management, immediately redirect to their assigned building
     if (currentRole === "receptionist") {
       const allStaff = staffStore.getAllGlobalStaff();
       let userEmail = "";
@@ -125,7 +161,7 @@ export default function StaffManagementPage() {
         } catch {}
       }
       const match = allStaff.find((s) => s.email.toLowerCase() === userEmail.toLowerCase());
-      const targetProp = match?.assignedPropertyId || "sunshine-pg";
+      const targetProp = match?.assignedPropertyId || profile?.assignedPropertyId || "sunshine-pg";
       router.replace(`/p/${targetProp}/overview`);
       return;
     }
@@ -133,19 +169,6 @@ export default function StaffManagementPage() {
     // Default form role selection
     if (currentRole === "admin") {
       setRole("receptionist");
-      // Filter accessible properties to Admin's assigned buildings only
-      const allStaff = staffStore.getAllGlobalStaff();
-      let userEmail = "";
-      if (typeof window !== "undefined") {
-        try {
-          userEmail = JSON.parse(localStorage.getItem("tenopilot_saved_session") || "{}")?.email || "";
-        } catch {}
-      }
-      const match = allStaff.find((s) => s.email.toLowerCase() === userEmail.toLowerCase());
-      const assignedIds = match?.assignedPropertyIds || (match?.assignedPropertyId ? [match.assignedPropertyId] : []);
-      if (assignedIds.length > 0 && !assignedIds.includes("*")) {
-        setProperties((prev) => prev.filter((p) => assignedIds.includes(p.id)));
-      }
     } else {
       setRole("admin");
     }
@@ -336,6 +359,25 @@ export default function StaffManagementPage() {
             : selectedProps.map((p) => p.name).join(", ")
           : selectedProps[0]?.name || "Assigned PG";
 
+      // For Property Admins creating Receptionists, inherit the organization's owner attributes
+      let staffOrgId = profile?.organizationId || `org_${profile?.uid || "admin"}`;
+      let staffOwnerEmail = profile?.email || "";
+      let staffOwnerPhone = profile?.phone || "";
+      let staffMasterAdminUid = profile?.uid || "";
+
+      if (activeRole === "admin") {
+        try {
+          const sSnap = await getDoc(doc(db, "staff_accounts", (profile?.email || "").toLowerCase()));
+          if (sSnap.exists()) {
+            const sData = sSnap.data();
+            staffOrgId = sData.organizationId || sData.orgId || staffOrgId;
+            staffOwnerEmail = sData.ownerEmail || staffOwnerEmail;
+            staffOwnerPhone = sData.ownerPhone || staffOwnerPhone;
+            staffMasterAdminUid = sData.masterAdminUid || staffMasterAdminUid;
+          }
+        } catch {}
+      }
+
       const newStaff = await provisionStaffFirebaseAccount({
         id: `staff-${Date.now()}`,
         name: name.trim(),
@@ -346,10 +388,10 @@ export default function StaffManagementPage() {
         assignedPropertyId: primaryPropId,
         assignedPropertyIds: role === "admin" ? selectedPropertyIds : [assignedPropertyId],
         propertyName: propDisplayName,
-        organizationId: profile?.organizationId || `org_${profile?.uid || "admin"}`,
-        masterAdminUid: profile?.uid || "",
-        ownerEmail: profile?.email || "",
-        ownerPhone: profile?.phone || "",
+        organizationId: staffOrgId,
+        masterAdminUid: staffMasterAdminUid,
+        ownerEmail: staffOwnerEmail,
+        ownerPhone: staffOwnerPhone,
         planExpiresAt: profile?.planExpiresAt || null,
       });
 
@@ -499,7 +541,7 @@ export default function StaffManagementPage() {
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Logged in as:</span>
             <span className="text-[#c2652a] uppercase tracking-wider">
-              {activeRole === "master_admin" ? "ðŸ‘‘ Master Admin" : "ðŸ¢ Property Admin"}
+              {activeRole === "master_admin" ? "👑 Master Admin" : "🏢 Property Admin"}
             </span>
           </div>
         </div>
@@ -954,7 +996,7 @@ export default function StaffManagementPage() {
           </div>
         )}
 
-        {/* ðŸ”‘ RESET MASTER PIN MODAL (Smart Google vs Password Detection) */}
+        {/* 🔑 RESET MASTER PIN MODAL (Smart Google vs Password Detection) */}
         {resetTargetMember && (() => {
           const isGoogleAccount =
             (resetTargetMember?.email && resetTargetMember.email.toLowerCase().endsWith("@gmail.com")) ||
@@ -1059,7 +1101,7 @@ export default function StaffManagementPage() {
           );
         })()}
 
-        {/* ðŸ” CONFIRMATION MODAL FOR ACCOUNT DELETION */}
+        {/* 🗑️ CONFIRMATION MODAL FOR ACCOUNT DELETION */}
         {deleteTargetMember && (() => {
           const isGoogleAccount =
             (typeof window !== "undefined" &&
