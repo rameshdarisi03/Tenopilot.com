@@ -288,53 +288,55 @@ export function PublicComplaintQrModal({
                 </div>
               </div>
 
-              {/* 3-Step Instruction Sequence (Glassmorphic card with ~35% translucent opacity and straight horizontal alignment) */}
+              {/* 3-Step Instruction Sequence (Glassmorphic card with ~35% translucent opacity, vertically centered content and centered arrows) */}
               <div className="relative z-10 my-1 shrink-0 flex justify-center">
-                <div className="bg-white/35 backdrop-blur-md border border-white/40 shadow-xs px-3 py-2 rounded-2xl max-w-[300px] w-full">
-                  <div className="flex items-start justify-between gap-1">
+                <div className="bg-white/35 backdrop-blur-md border border-white/40 shadow-xs px-3 py-2.5 sm:py-3 rounded-2xl max-w-[305px] w-full flex items-center justify-center">
+                  <div className="flex items-center justify-between gap-1 w-full">
                     {/* Step 1 */}
                     <div className="flex flex-col items-center flex-1 min-w-0">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1 shrink-0">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1.5 shrink-0">
                         <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
                         <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                           1
                         </span>
                       </div>
-                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[22px] flex items-start justify-center">
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[20px] flex items-center justify-center">
                         Scan with Phone Camera
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-center h-6 sm:h-7 shrink-0 text-orange-500 font-black text-xs">
+                    {/* Arrow Divider 1 */}
+                    <div className="flex items-center justify-center self-center shrink-0 text-orange-500 font-black text-sm pb-1">
                       ›
                     </div>
 
                     {/* Step 2 */}
                     <div className="flex flex-col items-center flex-1 min-w-0">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1 shrink-0">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1.5 shrink-0">
                         <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
                         <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                           2
                         </span>
                       </div>
-                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[22px] flex items-start justify-center">
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[20px] flex items-center justify-center">
                         Enter Mobile Number
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-center h-6 sm:h-7 shrink-0 text-orange-500 font-black text-xs">
+                    {/* Arrow Divider 2 */}
+                    <div className="flex items-center justify-center self-center shrink-0 text-orange-500 font-black text-sm pb-1">
                       ›
                     </div>
 
                     {/* Step 3 */}
                     <div className="flex flex-col items-center flex-1 min-w-0">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1 shrink-0">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white border border-orange-200 shadow-xs flex items-center justify-center relative mb-1.5 shrink-0">
                         <ClipboardCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C25E2E]" />
                         <span className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#C25E2E] text-white text-[7.5px] font-black flex items-center justify-center">
                           3
                         </span>
                       </div>
-                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[22px] flex items-start justify-center">
+                      <span className="text-[7.5px] sm:text-[8px] font-extrabold text-[#1F1714] leading-tight text-center min-h-[20px] flex items-center justify-center">
                         Submit Your Issue
                       </span>
                     </div>

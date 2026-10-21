@@ -135,12 +135,12 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     height: qrInnerSize,
   });
 
-  // 7. 3-Step Instruction Sequence (Glassmorphic card with ~35% translucent opacity)
+  // 7. 3-Step Instruction Sequence (Glassmorphic card with ~35% translucent opacity, vertically centered content and centered arrows)
   const stepY = 280;
   const stepBoxWidth = 470;
   const stepBoxHeight = 64;
   const stepBoxX = (width - stepBoxWidth) / 2;
-  const stepBoxY = stepY - 20;
+  const stepBoxY = stepY - 26;
 
   page.drawRectangle({
     x: stepBoxX,
@@ -168,8 +168,8 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     // Circle icon backdrop
     page.drawCircle({
       x,
-      y: stepY + 16,
-      size: 14,
+      y: stepY + 12,
+      size: 13.5,
       color: white,
       borderColor: rgb(0.93, 0.82, 0.74),
       borderWidth: 1,
@@ -178,34 +178,34 @@ export async function generateComplaintsPosterPdf(data: ComplaintsPosterData): P
     // Step Number Badge
     page.drawCircle({
       x: x - 10,
-      y: stepY + 24,
+      y: stepY + 20,
       size: 6,
       color: terracotta,
     });
     const numWidth = fontBold.widthOfTextAtSize(step.num, 7);
     page.drawText(step.num, {
       x: x - 10 - numWidth / 2,
-      y: stepY + 21.5,
+      y: stepY + 17.5,
       size: 7,
       font: fontBold,
       color: white,
     });
 
-    // Step Text
+    // Step Text (Vertically centered with equal breathing room above and below)
     const labelWidth = fontBold.widthOfTextAtSize(step.label, 8);
     page.drawText(step.label, {
       x: x - labelWidth / 2,
-      y: stepY - 10,
+      y: stepY - 14,
       size: 8,
       font: fontBold,
       color: darkBrown,
     });
 
-    // Arrow divider between steps
+    // Arrow divider between steps (Vertically centered at midpoint of box)
     if (i < 2) {
       page.drawText(">", {
         x: x + stepColWidth / 2 + stepSpacing / 2 - 4,
-        y: stepY + 12,
+        y: stepY + 1,
         size: 13,
         font: fontBold,
         color: terracotta,
