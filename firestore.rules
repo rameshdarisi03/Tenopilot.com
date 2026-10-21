@@ -121,5 +121,20 @@ service cloud.firestore {
     match /auth_phone_otps/{phone} {
       allow read, write: if true;
     }
+
+    // ==========================================
+    // 📋 8. PUBLIC PRE-JOINING SELF-KYC ONBOARDING & INVITES
+    // ==========================================
+    match /self_kyc_invites/{token} {
+      allow read, write: if true;
+    }
+
+    match /self_kyc_invite_lookup/{token} {
+      allow read, write: if true;
+    }
+
+    match /self_kyc_submissions/{submissionId} {
+      allow read, write: if true;
+    }
   }
 }

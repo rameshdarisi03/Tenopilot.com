@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useRef } from "react";
+import { use, useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -15,19 +15,17 @@ import {
   Sparkles,
   Lock,
   ArrowRight,
-  ArrowLeft,
   Car,
   Plus,
   Trash2,
-  Calendar,
   AlertCircle,
-  FileCheck,
   Building2,
-  Bed,
+  Bed as BedIcon,
   Clock,
-  KeyRound,
+  Check,
+  Zap,
 } from "lucide-react";
-import { occupantStore, Occupant } from "@/constants/mockOccupants";
+import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycInvite, SelfKycSubmission } from "@/lib/selfKycStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
@@ -48,39 +46,43 @@ export default function TenantSelfOnboardingPage({
   const resolvedParams = use(params);
   const token = resolvedParams?.token || "";
 
-  // Check if token corresponds to a SelfKycInvite
+  // 1. Invite State (for personalized invite links)
   const [invite, setInvite] = useState<SelfKycInvite | null>(null);
   const [invitePropertyId, setInvitePropertyId] = useState<string>("");
   const [loadingInvite, setLoadingInvite] = useState(true);
 
-  // Fallback propertyId for backward compatible search mode
-  const propertyId = invitePropertyId || token || "sunshine-pg";
+  // Resolved propertyId: from invite, or token (if slug), or fallback
+  const propertyId =
+    invitePropertyId ||
+    (token && !token.startsWith("inv-") && token !== "undefined" ? token : "sunshine-pg");
 
-  // Step state: for Invite: "INVITE_FORM" -> "SUCCESS"
-  // For Search fallback: "SEARCH" -> "VERIFY" -> "DOCS" -> "SUCCESS"
-  const [step, setStep] = useState<
-    "LOADING" | "INVITE_FORM" | "SEARCH" | "VERIFY" | "DOCS" | "SUCCESS"
-  >("LOADING");
-  const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
+  // Step state:
+  // "INVITE_FORM"  -> Pre-filled form with held room/bed from direct owner link
+  // "WALK_IN_FORM" -> Clean pre-joining onboarding form with bed selection
+  // "SUCCESS"      -> Confirmation screen once submitted to reception desk
+  const [step, setStep] = useState<"LOADING" | "INVITE_FORM" | "WALK_IN_FORM" | "SUCCESS">("LOADING");
 
-  // Search state (backward-compatible fallback)
-  const [searchPhone, setSearchPhone] = useState("");
-  const [matchedOccupant, setMatchedOccupant] = useState<Occupant | null>(null);
+  // Property Layout for bed selection (if walk-in QR or general link)
+  const [structure, setStructure] = useState<FloorConfig[]>(() => propertyStore.getStructure(propertyId));
+
+  // Selection state for walk-in check-in
+  const [stayType, setStayType] = useState<"Tenant" | "Guest">("Tenant");
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string>("");
+  const [selectedBedCode, setSelectedBedCode] = useState<string>("");
+  const [selectedBedTariff, setSelectedBedTariff] = useState<number>(0);
 
   // Form Fields
   const [candidateName, setCandidateName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [joiningDate, setJoiningDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [guestCheckoutDate, setGuestCheckoutDate] = useState("");
   const [workplace, setWorkplace] = useState("");
+  const [purposeOfVisit, setPurposeOfVisit] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [vehicleNumbers, setVehicleNumbers] = useState<string[]>([""]);
-
-  // Guest specific fields
-  const [guestCheckoutDate, setGuestCheckoutDate] = useState("");
-  const [purposeOfVisit, setPurposeOfVisit] = useState("");
 
   // Document uploads
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
@@ -96,70 +98,104 @@ export default function TenantSelfOnboardingPage({
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Resolve token on mount (asynchronously from local cache or Firestore)
+  // 1. Resolve token on mount
   useEffect(() => {
     async function resolveToken() {
       setLoadingInvite(true);
       try {
         const result = await selfKycStore.fetchInviteAsync(token);
         if (result?.invite) {
-          setInvite(result.invite);
-          setInvitePropertyId(result.propertyId || result.invite.propertyId);
-          setCandidateName(result.invite.candidateName);
-          setPhone(result.invite.candidatePhone);
-          setEmail(result.invite.candidateEmail || "");
-          setSignatureName(result.invite.candidateName);
+          const inv = result.invite;
+          setInvite(inv);
+          const resolvedPropId = result.propertyId || inv.propertyId || propertyId;
+          setInvitePropertyId(resolvedPropId);
+          setCandidateName(inv.candidateName || "");
+          setPhone(inv.candidatePhone || "");
+          setEmail(inv.candidateEmail || "");
+          setSignatureName(inv.candidateName || "");
+          setStayType(inv.stayType || "Tenant");
+          setSelectedRoomNumber(inv.roomNumber || "");
+          setSelectedBedCode(inv.bedCode || "");
+          setSelectedBedTariff(inv.rentAmount || 0);
           setStep("INVITE_FORM");
         } else {
-          setStep("SEARCH");
+          // If no specific invite exists, open the pre-joining walk-in onboarding form directly.
+          // Zero database search, zero 'resident not found' errors.
+          setStep("WALK_IN_FORM");
         }
       } catch (e) {
-        console.warn("Token resolution error:", e);
-        setStep("SEARCH");
+        console.warn("Token resolution notice:", e);
+        setStep("WALK_IN_FORM");
       } finally {
         setLoadingInvite(false);
       }
     }
     resolveToken();
-  }, [token]);
+  }, [token, propertyId]);
 
-  // Sync occupants for fallback search mode
+  // Synchronize property layout for walk-in bed choices
   useEffect(() => {
-    if (step === "SEARCH" || step === "VERIFY" || step === "DOCS") {
-      setOccupants(occupantStore.getOccupants(propertyId));
-      const unsubscribe = occupantStore.subscribe(() => {
-        setOccupants(occupantStore.getOccupants(propertyId));
-      });
-      return unsubscribe;
-    }
-  }, [propertyId, step]);
+    propertyStore.initFirebaseListener(propertyId);
+    setStructure(propertyStore.getStructure(propertyId));
+    const unsubscribe = propertyStore.subscribe(() => {
+      setStructure(propertyStore.getStructure(propertyId));
+    });
+    return unsubscribe;
+  }, [propertyId]);
 
+  // Property Branding & Name
   const propertySettings = propertySettingsStore.getSettings(invitePropertyId || propertyId);
   const propertyName = propertySettings?.propertyName || "Ramesh Residencies";
 
+  // Compute available beds across floors for walk-in candidates
+  const availableBeds = useMemo(() => {
+    const list: {
+      roomNumber: string;
+      bedCode: string;
+      roomType: string;
+      monthlyRent: number;
+      dailyRate: number;
+    }[] = [];
 
+    structure.forEach((floor) => {
+      floor.rooms.forEach((room) => {
+        room.beds.forEach((bed) => {
+          if (bed.status === "Available") {
+            const monthlyRent = room.customRentAmount || 12000;
+            const dailyRate = Math.round(monthlyRent / 30);
+            const roomType =
+              room.sharingType === 1
+                ? "Single Private"
+                : room.sharingType === 2
+                ? "Double Sharing"
+                : room.sharingType === 3
+                ? "Triple Sharing"
+                : `${room.sharingType}-Sharing`;
+            list.push({
+              roomNumber: room.roomNumber,
+              bedCode: bed.bedCode,
+              roomType,
+              monthlyRent,
+              dailyRate,
+            });
+          }
+        });
+      });
+    });
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanQuery = searchPhone.replace(/\D/g, "").slice(-10);
-    const found = occupants.find(
-      (o) =>
-        o.phone.replace(/\D/g, "").includes(cleanQuery) ||
-        o.name.toLowerCase().includes(searchPhone.toLowerCase().trim())
-    );
+    return list;
+  }, [structure]);
 
-    if (found) {
-      setMatchedOccupant(found);
-      setEmail(found.email || "");
-      setWorkplace(found.workplace || "");
-      setEmergencyPhone(found.emergencyContact?.phone || "");
-      setAadhaarNumber(found.aadhaarNumber || "");
-      setSignatureName(found.name);
-      setStep("VERIFY");
-    } else {
-      alert("No resident found matching this phone number. Please check the digits or contact your PG manager.");
+  // Auto-select first available bed if none is selected yet in walk-in mode
+  useEffect(() => {
+    if (step === "WALK_IN_FORM" && !selectedRoomNumber && availableBeds.length > 0) {
+      setSelectedRoomNumber(availableBeds[0].roomNumber);
+      setSelectedBedCode(availableBeds[0].bedCode);
+      setSelectedBedTariff(
+        stayType === "Tenant" ? availableBeds[0].monthlyRent : availableBeds[0].dailyRate
+      );
     }
-  };
+  }, [step, selectedRoomNumber, availableBeds, stayType]);
 
   // Strictly validated and sanitized file upload handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
@@ -190,7 +226,9 @@ export default function TenantSelfOnboardingPage({
     reader.readAsDataURL(file);
   };
 
-  // Submit from Owner Invite
+  // =========================================================================
+  // SUBMISSION 1: FROM PRE-RESERVED INVITE LINK
+  // =========================================================================
   const handleSubmitInviteKYC = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
@@ -230,7 +268,7 @@ export default function TenantSelfOnboardingPage({
 
       const submission: SelfKycSubmission = {
         id: submissionId,
-        propertyId: invitePropertyId || invite.propertyId,
+        propertyId: invitePropertyId || invite.propertyId || propertyId,
         inviteId: invite.id,
         submissionType: "INVITE",
         stayType: invite.stayType,
@@ -272,37 +310,104 @@ export default function TenantSelfOnboardingPage({
     }
   };
 
-  // Fallback KYC submit for existing occupant search
-  const handleSubmitKYC = async () => {
-    if (!matchedOccupant) return;
+  // =========================================================================
+  // SUBMISSION 2: FROM GENERAL QR SCAN OR WALK-IN LINK (ZERO DB BLOCKING)
+  // =========================================================================
+  const handleSubmitWalkInKYC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
 
     if (!residentAgreedToTerms) {
       setHighlightResidentTerms(true);
+      setErrorMessage("Please review and agree to the house rules and terms to proceed.");
       return;
     }
-    setHighlightResidentTerms(false);
 
-    const updated: Occupant = {
-      ...matchedOccupant,
-      email: email || matchedOccupant.email,
-      workplace: workplace || "Private Sector",
-      aadhaarNumber: aadhaarNumber || "XXXX-XXXX-8921",
-      emergencyContact: {
-        ...matchedOccupant.emergencyContact,
-        phone: emergencyPhone || matchedOccupant.phone,
-      },
-      kycVerified: true,
-      kycDocs: {
-        idMode: "IMAGES",
-        photoUrl: selfiePhoto || matchedOccupant.avatar,
+    const cleanName = sanitizePlainText(candidateName, 100);
+    if (!cleanName.trim()) {
+      setErrorMessage("Please enter your full legal name as shown on your Aadhaar card.");
+      return;
+    }
+
+    const cleanPhone = sanitizeDigitsOnly(phone, 10);
+    if (cleanPhone.length < 10) {
+      setErrorMessage("Please enter a valid 10-digit mobile phone number.");
+      return;
+    }
+
+    const cleanEmergency = sanitizeDigitsOnly(emergencyPhone, 10);
+    if (cleanEmergency.length < 10) {
+      setErrorMessage("Please enter a valid 10-digit emergency contact phone number.");
+      return;
+    }
+
+    if (cleanPhone === cleanEmergency) {
+      setErrorMessage("Emergency contact phone number cannot be the same as your own mobile number.");
+      return;
+    }
+
+    if (stayType === "Guest" && !guestCheckoutDate) {
+      setErrorMessage("Please select your expected checkout date.");
+      return;
+    }
+
+    if (!selectedRoomNumber || !selectedBedCode) {
+      setErrorMessage("Please select your room and bed accommodation.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const cleanVehicles = vehicleNumbers
+        .map((v) => sanitizeVehicleNumber(v))
+        .filter(Boolean);
+      const submissionId = `sub-walkin-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const rentAmount = selectedBedTariff || (stayType === "Tenant" ? 12000 : 500);
+      const securityDeposit = stayType === "Tenant" ? rentAmount * 2 : undefined;
+      const guestDailyRate = stayType === "Guest" ? rentAmount : undefined;
+
+      const submission: SelfKycSubmission = {
+        id: submissionId,
+        propertyId,
+        submissionType: "WALK_IN_QR",
+        stayType,
+        roomNumber: selectedRoomNumber,
+        bedCode: selectedBedCode,
+        rentAmount,
+        securityDeposit,
+        guestDailyRate,
+        guestCheckoutDate: stayType === "Guest" ? guestCheckoutDate : undefined,
+        joiningDate: joiningDate || new Date().toISOString().split("T")[0],
+        name: cleanName,
+        phone: cleanPhone,
+        countryCode: "+91",
+        email: email.trim() ? sanitizeEmailAddress(email) : undefined,
+        emergencyContact: {
+          name: sanitizePlainText(emergencyName || "Emergency Contact", 100),
+          phone: cleanEmergency,
+        },
+        workplace: workplace.trim() ? sanitizePlainText(workplace, 150) : undefined,
+        purposeOfVisit: stayType === "Guest" && purposeOfVisit.trim() ? sanitizePlainText(purposeOfVisit, 200) : undefined,
+        vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
+        photoUrl: selfiePhoto || undefined,
+        aadhaarNumber: aadhaarNumber.trim() ? sanitizeDigitsOnly(aadhaarNumber, 16) : undefined,
         aadhaarFrontUrl: aadhaarFront || undefined,
         aadhaarBackUrl: aadhaarBack || undefined,
-      },
-    };
+        agreedToHouseRules: true,
+        status: "PENDING",
+        submittedAt: new Date().toISOString(),
+      };
 
-    await occupantStore.updateOccupant(updated, propertyId);
-    setStep("SUCCESS");
-    fireCelebrationConfetti();
+      // Places bed on Hold and sends to Reception Desk
+      await selfKycStore.submitKyc(submission);
+      setStep("SUCCESS");
+      fireCelebrationConfetti();
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Failed to submit check-in request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -417,7 +522,7 @@ export default function TenantSelfOnboardingPage({
                   <input
                     type="tel"
                     disabled
-                    value={`+91 ${invite.candidatePhone}`}
+                    value={invite.candidatePhone.startsWith("+") ? invite.candidatePhone : `+91 ${invite.candidatePhone}`}
                     className="w-full px-3.5 py-2.5 bg-gray-100 rounded-xl border border-gray-200 font-mono font-bold text-gray-700 cursor-not-allowed"
                   />
                 </div>
@@ -428,7 +533,7 @@ export default function TenantSelfOnboardingPage({
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="For monthly rent invoices & notices"
+                    placeholder="For rent receipts & invoices"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
                   />
                 </div>
@@ -468,7 +573,7 @@ export default function TenantSelfOnboardingPage({
                   />
                 </div>
 
-                {/* Emergency Contact Number (No relation required per rule) */}
+                {/* Emergency Contact Number */}
                 <div className="sm:col-span-2 p-3 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-2">
                   <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-amber-700" />
@@ -541,7 +646,7 @@ export default function TenantSelfOnboardingPage({
                     ))}
                   </div>
                   <span className="text-[10px] text-gray-400 block">
-                    Optional. Add bike, scooter, or car registration numbers for gate pass, parking allocation, and resident search.
+                    Optional. Add bike, scooter, or car numbers for gate security and parking allocation.
                   </span>
                 </div>
               </div>
@@ -733,7 +838,7 @@ export default function TenantSelfOnboardingPage({
               {submitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Submitting Verification to Reception Desk...</span>
+                  <span>Submitting to Reception Desk...</span>
                 </>
               ) : (
                 <>
@@ -746,7 +851,503 @@ export default function TenantSelfOnboardingPage({
         )}
 
         {/* ========================================================================= */}
-        {/* CASE 2: SUCCESS STATE                                                     */}
+        {/* CASE 2: PRE-JOINING WALK-IN ONBOARDING FORM (ZERO DATABASE VERIFICATION)  */}
+        {/* ========================================================================= */}
+        {!loadingInvite && step === "WALK_IN_FORM" && (
+          <form onSubmit={handleSubmitWalkInKYC} className="space-y-6 animate-in fade-in">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-orange-500 to-[#c2652a] text-white rounded-3xl p-6 sm:p-7 shadow-lg shadow-orange-500/15 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-white/20 backdrop-blur-xs px-2.5 py-1 rounded-full text-white">
+                  ⚡ Pre-Joining Digital Check-In
+                </span>
+                <span className="text-[10px] font-bold bg-emerald-400 text-emerald-950 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> Public Registration
+                </span>
+              </div>
+              <h1 className="font-serif font-bold text-2xl sm:text-3xl">
+                Welcome to {propertyName}!
+              </h1>
+              <p className="text-xs text-white/90">
+                Please complete your pre-joining check-in form. Once submitted, your registration will be sent directly to the reception desk for instant approval.
+              </p>
+            </div>
+
+            {/* 1. Stay Type Selector */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-3">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Select Your Stay Type
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStayType("Tenant")}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    stayType === "Tenant"
+                      ? "border-[#c2652a] bg-orange-50/50 shadow-xs"
+                      : "border-gray-200 bg-white hover:bg-gray-50"
+                  }`}
+                >
+                  <Home className={`w-5 h-5 mb-1 ${stayType === "Tenant" ? "text-[#c2652a]" : "text-gray-400"}`} />
+                  <span className="font-serif font-bold text-sm block text-gray-900">Monthly Tenant</span>
+                  <span className="text-[10px] text-gray-500 block">Long term month-to-month stay</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStayType("Guest")}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    stayType === "Guest"
+                      ? "border-purple-600 bg-purple-50/50 shadow-xs"
+                      : "border-gray-200 bg-white hover:bg-gray-50"
+                  }`}
+                >
+                  <Zap className={`w-5 h-5 mb-1 ${stayType === "Guest" ? "text-purple-600" : "text-gray-400"}`} />
+                  <span className="font-serif font-bold text-sm block text-gray-900">Daily Guest</span>
+                  <span className="text-[10px] text-gray-500 block">Short term daily billing</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Room & Bed Selection */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-4">
+              <h2 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                <BedIcon className="w-4 h-4 text-[#c2652a]" />
+                <span>Select Accommodation</span>
+              </h2>
+
+              {availableBeds.length > 0 ? (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-gray-700">Choose Available Room & Bed *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                    {availableBeds.map((slot) => {
+                      const isSelected =
+                        selectedRoomNumber === slot.roomNumber && selectedBedCode === slot.bedCode;
+                      const tariff = stayType === "Tenant" ? slot.monthlyRent : slot.dailyRate;
+                      return (
+                        <div
+                          key={`${slot.roomNumber}-${slot.bedCode}`}
+                          onClick={() => {
+                            setSelectedRoomNumber(slot.roomNumber);
+                            setSelectedBedCode(slot.bedCode);
+                            setSelectedBedTariff(tariff);
+                          }}
+                          className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                            isSelected
+                              ? "border-[#c2652a] bg-orange-50/60 shadow-xs ring-1 ring-[#c2652a]"
+                              : "border-gray-200 bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          <div>
+                            <span className="font-serif font-bold text-xs text-gray-900 block">
+                              Room {slot.roomNumber} ({slot.bedCode})
+                            </span>
+                            <span className="text-[10px] text-gray-500 block">{slot.roomType}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-mono font-bold text-xs text-emerald-700 block">
+                              ₹{tariff.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[9px] text-gray-400 block">
+                              {stayType === "Tenant" ? "/mo" : "/day"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Room Number *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 101"
+                      value={selectedRoomNumber}
+                      onChange={(e) => setSelectedRoomNumber(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Bed Code *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. B1"
+                      value={selectedBedCode}
+                      onChange={(e) => setSelectedBedCode(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Personal & Contact Details */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-4">
+              <h2 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                <User className="w-4 h-4 text-[#c2652a]" />
+                <span>Resident Contact Information</span>
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Full Legal Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={candidateName}
+                    onChange={(e) => {
+                      setCandidateName(e.target.value);
+                      if (!signatureName) setSignatureName(e.target.value);
+                    }}
+                    placeholder="As shown on Aadhaar card"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Mobile Phone Number *</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-mono font-bold text-xs">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      maxLength={10}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="10-digit mobile number"
+                      className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="For rent receipts & invoices"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Joining / Check-In Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={joiningDate}
+                    onChange={(e) => setJoiningDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                  />
+                </div>
+
+                {stayType === "Guest" && (
+                  <div>
+                    <label className="block font-bold text-gray-700 mb-1">Expected Checkout Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={guestCheckoutDate}
+                      onChange={(e) => setGuestCheckoutDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Workplace / Company / College</label>
+                  <input
+                    type="text"
+                    value={workplace}
+                    onChange={(e) => setWorkplace(e.target.value)}
+                    placeholder="e.g. TCS / Infosys / Oxford College"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-medium text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
+                  />
+                </div>
+
+                {/* Emergency Contact */}
+                <div className="sm:col-span-2 p-3 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-2">
+                  <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Emergency Contact Number *</span>
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="tel"
+                      required
+                      maxLength={10}
+                      value={emergencyPhone}
+                      onChange={(e) => setEmergencyPhone(e.target.value)}
+                      placeholder="10-digit phone number *"
+                      className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={emergencyName}
+                      onChange={(e) => setEmergencyName(e.target.value)}
+                      placeholder="Contact Name (optional)"
+                      className="w-full px-3.5 py-2 rounded-xl border border-gray-300 font-medium text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Multi-Vehicle Plate Numbers */}
+                <div className="sm:col-span-2 space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-gray-700 flex items-center gap-1.5">
+                      <Car className="w-3.5 h-3.5 text-gray-500" />
+                      <span>Resident Vehicle Plate Numbers</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setVehicleNumbers([...vehicleNumbers, ""])}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#c2652a] hover:text-[#a3521e] px-2.5 py-1 rounded-lg hover:bg-orange-50 border border-orange-200 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Vehicle</span>
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {vehicleNumbers.map((veh, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            placeholder="e.g. KA 03 HK 4772"
+                            value={veh}
+                            onChange={(e) => {
+                              const updated = [...vehicleNumbers];
+                              updated[idx] = e.target.value.toUpperCase();
+                              setVehicleNumbers(updated);
+                            }}
+                            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-[#c2652a] bg-gray-50/50"
+                          />
+                          <Car className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        </div>
+                        {vehicleNumbers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setVehicleNumbers(vehicleNumbers.filter((_, i) => i !== idx))}
+                            className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Remove vehicle"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">
+                    Optional. Add bike, scooter, or car registration numbers for gate security pass.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. ID Proofs & Live Photo */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-4">
+              <h2 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Identity Verification & Documents</span>
+              </h2>
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Aadhaar Number (Last 4 digits or Full)</label>
+                  <input
+                    type="text"
+                    maxLength={14}
+                    value={aadhaarNumber}
+                    onChange={(e) => setAadhaarNumber(e.target.value)}
+                    placeholder="XXXX-XXXX-4772"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                {/* Live Selfie Capture */}
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-800 flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-purple-600" /> Live Resident Photo / Selfie
+                    </span>
+                    {selfiePhoto && (
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ✓ Photo Captured
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    ref={selfieInputRef}
+                    accept="image/*"
+                    capture="user"
+                    onChange={(e) => handleFileUpload(e, setSelfiePhoto)}
+                    className="hidden"
+                  />
+                  {selfiePhoto ? (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={selfiePhoto}
+                        alt="Selfie preview"
+                        className="w-16 h-16 rounded-2xl object-cover border border-gray-300 shadow-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => selfieInputRef.current?.click()}
+                        className="py-2 px-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer shadow-2xs"
+                      >
+                        Retake Photo
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => selfieInputRef.current?.click()}
+                      className="w-full py-3 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-2 shadow-2xs cursor-pointer active:scale-98 transition-all"
+                    >
+                      <Camera className="w-4 h-4 text-[#c2652a]" />
+                      <span>Take Live Selfie or Upload Photo</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Aadhaar Front & Back */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                    <span className="text-xs font-bold text-gray-800 block">Aadhaar Card Front Photo</span>
+                    <input
+                      type="file"
+                      ref={frontInputRef}
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleFileUpload(e, setAadhaarFront)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => frontInputRef.current?.click()}
+                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      {aadhaarFront ? "✓ Front Uploaded" : "Upload Front Side"}
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                    <span className="text-xs font-bold text-gray-800 block">Aadhaar Card Back Photo</span>
+                    <input
+                      type="file"
+                      ref={backInputRef}
+                      accept="image/*,.pdf"
+                      onChange={(e) => handleFileUpload(e, setAadhaarBack)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => backInputRef.current?.click()}
+                      className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      {aadhaarBack ? "✓ Back Uploaded" : "Upload Back Side"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Signature */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Electronic Signature (Type Your Full Legal Name) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={signatureName}
+                    onChange={(e) => setSignatureName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-serif font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a]"
+                  />
+                </div>
+
+                {/* Consent Checkbox */}
+                <div
+                  className={`p-3.5 rounded-xl border transition-all ${
+                    highlightResidentTerms
+                      ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-200 shadow-sm"
+                      : residentAgreedToTerms
+                      ? "bg-emerald-50/60 border-emerald-200"
+                      : "bg-gray-50 border-gray-200"
+                  }`}
+                >
+                  <label className="flex items-start gap-2.5 cursor-pointer text-[11px] text-gray-600 leading-snug">
+                    <input
+                      type="checkbox"
+                      checked={residentAgreedToTerms}
+                      onChange={(e) => {
+                        setResidentAgreedToTerms(e.target.checked);
+                        if (e.target.checked) setHighlightResidentTerms(false);
+                      }}
+                      className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 accent-emerald-600 ${
+                        highlightResidentTerms
+                          ? "border-rose-400 ring-2 ring-rose-300"
+                          : "border-gray-300 text-emerald-600 focus:ring-emerald-600"
+                      }`}
+                    />
+                    <span>
+                      I confirm my residency details, agree to the house rules,{" "}
+                      <Link href="/terms" target="_blank" className="font-bold text-[#c2652a] hover:underline">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/privacy" target="_blank" className="font-bold text-[#c2652a] hover:underline">
+                        Privacy Policy
+                      </Link>
+                      , and consent to receiving accommodation receipts and notices via Email and WhatsApp.
+                    </span>
+                  </label>
+                  {highlightResidentTerms && (
+                    <p className="text-[11px] font-bold text-rose-700 mt-2 pl-6 flex items-center gap-1.5 animate-in fade-in">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>Please tick this box to complete registration</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
+            >
+              {submitting ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Submitting to Reception Desk...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-5 h-5" />
+                  <span>Submit Pre-Joining Registration for Approval</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* ========================================================================= */}
+        {/* CASE 3: SUCCESS STATE                                                     */}
         {/* ========================================================================= */}
         {step === "SUCCESS" && (
           <div className="bg-white rounded-3xl border border-gray-200 p-8 sm:p-10 shadow-sm text-center space-y-6 animate-in zoom-in-95">
@@ -756,13 +1357,13 @@ export default function TenantSelfOnboardingPage({
 
             <div className="space-y-2">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                Self-KYC Submitted Successfully
+                Check-In Submitted Successfully
               </span>
               <h2 className="font-serif font-bold text-2xl sm:text-3xl text-gray-900">
-                Verification in Review!
+                Registration in Review!
               </h2>
               <p className="text-xs text-gray-600 max-w-md mx-auto">
-                Thank you, <span className="font-bold text-gray-900">{candidateName || matchedOccupant?.name}</span>! Your digital KYC documents and resident profile have been sent to the reception desk of <span className="font-bold">{propertyName}</span>.
+                Thank you, <span className="font-bold text-gray-900">{candidateName}</span>! Your pre-joining KYC details and documents have been submitted to the reception desk of <span className="font-bold">{propertyName}</span>.
               </p>
             </div>
 
@@ -776,19 +1377,20 @@ export default function TenantSelfOnboardingPage({
               <p className="text-gray-700 flex items-center justify-between">
                 <span>🏢 Room & Bed:</span>
                 <span className="font-bold text-gray-900">
-                  Room {invite?.roomNumber || matchedOccupant?.roomNumber} ({invite?.bedCode || matchedOccupant?.bedCode})
+                  Room {selectedRoomNumber || invite?.roomNumber} ({selectedBedCode || invite?.bedCode})
                 </span>
               </p>
               <p className="text-gray-700 flex items-center justify-between">
-                <span>💰 Monthly Rent:</span>
+                <span>💰 Tariff:</span>
                 <span className="font-mono font-bold text-emerald-700">
-                  ₹{(invite?.rentAmount || matchedOccupant?.rentAmount || 0).toLocaleString("en-IN")}
+                  ₹{(selectedBedTariff || invite?.rentAmount || 0).toLocaleString("en-IN")}{" "}
+                  {stayType === "Tenant" ? "/ month" : "/ day"}
                 </span>
               </p>
               <p className="text-gray-700 flex items-center justify-between">
                 <span>📅 Check-in Date:</span>
                 <span className="font-mono font-bold text-gray-900">
-                  {joiningDate || matchedOccupant?.joiningDate}
+                  {joiningDate}
                 </span>
               </p>
             </div>
@@ -798,300 +1400,13 @@ export default function TenantSelfOnboardingPage({
                 <Clock className="w-4 h-4 text-[#c2652a]" /> What happens next?
               </p>
               <p className="text-[11px] text-gray-500">
-                The property manager will verify your Aadhaar document and photo. Once approved, your bed status will transition to active and you will receive your rent receipt on WhatsApp.
+                The property manager will review your Aadhaar details and photo. Once approved, your bed will be active and you will receive your official check-in confirmation and rent receipt on WhatsApp.
               </p>
             </div>
 
             <p className="text-[11px] text-gray-400">
               You can now safely close this browser window. Welcome to TenoPilot!
             </p>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* CASE 3: BACKWARD COMPATIBLE SEARCH / DIRECT LOOKUP FALLBACK               */}
-        {/* ========================================================================= */}
-        {!loadingInvite && step === "SEARCH" && (
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
-            <div className="text-center space-y-2">
-              <div className="w-14 h-14 bg-orange-100 text-[#c2652a] rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                <User className="w-7 h-7" />
-              </div>
-              <h1 className="font-serif font-bold text-2xl text-gray-900">Resident Self-Verification</h1>
-              <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                Welcome to {propertyName}! Enter your 10-digit mobile number to access your room details and submit verification.
-              </p>
-            </div>
-
-            <form onSubmit={handleSearch} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Your 10-Digit Mobile Number *</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-3.5 text-gray-400 font-mono text-sm font-bold">+91</span>
-                  <input
-                    type="tel"
-                    required
-                    maxLength={10}
-                    value={searchPhone}
-                    onChange={(e) => setSearchPhone(e.target.value)}
-                    placeholder="98765 43210"
-                    className="w-full pl-14 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-sm focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a] focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-sm transition-all shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-              >
-                <span>Find My Room & Details</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* STEP 2: VERIFY DETAILS (FALLBACK) */}
-        {!loadingInvite && step === "VERIFY" && matchedOccupant && (
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase text-[#c2652a] tracking-wider">Step 1 of 2</span>
-              <h2 className="font-serif font-bold text-xl text-gray-900">Verify Your Information</h2>
-              <p className="text-xs text-gray-500">Confirm your room allocation and contact details</p>
-            </div>
-
-            <div className="p-4 bg-orange-50/60 rounded-2xl border border-orange-100 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase font-bold text-[#c2652a]">Allocated Room & Bed</p>
-                <p className="font-serif font-bold text-lg text-gray-900">
-                  Room {matchedOccupant.roomNumber} ({matchedOccupant.bedCode})
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] uppercase font-bold text-gray-500">Monthly Rent</p>
-                <p className="font-mono font-bold text-lg text-emerald-700">₹{matchedOccupant.rentAmount.toLocaleString("en-IN")}</p>
-              </div>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  disabled
-                  value={matchedOccupant.name}
-                  className="w-full px-3.5 py-2.5 bg-gray-100 rounded-xl border border-gray-200 font-semibold text-gray-700"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@gmail.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">Workplace / College</label>
-                <input
-                  type="text"
-                  value={workplace}
-                  onChange={(e) => setWorkplace(e.target.value)}
-                  placeholder="e.g. TCS / Infosys / University"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">Emergency Contact Phone Number</label>
-                <input
-                  type="tel"
-                  maxLength={10}
-                  value={emergencyPhone}
-                  onChange={(e) => setEmergencyPhone(e.target.value)}
-                  placeholder="Parents / Guardian Phone"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={() => setStep("DOCS")}
-              className="w-full py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-sm transition-all shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Continue to Aadhaar Upload</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* STEP 3: DOCUMENT UPLOAD & SELFIE (FALLBACK) */}
-        {!loadingInvite && step === "DOCS" && (
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase text-[#c2652a] tracking-wider">Step 2 of 2</span>
-              <h2 className="font-serif font-bold text-xl text-gray-900">Upload ID & Selfie</h2>
-              <p className="text-xs text-gray-500">Government compliant digital verification</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Aadhaar Number (Last 4 digits)</label>
-                <input
-                  type="text"
-                  maxLength={14}
-                  value={aadhaarNumber}
-                  onChange={(e) => setAadhaarNumber(e.target.value)}
-                  placeholder="XXXX-XXXX-1234"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a]"
-                />
-              </div>
-
-              {/* Selfie Camera Capture */}
-              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-800 flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-purple-600" /> Selfie Photo
-                  </span>
-                  {selfiePhoto && <span className="text-[10px] font-bold text-emerald-600">✓ Uploaded</span>}
-                </div>
-                <input
-                  type="file"
-                  ref={selfieInputRef}
-                  accept="image/*"
-                  capture="user"
-                  onChange={(e) => handleFileUpload(e, setSelfiePhoto)}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => selfieInputRef.current?.click()}
-                  className="w-full py-2.5 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
-                >
-                  <Camera className="w-4 h-4" />
-                  {selfiePhoto ? "Retake Selfie" : "Take Live Selfie with Camera"}
-                </button>
-              </div>
-
-              {/* Aadhaar Front & Back */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                  <span className="text-xs font-bold text-gray-800 block">Aadhaar Front Photo</span>
-                  <input
-                    type="file"
-                    ref={frontInputRef}
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, setAadhaarFront)}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => frontInputRef.current?.click()}
-                    className="w-full py-2 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    {aadhaarFront ? "✓ Uploaded" : "Upload Front"}
-                  </button>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
-                  <span className="text-xs font-bold text-gray-800 block">Aadhaar Back Photo</span>
-                  <input
-                    type="file"
-                    ref={backInputRef}
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, setAadhaarBack)}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => backInputRef.current?.click()}
-                    className="w-full py-2 rounded-xl bg-white border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    {aadhaarBack ? "✓ Uploaded" : "Upload Back"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Digital Signature Confirmation */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Electronic Signature (Type Full Name)</label>
-                <input
-                  type="text"
-                  value={signatureName}
-                  onChange={(e) => setSignatureName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-serif font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a]"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  By submitting, I confirm that all provided details and identity documents are authentic.
-                </p>
-              </div>
-
-              {/* Terms of Service & Privacy Policy Consent Checkbox */}
-              <div
-                className={`pt-2 p-3.5 rounded-xl border transition-all ${
-                  highlightResidentTerms
-                    ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-200 shadow-sm"
-                    : residentAgreedToTerms
-                    ? "bg-emerald-50/60 border-emerald-200"
-                    : "bg-gray-50 border-gray-200"
-                }`}
-              >
-                <label className="flex items-start gap-2.5 cursor-pointer text-[11px] text-gray-600 leading-snug">
-                  <input
-                    type="checkbox"
-                    checked={residentAgreedToTerms}
-                    onChange={(e) => {
-                      setResidentAgreedToTerms(e.target.checked);
-                      if (e.target.checked) setHighlightResidentTerms(false);
-                    }}
-                    className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 accent-emerald-600 ${
-                      highlightResidentTerms ? "border-rose-400 ring-2 ring-rose-300" : "border-gray-300 text-emerald-600 focus:ring-emerald-600"
-                    }`}
-                  />
-                  <span>
-                    I confirm my residency details, agree to the{" "}
-                    <Link href="/terms" target="_blank" className="font-bold text-[#c2652a] hover:underline">
-                      Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link href="/privacy" target="_blank" className="font-bold text-[#c2652a] hover:underline">
-                      Privacy Policy
-                    </Link>
-                    , and consent to receiving accommodation receipts and notices via Email and WhatsApp.
-                  </span>
-                </label>
-                {highlightResidentTerms && (
-                  <p className="text-[11px] font-bold text-rose-700 mt-2 pl-6 flex items-center gap-1.5 animate-in fade-in">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                    <span>Please tick this box to complete resident verification</span>
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setStep("VERIFY")}
-                className="px-4 py-3 rounded-xl border border-gray-200 font-bold text-xs text-gray-600 hover:bg-gray-100 cursor-pointer"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmitKYC}
-                className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Submit Verification & Complete</span>
-              </button>
-            </div>
           </div>
         )}
       </main>

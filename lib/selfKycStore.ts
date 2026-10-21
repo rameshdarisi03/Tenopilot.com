@@ -329,11 +329,29 @@ export const selfKycStore = {
 
   // Asynchronous universal lookup across local cache and Firestore cloud
   async fetchInviteAsync(token: string): Promise<{ invite?: SelfKycInvite; propertyId?: string }> {
+    if (!token) return {};
+
     // 1. Check local cache first
     const local = this.getInviteByToken(token);
     if (local?.invite) return local;
 
-    // 2. Query Firestore global lookup
+    // 2. Direct single-hop read from root collection self_kyc_invites/{token}
+    try {
+      const directRef = doc(db, "self_kyc_invites", token);
+      const directSnap = await getDoc(directRef);
+      if (directSnap.exists()) {
+        const inv = directSnap.data() as SelfKycInvite;
+        const propId = inv.propertyId || "sunshine-pg";
+        const list = INVITES_CACHE.get(propId) || [];
+        INVITES_CACHE.set(propId, [inv, ...list.filter((i) => i.id !== inv.id)]);
+        saveLocalCache(propId, "invs");
+        return { invite: inv, propertyId: propId };
+      }
+    } catch (e) {
+      console.warn("Direct self_kyc_invites read notice:", e);
+    }
+
+    // 3. Fallback: Query Firestore global lookup pointer
     try {
       const lookupRef = doc(db, "self_kyc_invite_lookup", token);
       const lookupSnap = await getDoc(lookupRef);
@@ -353,7 +371,46 @@ export const selfKycStore = {
         }
       }
     } catch (e) {
-      console.warn("Firestore fetchInviteAsync error:", e);
+      console.warn("Firestore lookup pointer notice:", e);
+    }
+
+    // 4. Fallback: Check local layouts for holdCandidate
+    try {
+      const knownProperties = ["sunshine-pg", "prop-1788438308277"];
+      for (const propId of knownProperties) {
+        const structure = propertyStore.getStructure(propId);
+        for (const fl of structure) {
+          for (const rm of fl.rooms) {
+            for (const bd of rm.beds) {
+              if (bd.status === "Hold" && bd.holdCandidate) {
+                const match =
+                  bd.holdCandidate.inviteId === token ||
+                  `inv-${rm.roomNumber}-${bd.bedCode}` === token;
+                if (match) {
+                  const synthInvite: SelfKycInvite = {
+                    id: token,
+                    propertyId: propId,
+                    stayType: "Tenant",
+                    roomNumber: rm.roomNumber,
+                    bedCode: bd.bedCode,
+                    rentAmount: rm.customRentAmount || 12000,
+                    securityDeposit: (rm.customRentAmount || 12000) * 2,
+                    candidateName: bd.holdCandidate.name || "Prospective Resident",
+                    candidatePhone: bd.holdCandidate.phone || "",
+                    candidateEmail: bd.holdCandidate.email || undefined,
+                    status: "ACTIVE",
+                    whatsappStatus: "SENT",
+                    createdAt: bd.holdCandidate.heldAt || new Date().toISOString(),
+                  };
+                  return { invite: synthInvite, propertyId: propId };
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Hold candidate search notice:", e);
     }
 
     return {};
@@ -396,8 +453,15 @@ export const selfKycStore = {
     // Push to Firestore with undefined sanitization
     try {
       const sanitized = sanitizeForFirestore(invite);
+
+      // Direct write to root collection for fast 1-hop cross-device lookup
+      const rootInviteRef = doc(db, "self_kyc_invites", invite.id);
+      await setDoc(rootInviteRef, sanitized);
+
+      // Property scoped collection
       const docRef = doc(db, "properties", invite.propertyId, "self_kyc_invites", invite.id);
       await setDoc(docRef, sanitized);
+
       // Global pointer for cross-device mobile lookup
       const lookupRef = doc(db, "self_kyc_invite_lookup", invite.id);
       await setDoc(lookupRef, {
@@ -527,6 +591,9 @@ export const selfKycStore = {
       const sanitized = sanitizeForFirestore(submission);
       const docRef = doc(db, "properties", submission.propertyId, "self_kyc_submissions", submission.id);
       await setDoc(docRef, sanitized);
+      // Also write to root collection for direct public access
+      const rootDocRef = doc(db, "self_kyc_submissions", submission.id);
+      await setDoc(rootDocRef, sanitized);
     } catch (e) {
       console.warn("Firestore submitKyc write failed:", e);
     }
