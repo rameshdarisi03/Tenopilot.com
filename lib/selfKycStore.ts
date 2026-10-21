@@ -5,6 +5,7 @@ import { db } from "./firebase";
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -230,6 +231,38 @@ export const selfKycStore = {
     return {};
   },
 
+  // Asynchronous universal lookup across local cache and Firestore cloud
+  async fetchInviteAsync(token: string): Promise<{ invite?: SelfKycInvite; propertyId?: string }> {
+    // 1. Check local cache first
+    const local = this.getInviteByToken(token);
+    if (local?.invite) return local;
+
+    // 2. Query Firestore global lookup
+    try {
+      const lookupRef = doc(db, "self_kyc_invite_lookup", token);
+      const lookupSnap = await getDoc(lookupRef);
+      if (lookupSnap.exists()) {
+        const { propertyId } = lookupSnap.data() as { propertyId: string };
+        if (propertyId) {
+          const inviteRef = doc(db, "properties", propertyId, "self_kyc_invites", token);
+          const inviteSnap = await getDoc(inviteRef);
+          if (inviteSnap.exists()) {
+            const inv = inviteSnap.data() as SelfKycInvite;
+            // Cache locally
+            const list = INVITES_CACHE.get(propertyId) || [];
+            INVITES_CACHE.set(propertyId, [inv, ...list.filter((i) => i.id !== inv.id)]);
+            saveLocalCache(propertyId, "invs");
+            return { invite: inv, propertyId };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Firestore fetchInviteAsync error:", e);
+    }
+
+    return {};
+  },
+
   // 1. Create Invite & Put Bed on Hold
   async createInvite(invite: SelfKycInvite): Promise<void> {
     const list = INVITES_CACHE.get(invite.propertyId) || [];
@@ -268,6 +301,13 @@ export const selfKycStore = {
     try {
       const docRef = doc(db, "properties", invite.propertyId, "self_kyc_invites", invite.id);
       await setDoc(docRef, invite);
+      // Global pointer for cross-device mobile lookup
+      const lookupRef = doc(db, "self_kyc_invite_lookup", invite.id);
+      await setDoc(lookupRef, {
+        propertyId: invite.propertyId,
+        inviteId: invite.id,
+        createdAt: invite.createdAt,
+      });
     } catch (e) {
       console.warn("Firestore createInvite write failed, cached locally:", e);
     }

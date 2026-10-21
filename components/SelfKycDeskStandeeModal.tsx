@@ -36,6 +36,7 @@ export function SelfKycDeskStandeeModal({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [copied, setCopied] = useState(false);
   const [bgBase64, setBgBase64] = useState<string>("");
+  const [logoBase64, setLogoBase64] = useState<string>("");
 
   const posterRef = useRef<HTMLDivElement>(null);
   const [settings, setSettings] = useState(() => propertySettingsStore.getSettings(propertyId));
@@ -48,7 +49,7 @@ export function SelfKycDeskStandeeModal({
     });
   }, [propertyId]);
 
-  // Preload background image as Base64 Data URL so html-to-image renders with zero CORS/cross-origin taint issues
+  // Preload background image & official logo badge as Base64 Data URL so html-to-image renders with zero CORS/taint issues
   useEffect(() => {
     if (typeof window !== "undefined") {
       fetch("/images/self-kyc-poster-background.jpg")
@@ -67,6 +68,24 @@ export function SelfKycDeskStandeeModal({
         })
         .catch((e) => {
           console.warn("Notice: background image fetch for base64 preload:", e);
+        });
+
+      fetch("/tenopilot_official_badge.png")
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch badge");
+          return res.blob();
+        })
+        .then((blob) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === "string") {
+              setLogoBase64(reader.result);
+            }
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch((e) => {
+          console.warn("Notice: official badge preload:", e);
         });
     }
   }, []);
@@ -253,19 +272,20 @@ export function SelfKycDeskStandeeModal({
                 }}
               />
 
-              {/* 1. Top Authority Header: TenoPilot Brand & Roof Emblem */}
+              {/* 1. Top Authority Header: Official TenoPilot Brand Lockup */}
               <div className="pt-0.5 relative z-10 flex flex-col items-center justify-center shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <div className="text-[#C25E2E] flex items-center justify-center">
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2L2 9.5V11H4V20H9V14H15V20H20V11H22V9.5L12 2Z" />
-                    </svg>
-                  </div>
-                  <span className="font-black text-xs sm:text-sm tracking-[0.18em] uppercase text-[#1F1714]">
-                    TenoPilot
+                <div className="inline-flex items-center gap-1.5 select-none">
+                  <img
+                    src={logoBase64 || "/tenopilot_official_badge.png"}
+                    alt="TenoPilot"
+                    className="w-5 h-5 sm:w-6 sm:h-6 object-contain rounded-lg shadow-2xs"
+                    crossOrigin="anonymous"
+                  />
+                  <span className="font-serif tracking-tight text-sm sm:text-base font-extrabold text-[#0b132b]">
+                    TenoPilot<span className="text-[#c85b2b]">.com</span>
                   </span>
                 </div>
-                <p className="text-[7px] sm:text-[8px] font-black tracking-[0.24em] uppercase text-[#6B5A51] mt-0.5">
+                <p className="text-[7.5px] sm:text-[8px] font-black tracking-[0.24em] uppercase text-[#6B5A51] mt-0.5">
                   Resident Experience
                 </p>
               </div>

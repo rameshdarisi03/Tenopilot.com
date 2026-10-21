@@ -86,12 +86,12 @@ export default function TenantSelfOnboardingPage({
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Resolve token on mount
+  // 1. Resolve token on mount (asynchronously from local cache or Firestore)
   useEffect(() => {
     async function resolveToken() {
       setLoadingInvite(true);
       try {
-        const result = selfKycStore.getInviteByToken(token);
+        const result = await selfKycStore.fetchInviteAsync(token);
         if (result?.invite) {
           setInvite(result.invite);
           setInvitePropertyId(result.propertyId || result.invite.propertyId);
@@ -101,25 +101,6 @@ export default function TenantSelfOnboardingPage({
           setSignatureName(result.invite.candidateName);
           setStep("INVITE_FORM");
         } else {
-          // If token looks like an invite id (starts with "inv-") but not found yet in cache, check with a small retry
-          if (token.startsWith("inv-")) {
-            setTimeout(() => {
-              const retryResult = selfKycStore.getInviteByToken(token);
-              if (retryResult?.invite) {
-                setInvite(retryResult.invite);
-                setInvitePropertyId(retryResult.propertyId || retryResult.invite.propertyId);
-                setCandidateName(retryResult.invite.candidateName);
-                setPhone(retryResult.invite.candidatePhone);
-                setEmail(retryResult.invite.candidateEmail || "");
-                setSignatureName(retryResult.invite.candidateName);
-                setStep("INVITE_FORM");
-              } else {
-                setStep("SEARCH");
-              }
-              setLoadingInvite(false);
-            }, 600);
-            return;
-          }
           setStep("SEARCH");
         }
       } catch (e) {
