@@ -7,6 +7,7 @@ import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
 import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
+import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import {
   propertyStore,
   FloorConfig,
@@ -725,17 +726,15 @@ function PropertyMapContent({
                                   const isBookedBed = !isHoldBed && (effectiveStatus === "Booked" && !primaryOcc && !!nextOcc);
                                   const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "";
                                   
-                                  // Evaluate if promised vacating date is past/overdue (strictly day + 1 after promised vacating date)
+                                  // Evaluate if promised vacating date is past/overdue (strictly day after promised vacating date without checkout)
                                   let isOverdueVacating = false;
                                   if (effectiveStatus === "Vacating" && rawVacDate) {
                                     const today = new Date();
                                     today.setHours(0, 0, 0, 0);
-                                    const parsedVac = new Date(rawVacDate);
-                                    if (!isNaN(parsedVac.getTime())) {
+                                    const parsedVac = parseOccupantDate(rawVacDate) || new Date(rawVacDate);
+                                    if (parsedVac && !isNaN(parsedVac.getTime())) {
                                       parsedVac.setHours(0, 0, 0, 0);
-                                      const dayPlusOneCutoff = new Date(parsedVac);
-                                      dayPlusOneCutoff.setDate(dayPlusOneCutoff.getDate() + 1);
-                                      isOverdueVacating = today > dayPlusOneCutoff;
+                                      isOverdueVacating = today > parsedVac;
                                     }
                                   }
 
@@ -755,8 +754,8 @@ function PropertyMapContent({
                                     statusLabel = primaryOcc ? primaryOcc.name : nextOcc ? nextOcc.name : "Guest";
                                   } else if (effectiveStatus === "Vacating") {
                                     badgeStyle = isOverdueVacating
-                                      ? "bg-red-50 text-red-900 border-red-300 hover:bg-red-100 animate-pulse shadow-sm ring-1 ring-red-400"
-                                      : "bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100 animate-pulse shadow-sm ring-1 ring-orange-300";
+                                      ? "bg-red-50 text-red-950 border-2 border-red-400 hover:bg-red-100 shadow-md ring-2 ring-red-400/50 animate-pulse"
+                                      : "bg-orange-50 text-orange-950 border-2 border-orange-400 hover:bg-orange-100 shadow-md ring-2 ring-orange-300/80 animate-pulse";
                                     statusLabel = isOverdueVacating
                                       ? `Overdue (${primaryOcc?.name || "Move-Out"})`
                                       : `Vacating (${primaryOcc?.name || "Notice"})`;
@@ -794,6 +793,20 @@ function PropertyMapContent({
                                         </span>
                                       )}
 
+                                      {/* 🟠 TOP-RIGHT VACATING / OVERDUE BADGE PILL */}
+                                      {effectiveStatus === "Vacating" && (
+                                        <span className={`absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 ${
+                                          isOverdueVacating
+                                            ? "bg-red-200 text-red-950 border border-red-400"
+                                            : "bg-orange-200 text-orange-950 border border-orange-400 animate-pulse"
+                                        }`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${
+                                            isOverdueVacating ? "bg-red-600 animate-ping" : "bg-orange-600 animate-ping"
+                                          }`} />
+                                          {isOverdueVacating ? "OVERDUE ⚠️" : "VACATING 🟠"}
+                                        </span>
+                                      )}
+
                                       {/* 🟣 TOP-RIGHT GUEST BADGE PILL */}
                                       {isGuestBed && (
                                         <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-purple-200 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs">
@@ -825,10 +838,10 @@ function PropertyMapContent({
                                         </span>
                                       )}
                                       {effectiveStatus === "Vacating" && (
-                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full animate-pulse ${
+                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full flex items-center justify-center gap-1 ${
                                           isOverdueVacating
                                             ? "bg-red-200 text-red-950 border border-red-400 font-extrabold"
-                                            : "bg-orange-200 text-orange-950 border border-orange-300"
+                                            : "bg-orange-200 text-orange-950 border border-orange-400 animate-pulse font-bold"
                                         }`}>
                                           {isOverdueVacating ? "🚨 OVERDUE: " : "🟠 Vacating: "}{rawVacDate || "Notice"}
                                         </span>

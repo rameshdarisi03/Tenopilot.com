@@ -114,6 +114,24 @@ function formatJoiningDateDisplay(dateStr?: string): string {
   return dateStr;
 }
 
+// SSOT Date Helpers for Current & Future Target Dates
+function getTodayIsoDate(): string {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getFutureIsoDate(daysAhead: number = 30): string {
+  const target = new Date();
+  target.setDate(target.getDate() + daysAhead);
+  const yyyy = target.getFullYear();
+  const mm = String(target.getMonth() + 1).padStart(2, "0");
+  const dd = String(target.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // Helper: Convert any date string into standard YYYY-MM-DD for native <input type="date" />
 function toDateInputValue(dateStr?: string): string {
   if (!dateStr) return new Date().toISOString().split("T")[0];
@@ -407,7 +425,7 @@ export default function IndividualTenantProfilePage({
   const [extendPaymentOption, setExtendPaymentOption] = useState<"COLLECT_NOW" | "ADD_TO_DUE">("COLLECT_NOW");
   const [extendPaymentMode, setExtendPaymentMode] = useState<string>("UPI");
 
-  const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>("2026-08-01");
+  const [guestCheckoutDate, setGuestCheckoutDate] = useState<string>(() => getFutureIsoDate(1));
   const [checkoutTime, setCheckoutTime] = useState<string>("11:00");
   const [guestRefundKeyDeposit, setGuestRefundKeyDeposit] = useState<boolean>(true);
   const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
@@ -418,7 +436,7 @@ export default function IndividualTenantProfilePage({
   const [showGuestCheckoutConfirmModal, setShowGuestCheckoutConfirmModal] = useState(false);
   const [showRescheduleCancelModal, setShowRescheduleCancelModal] = useState<boolean>(false);
   const [rescheduleModalTab, setRescheduleModalTab] = useState<"RESCHEDULE" | "CANCEL">("RESCHEDULE");
-  const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>("2026-08-20");
+  const [postponedCheckInDate, setPostponedCheckInDate] = useState<string>(() => getTodayIsoDate());
   const [cancellationRetentionFee, setCancellationRetentionFee] = useState<number>(0);
   const [cancellationReason, setCancellationReason] = useState<string>("Tenant No-Show (Did not appear on joining date)");
   const [cancellationNotes, setCancellationNotes] = useState<string>("");
@@ -487,19 +505,19 @@ export default function IndividualTenantProfilePage({
   }, [showCollectRentModal, occupantState]);
 
   // Log Notice Form Inputs
-  const [vacatingDate, setVacatingDate] = useState<string>("2026-08-15");
+  const [vacatingDate, setVacatingDate] = useState<string>(() => getFutureIsoDate(30));
   const [vacatingReason, setVacatingReason] = useState<string>("Job Relocation");
   const [noticeNotes, setNoticeNotes] = useState<string>("");
   // Extend Notice & Cancel Notice State
   const [showManageNoticeModal, setShowManageNoticeModal] = useState<boolean>(false);
   const [noticeActionTab, setNoticeActionTab] = useState<"extend" | "cancel">("extend");
   const [showExtendNoticeModal, setShowExtendNoticeModal] = useState<boolean>(false);
-  const [extendedNoticeDate, setExtendedNoticeDate] = useState<string>("2026-08-30");
+  const [extendedNoticeDate, setExtendedNoticeDate] = useState<string>(() => getFutureIsoDate(45));
   const [showCheckOutModal, setShowCheckOutModal] = useState<boolean>(false);
 
   const [showCancelNoticeModal, setShowCancelNoticeModal] = useState<boolean>(false);
   const [showExtendGuestStayModal, setShowExtendGuestStayModal] = useState<boolean>(false);
-  const [extendedGuestCheckoutDate, setExtendedGuestCheckoutDate] = useState<string>("2026-08-12");
+  const [extendedGuestCheckoutDate, setExtendedGuestCheckoutDate] = useState<string>(() => getFutureIsoDate(7));
 
   // Future Booking Conflict Resolution Modal State
   const [conflictModalData, setConflictModalData] = useState<{
@@ -1638,8 +1656,14 @@ export default function IndividualTenantProfilePage({
       updatedDepositStatus = "PAID";
     }
 
+    const todayIso = getTodayIsoDate();
+    const isMovingInTodayOrEarlier = editJoiningDate <= todayIso;
+    const shouldActivate = occupantState.lifecycleStatus === "Booked" && isMovingInTodayOrEarlier;
+    const newLifecycleStatus: Occupant["lifecycleStatus"] = shouldActivate ? "Active" : occupantState.lifecycleStatus;
+
     const updated: Occupant = {
       ...occupantState,
+      lifecycleStatus: newLifecycleStatus,
       name: editName.trim(),
       phone: fullPhoneNumber,
       countryCode: cleanCc,
@@ -1679,6 +1703,7 @@ export default function IndividualTenantProfilePage({
             if (bed.bedCode !== occupantState.bedCode) return bed;
             return {
               ...bed,
+              status: newLifecycleStatus === "Active" ? ("Occupied" as const) : bed.status,
               occupant: updated,
             };
           }),
@@ -1970,7 +1995,11 @@ export default function IndividualTenantProfilePage({
                 <button
                   disabled={occupantState.lifecycleStatus === "Past" || occupantState.lifecycleStatus === "Booked"}
                   title={occupantState.lifecycleStatus === "Booked" ? "Move-out notice cannot be logged for Booked tenants before move-in" : undefined}
-                  onClick={() => setShowLogNoticeModal(true)}
+                  onClick={() => {
+                    const noticeDays = 30;
+                    setVacatingDate(getFutureIsoDate(noticeDays));
+                    setShowLogNoticeModal(true);
+                  }}
                   className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-orange-200 hover:bg-orange-50 text-gray-700 font-semibold rounded-xl text-xs shadow-xs active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <FileText className="w-4 h-4 text-[#c2652a]" /> Log Notice
@@ -1980,11 +2009,62 @@ export default function IndividualTenantProfilePage({
               {/* Row 2: Balanced Side-by-Side Clean Layout */}
               {occupantState.lifecycleStatus === "Booked" ? (
                 <>
+                  {/* 1-Tap Instant Check-In & Activation */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const todayIso = getTodayIsoDate();
+                      const dParts = todayIso.split("-");
+                      const formattedDate = `${dParts[2]} ${
+                        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
+                          parseInt(dParts[1], 10) - 1
+                        ] || "Aug"
+                      } ${dParts[0]}`;
+
+                      const updated: Occupant = {
+                        ...occupantState,
+                        lifecycleStatus: "Active",
+                        joiningDate: formattedDate,
+                        dueDate: formattedDate,
+                      };
+
+                      setOccupantState(updated);
+                      occupantStore.updateOccupant(updated, propertyId);
+                      saveOccupantToFirestore(propertyId, updated);
+
+                      // Update bed in property structure to Occupied
+                      const currentStructure = propertyStore.getStructure(propertyId);
+                      const updatedStructure = currentStructure.map((floor) => ({
+                        ...floor,
+                        rooms: floor.rooms.map((room) => {
+                          if (room.roomNumber !== occupantState.roomNumber) return room;
+                          return {
+                            ...room,
+                            beds: room.beds.map((bed) => {
+                              if (bed.bedCode !== occupantState.bedCode) return bed;
+                              return {
+                                ...bed,
+                                status: "Occupied" as const,
+                                occupant: updated,
+                              };
+                            }),
+                          };
+                        }),
+                      }));
+                      propertyStore.updateStructure(updatedStructure, propertyId);
+                      triggerToast(`🎉 Welcome! ${occupantState.name} is now an Active Resident on Bed ${occupantState.roomNumber} (${occupantState.bedCode}) 🟢`);
+                    }}
+                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> ✅ Complete Check-In Now
+                  </button>
+
                   {/* 5. Reschedule / Cancel Check-in */}
                   <button
                     type="button"
                     onClick={() => {
                       setRescheduleModalTab("RESCHEDULE");
+                      setPostponedCheckInDate(getTodayIsoDate());
                       setShowRescheduleCancelModal(true);
                     }}
                     className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
@@ -1997,7 +2077,7 @@ export default function IndividualTenantProfilePage({
                     type="button"
                     disabled
                     title="Resident has not checked in yet. To cancel before move-in, please use 'Reschedule / Cancel Check-in'."
-                    className="col-span-2 sm:col-span-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 border border-gray-200 text-gray-400 rounded-xl text-xs font-bold shadow-none cursor-not-allowed opacity-75"
+                    className="col-span-2 sm:col-span-4 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 border border-gray-200 text-gray-400 rounded-xl text-xs font-bold shadow-none cursor-not-allowed opacity-75"
                   >
                     🔑 Formal Check-Out & Settlement
                   </button>
@@ -5111,8 +5191,14 @@ export default function IndividualTenantProfilePage({
                       ] || "Aug"
                     } ${dParts[0]}`;
 
+                    const todayIso = getTodayIsoDate();
+                    const isMovingInTodayOrEarlier = postponedCheckInDate <= todayIso;
+                    const shouldActivate = occupantState.lifecycleStatus === "Booked" && isMovingInTodayOrEarlier;
+                    const newLifecycleStatus: Occupant["lifecycleStatus"] = shouldActivate ? "Active" : occupantState.lifecycleStatus;
+
                     const updated: Occupant = {
                       ...occupantState,
+                      lifecycleStatus: newLifecycleStatus,
                       joiningDate: formattedDate,
                       dueDate: formattedDate,
                     };
@@ -5121,15 +5207,49 @@ export default function IndividualTenantProfilePage({
                     occupantStore.updateOccupant(updated, propertyId);
                     saveOccupantToFirestore(propertyId, updated);
 
-                    triggerToast(`✓ Updated check-in move-in date for ${occupantState.name} to ${formattedDate}`);
+                    // Sync bed status in propertyStore structure if resident became Active
+                    const currentStructure = propertyStore.getStructure(propertyId);
+                    const updatedStructure = currentStructure.map((floor) => ({
+                      ...floor,
+                      rooms: floor.rooms.map((room) => {
+                        if (room.roomNumber !== occupantState.roomNumber) return room;
+                        return {
+                          ...room,
+                          beds: room.beds.map((bed) => {
+                            if (bed.bedCode !== occupantState.bedCode) return bed;
+                            return {
+                              ...bed,
+                              status: newLifecycleStatus === "Active" ? ("Occupied" as const) : bed.status,
+                              occupant: updated,
+                            };
+                          }),
+                        };
+                      }),
+                    }));
+                    propertyStore.updateStructure(updatedStructure, propertyId);
+
+                    if (shouldActivate) {
+                      triggerToast(`🎉 Check-in date set to today! ${occupantState.name} transitioned to Active Resident on Bed ${occupantState.roomNumber} (${occupantState.bedCode}) 🟢`);
+                    } else {
+                      triggerToast(`✓ Updated check-in move-in date for ${occupantState.name} to ${formattedDate}`);
+                    }
                     setShowRescheduleCancelModal(false);
                   }}
                   className="space-y-4 text-xs"
                 >
                   <div>
-                    <label className="block font-bold text-gray-700 mb-1">
-                      New Target Move-in Date *
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block font-bold text-gray-700">
+                        New Target Move-in Date *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setPostponedCheckInDate(getTodayIsoDate())}
+                        className="text-[10px] font-bold text-blue-700 hover:underline flex items-center gap-0.5"
+                      >
+                        ⚡ Set to Today ({getTodayIsoDate()})
+                      </button>
+                    </div>
                     <input
                       type="date"
                       required
@@ -5137,9 +5257,16 @@ export default function IndividualTenantProfilePage({
                       onChange={(e) => setPostponedCheckInDate(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-900 focus:ring-1 focus:ring-blue-700 bg-white"
                     />
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      The booking remains active and the bed stays reserved until this new date arrives.
-                    </p>
+                    {postponedCheckInDate <= getTodayIsoDate() ? (
+                      <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-[11px] font-semibold animate-in fade-in">
+                        <span className="text-base">🟢</span>
+                        <span>Date is today or earlier: Saving will automatically transition resident from <strong>BOOKED</strong> to <strong>ACTIVE</strong> resident and mark bed as <strong>OCCUPIED</strong>!</span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        The booking remains active and the bed stays reserved until this new date arrives.
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">

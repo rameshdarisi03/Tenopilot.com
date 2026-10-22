@@ -12,7 +12,7 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
-import { subscribeOccupantsFromFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
@@ -412,13 +412,22 @@ export default function TenantsDirectoryPage({
     }
   }, [showRentReminderQRModal, occupantsList]);
 
+  // Helper for current calendar ISO date
+  const getTodayIsoDate = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   // Booked Tenant Check-In & Postpone Modal State
   const [checkInModalOccupant, setCheckInModalOccupant] = useState<Occupant | null>(null);
   const [postponeModalOccupant, setPostponeModalOccupant] = useState<Occupant | null>(null);
   const [newCheckInDate, setNewCheckInDate] = useState<string>("");
   const [showCompleteCheckInPopup, setShowCompleteCheckInPopup] = useState<boolean>(false);
   const [showPostponeModal, setShowPostponeModal] = useState<boolean>(false);
-  const [postponedDate, setPostponedDate] = useState<string>("2026-08-15");
+  const [postponedDate, setPostponedDate] = useState<string>(() => getTodayIsoDate());
   const [checkOutModalOccupant, setCheckOutModalOccupant] = useState<Occupant | null>(null);
 
 
@@ -781,8 +790,22 @@ export default function TenantsDirectoryPage({
     e.preventDefault();
     if (!checkInModalOccupant) return;
 
-    checkInModalOccupant.joiningDate = postponedDate;
-    triggerToast(`✓ Postponed move-in date for ${checkInModalOccupant.name} to ${postponedDate}`);
+    const todayIso = getTodayIsoDate();
+    const isMovingInTodayOrEarlier = postponedDate <= todayIso;
+    const shouldActivate = checkInModalOccupant.lifecycleStatus === "Booked" && isMovingInTodayOrEarlier;
+
+    if (shouldActivate) {
+      checkInModalOccupant.lifecycleStatus = "Active";
+      checkInModalOccupant.joiningDate = postponedDate;
+      occupantStore.updateOccupant(checkInModalOccupant, propertyId);
+      saveOccupantToFirestore(propertyId, checkInModalOccupant);
+      triggerToast(`🎉 ${checkInModalOccupant.name} checked in! Status updated to Active Resident.`);
+    } else {
+      checkInModalOccupant.joiningDate = postponedDate;
+      occupantStore.updateOccupant(checkInModalOccupant, propertyId);
+      saveOccupantToFirestore(propertyId, checkInModalOccupant);
+      triggerToast(`✓ Postponed move-in date for ${checkInModalOccupant.name} to ${postponedDate}`);
+    }
     setShowPostponeModal(false);
     setCheckInModalOccupant(null);
   };
