@@ -54,7 +54,7 @@ import {
   ProcessedDocument,
 } from "@/utils/documentSecurity";
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
-import { lookupExistingOccupant } from "@/utils/phoneLookup";
+import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
@@ -91,6 +91,14 @@ export default function OnboardGuestPage({
   const existingOccupantMatch = useMemo(() => {
     return lookupExistingOccupant(phone, propertyId);
   }, [phone, propertyId]);
+  const phoneConflict = Boolean(existingOccupantMatch && existingOccupantMatch.lifecycleStatus !== "Past");
+
+  const [email, setEmail] = useState("");
+  // Instant lookup match against occupantStore for email
+  const existingOccupantEmailMatch = useMemo(() => {
+    return lookupExistingOccupantByEmail(email, propertyId);
+  }, [email, propertyId]);
+  const emailConflict = Boolean(existingOccupantEmailMatch && existingOccupantEmailMatch.lifecycleStatus !== "Past");
   const [emergencyCountryCode, setEmergencyCountryCode] = useState("+91");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -323,8 +331,14 @@ export default function OnboardGuestPage({
     }
 
     // Rule 3: Check if active resident with this phone already exists in this property
-    if (existingOccupantMatch && existingOccupantMatch.lifecycleStatus !== "Past") {
-      alert(`Cannot onboard: A guest/resident with mobile number ${cleanPrimaryPhone} ("${existingOccupantMatch.name}" in Room ${existingOccupantMatch.roomNumber}) is already active in your property. Duplicate active mobile numbers are not permitted.`);
+    if (phoneConflict && existingOccupantMatch) {
+      alert(`Cannot onboard: A guest/resident with mobile number ${cleanPrimaryPhone} ("${existingOccupantMatch.name}" in Room ${existingOccupantMatch.roomNumber}) is already active in your property. Duplicate active mobile numbers are not permitted in the same property.`);
+      return;
+    }
+
+    // Rule 3.5: Check if active resident with this email already exists in this property
+    if (emailConflict && existingOccupantEmailMatch) {
+      alert(`Cannot onboard: A guest/resident with email "${email.trim()}" ("${existingOccupantEmailMatch.name}" in Room ${existingOccupantEmailMatch.roomNumber}) is already active in your property. Duplicate active email addresses are not permitted in the same property.`);
       return;
     }
 
@@ -458,7 +472,7 @@ export default function OnboardGuestPage({
       name: fullName.trim(),
       phone: fullPhoneNumber,
       countryCode: countryCode.trim() || "+91",
-      email: `${fullName.toLowerCase().replace(/\s+/g, ".")}@guest.com`,
+      email: email.trim() ? email.trim() : `${fullName.toLowerCase().replace(/\s+/g, ".")}@guest.com`,
       stayType: "Guest",
       lifecycleStatus: initialLifecycleStatus,
       paymentStatus: initialPaymentStatus,
@@ -807,7 +821,11 @@ export default function OnboardGuestPage({
                       placeholder="9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
+                      className={`flex-1 px-3.5 py-3 rounded-xl border font-semibold text-gray-900 text-base md:text-xs focus:ring-1 transition-colors ${
+                        phoneConflict
+                          ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-purple-700"
+                      }`}
                     />
                   </div>
                   <span className="text-[10px] text-gray-400 mt-1 block">
@@ -815,14 +833,14 @@ export default function OnboardGuestPage({
                   </span>
 
                   {/* INSTANT EXISTING PROFILE LOOKUP ALERT BANNER */}
-                  {existingOccupantMatch && (
-                    <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-1 animate-in fade-in">
-                      <div className="font-bold flex items-center gap-1.5 text-amber-950">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                        Existing Profile Found: {existingOccupantMatch.name}
+                  {phoneConflict && existingOccupantMatch && (
+                    <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs space-y-1 animate-in fade-in">
+                      <div className="font-bold flex items-center gap-1.5 text-red-950">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        Mobile Number Already Registered: {existingOccupantMatch.name}
                       </div>
-                      <p className="text-[11px] text-amber-800">
-                        This mobile number is registered to a <strong>{existingOccupantMatch.stayType}</strong> (Status: <strong>{existingOccupantMatch.lifecycleStatus}</strong>) in Room {existingOccupantMatch.roomNumber} ({existingOccupantMatch.bedCode}).
+                      <p className="text-[11px] text-red-800">
+                        This mobile number is already registered to <strong>{existingOccupantMatch.name}</strong> ({existingOccupantMatch.stayType}) in Room {existingOccupantMatch.roomNumber} ({formatBedLabel(existingOccupantMatch.bedCode)}). Duplicate active resident mobile numbers are not permitted in the same property.
                       </p>
                     </div>
                   )}
@@ -857,6 +875,35 @@ export default function OnboardGuestPage({
                         ❌ Error: Emergency contact number matches primary mobile number! Please enter a different number.
                       </span>
                     )}
+                </div>
+
+                {/* Guest Email Address (Optional) with instant duplicate detection */}
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Guest Email Address (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="guest@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={`w-full px-3.5 py-3 rounded-xl border font-semibold text-gray-900 text-base md:text-xs focus:ring-1 transition-colors ${
+                      emailConflict
+                        ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-purple-700"
+                    }`}
+                  />
+                  {emailConflict && existingOccupantEmailMatch && (
+                    <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs space-y-1 animate-in fade-in">
+                      <div className="font-bold flex items-center gap-1.5 text-red-950">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        Email Address Already Registered: {existingOccupantEmailMatch.name}
+                      </div>
+                      <p className="text-[11px] text-red-800">
+                        This email address is already registered to <strong>{existingOccupantEmailMatch.name}</strong> ({existingOccupantEmailMatch.stayType}) in Room {existingOccupantEmailMatch.roomNumber} ({formatBedLabel(existingOccupantEmailMatch.bedCode)}). Duplicate active resident email addresses are not permitted in the same property.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1053,7 +1100,8 @@ export default function OnboardGuestPage({
               <div className="flex justify-end pt-4 border-t border-gray-100">
                 <button
                   type="submit"
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
+                  disabled={Boolean(phoneConflict || emailConflict)}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   Proceed to Bed Allocation <ArrowRight className="w-4 h-4" />
                 </button>

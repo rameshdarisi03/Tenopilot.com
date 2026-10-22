@@ -85,36 +85,54 @@ export default function SelfKycDeskPage({
   const [inviteDepositAmount, setInviteDepositAmount] = useState<number>(24000);
   const [inviteDispatchLoading, setInviteDispatchLoading] = useState(false);
 
-  // Active resident phone lookup map (to detect conflict in Send Invite modal)
+  // Active resident phone & email lookup maps (to detect conflict in Send Invite modal)
   const [existingResidentMap, setExistingResidentMap] = useState<
+    Map<string, { name: string; roomNumber: string; bedCode: string }>
+  >(new Map());
+  const [existingResidentEmailMap, setExistingResidentEmailMap] = useState<
     Map<string, { name: string; roomNumber: string; bedCode: string }>
   >(new Map());
 
   useEffect(() => {
     if (!propertyId) return;
 
-    const buildMap = (occupantsList: any[]) => {
-      const map = new Map<string, { name: string; roomNumber: string; bedCode: string }>();
+    const buildMaps = (occupantsList: any[]) => {
+      const phoneMap = new Map<string, { name: string; roomNumber: string; bedCode: string }>();
+      const emailMap = new Map<string, { name: string; roomNumber: string; bedCode: string }>();
       occupantsList.forEach((occ) => {
-        if (occ.phone && occ.lifecycleStatus !== "Past") {
-          const digits = String(occ.phone).replace(/\D/g, "").slice(-10);
-          if (digits.length === 10) {
-            map.set(digits, {
-              name: occ.name || "Active Resident",
-              roomNumber: occ.roomNumber || "",
-              bedCode: occ.bedCode || "",
-            });
+        if (occ.lifecycleStatus !== "Past") {
+          if (occ.phone) {
+            const digits = String(occ.phone).replace(/\D/g, "").slice(-10);
+            if (digits.length === 10) {
+              phoneMap.set(digits, {
+                name: occ.name || "Active Resident",
+                roomNumber: occ.roomNumber || "",
+                bedCode: occ.bedCode || "",
+              });
+            }
+          }
+          if (occ.email) {
+            const cleanEm = String(occ.email).trim().toLowerCase();
+            if (cleanEm.length > 3 && cleanEm.includes("@")) {
+              emailMap.set(cleanEm, {
+                name: occ.name || "Active Resident",
+                roomNumber: occ.roomNumber || "",
+                bedCode: occ.bedCode || "",
+              });
+            }
           }
         }
       });
-      return map;
+      return { phoneMap, emailMap };
     };
 
     // 1. Instantly populate from occupantStore (0ms latency from memory/cache)
     try {
       const localOccs = occupantStore.getOccupants(propertyId);
       if (localOccs && localOccs.length > 0) {
-        setExistingResidentMap(buildMap(localOccs));
+        const { phoneMap, emailMap } = buildMaps(localOccs);
+        setExistingResidentMap(phoneMap);
+        setExistingResidentEmailMap(emailMap);
       }
     } catch (e) {
       console.warn("Failed reading local occupantStore:", e);
@@ -127,7 +145,9 @@ export default function SelfKycDeskPage({
         const fromFs: any[] = [];
         snap.docs.forEach((d) => fromFs.push(d.data()));
         if (fromFs.length > 0) {
-          setExistingResidentMap(buildMap(fromFs));
+          const { phoneMap, emailMap } = buildMaps(fromFs);
+          setExistingResidentMap(phoneMap);
+          setExistingResidentEmailMap(emailMap);
         }
       } catch (e) {
         console.warn("Notice checking existing occupants:", e);
@@ -145,6 +165,15 @@ export default function SelfKycDeskPage({
     if (cleanCandidateDigits.length !== 10) return null;
     return existingResidentMap.get(cleanCandidateDigits) || null;
   }, [cleanCandidateDigits, existingResidentMap]);
+
+  const cleanCandidateEmail = useMemo(() => {
+    return inviteCandidateEmail.trim().toLowerCase();
+  }, [inviteCandidateEmail]);
+
+  const existingResidentEmailConflict = useMemo(() => {
+    if (!cleanCandidateEmail || !cleanCandidateEmail.includes("@")) return null;
+    return existingResidentEmailMap.get(cleanCandidateEmail) || null;
+  }, [cleanCandidateEmail, existingResidentEmailMap]);
 
   // Review & Verification Modal State
   const [activeReviewSubmission, setActiveReviewSubmission] = useState<SelfKycSubmission | null>(null);
@@ -340,6 +369,14 @@ export default function SelfKycDeskPage({
     if (existingResidentConflict) {
       triggerToast(
         `This mobile number is already registered with ${existingResidentConflict.name} in Room ${existingResidentConflict.roomNumber}.`,
+        "error"
+      );
+      return;
+    }
+
+    if (existingResidentEmailConflict) {
+      triggerToast(
+        `This email address is already registered with ${existingResidentEmailConflict.name} in Room ${existingResidentEmailConflict.roomNumber}.`,
         "error"
       );
       return;
@@ -1431,8 +1468,23 @@ export default function SelfKycDeskPage({
                     placeholder="candidate@example.com"
                     value={inviteCandidateEmail}
                     onChange={(e) => setInviteCandidateEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
+                      existingResidentEmailConflict
+                        ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
                   />
+                  {existingResidentEmailConflict && (
+                    <div className="mt-2 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                      <div className="leading-tight">
+                        <span className="font-bold">⚠️ Email address already registered!</span>
+                        <p className="text-[11px] text-red-600 mt-0.5">
+                          Already registered with <strong>{existingResidentEmailConflict.name}</strong> in Room {existingResidentEmailConflict.roomNumber} ({formatBedLabel(existingResidentEmailConflict.bedCode)}).
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1490,7 +1542,7 @@ export default function SelfKycDeskPage({
                 </button>
                 <button
                   type="submit"
-                  disabled={inviteDispatchLoading || availableBeds.length === 0 || Boolean(existingResidentConflict)}
+                  disabled={inviteDispatchLoading || availableBeds.length === 0 || Boolean(existingResidentConflict || existingResidentEmailConflict)}
                   className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                 >
                   {inviteDispatchLoading ? (

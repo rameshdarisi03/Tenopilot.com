@@ -63,7 +63,7 @@ import {
 } from "@/utils/documentSecurity";
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
-import { lookupExistingOccupant } from "@/utils/phoneLookup";
+import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModal";
@@ -109,7 +109,14 @@ export default function OnboardTenantPage({
   const existingOccupantMatch = useMemo(() => {
     return lookupExistingOccupant(phone, propertyId);
   }, [phone, propertyId]);
+  const phoneConflict = Boolean(existingOccupantMatch && existingOccupantMatch.lifecycleStatus !== "Past");
+
   const [email, setEmail] = useState("");
+  // Instant lookup match against occupantStore for email
+  const existingOccupantEmailMatch = useMemo(() => {
+    return lookupExistingOccupantByEmail(email, propertyId);
+  }, [email, propertyId]);
+  const emailConflict = Boolean(existingOccupantEmailMatch && existingOccupantEmailMatch.lifecycleStatus !== "Past");
   const [emergencyCountryCode, setEmergencyCountryCode] = useState("+91");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -422,8 +429,14 @@ export default function OnboardTenantPage({
     }
 
     // Rule 3: Check if active resident with this phone already exists in this property
-    if (existingOccupantMatch && existingOccupantMatch.lifecycleStatus !== "Past") {
+    if (phoneConflict && existingOccupantMatch) {
       alert(`Cannot onboard: A resident with mobile number ${cleanPrimaryPhone} ("${existingOccupantMatch.name}" in Room ${existingOccupantMatch.roomNumber}) is already active in your property. Duplicate active resident mobile numbers are not permitted.`);
+      return;
+    }
+
+    // Rule 3.5: Check if active resident with this email already exists in this property
+    if (emailConflict && existingOccupantEmailMatch) {
+      alert(`Cannot onboard: A resident with email "${email.trim()}" ("${existingOccupantEmailMatch.name}" in Room ${existingOccupantEmailMatch.roomNumber}) is already active in your property. Duplicate active resident email addresses are not permitted.`);
       return;
     }
 
@@ -964,7 +977,11 @@ export default function OnboardTenantPage({
                       placeholder="9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
+                      className={`flex-1 px-3.5 py-3 rounded-xl border font-semibold text-gray-900 text-base md:text-xs focus:ring-1 transition-colors ${
+                        phoneConflict
+                          ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-[#c2652a]"
+                      }`}
                     />
                   </div>
                   <span className="text-[10px] text-gray-400 mt-1 block">
@@ -972,14 +989,14 @@ export default function OnboardTenantPage({
                   </span>
 
                   {/* INSTANT EXISTING PROFILE LOOKUP ALERT BANNER */}
-                  {existingOccupantMatch && (
-                    <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-1 animate-in fade-in">
-                      <div className="font-bold flex items-center gap-1.5 text-amber-950">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                        Existing Profile Found: {existingOccupantMatch.name}
+                  {phoneConflict && existingOccupantMatch && (
+                    <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs space-y-1 animate-in fade-in">
+                      <div className="font-bold flex items-center gap-1.5 text-red-950">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        Mobile Number Already Registered: {existingOccupantMatch.name}
                       </div>
-                      <p className="text-[11px] text-amber-800">
-                        This mobile number is registered to a <strong>{existingOccupantMatch.stayType}</strong> (Status: <strong>{existingOccupantMatch.lifecycleStatus}</strong>) in Room {existingOccupantMatch.roomNumber} ({existingOccupantMatch.bedCode}).
+                      <p className="text-[11px] text-red-800">
+                        This mobile number is already registered to <strong>{existingOccupantMatch.name}</strong> ({existingOccupantMatch.stayType}) in Room {existingOccupantMatch.roomNumber} ({formatBedLabel(existingOccupantMatch.bedCode)}). Duplicate active resident mobile numbers are not permitted in the same property.
                       </p>
                     </div>
                   )}
@@ -994,8 +1011,23 @@ export default function OnboardTenantPage({
                     placeholder="aarav.mehta@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-[#c2652a]"
+                    className={`w-full px-3.5 py-3 rounded-xl border font-semibold text-gray-900 text-base md:text-xs focus:ring-1 transition-colors ${
+                      emailConflict
+                        ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
                   />
+                  {emailConflict && existingOccupantEmailMatch && (
+                    <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-300 text-red-900 text-xs space-y-1 animate-in fade-in">
+                      <div className="font-bold flex items-center gap-1.5 text-red-950">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        Email Address Already Registered: {existingOccupantEmailMatch.name}
+                      </div>
+                      <p className="text-[11px] text-red-800">
+                        This email address is already registered to <strong>{existingOccupantEmailMatch.name}</strong> ({existingOccupantEmailMatch.stayType}) in Room {existingOccupantEmailMatch.roomNumber} ({formatBedLabel(existingOccupantEmailMatch.bedCode)}). Duplicate active resident email addresses are not permitted in the same property.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Emergency Contact Number (Cannot be same as Primary Phone) */}
@@ -1161,7 +1193,8 @@ export default function OnboardTenantPage({
               <div className="flex justify-end pt-4 border-t border-gray-100">
                 <button
                   type="submit"
-                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px]"
+                  disabled={Boolean(phoneConflict || emailConflict)}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md min-h-[48px] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   Proceed to Bed Allocation <ArrowRight className="w-4 h-4" />
                 </button>
