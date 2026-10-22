@@ -367,12 +367,55 @@ export function inferRoomBlockAndFloor(roomStr: string): { blockName: string; fl
 /**
  * Core Heuristic Parser: Ingests raw clipboard text, CSV string, or matrix
  */
+/**
+ * 🔒 Strict Validation Gate for FastTrack Occupant Rows.
+ * Requires: Name, 10-Digit Mobile, Room Number, Joining Date, Monthly Rent (> 0), Security Deposit (>= 0).
+ * Prior Arrears defaults to 0 if left empty. Workplace & Profession are optional.
+ */
+export function validateParsedRow(row: Partial<FastTrackParsedRow>): { isValid: boolean; warnings: string[] } {
+  const warnings: string[] = [];
+
+  const cleanName = (row.fullName || "").trim();
+  if (!cleanName) {
+    warnings.push("Tenant Name is required");
+  }
+
+  const cleanPhone = (row.phone || "").replace(/\D/g, "");
+  if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]/.test(cleanPhone)) {
+    warnings.push("Valid 10-digit mobile is required");
+  }
+
+  const cleanRoom = (row.roomNumber || "").trim();
+  if (!cleanRoom) {
+    warnings.push("Room number is required");
+  }
+
+  if (!row.joiningDate || isNaN(new Date(row.joiningDate).getTime())) {
+    warnings.push("Valid joining date is required");
+  }
+
+  const rent = typeof row.rentAmount === "number" ? row.rentAmount : Number(row.rentAmount);
+  if (isNaN(rent) || rent <= 0) {
+    warnings.push("Monthly rent must be greater than 0");
+  }
+
+  const deposit = typeof row.securityDeposit === "number" ? row.securityDeposit : Number(row.securityDeposit);
+  if (isNaN(deposit) || deposit < 0) {
+    warnings.push("Security deposit is required (>= 0)");
+  }
+
+  return {
+    isValid: warnings.length === 0,
+    warnings,
+  };
+}
+
 export function parseRawSpreadsheetText(
   rawInput: string,
   defaultRentalTiers?: { sharing1: number; sharing2: number; sharing3: number; sharing4: number }
 ): FastTrackParseResult {
-  const fallbackRent = defaultRentalTiers?.sharing2 || 12000;
-  const fallbackDeposit = fallbackRent * 2;
+  const fallbackRent = 0; // Never inject fake 12000 rent when omitted
+  const fallbackDeposit = 0;
 
   if (!rawInput || !rawInput.trim()) {
     return {
@@ -648,12 +691,9 @@ export function parseRawSpreadsheetText(
     const bedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26)); // A, B, C, D...
     const cleanBed = normalizeBedCode(rawBed, bedLetter);
 
-    // Clean monetary values
-    let rentNum = parseIndianCurrencyAmount(rawRent, fallbackRent);
-    if (rentNum <= 0) rentNum = fallbackRent;
-
-    let depositNum = parseIndianCurrencyAmount(rawDeposit, rentNum * 2);
-    if (depositNum <= 0) depositNum = rentNum * 2;
+    // Clean monetary values - do NOT inject random rent or deposits
+    const rentNum = parseIndianCurrencyAmount(rawRent, 0);
+    const depositNum = parseIndianCurrencyAmount(rawDeposit, 0);
 
     const cleanDate = normalizeDateToYYYYMMDD(rawDate);
     const isPaid = /^(?:yes|true|paid|cleared|done)$/i.test(rawRentPaid);
@@ -663,18 +703,7 @@ export function parseRawSpreadsheetText(
     const effectiveSharing = parsedSharing.count > 0 ? parsedSharing.count : (roomSharingMap.get(cleanRoom) || currentCountInRoom);
     const effectiveSharingLabel = parsedSharing.label || (effectiveSharing === 1 ? "Single Room" : `${effectiveSharing}-Sharing`);
 
-    // Validation flags
-    const warnings: string[] = [];
-    if (!cleanPhone || !STRICT_10_DIGIT_PHONE.test(cleanPhone)) {
-      warnings.push("Invalid or missing 10-digit mobile number");
-    }
-    if (!cleanRoom) {
-      warnings.push("Missing room number assignment");
-    }
-
-    const isValid = warnings.length === 0;
-
-    parsedOccupants.push({
+    const rowObj: FastTrackParsedRow = {
       id: `ft_row_${Date.now()}_${rowIdx}`,
       fullName: cleanName,
       phone: cleanPhone,
@@ -691,10 +720,16 @@ export function parseRawSpreadsheetText(
       isCurrentMonthRentPaid: isPaid,
       isSecurityDepositPaid: isDepositPaid,
       priorArrearsAmount: arrearsNum,
-      isValid,
-      warnings,
+      isValid: false,
+      warnings: [],
       rawSource: rawLine,
-    });
+    };
+
+    const valResult = validateParsedRow(rowObj);
+    rowObj.isValid = valResult.isValid;
+    rowObj.warnings = valResult.warnings;
+
+    parsedOccupants.push(rowObj);
   });
 
   // Calculate unique inferred floors and room capacities

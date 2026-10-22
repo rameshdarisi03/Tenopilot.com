@@ -25,7 +25,8 @@ export function autoProvisionBuildingFromRoster(
   // Group incoming rows by Room Number
   const roomOccupantMap = new Map<string, FastTrackParsedRow[]>();
   rows.forEach((row) => {
-    const rm = (row.roomNumber || "101").toUpperCase().trim();
+    const rm = (row.roomNumber || "").toUpperCase().trim();
+    if (!rm) return;
     const list = roomOccupantMap.get(rm) || [];
     list.push(row);
     roomOccupantMap.set(rm, list);

@@ -7,7 +7,7 @@ import { Occupant, occupantStore, PaymentHistoryItem } from "@/constants/mockOcc
 import { propertyStore } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { autoProvisionBuildingFromRoster } from "./autoBuildingProvisioner";
-import { FastTrackParsedRow } from "./fastTrackHeuristicParser";
+import { FastTrackParsedRow, validateParsedRow } from "./fastTrackHeuristicParser";
 import { saveOccupantToFirestore } from "./firestoreService";
 import { getEffectiveTenantLimit, evaluateSubscription } from "./subscriptionEngine";
 import { generateReceiptNumber } from "./invoiceNumberEngine";
@@ -83,6 +83,23 @@ export async function executeFastTrackBatchIngest(
     };
   }
 
+  // 🔒 Strict Mandatory Field Validation
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const valResult = validateParsedRow(r);
+    if (!valResult.isValid) {
+      return {
+        success: false,
+        enrolledCount: 0,
+        createdRoomsCount: 0,
+        createdBedsCount: 0,
+        totalMonthlyRevenue: 0,
+        occupants: [],
+        errors: [`Resident #${i + 1} (${r.fullName || "Unnamed"}): ${valResult.warnings.join(", ")}`],
+      };
+    }
+  }
+
   // 1. Auto-Provision or Smart-Merge Building Structure
   let createdRoomsCount = 0;
   let createdBedsCount = 0;
@@ -134,7 +151,7 @@ export async function executeFastTrackBatchIngest(
   const roomBedCounters = new Map<string, number>();
 
   rows.forEach((row, idx) => {
-    const rawRoom = (row.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
+    const rawRoom = (row.roomNumber || "").toUpperCase().trim();
     const currentBedNum = (roomBedCounters.get(rawRoom) || 0) + 1;
     roomBedCounters.set(rawRoom, currentBedNum);
 
@@ -142,9 +159,9 @@ export async function executeFastTrackBatchIngest(
     const finalBedCode = row.bedCode || `Bed ${bedLetter}`;
 
     const occupantId = `occ_ft_${propertyId}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`;
-    const rent = Number(row.rentAmount) || settings.rentalTiers?.sharing2 || 12000;
-    const deposit = Number(row.securityDeposit) || rent * 2;
-    const priorArrears = Number(row.priorArrearsAmount) || 0;
+    const rent = Number(row.rentAmount) || 0;
+    const deposit = Number(row.securityDeposit) >= 0 ? Number(row.securityDeposit) : 0;
+    const priorArrears = Number(row.priorArrearsAmount) > 0 ? Number(row.priorArrearsAmount) : 0;
     const isRentPaid = row.isCurrentMonthRentPaid !== undefined ? Boolean(row.isCurrentMonthRentPaid) : (options.markCurrentMonthRentPaid ?? false);
     const isDepositPaid = row.isSecurityDepositPaid !== undefined ? Boolean(row.isSecurityDepositPaid) : (options.markDepositsPaid !== false);
     totalMonthlyRevenue += rent;

@@ -295,9 +295,9 @@ You MUST strictly prioritize and adhere to these directives when resolving missi
 ==================================================================
 3. FIELD-BY-FIELD EXTRACTION SPECIFICATIONS
 ==================================================================
-1. "fullName" (string): Full name in Title Case. Strip stray serial numbers.
+1. "fullName" (string): Full name in Title Case. Strip stray serial numbers. If missing, return "".
 2. "phone" (string): Clean 10-digit Indian mobile number. Strip "+91", "0", spaces, hyphens. If missing, return "".
-3. "roomNumber" (string): Uppercase room/unit code (e.g. "403", "501", "A01").
+3. "roomNumber" (string): Uppercase room/unit code (e.g. "403", "501", "A01"). If missing, return "".
 4. "bedCode" (string): Extract written bed (e.g. "Bed 1", "Bed A"). If omitted, leave as "".
 5. "sharingType" (number):
    - IF written in a column (e.g. "1", "2", "3", "Single", "Triple"), extract that integer.
@@ -309,15 +309,24 @@ You MUST strictly prioritize and adhere to these directives when resolving missi
      NEVER assign sharingType: 1 to multiple people sharing the same room!
 6. "sharingLabel" (string): e.g. "Single Room", "2-Sharing", "3-Sharing", "4-Sharing".
 7. "joiningDate" (string - YYYY-MM-DD): Dates in Indian registers are DD/MM/YYYY. Normalize to YYYY-MM-DD.
-8. "rentAmount" (number): Plain numeric rent in INR.
-9. "securityDeposit" (number): Plain numeric deposit in INR.
+8. "rentAmount" (number): Plain numeric rent in INR. If rent is NOT explicitly stated in the document, return 0. CRITICAL: DO NOT GUESS OR INVENT RENT!
+9. "securityDeposit" (number): Plain numeric deposit in INR. If deposit is NOT explicitly stated, return 0. DO NOT GUESS!
 10. "paymentMode" (string): "UPI", "Cash", or "Bank Transfer" (default "UPI").
 11. "isCurrentMonthRentPaid" (boolean): true if marked Paid/Cleared, false if Due/Unpaid/omitted.
-12. "priorArrearsAmount" (number): Unpaid arrears/due (default 0).
-13. "workplace" (string): Company or college name.
-14. "occupation" (string): Job title or profession.
+12. "priorArrearsAmount" (number): Unpaid arrears/due (default 0). If omitted or empty, strictly return 0. NEVER INVENT RANDOM ARREARS!
+13. "workplace" (string): Company or college name (optional, if none return "").
+14. "occupation" (string): Job title or profession (optional, if none return "").
 15. "purposeOfVisit" (string): Reason for visit if short-stay guest.
 16. "stayType" (string): "Tenant" or "Guest".
+
+==================================================================
+CRITICAL NO-HALLUCINATION POLICY:
+- DO NOT invent, hallucinate, or randomly guess rent amounts or prior arrears!
+- If rent is omitted on the document, return rentAmount: 0.
+- If prior arrears is omitted, return priorArrearsAmount: 0.
+- If room is missing, return roomNumber: "".
+- If tenant name is missing, return fullName: "".
+==================================================================
 
 ==================================================================
 OUTPUT JSON SCHEMA ONLY:
@@ -453,27 +462,35 @@ OUTPUT JSON SCHEMA ONLY:
         const roomOccupancyMap = new Map<string, number>();
 
         const rows: FastTrackParsedRow[] = rawExtractedOccupants.map((item: any, idx: number) => {
+          const cleanName = item.fullName ? String(item.fullName).trim() : "";
           const phone = normalizeIndianPhoneNumber(item.phone);
-          const warnings: string[] = [];
-          if (!phone || phone.length !== 10) warnings.push("Verify 10-digit mobile number");
-          if (!item.fullName || item.fullName.trim().length === 0) warnings.push("Missing full name");
+          const cleanRoom = item.roomNumber ? String(item.roomNumber).toUpperCase().trim() : "";
 
-          const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
-          const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
-          roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+          const warnings: string[] = [];
+          if (!cleanName) warnings.push("Missing full name");
+          if (!phone || phone.length !== 10) warnings.push("Verify 10-digit mobile number");
+          if (!cleanRoom) warnings.push("Missing room number");
+
+          const currentCountInRoom = cleanRoom ? ((roomOccupancyMap.get(cleanRoom) || 0) + 1) : 1;
+          if (cleanRoom) {
+            roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+          }
 
           const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26));
           const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
-          const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-          const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
+          const rent = typeof item.rentAmount === "number" ? Math.max(0, item.rentAmount) : (Number(item.rentAmount) > 0 ? Number(item.rentAmount) : 0);
+          if (rent <= 0) warnings.push("Missing monthly rent");
+
+          const deposit = typeof item.securityDeposit === "number" ? Math.max(0, item.securityDeposit) : (Number(item.securityDeposit) >= 0 ? Number(item.securityDeposit) : 0);
+
           const explicitSharing = Number(item.sharingType);
           const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
           const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
 
           return {
             id: `ft_ai_${Date.now()}_${idx}`,
-            fullName: item.fullName || `Resident ${idx + 1}`,
+            fullName: cleanName,
             phone: phone || "",
             roomNumber: cleanRoom,
             bedCode: finalBedCode,
@@ -485,7 +502,7 @@ OUTPUT JSON SCHEMA ONLY:
             paymentMode: item.paymentMode || "UPI",
             isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
             isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
-            priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
+            priorArrearsAmount: typeof item.priorArrearsAmount === "number" ? Math.max(0, item.priorArrearsAmount) : (Number(item.priorArrearsAmount) > 0 ? Number(item.priorArrearsAmount) : 0),
             workplace: item.workplace || "",
             occupation: item.occupation || "",
             purposeOfVisit: item.purposeOfVisit || "",
@@ -652,27 +669,35 @@ OUTPUT JSON SCHEMA ONLY (No markdown, valid JSON):
         const roomOccupancyMap = new Map<string, number>();
 
         const rows: FastTrackParsedRow[] = combinedOccupants.map((item: any, idx: number) => {
+          const cleanName = item.fullName ? String(item.fullName).trim() : "";
           const phone = normalizeIndianPhoneNumber(item.phone);
-          const warnings: string[] = [];
-          if (!phone || phone.length !== 10) warnings.push("Verify 10-digit mobile number");
-          if (!item.fullName || item.fullName.trim().length === 0) warnings.push("Missing full name");
+          const cleanRoom = item.roomNumber ? String(item.roomNumber).toUpperCase().trim() : "";
 
-          const cleanRoom = String(item.roomNumber || `10${(idx % 4) + 1}`).toUpperCase().trim();
-          const currentCountInRoom = (roomOccupancyMap.get(cleanRoom) || 0) + 1;
-          roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+          const warnings: string[] = [];
+          if (!cleanName) warnings.push("Missing full name");
+          if (!phone || phone.length !== 10) warnings.push("Verify 10-digit mobile number");
+          if (!cleanRoom) warnings.push("Missing room number");
+
+          const currentCountInRoom = cleanRoom ? ((roomOccupancyMap.get(cleanRoom) || 0) + 1) : 1;
+          if (cleanRoom) {
+            roomOccupancyMap.set(cleanRoom, currentCountInRoom);
+          }
 
           const autoBedLetter = String.fromCharCode(64 + Math.min(currentCountInRoom, 26));
           const finalBedCode = normalizeBedCode(item.bedCode, autoBedLetter);
 
-          const rent = Number(item.rentAmount) || defaultRentalTiers?.sharing2 || 12000;
-          const deposit = Number(item.securityDeposit) || (rent ? rent * 2 : 0);
+          const rent = typeof item.rentAmount === "number" ? Math.max(0, item.rentAmount) : (Number(item.rentAmount) > 0 ? Number(item.rentAmount) : 0);
+          if (rent <= 0) warnings.push("Missing monthly rent");
+
+          const deposit = typeof item.securityDeposit === "number" ? Math.max(0, item.securityDeposit) : (Number(item.securityDeposit) >= 0 ? Number(item.securityDeposit) : 0);
+
           const explicitSharing = Number(item.sharingType);
           const sharingCount = explicitSharing > 0 ? explicitSharing : Math.max(currentCountInRoom, 2);
           const sharingLabel = item.sharingLabel || (sharingCount === 1 ? "Single Room" : `${sharingCount}-Sharing`);
 
           return {
             id: `ft_ai_text_${Date.now()}_${idx}`,
-            fullName: item.fullName || `Resident ${idx + 1}`,
+            fullName: cleanName,
             phone: phone || "",
             roomNumber: cleanRoom,
             bedCode: finalBedCode,
@@ -684,7 +709,11 @@ OUTPUT JSON SCHEMA ONLY (No markdown, valid JSON):
             paymentMode: item.paymentMode || "UPI",
             isCurrentMonthRentPaid: Boolean(item.isCurrentMonthRentPaid ?? false),
             isSecurityDepositPaid: item.isSecurityDepositPaid !== undefined ? Boolean(item.isSecurityDepositPaid) : true,
-            priorArrearsAmount: Number(item.priorArrearsAmount) || 0,
+            priorArrearsAmount: typeof item.priorArrearsAmount === "number" ? Math.max(0, item.priorArrearsAmount) : (Number(item.priorArrearsAmount) > 0 ? Number(item.priorArrearsAmount) : 0),
+            workplace: item.workplace || "",
+            occupation: item.occupation || "",
+            purposeOfVisit: item.purposeOfVisit || "",
+            stayType: item.stayType === "Guest" ? "Guest" : "Tenant",
             isValid: warnings.length === 0,
             warnings,
             rawSource: item.notes || "Extracted via Gemini AI Text Engine",

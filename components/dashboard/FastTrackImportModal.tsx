@@ -25,6 +25,7 @@ import {
   Maximize2,
   Minimize2,
   Plus,
+  PlusCircle,
   Save,
   Filter,
   ImageIcon,
@@ -43,6 +44,7 @@ import {
   FastTrackParsedRow,
   FastTrackParseResult,
   reconcileRoomSharingAndBeds,
+  validateParsedRow,
 } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -390,6 +392,12 @@ export function FastTrackImportModal({
     return dupeSet;
   }, [editableRows]);
 
+  // Real-time invalid rows detector (Mandatory: Name, 10-Digit Mobile, Room, Date, Rent > 0, Deposit >= 0)
+  const invalidRows = useMemo(() => {
+    return editableRows.filter((r) => !validateParsedRow(r).isValid);
+  }, [editableRows]);
+  const hasInvalidRows = invalidRows.length > 0;
+
   // 1-click Auto-Deduplicate table
   const handleAutoDeduplicateTable = () => {
     const seenP = new Set<string>();
@@ -443,8 +451,12 @@ export function FastTrackImportModal({
 
       const apiJson = await apiRes.json();
       if (apiJson.success && apiJson.rows?.length > 0) {
-        setEditableRows(apiJson.rows);
-        setParsedResult(apiJson);
+        const validated = apiJson.rows.map((r: any) => {
+          const val = validateParsedRow(r);
+          return { ...r, isValid: val.isValid, warnings: val.warnings };
+        });
+        setEditableRows(validated);
+        setParsedResult({ ...apiJson, rows: validated });
         setAppendSuccessNotice("✨ Successfully enhanced and re-parsed roster with Gemini AI!");
         setTimeout(() => setAppendSuccessNotice(null), 4000);
       } else {
@@ -485,8 +497,12 @@ export function FastTrackImportModal({
 
       const apiJson = await apiRes.json();
       if (apiJson.success && Array.isArray(apiJson.rows) && apiJson.rows.length > 0) {
-        setEditableRows(apiJson.rows);
-        handleSaveDraft(apiJson.rows);
+        const validated = apiJson.rows.map((r: any) => {
+          const val = validateParsedRow(r);
+          return { ...r, isValid: val.isValid, warnings: val.warnings };
+        });
+        setEditableRows(validated);
+        handleSaveDraft(validated);
         setAppendSuccessNotice(`✨ AI Refined ${apiJson.rows.length} occupant(s) based on your custom rule!`);
         setTimeout(() => setAppendSuccessNotice(null), 4000);
       } else {
@@ -522,7 +538,9 @@ export function FastTrackImportModal({
     setEditableRows((prev) => {
       const updated = prev.map((r) => {
         if (forceAll || r.securityDeposit <= 0) {
-          return { ...r, securityDeposit: amount };
+          const row = { ...r, securityDeposit: amount };
+          const val = validateParsedRow(row);
+          return { ...row, isValid: val.isValid, warnings: val.warnings };
         }
         return r;
       });
@@ -537,8 +555,10 @@ export function FastTrackImportModal({
   const handleApplyDepositMultiple = (multiple: number) => {
     setEditableRows((prev) => {
       const updated = prev.map((r) => {
-        const rent = r.rentAmount > 0 ? r.rentAmount : (settings?.rentalTiers?.sharing2 || 12000);
-        return { ...r, securityDeposit: rent * multiple };
+        const rent = r.rentAmount > 0 ? r.rentAmount : 0;
+        const row = { ...r, securityDeposit: rent * multiple };
+        const val = validateParsedRow(row);
+        return { ...row, isValid: val.isValid, warnings: val.warnings };
       });
       handleSaveDraft(updated);
       return updated;
@@ -558,7 +578,9 @@ export function FastTrackImportModal({
         else if (sharing === 2 && tiers.sharing2) rent = tiers.sharing2;
         else if (sharing === 3 && tiers.sharing3) rent = tiers.sharing3;
         else if (sharing === 4 && tiers.sharing4) rent = tiers.sharing4;
-        return { ...r, rentAmount: rent };
+        const row = { ...r, rentAmount: rent };
+        const val = validateParsedRow(row);
+        return { ...row, isValid: val.isValid, warnings: val.warnings };
       });
       handleSaveDraft(updated);
       return updated;
@@ -646,59 +668,85 @@ export function FastTrackImportModal({
     }
   };
 
-  // Auto-Fix all warnings by filling missing placeholders automatically
-  const handleAutoFixAllPlaceholders = () => {
-    setEditableRows((prev) => {
-      const updated = prev.map((row, i) => {
-        let phone = row.phone;
-        if (!phone || phone.length !== 10) {
-          phone = `98000${String(10000 + (i % 89999)).slice(-5)}`;
-        }
-        let room = row.roomNumber || `10${(i % 4) + 1}`;
-        let rent = row.rentAmount > 0 ? row.rentAmount : settings?.rentalTiers?.sharing2 || 12000;
-        let deposit = row.securityDeposit > 0 ? row.securityDeposit : rent * 2;
-        return {
-          ...row,
-          phone,
-          roomNumber: room,
-          rentAmount: rent,
-          securityDeposit: deposit,
-          isValid: true,
-          warnings: [],
-        };
-      });
-      handleSaveDraft(updated);
-      return updated;
+  // Helper to create a pristine, empty resident row for manual spreadsheet entry
+  const createBlankManualRow = (idx: number, roomNumber: string = ""): FastTrackParsedRow => ({
+    id: `ft_manual_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+    fullName: "",
+    phone: "",
+    roomNumber,
+    bedCode: "Bed A",
+    sharingType: 2,
+    sharingLabel: "2-Sharing",
+    rentAmount: 0,
+    securityDeposit: 0,
+    joiningDate: new Date().toISOString().split("T")[0],
+    paymentMode: "UPI",
+    isCurrentMonthRentPaid: markCurrentMonthRentPaid,
+    isSecurityDepositPaid: markDepositsPaid,
+    priorArrearsAmount: 0,
+    workplace: "",
+    occupation: "",
+    purposeOfVisit: "",
+    stayType: "Tenant",
+    isValid: false,
+    warnings: [
+      "Tenant Name is required",
+      "Valid 10-digit mobile is required",
+      "Room number is required",
+      "Monthly rent must be greater than 0",
+    ],
+    rawSource: "Manual Spreadsheet Grid",
+  });
+
+  // 📝 Start a brand new, empty spreadsheet directly
+  const handleStartNewSpreadsheet = () => {
+    const initialRows: FastTrackParsedRow[] = [
+      createBlankManualRow(0),
+      createBlankManualRow(1),
+      createBlankManualRow(2),
+    ];
+    const reconciled = reconcileRoomSharingAndBeds(initialRows).map((r) => ({
+      ...r,
+      ...validateParsedRow(r),
+    }));
+    setEditableRows(reconciled);
+    setStep("REVIEW");
+    setFileName("Manual-Spreadsheet-Entry.csv");
+    setPastedText("");
+    setParsedResult({
+      success: true,
+      source: "MANUAL",
+      rows: reconciled,
+      totalDetected: reconciled.length,
+      validCount: 0,
+      warningCount: reconciled.length,
+      confidenceScore: 100,
+      detectedColumns: {
+        nameIndex: 0,
+        phoneIndex: 1,
+        roomIndex: 2,
+        rentIndex: 3,
+        depositIndex: 4,
+        dateIndex: 5,
+        bedIndex: 6,
+        sharingIndex: 7,
+      },
+      inferredFloors: [],
+      inferredRooms: [],
     });
   };
 
   // Append a brand new manual resident row on the fly
   const handleAddNewManualRow = () => {
     const newIdx = editableRows.length;
-    const defaultRent = settings?.rentalTiers?.sharing2 || 12000;
-    const todayStr = new Date().toISOString().split("T")[0];
-    const roomNum = editableRows.length > 0 ? editableRows[editableRows.length - 1].roomNumber : "101";
-
-    const newRow: FastTrackParsedRow = {
-      id: `ft_manual_${Date.now()}_${newIdx}`,
-      fullName: `Resident ${newIdx + 1}`,
-      phone: "",
-      roomNumber: roomNum,
-      bedCode: `Bed A`,
-      sharingType: 2,
-      sharingLabel: "2-Sharing",
-      rentAmount: defaultRent,
-      securityDeposit: defaultRent * 2,
-      joiningDate: todayStr,
-      paymentMode: "UPI",
-      isCurrentMonthRentPaid: markCurrentMonthRentPaid,
-      priorArrearsAmount: 0,
-      isValid: false,
-      warnings: ["Enter 10-digit mobile number"],
-    };
+    const roomNum = editableRows.length > 0 ? (editableRows[editableRows.length - 1].roomNumber || "") : "";
+    const newRow = createBlankManualRow(newIdx, roomNum);
 
     setEditableRows((prev) => {
-      const updated = reconcileRoomSharingAndBeds([...prev, newRow]);
+      const updated = reconcileRoomSharingAndBeds([...prev, newRow]).map((r) => ({
+        ...r,
+        ...validateParsedRow(r),
+      }));
       handleSaveDraft(updated);
       return updated;
     });
@@ -1129,7 +1177,10 @@ export function FastTrackImportModal({
 
     const applyParsedRows = (rows: FastTrackParsedRow[], resultMeta: any) => {
       setProcessingProgress(100);
-      const reconciled = reconcileRoomSharingAndBeds(rows);
+      const reconciled = reconcileRoomSharingAndBeds(rows).map((r) => {
+        const val = validateParsedRow(r);
+        return { ...r, isValid: val.isValid, warnings: val.warnings };
+      });
       setParsedResult(resultMeta);
       const { conflicts, uniqueIncoming } = detectDuplicates(reconciled, []);
       if (conflicts.length > 0) {
@@ -1265,16 +1316,19 @@ export function FastTrackImportModal({
     setEditableRows((prev) => {
       const updated = [...prev];
       const row = { ...updated[idx], [field]: value };
-      // Re-validate row
-      const warnings: string[] = [];
-      if (!row.phone || row.phone.length !== 10) warnings.push("Invalid phone");
-      if (!row.roomNumber) warnings.push("Missing room");
-      row.isValid = warnings.length === 0;
-      row.warnings = warnings;
+      const valResult = validateParsedRow(row);
+      row.isValid = valResult.isValid;
+      row.warnings = valResult.warnings;
       updated[idx] = row;
       if (field === "roomNumber") {
-        return reconcileRoomSharingAndBeds(updated);
+        const reconciled = reconcileRoomSharingAndBeds(updated).map((r) => ({
+          ...r,
+          ...validateParsedRow(r),
+        }));
+        handleSaveDraft(reconciled);
+        return reconciled;
       }
+      handleSaveDraft(updated);
       return updated;
     });
   };
@@ -1282,12 +1336,25 @@ export function FastTrackImportModal({
   const removeRow = (idx: number) => {
     setEditableRows((prev) => {
       const remaining = prev.filter((_, i) => i !== idx);
-      return reconcileRoomSharingAndBeds(remaining);
+      const reconciled = reconcileRoomSharingAndBeds(remaining).map((r) => ({
+        ...r,
+        ...validateParsedRow(r),
+      }));
+      handleSaveDraft(reconciled);
+      return reconciled;
     });
   };
 
   // 5. Execute 1-Click Commit
   const handleCommitIngest = async () => {
+    const invalidRows = editableRows.filter((r) => !validateParsedRow(r).isValid);
+    if (invalidRows.length > 0) {
+      alert(
+        `Cannot Enroll: ${invalidRows.length} resident row(s) have missing required fields.\n\nPlease ensure Tenant Name, 10-Digit Mobile, Room Number, Joining Date, Monthly Rent (> 0), and Deposit are filled for all residents marked in red before confirming.`
+      );
+      return;
+    }
+
     const sub = evaluateSubscription(profile);
     if (sub.status === "EXPIRED") {
       alert("🔒 Free Trial Ended: Your trial has completed. Please upgrade to the Pro Plan to import and onboard tenants via FastTrack AI.");
@@ -1629,6 +1696,18 @@ export function FastTrackImportModal({
                     >
                       <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                       Load Sample PG Data
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartNewSpreadsheet();
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-teal-600/20 flex items-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <PlusCircle className="w-4 h-4 text-teal-200" />
+                      + New Spreadsheet
                     </button>
                   </div>
                 </div>
@@ -2363,18 +2442,28 @@ export function FastTrackImportModal({
                   <span>+ Add Resident</span>
                 </button>
 
-                {editableRows.some((r) => !r.isValid) && (
-                  <button
-                    type="button"
-                    onClick={handleAutoFixAllPlaceholders}
-                    className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 hover:bg-amber-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Auto-Fill Missing Details</span>
-                  </button>
-                )}
               </div>
             </div>
+
+            {/* Required Fields Incomplete Alert Banner */}
+            {hasInvalidRows && (
+              <div className="px-4 py-3 rounded-2xl bg-rose-50 border border-rose-300 text-xs font-semibold text-rose-950 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-rose-950">
+                      Required Details Incomplete ({invalidRows.length} {invalidRows.length === 1 ? "resident requires" : "residents require"} attention)
+                    </p>
+                    <p className="text-[11px] text-rose-800">
+                      Red marked fields (Tenant Name, 10-Digit Mobile, Room, Joining Date, Monthly Rent &gt; 0, and Deposit) must be filled before enrolling. Workplace and profession can be left empty. If prior arrears is left empty, it is treated as ₹0.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-xl bg-rose-200/80 text-rose-900 text-[11px] font-bold shrink-0">
+                  Enrollment Paused
+                </span>
+              </div>
+            )}
 
             {/* Intra-Table Duplicate Alert Banner */}
             {tableDuplicateIndices.size > 0 && (
@@ -2690,17 +2779,27 @@ Anil Verma   9812345678   Room 103   12000"
                   <thead className="bg-gray-100/90 backdrop-blur-xs sticky top-0 z-10 text-[11px] font-bold text-gray-700 border-b border-gray-200">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3 min-w-[180px]">Tenant Name</th>
-                      <th className="py-2.5 px-3 min-w-[125px]">10-Digit Mobile</th>
-                      <th className="py-2.5 px-3 min-w-[80px] text-center">Room</th>
+                      <th className="py-2.5 px-3 min-w-[180px]">
+                        <span>Tenant Name</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[130px]">
+                        <span>10-Digit Mobile</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[85px] text-center">
+                        <span>Room</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
                       <th className="py-2.5 px-3 min-w-[90px] text-center">Bed Slot</th>
                       <th className="py-2.5 px-3 min-w-[105px] text-center">Sharing</th>
-                      <th className="py-2.5 px-3 min-w-[140px]">Workplace / College</th>
-                      <th className="py-2.5 px-3 min-w-[130px]">Profession / Role</th>
+                      <th className="py-2.5 px-3 min-w-[140px]">
+                        <span>Workplace</span> <span className="text-gray-400 font-normal text-[10px]">(Optional)</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[130px]">
+                        <span>Profession</span> <span className="text-gray-400 font-normal text-[10px]">(Optional)</span>
+                      </th>
                       <th className="py-2.5 px-3 min-w-[120px] text-center">Stay Type</th>
-                      <th className="py-2.5 px-3 min-w-[150px]">
+                      <th className="py-2.5 px-3 min-w-[155px]">
                         <div className="flex items-center justify-between gap-1.5">
-                          <span>Joining Date</span>
+                          <span>Joining Date <span className="text-rose-500 font-extrabold">*</span></span>
                           <select
                             value={dateFormatMode}
                             onChange={(e) => setDateFormatMode(e.target.value as any)}
@@ -2713,11 +2812,21 @@ Anil Verma   9812345678   Room 103   12000"
                           </select>
                         </div>
                       </th>
-                      <th className="py-2.5 px-3 min-w-[100px]">Monthly Rent</th>
-                      <th className="py-2.5 px-3 min-w-[100px]">Deposit</th>
-                      <th className="py-2.5 px-3 min-w-[130px] text-center">Deposit Paid</th>
-                      <th className="py-2.5 px-3 min-w-[130px] text-center">Rent Paid (This Mo)</th>
-                      <th className="py-2.5 px-3 min-w-[110px]">Prior Arrears</th>
+                      <th className="py-2.5 px-3 min-w-[105px]">
+                        <span>Monthly Rent</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[105px]">
+                        <span>Deposit</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[130px] text-center">
+                        <span>Deposit Paid</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[130px] text-center">
+                        <span>Rent Paid (This Mo)</span> <span className="text-rose-500 font-extrabold">*</span>
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[110px]">
+                        <span>Prior Arrears</span> <span className="text-gray-400 font-normal text-[10px]">(₹0 default)</span>
+                      </th>
                       <th className="py-2.5 px-3 text-center">Status</th>
                       <th className="py-2.5 px-3 text-center">Action</th>
                     </tr>
@@ -2725,6 +2834,14 @@ Anil Verma   9812345678   Room 103   12000"
                   <tbody className="divide-y divide-gray-100 bg-white">
                     {editableRows.map((row, idx) => {
                       const isDuplicateInTable = tableDuplicateIndices.has(idx);
+                      const isNameMissing = !row.fullName || !row.fullName.trim();
+                      const cleanPhoneDigits = (row.phone || "").replace(/\D/g, "");
+                      const isPhoneInvalid = !cleanPhoneDigits || cleanPhoneDigits.length !== 10 || !/^[6-9]/.test(cleanPhoneDigits);
+                      const isRoomMissing = !row.roomNumber || !row.roomNumber.trim();
+                      const isRentInvalid = !row.rentAmount || Number(row.rentAmount) <= 0;
+                      const isDepositInvalid = row.securityDeposit === undefined || row.securityDeposit === null || isNaN(row.securityDeposit) || Number(row.securityDeposit) < 0;
+                      const isDateMissing = !row.joiningDate;
+
                       return (
                         <tr
                           key={row.id}
@@ -2732,7 +2849,7 @@ Anil Verma   9812345678   Room 103   12000"
                             isDuplicateInTable
                               ? "bg-rose-50/80 border-l-4 border-l-rose-500"
                               : !row.isValid
-                              ? "bg-amber-50/40"
+                              ? "bg-rose-50/20 border-l-3 border-l-rose-400"
                               : "hover:bg-gray-50/50"
                           }
                         >
@@ -2743,9 +2860,12 @@ Anil Verma   9812345678   Room 103   12000"
                                 type="text"
                                 value={row.fullName}
                                 onChange={(e) => updateRowField(idx, "fullName", e.target.value)}
+                                placeholder="Tenant Name *"
                                 className={`w-full px-2.5 py-1.5 rounded-lg border font-semibold text-xs focus:ring-1 focus:ring-[#c2652a] ${
                                   isDuplicateInTable
                                     ? "border-rose-400 bg-rose-50 text-rose-950 font-bold"
+                                    : isNameMissing
+                                    ? "border-rose-300 bg-rose-50/60 text-gray-900 placeholder:text-rose-400 ring-1 ring-rose-200"
                                     : "border-gray-200 text-gray-900"
                                 }`}
                               />
@@ -2758,16 +2878,20 @@ Anil Verma   9812345678   Room 103   12000"
                           </td>
                           <td className="py-2 px-3">
                             <input
-                              type="tel"
+                              type="text"
+                              inputMode="numeric"
                               maxLength={10}
-                              value={row.phone}
-                              onChange={(e) => updateRowField(idx, "phone", e.target.value)}
-                              placeholder="9876543210"
+                              value={row.phone || ""}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, "");
+                                updateRowField(idx, "phone", val);
+                              }}
+                              placeholder="10-digit mobile *"
                               className={`w-30 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
                                 isDuplicateInTable
                                   ? "border-rose-400 bg-rose-50 text-rose-950 font-bold"
-                                  : !row.phone || row.phone.length !== 10
-                                  ? "border-amber-400 bg-amber-50 text-amber-900"
+                                  : isPhoneInvalid
+                                  ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200 font-bold"
                                   : "border-gray-200 text-gray-900"
                               }`}
                             />
@@ -2776,8 +2900,13 @@ Anil Verma   9812345678   Room 103   12000"
                           <input
                             type="text"
                             value={row.roomNumber}
-                            onChange={(e) => updateRowField(idx, "roomNumber", e.target.value)}
-                            className="w-18 px-2 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs text-center focus:ring-1 focus:ring-[#c2652a]"
+                            onChange={(e) => updateRowField(idx, "roomNumber", e.target.value.toUpperCase())}
+                            placeholder="Room *"
+                            className={`w-18 px-2 py-1.5 rounded-lg border font-mono font-bold text-xs text-center focus:ring-1 focus:ring-[#c2652a] ${
+                              isRoomMissing
+                                ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
+                                : "border-gray-200 text-gray-900"
+                            }`}
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
@@ -2798,7 +2927,7 @@ Anil Verma   9812345678   Room 103   12000"
                               updateRowField(idx, "sharingType", count);
                               updateRowField(idx, "sharingLabel", count === 1 ? "Single Room" : `${count}-Sharing`);
                             }}
-                            title="Room Sharing Capacity (Editable)"
+                            title="Room Sharing Capacity (Auto-selected or Editable)"
                             className="px-2 py-1.5 rounded-lg border border-blue-200/90 bg-blue-50/60 font-semibold text-blue-800 text-xs focus:ring-1 focus:ring-[#c2652a] focus:bg-white cursor-pointer"
                           >
                             <option value={1}>1-Sharing</option>
@@ -2815,8 +2944,8 @@ Anil Verma   9812345678   Room 103   12000"
                             value={row.workplace || ""}
                             onChange={(e) => updateRowField(idx, "workplace", e.target.value)}
                             placeholder="e.g. Infosys / Christ Univ"
-                            title="Company, Workplace or College"
-                            className="w-36 px-2.5 py-1.5 rounded-lg border border-amber-200/80 bg-amber-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
+                            title="Company, Workplace or College (Optional)"
+                            className="w-36 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
                           />
                         </td>
                         <td className="py-2 px-3">
@@ -2825,8 +2954,8 @@ Anil Verma   9812345678   Room 103   12000"
                             value={row.occupation || ""}
                             onChange={(e) => updateRowField(idx, "occupation", e.target.value)}
                             placeholder="e.g. Software Dev / Student"
-                            title="Profession or Role"
-                            className="w-32 px-2.5 py-1.5 rounded-lg border border-blue-200/80 bg-blue-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
+                            title="Profession or Role (Optional)"
+                            className="w-32 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/40 text-xs font-medium text-gray-900 focus:ring-1 focus:ring-[#c2652a] focus:bg-white placeholder:text-gray-400"
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
@@ -2845,7 +2974,9 @@ Anil Verma   9812345678   Room 103   12000"
                           </select>
                         </td>
                         <td className="py-2 px-3">
-                          <div className="flex items-center justify-between gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a] focus-within:border-[#c2652a] transition-all min-w-[145px]">
+                          <div className={`flex items-center justify-between gap-1.5 bg-white border rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a] transition-all min-w-[145px] ${
+                            isDateMissing ? "border-rose-300 bg-rose-50/60 ring-1 ring-rose-200" : "border-gray-200"
+                          }`}>
                             <span className="font-mono text-xs font-semibold text-gray-900">
                               {formatDisplayDate(row.joiningDate)}
                             </span>
@@ -2854,32 +2985,42 @@ Anil Verma   9812345678   Room 103   12000"
                               value={row.joiningDate || new Date().toISOString().split("T")[0]}
                               onChange={(e) => updateRowField(idx, "joiningDate", e.target.value)}
                               className="w-5 h-5 opacity-60 hover:opacity-100 cursor-pointer border-0 p-0 bg-transparent shrink-0"
-                              title="Pick a date"
+                              title="Pick joining date"
                             />
                           </div>
                         </td>
                         <td className="py-2 px-3">
                           <input
-                            type="number"
-                            value={row.rentAmount ? row.rentAmount : ""}
-                            placeholder="0"
+                            type="text"
+                            inputMode="numeric"
+                            value={row.rentAmount ? String(row.rentAmount) : ""}
+                            placeholder="Rent *"
                             onChange={(e) => {
                               const val = e.target.value.replace(/\D/g, "");
                               updateRowField(idx, "rentAmount", val === "" ? 0 : parseInt(val, 10));
                             }}
-                            className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className={`w-22 px-2 py-1.5 rounded-lg border font-mono font-bold text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                              isRentInvalid
+                                ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
+                                : "border-gray-200 text-gray-900"
+                            }`}
                           />
                         </td>
                         <td className="py-2 px-3">
                           <input
-                            type="number"
-                            value={row.securityDeposit ? row.securityDeposit : ""}
-                            placeholder="0"
+                            type="text"
+                            inputMode="numeric"
+                            value={row.securityDeposit !== undefined && row.securityDeposit !== null && row.securityDeposit > 0 ? String(row.securityDeposit) : (row.securityDeposit === 0 ? "0" : "")}
+                            placeholder="Deposit *"
                             onChange={(e) => {
                               const val = e.target.value.replace(/\D/g, "");
                               updateRowField(idx, "securityDeposit", val === "" ? 0 : parseInt(val, 10));
                             }}
-                            className="w-22 px-2 py-1.5 rounded-lg border border-gray-200 font-mono text-gray-700 text-xs focus:ring-1 focus:ring-[#c2652a]"
+                            className={`w-22 px-2 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${
+                              isDepositInvalid
+                                ? "border-rose-300 bg-rose-50/60 text-rose-900 placeholder:text-rose-400 ring-1 ring-rose-200"
+                                : "border-gray-200 text-gray-700"
+                            }`}
                           />
                         </td>
                         <td className="py-2 px-3 text-center">
@@ -2920,8 +3061,9 @@ Anil Verma   9812345678   Room 103   12000"
                           <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus-within:ring-1 focus-within:ring-[#c2652a]">
                             <span className="text-gray-400 font-mono text-xs">₹</span>
                             <input
-                              type="number"
-                              value={row.priorArrearsAmount ? row.priorArrearsAmount : ""}
+                              type="text"
+                              inputMode="numeric"
+                              value={row.priorArrearsAmount ? String(row.priorArrearsAmount) : ""}
                               placeholder="0"
                               onChange={(e) => {
                                 const val = e.target.value.replace(/\D/g, "");
@@ -2933,15 +3075,15 @@ Anil Verma   9812345678   Room 103   12000"
                         </td>
                         <td className="py-2 px-3 text-center">
                           {row.isValid ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              <Check className="w-3 h-3" /> Ready
+                            <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
+                              <Check className="w-3 h-3 text-emerald-600" /> Ready
                             </span>
                           ) : (
                             <span
-                              title={row.warnings.join(", ")}
-                              className="inline-flex items-center gap-1 text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                              title={row.warnings.join("\n")}
+                              className="inline-flex items-center gap-1 text-rose-800 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap cursor-help"
                             >
-                              <AlertTriangle className="w-3 h-3" /> Fix Info
+                              <AlertTriangle className="w-3 h-3 text-rose-600" /> Fix Info
                             </span>
                           )}
                         </td>
@@ -3083,9 +3225,15 @@ Anil Verma   9812345678   Room 103   12000"
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitting || editableRows.length === 0 || tableDuplicateIndices.size > 0 || isOverCapacity}
+                  disabled={
+                    isSubmitting ||
+                    editableRows.length === 0 ||
+                    tableDuplicateIndices.size > 0 ||
+                    isOverCapacity ||
+                    hasInvalidRows
+                  }
                   onClick={handleCommitIngest}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -3101,6 +3249,11 @@ Anil Verma   9812345678   Room 103   12000"
                     <>
                       <AlertTriangle className="w-4 h-4 text-amber-200" />
                       <span>Resolve {tableDuplicateIndices.size} Duplicates to Enroll</span>
+                    </>
+                  ) : hasInvalidRows ? (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-amber-200" />
+                      <span>Fill Required Fields ({invalidRows.length} {invalidRows.length === 1 ? "Row" : "Rows"} Need Attention)</span>
                     </>
                   ) : (
                     <>
