@@ -376,6 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Dual-Tier Access Guard — Protect dashboard routes with Firebase Auth OR PIN Fast-Session + Session PIN Lock
   useEffect(() => {
     const isPublicComplaintPage = pathname?.includes("/public-complaint");
+    const isSelfKycCheckinPage = pathname?.includes("/self-kyc-checkin");
     const isSelfOnboardPage = pathname?.startsWith("/self-onboard");
     const isPublicMarketing =
       pathname === "/" ||
@@ -383,11 +384,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pathname === "/features" ||
       pathname === "/how-it-works" ||
       pathname === "/verticals" ||
-      pathname === "/install";
+      pathname === "/install" ||
+      pathname === "/contact" ||
+      pathname === "/terms" ||
+      pathname === "/privacy" ||
+      pathname === "/refund-policy";
 
     // Strictly exempt all public pages so QR scans open instantly with ZERO login or PIN prompts!
     const isProtectedPage =
       !isPublicComplaintPage &&
+      !isSelfKycCheckinPage &&
       !isSelfOnboardPage &&
       !isPublicMarketing &&
       pathname !== "/welcome" &&
@@ -688,6 +694,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 🛡️ Zero-Flash Guard: Never render private dashboard pixels before session PIN unlock
   const isPublicComplaint = pathname?.includes("/public-complaint");
+  const isSelfKycCheckin = pathname?.includes("/self-kyc-checkin");
   const isSelfOnboard = pathname?.startsWith("/self-onboard");
   const isPublicMarketing =
     pathname === "/" ||
@@ -695,10 +702,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pathname === "/features" ||
     pathname === "/how-it-works" ||
     pathname === "/verticals" ||
-    pathname === "/install";
+    pathname === "/install" ||
+    pathname === "/contact" ||
+    pathname === "/terms" ||
+    pathname === "/privacy" ||
+    pathname === "/refund-policy";
 
   const isProtected =
     !isPublicComplaint &&
+    !isSelfKycCheckin &&
     !isSelfOnboard &&
     !isPublicMarketing &&
     (pathname?.startsWith("/p/") || pathname === "/home" || pathname === "/staff-management");

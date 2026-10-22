@@ -32,7 +32,7 @@ import {
 import { propertyStore, FloorConfig, RoomConfig, BedSlotConfig } from "@/constants/propertyLayoutStore";
 import { selfKycStore, SelfKycSubmission } from "@/lib/selfKycStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { occupantStore } from "@/constants/mockOccupants";
+import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import {
@@ -48,6 +48,18 @@ const formatBedLabel = (bedCode?: string): string => {
   if (!bedCode) return "";
   const trimmed = bedCode.trim();
   return /^bed\s+/i.test(trimmed) ? trimmed : `Bed ${trimmed}`;
+};
+
+const formatDisplayDate = (isoDate: string | undefined): string => {
+  if (!isoDate) return "";
+  const clean = isoDate.split("T")[0];
+  const parts = clean.split("-");
+  if (parts.length !== 3) return isoDate;
+  const [y, m, d] = parts;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monIdx = parseInt(m, 10) - 1;
+  const monthName = months[monIdx] || m;
+  return `${parseInt(d, 10)} ${monthName} ${y}`;
 };
 
 export default function WalkInSelfKycCheckinPage({
@@ -125,6 +137,7 @@ export default function WalkInSelfKycCheckinPage({
   // Existing active residents (phone & email sets) to block duplicate registration on public desk check-in without exposing PII
   const [existingResidentPhones, setExistingResidentPhones] = useState<Set<string>>(new Set());
   const [existingResidentEmails, setExistingResidentEmails] = useState<Set<string>>(new Set());
+  const [allOccupants, setAllOccupants] = useState<Occupant[]>([]);
 
   useEffect(() => {
     if (!propertyId) return;
@@ -151,6 +164,7 @@ export default function WalkInSelfKycCheckinPage({
     try {
       const localOccs = occupantStore.getOccupants(propertyId);
       if (localOccs && localOccs.length > 0) {
+        setAllOccupants(localOccs);
         const { pSet, eSet } = buildSets(localOccs);
         setExistingResidentPhones(pSet);
         setExistingResidentEmails(eSet);
@@ -161,9 +175,10 @@ export default function WalkInSelfKycCheckinPage({
     async function loadOccupants() {
       try {
         const snap = await getDocs(collection(db, "properties", propertyId, "occupants"));
-        const fromFs: any[] = [];
-        snap.docs.forEach((d) => fromFs.push(d.data()));
+        const fromFs: Occupant[] = [];
+        snap.docs.forEach((d) => fromFs.push(d.data() as Occupant));
         if (fromFs.length > 0) {
+          setAllOccupants(fromFs);
           const { pSet, eSet } = buildSets(fromFs);
           setExistingResidentPhones(pSet);
           setExistingResidentEmails(eSet);
@@ -173,7 +188,28 @@ export default function WalkInSelfKycCheckinPage({
       }
     }
     loadOccupants();
+
+    const unsub = occupantStore.subscribe(() => {
+      const fresh = occupantStore.getOccupants(propertyId) || [];
+      setAllOccupants(fresh);
+      const { pSet, eSet } = buildSets(fresh);
+      setExistingResidentPhones(pSet);
+      setExistingResidentEmails(eSet);
+    });
+    return unsub;
   }, [propertyId]);
+
+  // Fast map to cross-reference occupants by Room & Bed Slot
+  const occupantByBedMap = useMemo(() => {
+    const map = new Map<string, Occupant>();
+    allOccupants.forEach((occ) => {
+      if (occ.lifecycleStatus !== "Past") {
+        const key = `${(occ.roomNumber || "").toUpperCase().trim()}_${(occ.bedCode || "").toUpperCase().trim()}`;
+        map.set(key, occ);
+      }
+    });
+    return map;
+  }, [allOccupants]);
 
   // Validation: Mobile and Emergency must not be identical
   const cleanCandidateMobile = useMemo(() => {
@@ -207,46 +243,103 @@ export default function WalkInSelfKycCheckinPage({
     return existingResidentEmails.has(cleanEmail);
   }, [email, existingResidentEmails]);
 
-  // Filter all Available beds across floors and rooms
-  const availableBeds = useMemo(() => {
-    const list: {
+  // Real-time calculation of Available beds + Vacating beds getting freed by check-in date
+  const { availableBeds, upcomingLaterBeds } = useMemo(() => {
+    const available: {
       floorName: string;
       roomNumber: string;
       roomType: string;
       bed: BedSlotConfig;
       monthlyRent: number;
       dailyRate: number;
+      isVacating: boolean;
+      vacatingDate?: string;
     }[] = [];
+
+    const later: {
+      floorName: string;
+      roomNumber: string;
+      bedCode: string;
+      vacatingDate: string;
+    }[] = [];
+
+    const targetDate = joiningDate || new Date().toISOString().split("T")[0];
 
     structure.forEach((floor) => {
       floor.rooms.forEach((room) => {
         room.beds.forEach((b) => {
-          if (b.status === "Available") {
-            const monthlyRent = room.customRentAmount || 12000;
-            const dailyRate = Math.round(monthlyRent / 30);
-            const roomType =
-              room.sharingType === 1
-                ? "Private Single"
-                : room.sharingType === 2
-                ? "Double Sharing"
-                : room.sharingType === 3
-                ? "Triple Sharing"
-                : `${room.sharingType}-Sharing`;
-            list.push({
+          const occKey = `${room.roomNumber.toUpperCase().trim()}_${b.bedCode.toUpperCase().trim()}`;
+          const occ = b.occupant || occupantByBedMap.get(occKey);
+
+          const monthlyRent = room.customRentAmount || 12000;
+          const dailyRate = Math.round(monthlyRent / 30);
+          const roomType =
+            room.sharingType === 1
+              ? "Private Single"
+              : room.sharingType === 2
+              ? "Double Sharing"
+              : room.sharingType === 3
+              ? "Triple Sharing"
+              : `${room.sharingType}-Sharing`;
+
+          // Check if bed is on active hold (< 30 mins)
+          const isHeld =
+            b.status === "Hold" &&
+            b.holdCandidate?.heldAt &&
+            Date.now() - new Date(b.holdCandidate.heldAt).getTime() < 30 * 60 * 1000;
+
+          if (isHeld) return;
+
+          // Determine effective vacating/departure date if any
+          const rawVacDate =
+            b.vacatingDate ||
+            occ?.vacatingDate ||
+            b.guestCheckoutDate ||
+            (occ?.stayType === "Guest" ? occ?.dueDate : undefined);
+
+          // 1. Bed is completely vacant right now (no active occupant or status is Available)
+          if (b.status === "Available" || (!occ && b.status !== "Occupied" && b.status !== "Booked")) {
+            available.push({
               floorName: floor.floorName,
               roomNumber: room.roomNumber,
               roomType,
               bed: b,
               monthlyRent,
               dailyRate,
+              isVacating: false,
             });
+            return;
+          }
+
+          // 2. Bed currently has an occupant or status is Vacating, but frees up on or before target checkin date!
+          if (rawVacDate) {
+            const cleanVacDate = rawVacDate.includes("-") ? rawVacDate.split("T")[0] : rawVacDate;
+            if (cleanVacDate <= targetDate) {
+              available.push({
+                floorName: floor.floorName,
+                roomNumber: room.roomNumber,
+                roomType,
+                bed: b,
+                monthlyRent,
+                dailyRate,
+                isVacating: true,
+                vacatingDate: cleanVacDate,
+              });
+            } else {
+              later.push({
+                floorName: floor.floorName,
+                roomNumber: room.roomNumber,
+                bedCode: b.bedCode,
+                vacatingDate: cleanVacDate,
+              });
+            }
           }
         });
       });
     });
 
-    return list;
-  }, [structure]);
+    return { availableBeds: available, upcomingLaterBeds: later };
+  }, [structure, occupantByBedMap, joiningDate]);
 
   // Handle Bed selection
   const handleSelectBed = (roomNumber: string, bedCode: string, tariff: number) => {
@@ -550,11 +643,11 @@ export default function WalkInSelfKycCheckinPage({
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 2: AVAILABLE BEDS SELECTION                                          */}
+        {/* STEP 2: AVAILABLE BEDS SELECTION (REAL-TIME AVAILABILITY + VACATING BEDS)  */}
         {/* ========================================================================= */}
         {step === "BED_SELECT" && (
           <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-3">
               <div>
                 <button
                   type="button"
@@ -565,20 +658,94 @@ export default function WalkInSelfKycCheckinPage({
                 </button>
                 <h2 className="font-serif font-bold text-2xl text-gray-900">Select Available Bed</h2>
                 <p className="text-xs text-gray-500">
-                  Showing beds ready for immediate check-in today for {propertyName}
+                  Showing beds ready on <strong>{formatDisplayDate(joiningDate)}</strong> for {propertyName}
                 </p>
               </div>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-                {availableBeds.length} Beds Available
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                  {availableBeds.length} Beds Available
+                </span>
+              </div>
+            </div>
+
+            {/* Real-time Check-In Date Selector */}
+            <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div>
+                  <label className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-[#c2652a]" />
+                    <span>Your Planned Check-In Date</span>
+                  </label>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Includes currently vacant beds AND vacating beds freeing up by this date.
+                  </p>
+                </div>
+                <input
+                  type="date"
+                  min={new Date().toISOString().split("T")[0]}
+                  value={joiningDate}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setJoiningDate(newDate);
+                    setSelectedRoomNumber("");
+                    setSelectedBedCode("");
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a] focus:border-[#c2652a] transition-all cursor-pointer shadow-2xs"
+                />
+              </div>
+
+              {/* Quick Preset Date Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">Quick Dates:</span>
+                {[
+                  { label: "Today", date: new Date().toISOString().split("T")[0] },
+                  {
+                    label: "Tomorrow",
+                    date: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+                  },
+                  {
+                    label: "In 7 Days",
+                    date: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+                  },
+                  {
+                    label: "1st of Next Month",
+                    date: (() => {
+                      const now = new Date();
+                      return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split("T")[0];
+                    })(),
+                  },
+                ].map((chip) => {
+                  const isActive = joiningDate === chip.date;
+                  return (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => {
+                        setJoiningDate(chip.date);
+                        setSelectedRoomNumber("");
+                        setSelectedBedCode("");
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-[#c2652a] text-white shadow-xs"
+                          : "bg-white border border-gray-200 text-gray-700 hover:border-[#c2652a] hover:bg-orange-50/50"
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {availableBeds.length === 0 ? (
               <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
                 <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-                <p className="text-sm font-bold text-gray-800">No Beds Available Right Now</p>
+                <p className="text-sm font-bold text-gray-800">No Beds Available on {formatDisplayDate(joiningDate)}</p>
                 <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                  All rooms are currently occupied or on hold. Please contact the front desk manager for waitlist or upcoming checkouts.
+                  {upcomingLaterBeds.length > 0
+                    ? `We found ${upcomingLaterBeds.length} bed(s) vacating on later dates! Try picking a date starting from ${formatDisplayDate(upcomingLaterBeds[0].vacatingDate)} above.`
+                    : "All rooms are currently occupied or on hold. Please contact the front desk manager for waitlist inquiries."}
                 </p>
               </div>
             ) : (
@@ -590,9 +757,9 @@ export default function WalkInSelfKycCheckinPage({
 
                   return (
                     <div
-                      key={idx}
+                      key={`${item.roomNumber}-${item.bed.bedCode}-${idx}`}
                       onClick={() => handleSelectBed(item.roomNumber, item.bed.bedCode, item.monthlyRent)}
-                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected
                           ? "border-[#c2652a] bg-orange-50/50 shadow-md ring-2 ring-[#c2652a]/20"
                           : "border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50/50"
@@ -600,16 +767,18 @@ export default function WalkInSelfKycCheckinPage({
                     >
                       <div className="flex items-center gap-3.5">
                         <div
-                          className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm ${
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
                             isSelected
                               ? "bg-[#c2652a] text-white"
+                              : item.isVacating
+                              ? "bg-purple-50 text-purple-700 border border-purple-200"
                               : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           }`}
                         >
                           <BedIcon className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-serif font-bold text-base text-gray-900">
                               Room {item.roomNumber} ({formatBedLabel(item.bed.bedCode)})
                             </span>
@@ -623,20 +792,42 @@ export default function WalkInSelfKycCheckinPage({
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          Available
-                        </span>
+                      <div className="text-right shrink-0">
+                        {item.isVacating ? (
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-purple-600" />
+                              Vacating {formatDisplayDate(item.vacatingDate)}
+                            </span>
+                            <span className="text-[9.5px] text-purple-900 font-semibold block">
+                              Freed by your check-in
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Available Now
+                          </span>
+                        )}
                         {isSelected && (
                           <span className="text-[10px] font-bold text-[#c2652a] flex items-center justify-end gap-1 mt-1">
-                            <Check className="w-3 h-3" /> Selected
+                            <Check className="w-3 h-3 stroke-3" /> Selected
                           </span>
                         )}
                       </div>
                     </div>
                   );
                 })}
+
+                {/* Notice of beds vacating on later dates */}
+                {upcomingLaterBeds.length > 0 && (
+                  <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200/70 text-xs text-purple-900 flex items-center gap-2 animate-in fade-in">
+                    <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span>
+                      <strong>{upcomingLaterBeds.length} additional bed(s)</strong> are vacating on later dates (from {formatDisplayDate(upcomingLaterBeds[0].vacatingDate)}). Choose a later date above to view and reserve them.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
