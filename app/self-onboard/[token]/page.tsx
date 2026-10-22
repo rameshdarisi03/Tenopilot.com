@@ -48,20 +48,6 @@ const formatBedLabel = (bedCode?: string): string => {
   return /^bed\s+/i.test(trimmed) ? trimmed : `Bed ${trimmed}`;
 };
 
-const formatDisplayName = (name?: string): string => {
-  if (!name) return "";
-  const trimmed = name.trim();
-  if (trimmed.includes("@")) {
-    const userPart = trimmed.split("@")[0].replace(/[._-]+/g, " ");
-    return userPart
-      .split(" ")
-      .filter(Boolean)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
-  }
-  return trimmed;
-};
-
 export default function TenantSelfOnboardingPage({
   params,
 }: {
@@ -127,9 +113,11 @@ export default function TenantSelfOnboardingPage({
       setLoadingInvite(true);
       try {
         let paramPropId = "";
+        let paramName = "";
         if (typeof window !== "undefined") {
           const sp = new URLSearchParams(window.location.search);
           paramPropId = sp.get("p") || "";
+          paramName = sp.get("name") || "";
         }
         const result = await selfKycStore.fetchInviteAsync(token, paramPropId);
         if (result?.invite) {
@@ -137,8 +125,9 @@ export default function TenantSelfOnboardingPage({
           setInvite(inv);
           const resolvedPropId = result.propertyId || inv.propertyId || paramPropId || propertyId;
           setInvitePropertyId(resolvedPropId);
-          const cleanName = formatDisplayName(inv.candidateName || "");
-          setCandidateName(cleanName);
+          // Strictly take candidate's legal name from invite record or URL query parameter
+          const resolvedName = (inv.candidateName || paramName || "").trim();
+          setCandidateName(resolvedName);
           setPhone(inv.candidatePhone || "");
           setEmail(inv.candidateEmail || "");
           setStayType(inv.stayType || "Tenant");
@@ -148,7 +137,9 @@ export default function TenantSelfOnboardingPage({
           setStep("INVITE_FORM");
         } else {
           // If no specific invite exists, open the pre-joining walk-in onboarding form directly.
-          // Zero database search, zero 'resident not found' errors.
+          if (paramName) {
+            setCandidateName(paramName.trim());
+          }
           setStep("WALK_IN_FORM");
         }
       } catch (e) {
@@ -639,8 +630,8 @@ export default function TenantSelfOnboardingPage({
                 </span>
               </div>
               <h1 className="font-serif font-bold text-2xl sm:text-3xl">
-                {candidateName && !candidateName.includes("@")
-                  ? `Welcome, ${formatDisplayName(candidateName)}!`
+                {candidateName.trim()
+                  ? `Welcome, ${candidateName.trim()}!`
                   : `Welcome to ${propertyName}!`}
               </h1>
               <p className="text-xs text-white/90">

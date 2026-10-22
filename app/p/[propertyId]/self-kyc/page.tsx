@@ -419,9 +419,10 @@ export default function SelfKycDeskPage({
     // 1. Create Invite & Put Bed on Hold in propertyStore & Firestore
     await selfKycStore.createInvite(newInvite);
 
-    // 2. Build portal invite link with self-contained property parameter
+    // 2. Build portal invite link with self-contained property parameter & candidate name
     const portalOrigin = getCanonicalPortalOrigin();
-    const inviteLink = `${portalOrigin}/self-onboard/${token}?p=${propertyId}`;
+    const candidateNameParam = newInvite.candidateName ? `&name=${encodeURIComponent(newInvite.candidateName)}` : "";
+    const inviteLink = `${portalOrigin}/self-onboard/${token}?p=${propertyId}${candidateNameParam}`;
 
     // 3. Attempt WhatsApp & Email dispatch
     try {
@@ -501,7 +502,8 @@ export default function SelfKycDeskPage({
   // 1-Tap Share Invite Directly via WhatsApp Web / App
   const handleShareInviteViaWhatsApp = (inv: SelfKycInvite) => {
     const origin = getCanonicalPortalOrigin();
-    const url = `${origin}/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`;
+    const nameParam = inv.candidateName ? `&name=${encodeURIComponent(inv.candidateName)}` : "";
+    const url = `${origin}/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}${nameParam}`;
     const cleanDigits = inv.candidatePhone.replace(/\D/g, "");
     const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
     const settings = propertySettingsStore.getSettings(propertyId);
@@ -532,9 +534,10 @@ export default function SelfKycDeskPage({
   };
 
   // Copy Invite URL
-  const handleCopyInviteUrl = (inviteToken: string) => {
+  const handleCopyInviteUrl = (inviteToken: string, candidateName?: string) => {
     const origin = getCanonicalPortalOrigin();
-    const url = `${origin}/self-onboard/${inviteToken}?p=${propertyId}`;
+    const nameParam = candidateName ? `&name=${encodeURIComponent(candidateName)}` : "";
+    const url = `${origin}/self-onboard/${inviteToken}?p=${propertyId}${nameParam}`;
     if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(url).catch(() => {});
     }
@@ -623,8 +626,9 @@ export default function SelfKycDeskPage({
       const settings = propertySettingsStore.getSettings(propertyId);
       const propName = settings?.propertyName || "Ramesh Residencies";
       const origin = getCanonicalPortalOrigin();
+      const reuploadNameParam = subToReject.name ? `&name=${encodeURIComponent(subToReject.name)}` : "";
       const reuploadUrl = subToReject.inviteId
-        ? `${origin}/self-onboard/${subToReject.inviteId}?p=${propertyId}`
+        ? `${origin}/self-onboard/${subToReject.inviteId}?p=${propertyId}${reuploadNameParam}`
         : `${origin}/p/${propertyId}/self-kyc-checkin`;
 
       // 1. Dispatch Instant WhatsApp Notification
@@ -909,7 +913,7 @@ export default function SelfKycDeskPage({
 
                           <div className="grid grid-cols-4 gap-1.5 pt-1">
                             <a
-                              href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`}
+                              href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}${inv.candidateName ? `&name=${encodeURIComponent(inv.candidateName)}` : ""}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="py-1.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-bold flex items-center justify-center gap-1"
@@ -925,7 +929,7 @@ export default function SelfKycDeskPage({
                               <span>Chat</span>
                             </button>
                             <button
-                              onClick={() => handleCopyInviteUrl(inv.id)}
+                              onClick={() => handleCopyInviteUrl(inv.id, inv.candidateName)}
                               className="py-1.5 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 text-xs font-bold flex items-center justify-center gap-1"
                             >
                               <Copy className="w-3 h-3" />
@@ -1030,7 +1034,7 @@ export default function SelfKycDeskPage({
                               </td>
                               <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
                                 <a
-                                  href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`}
+                                  href={`/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}${inv.candidateName ? `&name=${encodeURIComponent(inv.candidateName)}` : ""}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="px-2.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
@@ -1048,7 +1052,7 @@ export default function SelfKycDeskPage({
                                   <span>WhatsApp</span>
                                 </button>
                                 <button
-                                  onClick={() => handleCopyInviteUrl(inv.id)}
+                                  onClick={() => handleCopyInviteUrl(inv.id, inv.candidateName)}
                                   className="px-2.5 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                                   title="Copy self-onboard link"
                                 >
