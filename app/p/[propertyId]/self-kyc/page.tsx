@@ -362,8 +362,20 @@ export default function SelfKycDeskPage({
       return;
     }
     const cleanPhone = inviteCandidatePhone.replace(/\D/g, "");
-    if (cleanPhone.length !== 10) {
+    const cleanEmail = inviteCandidateEmail.trim().toLowerCase();
+
+    if (!cleanPhone && !cleanEmail) {
+      triggerToast("Please provide at least a Mobile Number (for WhatsApp) or an Email Address.", "error");
+      return;
+    }
+
+    if (cleanPhone && cleanPhone.length !== 10) {
       triggerToast("Mobile phone number must be exactly 10 digits.", "error");
+      return;
+    }
+
+    if (cleanEmail && (!cleanEmail.includes("@") || !cleanEmail.includes("."))) {
+      triggerToast("Please enter a valid email address.", "error");
       return;
     }
 
@@ -377,7 +389,7 @@ export default function SelfKycDeskPage({
       return;
     }
 
-    if (existingResidentConflict) {
+    if (cleanPhone && existingResidentConflict) {
       triggerToast(
         `This mobile number is already registered with ${existingResidentConflict.name} in Room ${existingResidentConflict.roomNumber}.`,
         "error"
@@ -385,7 +397,7 @@ export default function SelfKycDeskPage({
       return;
     }
 
-    if (existingResidentEmailConflict) {
+    if (cleanEmail && existingResidentEmailConflict) {
       triggerToast(
         `This email address is already registered with ${existingResidentEmailConflict.name} in Room ${existingResidentEmailConflict.roomNumber}.`,
         "error"
@@ -396,7 +408,7 @@ export default function SelfKycDeskPage({
     setInviteDispatchLoading(true);
 
     const token = `inv-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const fullPhone = `${inviteCountryCode} ${cleanPhone}`;
+    const fullPhone = cleanPhone ? `${inviteCountryCode} ${cleanPhone}` : "";
 
     const newInvite: SelfKycInvite = {
       id: token,
@@ -409,10 +421,10 @@ export default function SelfKycDeskPage({
       guestDailyRate: inviteStayType === "Guest" ? Math.round(inviteRentAmount / 30) : undefined,
       candidateName: inviteCandidateName.trim(),
       candidatePhone: fullPhone,
-      candidateEmail: inviteCandidateEmail.trim() || undefined,
+      candidateEmail: cleanEmail || undefined,
       status: "ACTIVE",
-      whatsappStatus: "SENT",
-      emailStatus: inviteCandidateEmail ? "SENT" : undefined,
+      whatsappStatus: cleanPhone ? "SENT" : undefined,
+      emailStatus: cleanEmail ? "SENT" : undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -437,32 +449,34 @@ export default function SelfKycDeskPage({
         `${inviteLink}\n\n` +
         `Takes under 2 minutes. Once submitted, management will approve your check-in!`;
 
-      // 1. Dispatch WhatsApp via backend gateway
-      await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyId,
-          messages: [
-            {
-              toPhone: cleanPhone,
-              recipientName: newInvite.candidateName,
-              propertyId,
-              propertyName: propName,
-              type: "ONBOARDING_INVITE",
-              params: {
-                roomNumber: newInvite.roomNumber,
-                bedCode: newInvite.bedCode,
-                amount: newInvite.rentAmount,
-                onboardUrl: inviteLink,
-                customMessage: waMsg,
+      // 1. Dispatch WhatsApp via backend gateway (if mobile was provided)
+      if (cleanPhone) {
+        await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            messages: [
+              {
+                toPhone: cleanPhone,
+                recipientName: newInvite.candidateName,
+                propertyId,
+                propertyName: propName,
+                type: "ONBOARDING_INVITE",
+                params: {
+                  roomNumber: newInvite.roomNumber,
+                  bedCode: newInvite.bedCode,
+                  amount: newInvite.rentAmount,
+                  onboardUrl: inviteLink,
+                  customMessage: waMsg,
+                },
               },
-            },
-          ],
-        }),
-      }).catch((e) => console.warn("WhatsApp dispatch API error:", e));
+            ],
+          }),
+        }).catch((e) => console.warn("WhatsApp dispatch API error:", e));
+      }
 
-      // 2. Dispatch Email via Amazon SES if candidate email is provided
+      // 2. Dispatch Email via Zoho / Brevo / SES if candidate email is provided
       if (newInvite.candidateEmail) {
         await fetch("/api/email/send", {
           method: "POST",
@@ -495,8 +509,12 @@ export default function SelfKycDeskPage({
     setShowInviteModal(false);
     setActiveTab("INVITES");
     setInvites((prev) => [newInvite, ...prev.filter((i) => i.id !== newInvite.id)]);
-    const emailNotice = newInvite.candidateEmail ? " & Email" : "";
-    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via WhatsApp${emailNotice}! Room ${inviteRoomNumber} (${formatBedLabel(inviteBedCode)}) is now ON HOLD 🔒`);
+    const dispatchMethod = cleanPhone && newInvite.candidateEmail
+      ? "WhatsApp & Email"
+      : cleanPhone
+      ? "WhatsApp"
+      : "Email";
+    triggerToast(`✅ Self-KYC invite sent to ${newInvite.candidateName} via ${dispatchMethod}! Room ${inviteRoomNumber} (${formatBedLabel(inviteBedCode)}) is now ON HOLD 🔒`);
   };
 
   // 1-Tap Share Invite Directly via WhatsApp Web / App
@@ -504,7 +522,7 @@ export default function SelfKycDeskPage({
     const origin = getCanonicalPortalOrigin();
     const nameParam = inv.candidateName ? `&name=${encodeURIComponent(inv.candidateName)}` : "";
     const url = `${origin}/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}${nameParam}`;
-    const cleanDigits = inv.candidatePhone.replace(/\D/g, "");
+    const cleanDigits = (inv.candidatePhone || "").replace(/\D/g, "");
     const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
     const settings = propertySettingsStore.getSettings(propertyId);
     const propName = settings?.propertyName || "Ramesh Residencies";
@@ -877,7 +895,9 @@ export default function SelfKycDeskPage({
                                 </span>
                                 <span className="font-bold text-sm text-gray-900">{inv.candidateName}</span>
                               </div>
-                              <p className="font-mono text-xs text-gray-600 mt-0.5">{inv.candidatePhone}</p>
+                              <p className="font-mono text-xs text-gray-600 mt-0.5">
+                                {inv.candidatePhone || (inv.candidateEmail ? <span className="font-sans text-gray-500">{inv.candidateEmail}</span> : "Invite link")}
+                              </p>
                             </div>
                             <span className="font-mono font-bold text-[#c2652a] text-xs">
                               ₹{(inv.rentAmount ?? 0).toLocaleString("en-IN")}/mo
@@ -898,9 +918,17 @@ export default function SelfKycDeskPage({
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                                 <span>⚠️</span> Correction Requested
                               </span>
-                            ) : (
+                            ) : inv.candidatePhone && inv.candidateEmail ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <Check className="w-3 h-3 text-emerald-600" /> WhatsApp & Email
+                              </span>
+                            ) : inv.candidatePhone ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                                 <Check className="w-3 h-3 text-emerald-600" /> WhatsApp Sent
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                <Check className="w-3 h-3 text-blue-600" /> Email Sent
                               </span>
                             )}
                           </div>
@@ -985,7 +1013,11 @@ export default function SelfKycDeskPage({
                                 </div>
                               </td>
                               <td className="py-3.5 px-4 font-mono font-semibold text-gray-700">
-                                <div>{inv.candidatePhone}</div>
+                                {inv.candidatePhone ? (
+                                  <div>{inv.candidatePhone}</div>
+                                ) : (
+                                  <div className="text-gray-400 font-sans italic text-xs">No phone (Email invite)</div>
+                                )}
                                 {inv.candidateEmail && (
                                   <div className="text-[10px] font-sans text-gray-400">{inv.candidateEmail}</div>
                                 )}
@@ -1019,14 +1051,21 @@ export default function SelfKycDeskPage({
                                   </div>
                                 ) : (
                                   <div className="flex flex-col gap-1 items-start">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                      <span>WhatsApp Sent</span>
-                                    </span>
+                                    {inv.candidatePhone && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                        <Check className="w-3 h-3 text-emerald-600" />
+                                        <span>WhatsApp Sent</span>
+                                      </span>
+                                    )}
                                     {inv.candidateEmail && (
                                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
                                         <Check className="w-3 h-3 text-blue-600" />
                                         <span>Email Sent</span>
+                                      </span>
+                                    )}
+                                    {!inv.candidatePhone && !inv.candidateEmail && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
+                                        <span>Link Ready</span>
                                       </span>
                                     )}
                                   </div>
@@ -1453,7 +1492,12 @@ export default function SelfKycDeskPage({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">Candidate Mobile Phone *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-gray-700">Candidate Mobile Phone</label>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      WhatsApp Dispatch
+                    </span>
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -1463,9 +1507,8 @@ export default function SelfKycDeskPage({
                     />
                     <input
                       type="tel"
-                      required
                       maxLength={10}
-                      placeholder="9876543210"
+                      placeholder="9876543210 (Optional if email entered)"
                       value={inviteCandidatePhone}
                       onChange={(e) => setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
@@ -1489,10 +1532,15 @@ export default function SelfKycDeskPage({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">Email Address (Optional)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-gray-700">Email Address</label>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Email Invite
+                    </span>
+                  </div>
                   <input
                     type="email"
-                    placeholder="candidate@example.com"
+                    placeholder="candidate@example.com (Optional if mobile entered)"
                     value={inviteCandidateEmail}
                     onChange={(e) => setInviteCandidateEmail(e.target.value)}
                     className={`w-full px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
@@ -1512,6 +1560,9 @@ export default function SelfKycDeskPage({
                       </div>
                     </div>
                   )}
+                  <p className="text-[11px] text-gray-500 mt-1.5 leading-tight">
+                    * Provide at least <strong>Mobile Number</strong> (for WhatsApp invite) or <strong>Email Address</strong>.
+                  </p>
                 </div>
               </div>
 

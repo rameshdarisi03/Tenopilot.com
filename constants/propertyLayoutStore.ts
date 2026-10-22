@@ -15,7 +15,7 @@ export interface BedSlotConfig {
   guestCheckoutDate?: string;
   holdCandidate?: {
     name: string;
-    phone: string;
+    phone?: string;
     email?: string;
     inviteId?: string;
     heldAt?: string;

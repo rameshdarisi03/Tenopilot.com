@@ -76,10 +76,10 @@ export interface SelfKycInvite {
   securityDeposit?: number;
   guestDailyRate?: number;
   candidateName: string;
-  candidatePhone: string;
+  candidatePhone?: string;
   candidateEmail?: string;
   status: "ACTIVE" | "COMPLETED" | "REVOKED";
-  whatsappStatus: "SENT" | "DELIVERED" | "FAILED" | "PENDING";
+  whatsappStatus?: "SENT" | "DELIVERED" | "FAILED" | "PENDING" | "SKIPPED";
   emailStatus?: "SENT" | "FAILED" | "PENDING";
   createdAt: string;
 }
@@ -416,7 +416,7 @@ export const selfKycStore = {
               status: "Hold" as const,
               holdCandidate: {
                 name: invite.candidateName,
-                phone: invite.candidatePhone,
+                phone: invite.candidatePhone || "",
                 email: invite.candidateEmail,
                 inviteId: invite.id,
                 heldAt: invite.createdAt,

@@ -401,6 +401,18 @@ export default function TenantSelfOnboardingPage({
     }
 
     const cleanCandPhone = (invite?.candidatePhone || phone).replace(/\D/g, "").slice(-10);
+    if (cleanCandPhone.length !== 10) {
+      setErrorMessage("Please enter a valid 10-digit mobile phone number.");
+      return;
+    }
+
+    if (!invite?.candidatePhone && isPhoneAlreadyRegistered) {
+      setErrorMessage(
+        "This mobile number is already registered with another resident in this property. If this is your number, please contact property management."
+      );
+      return;
+    }
+
     if (cleanEmerPhone === cleanCandPhone) {
       setErrorMessage("Emergency contact phone number cannot be the same as your primary mobile number.");
       return;
@@ -436,7 +448,7 @@ export default function TenantSelfOnboardingPage({
         guestCheckoutDate: invite.stayType === "Guest" ? guestCheckoutDate : undefined,
         joiningDate: joiningDate || new Date().toISOString().split("T")[0],
         name: cleanName,
-        phone: invite.candidatePhone || phone,
+        phone: invite.candidatePhone || `+91 ${cleanCandPhone}`,
         countryCode: "+91",
         email: email.trim() ? sanitizeEmailAddress(email) : undefined,
         emergencyContact: {
@@ -728,18 +740,42 @@ export default function TenantSelfOnboardingPage({
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-1">Mobile Phone Number *</label>
-                  <input
-                    type="tel"
-                    disabled
-                    value={
-                      invite.candidatePhone
-                        ? invite.candidatePhone.startsWith("+")
+                  {invite.candidatePhone ? (
+                    <input
+                      type="tel"
+                      disabled
+                      value={
+                        invite.candidatePhone.startsWith("+")
                           ? invite.candidatePhone
                           : `+91 ${invite.candidatePhone}`
-                        : ""
-                    }
-                    className="w-full px-3.5 py-2.5 bg-gray-100 rounded-xl border border-gray-200 font-mono font-bold text-gray-700 cursor-not-allowed"
-                  />
+                      }
+                      className="w-full px-3.5 py-2.5 bg-gray-100 rounded-xl border border-gray-200 font-mono font-bold text-gray-700 cursor-not-allowed"
+                    />
+                  ) : (
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-mono font-bold text-xs">
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        required
+                        maxLength={10}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        placeholder="10-digit mobile number"
+                        className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
+                          isPhoneAlreadyRegistered
+                            ? "border-rose-500 bg-rose-50/40 text-rose-950 focus:border-rose-500"
+                            : "border-gray-300 focus:border-[#c2652a]"
+                        }`}
+                      />
+                    </div>
+                  )}
+                  {!invite.candidatePhone && isPhoneAlreadyRegistered && (
+                    <p className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1.5 animate-in fade-in">
+                      <span>⚠️</span> This mobile number is already registered with another resident in this property.
+                    </p>
+                  )}
                 </div>
 
                 <div>
