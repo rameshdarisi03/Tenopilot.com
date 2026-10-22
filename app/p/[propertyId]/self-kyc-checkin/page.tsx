@@ -110,54 +110,38 @@ export default function WalkInSelfKycCheckinPage({
   const propertySettings = propertySettingsStore.getSettings(propertyId);
   const propertyName = propertySettings?.propertyName || "Ramesh Residencies";
 
-  // Existing active residents (phone & email maps) to block duplicate mobile numbers and emails within the same property
-  const [existingResidentMap, setExistingResidentMap] = useState<
-    Map<string, { name: string; roomNumber: string; bedCode: string }>
-  >(new Map());
-  const [existingResidentEmailMap, setExistingResidentEmailMap] = useState<
-    Map<string, { name: string; roomNumber: string; bedCode: string }>
-  >(new Map());
+  // Existing active residents (phone & email sets) to block duplicate registration on public desk check-in without exposing PII
+  const [existingResidentPhones, setExistingResidentPhones] = useState<Set<string>>(new Set());
+  const [existingResidentEmails, setExistingResidentEmails] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!propertyId) return;
 
-    const buildMaps = (occupantsList: any[]) => {
-      const pMap = new Map<string, { name: string; roomNumber: string; bedCode: string }>();
-      const eMap = new Map<string, { name: string; roomNumber: string; bedCode: string }>();
+    const buildSets = (occupantsList: any[]) => {
+      const pSet = new Set<string>();
+      const eSet = new Set<string>();
       occupantsList.forEach((occ) => {
         if (occ.lifecycleStatus !== "Past") {
           if (occ.phone) {
             const digits = String(occ.phone).replace(/\D/g, "").slice(-10);
-            if (digits.length === 10) {
-              pMap.set(digits, {
-                name: occ.name || "Active Resident",
-                roomNumber: occ.roomNumber || "",
-                bedCode: occ.bedCode || "",
-              });
-            }
+            if (digits.length === 10) pSet.add(digits);
           }
           if (occ.email) {
             const cleanEm = String(occ.email).trim().toLowerCase();
-            if (cleanEm.length > 3 && cleanEm.includes("@")) {
-              eMap.set(cleanEm, {
-                name: occ.name || "Active Resident",
-                roomNumber: occ.roomNumber || "",
-                bedCode: occ.bedCode || "",
-              });
-            }
+            if (cleanEm.length > 3 && cleanEm.includes("@")) eSet.add(cleanEm);
           }
         }
       });
-      return { pMap, eMap };
+      return { pSet, eSet };
     };
 
     // 1. Instantly populate from occupantStore if cached
     try {
       const localOccs = occupantStore.getOccupants(propertyId);
       if (localOccs && localOccs.length > 0) {
-        const { pMap, eMap } = buildMaps(localOccs);
-        setExistingResidentMap(pMap);
-        setExistingResidentEmailMap(eMap);
+        const { pSet, eSet } = buildSets(localOccs);
+        setExistingResidentPhones(pSet);
+        setExistingResidentEmails(eSet);
       }
     } catch {}
 
@@ -168,9 +152,9 @@ export default function WalkInSelfKycCheckinPage({
         const fromFs: any[] = [];
         snap.docs.forEach((d) => fromFs.push(d.data()));
         if (fromFs.length > 0) {
-          const { pMap, eMap } = buildMaps(fromFs);
-          setExistingResidentMap(pMap);
-          setExistingResidentEmailMap(eMap);
+          const { pSet, eSet } = buildSets(fromFs);
+          setExistingResidentPhones(pSet);
+          setExistingResidentEmails(eSet);
         }
       } catch (e) {
         console.warn("Notice checking existing occupants:", e);
@@ -199,18 +183,17 @@ export default function WalkInSelfKycCheckinPage({
   }, [cleanCandidateMobile, cleanEmergencyDigits]);
 
   // Validation: On public walk-in form, primary mobile must not already belong to an active resident
-  const phoneConflict = useMemo(() => {
+  const isPhoneAlreadyRegistered = useMemo(() => {
     const digits = phone.replace(/\D/g, "").slice(-10);
-    if (digits.length !== 10) return null;
-    return existingResidentMap.get(digits) || null;
-  }, [phone, existingResidentMap]);
+    return digits.length === 10 && existingResidentPhones.has(digits);
+  }, [phone, existingResidentPhones]);
 
   // Validation: Email must not already belong to an active resident
-  const emailConflict = useMemo(() => {
+  const isEmailAlreadyRegistered = useMemo(() => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes("@")) return null;
-    return existingResidentEmailMap.get(cleanEmail) || null;
-  }, [email, existingResidentEmailMap]);
+    if (!cleanEmail || !cleanEmail.includes("@")) return false;
+    return existingResidentEmails.has(cleanEmail);
+  }, [email, existingResidentEmails]);
 
   // Filter all Available beds across floors and rooms
   const availableBeds = useMemo(() => {
@@ -341,16 +324,16 @@ export default function WalkInSelfKycCheckinPage({
       return;
     }
 
-    if (phoneConflict) {
+    if (isPhoneAlreadyRegistered) {
       setErrorMessage(
-        `This mobile number is already registered with an active resident in this property (${phoneConflict.name} in Room ${phoneConflict.roomNumber}).`
+        "This mobile number is already registered with another resident in this property. If this is your number, please contact property management."
       );
       return;
     }
 
-    if (emailConflict) {
+    if (isEmailAlreadyRegistered) {
       setErrorMessage(
-        `This email address is already registered with an active resident in this property (${emailConflict.name} in Room ${emailConflict.roomNumber}).`
+        "This email address is already registered with another resident in this property. If this is your email, please contact property management."
       );
       return;
     }
@@ -730,15 +713,15 @@ export default function WalkInSelfKycCheckinPage({
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                       placeholder="98765 43210"
                       className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
-                        phoneConflict
+                        isPhoneAlreadyRegistered
                           ? "border-rose-500 bg-rose-50/40 text-rose-950 focus:border-rose-500"
                           : "border-gray-300 focus:border-[#c2652a]"
                       }`}
                     />
                   </div>
-                  {phoneConflict && (
+                  {isPhoneAlreadyRegistered && (
                     <p className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1.5 animate-in fade-in">
-                      <span>⚠️</span> This mobile number is already registered with <strong>{phoneConflict.name}</strong> in Room {phoneConflict.roomNumber} ({formatBedLabel(phoneConflict.bedCode)}).
+                      <span>⚠️</span> This mobile number is already registered with another resident in this property.
                     </p>
                   )}
                 </div>
@@ -751,14 +734,14 @@ export default function WalkInSelfKycCheckinPage({
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="For receipts and notifications"
                     className={`w-full px-3.5 py-2.5 rounded-xl border font-medium text-gray-900 focus:ring-2 transition-colors ${
-                      emailConflict
+                      isEmailAlreadyRegistered
                         ? "border-rose-500 bg-rose-50/40 text-rose-950 focus:border-rose-500 focus:ring-rose-200"
                         : "border-gray-300 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
                     }`}
                   />
-                  {emailConflict && (
+                  {isEmailAlreadyRegistered && (
                     <p className="text-xs text-rose-600 font-semibold flex items-center gap-1 mt-1.5 animate-in fade-in">
-                      <span>⚠️</span> This email address is already registered with <strong>{emailConflict.name}</strong> in Room {emailConflict.roomNumber} ({formatBedLabel(emailConflict.bedCode)}).
+                      <span>⚠️</span> This email address is already registered with another resident in this property.
                     </p>
                   )}
                 </div>
@@ -1074,7 +1057,7 @@ export default function WalkInSelfKycCheckinPage({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting || isEmergencySameAsMobile || Boolean(phoneConflict || emailConflict)}
+              disabled={submitting || isEmergencySameAsMobile || isPhoneAlreadyRegistered || isEmailAlreadyRegistered}
               className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               {submitting ? (
