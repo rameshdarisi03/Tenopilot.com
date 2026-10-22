@@ -10,6 +10,9 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
+  query,
+  where,
   onSnapshot,
 } from "firebase/firestore";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -760,6 +763,11 @@ export const selfKycStore = {
     target.rejectionReason = reason;
     target.reviewedAt = new Date().toISOString();
 
+    // Clean up large image data from memory cache so garbage does not pile up
+    delete target.photoUrl;
+    delete target.aadhaarFrontUrl;
+    delete target.aadhaarBackUrl;
+
     SUBMISSIONS_CACHE.set(propertyId, [...list]);
     saveLocalCache(propertyId, "subs");
 
@@ -796,9 +804,59 @@ export const selfKycStore = {
         status: "REJECTED",
         rejectionReason: reason,
         reviewedAt: target.reviewedAt,
+        photoUrl: deleteField(),
+        aadhaarFrontUrl: deleteField(),
+        aadhaarBackUrl: deleteField(),
       });
     } catch (e) {
-      console.warn(e);
+      console.warn("Firestore rejection cleanup notice:", e);
     }
+  },
+
+  // 6. Fetch Latest Prior Submission for Invite (Pre-fills correction forms so residents don't re-type)
+  async fetchLatestSubmissionForInviteAsync(
+    propertyId: string,
+    inviteId: string
+  ): Promise<SelfKycSubmission | null> {
+    if (!inviteId) return null;
+
+    // 1. Check local cache
+    const cached = SUBMISSIONS_CACHE.get(propertyId) || [];
+    const localMatch = cached
+      .filter((s) => s.inviteId === inviteId)
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
+    if (localMatch) return localMatch;
+
+    // 2. Check localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(`tenopilot_self_kyc_subs_${propertyId}`);
+        if (raw) {
+          const list: SelfKycSubmission[] = JSON.parse(raw);
+          const match = list
+            .filter((s) => s.inviteId === inviteId)
+            .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
+          if (match) return match;
+        }
+      } catch (e) {}
+    }
+
+    // 3. Query Firestore properties/{propertyId}/self_kyc_submissions
+    try {
+      const q = query(
+        collection(db, "properties", propertyId, "self_kyc_submissions"),
+        where("inviteId", "==", inviteId)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const docs = snap.docs.map((d) => d.data() as SelfKycSubmission);
+        docs.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+        return docs[0];
+      }
+    } catch (e) {
+      console.warn("Firestore latest submission query notice:", e);
+    }
+
+    return null;
   },
 };

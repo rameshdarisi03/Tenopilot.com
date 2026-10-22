@@ -21,6 +21,7 @@ import {
   Plus,
   Trash2,
   AlertCircle,
+  AlertTriangle,
   Building2,
   Bed as BedIcon,
   Clock,
@@ -102,6 +103,7 @@ export default function TenantSelfOnboardingPage({
   const [highlightResidentTerms, setHighlightResidentTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
 
   const selfieInputRef = useRef<HTMLInputElement>(null);
   const frontInputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +136,33 @@ export default function TenantSelfOnboardingPage({
           setSelectedRoomNumber(inv.roomNumber || "");
           setSelectedBedCode(inv.bedCode || "");
           setSelectedBedTariff(inv.rentAmount || 0);
+
+          // Check for previously submitted data to pre-fill all fields on correction/re-upload
+          try {
+            const prevSub = await selfKycStore.fetchLatestSubmissionForInviteAsync(resolvedPropId, inv.id);
+            if (prevSub) {
+              if (prevSub.name && !resolvedName) setCandidateName(prevSub.name);
+              if (prevSub.phone && !inv.candidatePhone) setPhone(prevSub.phone.replace(/\D/g, "").slice(-10));
+              if (prevSub.email && !inv.candidateEmail) setEmail(prevSub.email);
+              if (prevSub.workplace) setWorkplace(prevSub.workplace);
+              if (prevSub.emergencyContact?.phone) {
+                setEmergencyPhone(prevSub.emergencyContact.phone.replace(/\D/g, "").slice(-10));
+              }
+              if (prevSub.emergencyContact?.name) {
+                setEmergencyName(prevSub.emergencyContact.name);
+              }
+              if (prevSub.vehicleNumbers && prevSub.vehicleNumbers.length > 0) {
+                setVehicleNumbers(prevSub.vehicleNumbers);
+              }
+              if (prevSub.joiningDate) setJoiningDate(prevSub.joiningDate);
+              if (prevSub.purposeOfVisit) setPurposeOfVisit(prevSub.purposeOfVisit);
+              if (prevSub.guestCheckoutDate) setGuestCheckoutDate(prevSub.guestCheckoutDate);
+              if (prevSub.rejectionReason) setCorrectionReason(prevSub.rejectionReason);
+            }
+          } catch (prevErr) {
+            console.warn("Failed to load prior submission for prefill:", prevErr);
+          }
+
           setStep("INVITE_FORM");
         } else {
           // If no specific invite exists, open the pre-joining walk-in onboarding form directly.
@@ -650,6 +679,22 @@ export default function TenantSelfOnboardingPage({
                 You're completing official digital check-in for <span className="font-bold underline">{propertyName}</span>. Please verify your details and upload your verification proofs below.
               </p>
             </div>
+
+            {/* Correction Reason Alert Banner */}
+            {correctionReason && (
+              <div className="p-4 sm:p-5 bg-amber-50 rounded-3xl border border-amber-300 text-amber-950 space-y-2 animate-in fade-in shadow-sm">
+                <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Management Requested Correction</span>
+                </div>
+                <div className="bg-white/90 p-3 rounded-2xl border border-amber-200 text-xs font-semibold text-amber-900 leading-relaxed">
+                  "{correctionReason}"
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  ✓ Your previously entered personal, workplace, and emergency contact details have been restored below. Please review/update the requested items and re-upload your verification photo / documents.
+                </p>
+              </div>
+            )}
 
             {/* Pre-Locked Stay Type, Room & Tariff Card (ZERO BANK DETAILS EXPOSED) */}
             <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-sm space-y-4">
