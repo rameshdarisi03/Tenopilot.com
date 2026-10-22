@@ -907,18 +907,6 @@ export default function WalkInSelfKycCheckinPage({
               </h2>
 
               <div className="space-y-3.5 text-xs">
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Aadhaar Number (Last 4 digits or Full)</label>
-                  <input
-                    type="text"
-                    maxLength={14}
-                    value={aadhaarNumber}
-                    onChange={(e) => setAadhaarNumber(e.target.value)}
-                    placeholder="XXXX-XXXX-4772"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
                 {/* Live Selfie Capture */}
                 <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
                   <div className="flex items-center justify-between">

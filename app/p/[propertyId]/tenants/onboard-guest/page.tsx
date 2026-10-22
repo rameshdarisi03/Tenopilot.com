@@ -1044,9 +1044,10 @@ export default function OnboardGuestPage({
                       Total Stay Tariff (₹) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       required
-                      value={totalTariff ? totalTariff : ""}
+                      value={totalTariff ? String(totalTariff) : ""}
                       placeholder="0"
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, "");
@@ -1061,8 +1062,9 @@ export default function OnboardGuestPage({
                       Security Deposit (₹)
                     </label>
                     <input
-                      type="number"
-                      value={depositAmount ? depositAmount : ""}
+                      type="text"
+                      inputMode="numeric"
+                      value={depositAmount ? String(depositAmount) : ""}
                       placeholder="0"
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, "");

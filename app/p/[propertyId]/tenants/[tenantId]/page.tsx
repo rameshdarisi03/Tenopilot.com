@@ -4564,10 +4564,15 @@ export default function IndividualTenantProfilePage({
                       Monthly Rent (₹) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       required
-                      value={editRent}
-                      onChange={(e) => setEditRent(Number(e.target.value))}
+                      value={editRent ? String(editRent) : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setEditRent(val === "" ? 0 : parseInt(val, 10));
+                      }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
                   </div>
@@ -4577,10 +4582,15 @@ export default function IndividualTenantProfilePage({
                       Security Deposit (₹) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       required
-                      value={editDeposit}
-                      onChange={(e) => setEditDeposit(Number(e.target.value))}
+                      value={editDeposit ? String(editDeposit) : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setEditDeposit(val === "" ? 0 : parseInt(val, 10));
+                      }}
                       className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
                   </div>

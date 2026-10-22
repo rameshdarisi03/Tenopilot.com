@@ -1176,9 +1176,10 @@ export default function OnboardTenantPage({
                     Security Deposit (₹) *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     required
-                    value={depositAmount ? depositAmount : ""}
+                    value={depositAmount ? String(depositAmount) : ""}
                     placeholder="0"
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, "");
@@ -1434,9 +1435,10 @@ export default function OnboardTenantPage({
                   </div>
 
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     required
-                    value={monthlyRent ? monthlyRent : ""}
+                    value={monthlyRent ? String(monthlyRent) : ""}
                     placeholder="0"
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, "");
@@ -1463,8 +1465,9 @@ export default function OnboardTenantPage({
                       <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 rounded-lg px-2 py-0.5">
                         <span className="text-[10px] font-bold text-gray-600">Rent: ₹</span>
                         <input
-                          type="number"
-                          value={monthlyRent ? monthlyRent : ""}
+                          type="text"
+                          inputMode="numeric"
+                          value={monthlyRent ? String(monthlyRent) : ""}
                           placeholder="0"
                           onChange={(e) => {
                             const val = e.target.value.replace(/\D/g, "");
@@ -1494,8 +1497,9 @@ export default function OnboardTenantPage({
                         <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1 shadow-2xs">
                           <span className="text-xs font-bold text-gray-600">Rent: ₹</span>
                           <input
-                            type="number"
-                            value={monthlyRent ? monthlyRent : ""}
+                            type="text"
+                            inputMode="numeric"
+                            value={monthlyRent ? String(monthlyRent) : ""}
                             placeholder="0"
                             onChange={(e) => {
                               const val = e.target.value.replace(/\D/g, "");

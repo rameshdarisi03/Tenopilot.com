@@ -1573,10 +1573,15 @@ export default function SelfKycDeskPage({
                     Monthly Rent (₹) *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     required
-                    value={inviteRentAmount}
-                    onChange={(e) => setInviteRentAmount(Number(e.target.value))}
+                    value={inviteRentAmount ? String(inviteRentAmount) : ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setInviteRentAmount(val === "" ? 0 : parseInt(val, 10));
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
                 </div>
@@ -1587,10 +1592,15 @@ export default function SelfKycDeskPage({
                       Security Deposit (₹) *
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       required
-                      value={inviteDepositAmount}
-                      onChange={(e) => setInviteDepositAmount(Number(e.target.value))}
+                      value={inviteDepositAmount ? String(inviteDepositAmount) : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setInviteDepositAmount(val === "" ? 0 : parseInt(val, 10));
+                      }}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
                   </div>
@@ -1600,8 +1610,8 @@ export default function SelfKycDeskPage({
                       Suggested Daily Rate (₹)
                     </label>
                     <input
-                      type="number"
-                      value={Math.round(inviteRentAmount / 30)}
+                      type="text"
+                      value={inviteRentAmount ? Math.round(inviteRentAmount / 30) : 0}
                       disabled
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-100 text-xs font-mono font-bold text-gray-500"
                     />
