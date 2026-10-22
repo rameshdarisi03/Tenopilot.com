@@ -367,6 +367,16 @@ export default function SelfKycDeskPage({
       return;
     }
 
+    if (inviteCandidateName.trim().length === 0) {
+      triggerToast("Please enter candidate's full legal name.", "error");
+      return;
+    }
+
+    if (inviteCandidateName.includes("@")) {
+      triggerToast("Please enter candidate's legal name, not an email address.", "error");
+      return;
+    }
+
     if (existingResidentConflict) {
       triggerToast(
         `This mobile number is already registered with ${existingResidentConflict.name} in Room ${existingResidentConflict.roomNumber}.`,
@@ -1419,12 +1429,23 @@ export default function SelfKycDeskPage({
                   <label className="block font-bold text-gray-700 mb-1">Candidate Full Name *</label>
                   <input
                     type="text"
+                    name="candidateName"
+                    autoComplete="off"
                     required
-                    placeholder="e.g. John Doe"
+                    placeholder="e.g. Rahul Sharma"
                     value={inviteCandidateName}
                     onChange={(e) => setInviteCandidateName(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 ${
+                      inviteCandidateName.includes("@")
+                        ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-[#c2652a]"
+                    }`}
                   />
+                  {inviteCandidateName.includes("@") && (
+                    <p className="text-[11px] text-red-600 font-semibold mt-1">
+                      ⚠️ Please enter the resident's legal name, not their email address.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1543,7 +1564,7 @@ export default function SelfKycDeskPage({
                 </button>
                 <button
                   type="submit"
-                  disabled={inviteDispatchLoading || availableBeds.length === 0 || Boolean(existingResidentConflict || existingResidentEmailConflict)}
+                  disabled={inviteDispatchLoading || availableBeds.length === 0 || inviteCandidateName.includes("@") || Boolean(existingResidentConflict || existingResidentEmailConflict)}
                   className="px-5 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                 >
                   {inviteDispatchLoading ? (

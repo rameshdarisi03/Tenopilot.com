@@ -48,6 +48,20 @@ const formatBedLabel = (bedCode?: string): string => {
   return /^bed\s+/i.test(trimmed) ? trimmed : `Bed ${trimmed}`;
 };
 
+const formatDisplayName = (name?: string): string => {
+  if (!name) return "";
+  const trimmed = name.trim();
+  if (trimmed.includes("@")) {
+    const userPart = trimmed.split("@")[0].replace(/[._-]+/g, " ");
+    return userPart
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+  }
+  return trimmed;
+};
+
 export default function TenantSelfOnboardingPage({
   params,
 }: {
@@ -98,7 +112,6 @@ export default function TenantSelfOnboardingPage({
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
   const [aadhaarFront, setAadhaarFront] = useState<string | null>(null);
   const [aadhaarBack, setAadhaarBack] = useState<string | null>(null);
-  const [signatureName, setSignatureName] = useState("");
   const [residentAgreedToTerms, setResidentAgreedToTerms] = useState(false);
   const [highlightResidentTerms, setHighlightResidentTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -124,10 +137,10 @@ export default function TenantSelfOnboardingPage({
           setInvite(inv);
           const resolvedPropId = result.propertyId || inv.propertyId || paramPropId || propertyId;
           setInvitePropertyId(resolvedPropId);
-          setCandidateName(inv.candidateName || "");
+          const cleanName = formatDisplayName(inv.candidateName || "");
+          setCandidateName(cleanName);
           setPhone(inv.candidatePhone || "");
           setEmail(inv.candidateEmail || "");
-          setSignatureName(inv.candidateName || "");
           setStayType(inv.stayType || "Tenant");
           setSelectedRoomNumber(inv.roomNumber || "");
           setSelectedBedCode(inv.bedCode || "");
@@ -244,9 +257,23 @@ export default function TenantSelfOnboardingPage({
     return existingResidentEmails.has(cleanEmail);
   }, [email, existingResidentEmails]);
 
-  // Property Branding & Name
-  const propertySettings = propertySettingsStore.getSettings(invitePropertyId || propertyId);
-  const propertyName = propertySettings?.propertyName || "Ramesh Residencies";
+  // Property Branding & Name (Synced with Firestore SSOT)
+  const [propSettings, setPropSettings] = useState(() =>
+    propertySettingsStore.getSettings(invitePropertyId || propertyId)
+  );
+
+  useEffect(() => {
+    const targetProp = invitePropertyId || propertyId;
+    if (!targetProp) return;
+    propertySettingsStore.initFirebaseListener(targetProp);
+    setPropSettings(propertySettingsStore.getSettings(targetProp));
+    const unsub = propertySettingsStore.subscribe(() => {
+      setPropSettings(propertySettingsStore.getSettings(targetProp));
+    });
+    return unsub;
+  }, [invitePropertyId, propertyId]);
+
+  const propertyName = propSettings?.propertyName || "Ramesh Residencies";
 
   // Compute available beds across floors for walk-in candidates
   const availableBeds = useMemo(() => {
@@ -564,12 +591,25 @@ export default function TenantSelfOnboardingPage({
 
   return (
     <div className="min-h-screen bg-[#fcf9f8] text-gray-900 font-sans flex flex-col justify-between p-4 sm:p-6">
-      {/* Top Brand Header */}
-      <header className="max-w-2xl w-full mx-auto flex items-center justify-between pb-6 border-b border-gray-200">
-        <TenoPilotLogo size="sm" />
-        <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-2xs">
-          <Lock className="w-3.5 h-3.5 text-emerald-600" />
-          <span>256-Bit Encrypted Self-KYC</span>
+      {/* Top Brand Header — PG First Architecture */}
+      <header className="max-w-2xl w-full mx-auto flex items-center justify-between pb-5 border-b border-gray-200/80">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#c2652a] to-amber-600 text-white flex items-center justify-center font-bold shadow-md shadow-[#c2652a]/20">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="font-serif font-bold text-base sm:text-lg text-gray-900 leading-tight">
+              {propertyName}
+            </h2>
+            <p className="text-[11px] font-semibold text-gray-500">
+              Official Resident Onboarding Portal
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-800 bg-emerald-50/90 px-3 py-1.5 rounded-full border border-emerald-200/80 shadow-2xs">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden sm:inline">256-Bit Encrypted KYC</span>
+          <span className="sm:hidden">Verified Desk</span>
         </div>
       </header>
 
@@ -599,10 +639,12 @@ export default function TenantSelfOnboardingPage({
                 </span>
               </div>
               <h1 className="font-serif font-bold text-2xl sm:text-3xl">
-                Welcome, {invite.candidateName}!
+                {candidateName && !candidateName.includes("@")
+                  ? `Welcome, ${formatDisplayName(candidateName)}!`
+                  : `Welcome to ${propertyName}!`}
               </h1>
               <p className="text-xs text-white/90">
-                You're completing digital onboarding for <span className="font-bold underline">{propertyName}</span>. Please verify your details and upload your ID proofs below.
+                You're completing official digital check-in for <span className="font-bold underline">{propertyName}</span>. Please verify your details and upload your verification proofs below.
               </p>
             </div>
 
@@ -683,12 +725,11 @@ export default function TenantSelfOnboardingPage({
                   <label className="block font-bold text-gray-700 mb-1">Full Legal Name *</label>
                   <input
                     type="text"
+                    name="fullName"
+                    autoComplete="name"
                     required
                     value={candidateName}
-                    onChange={(e) => {
-                      setCandidateName(e.target.value);
-                      if (!signatureName) setSignatureName(e.target.value);
-                    }}
+                    onChange={(e) => setCandidateName(e.target.value)}
                     placeholder="As shown on Aadhaar card"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
                   />
@@ -963,20 +1004,7 @@ export default function TenantSelfOnboardingPage({
                   </div>
                 </div>
 
-                {/* Digital Signature */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Electronic Signature (Type Your Full Legal Name) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={signatureName}
-                    onChange={(e) => setSignatureName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-serif font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    By submitting, I confirm that all provided details and identity documents are authentic.
-                  </p>
-                </div>
+
 
                 {/* Terms & House Rules Consent */}
                 <div
@@ -1201,12 +1229,11 @@ export default function TenantSelfOnboardingPage({
                   <label className="block font-bold text-gray-700 mb-1">Full Legal Name *</label>
                   <input
                     type="text"
+                    name="fullName"
+                    autoComplete="name"
                     required
                     value={candidateName}
-                    onChange={(e) => {
-                      setCandidateName(e.target.value);
-                      if (!signatureName) setSignatureName(e.target.value);
-                    }}
+                    onChange={(e) => setCandidateName(e.target.value)}
                     placeholder="As shown on Aadhaar card"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
                   />
@@ -1492,17 +1519,7 @@ export default function TenantSelfOnboardingPage({
                   </div>
                 </div>
 
-                {/* Signature */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">Electronic Signature (Type Your Full Legal Name) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={signatureName}
-                    onChange={(e) => setSignatureName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-serif font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
+
 
                 {/* Consent Checkbox */}
                 <div
@@ -1644,15 +1661,20 @@ export default function TenantSelfOnboardingPage({
             </div>
 
             <p className="text-[11px] text-gray-400">
-              You can now safely close this browser window. Welcome to TenoPilot!
+              You can now safely close this browser window. Welcome to {propertyName}!
             </p>
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="text-center text-[11px] text-gray-400 py-2">
-        Powered by TenoPilot Intelligent Property Operating System
+      {/* Footer — PG Branding First */}
+      <footer className="text-center text-[11px] text-gray-500 py-3 border-t border-gray-200/80 flex flex-col sm:flex-row items-center justify-between gap-1 max-w-2xl w-full mx-auto">
+        <span className="font-semibold text-gray-600">
+          © {new Date().getFullYear()} {propertyName} • Resident Care
+        </span>
+        <span className="text-[10px] text-gray-400">
+          Powered by TenoPilot Cloud OS
+        </span>
       </footer>
     </div>
   );

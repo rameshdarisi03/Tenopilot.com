@@ -87,7 +87,6 @@ export default function WalkInSelfKycCheckinPage({
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
   const [aadhaarFront, setAadhaarFront] = useState<string | null>(null);
   const [aadhaarBack, setAadhaarBack] = useState<string | null>(null);
-  const [signatureName, setSignatureName] = useState("");
   const [residentAgreedToTerms, setResidentAgreedToTerms] = useState(false);
   const [highlightResidentTerms, setHighlightResidentTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -107,8 +106,21 @@ export default function WalkInSelfKycCheckinPage({
     return unsubscribe;
   }, [propertyId]);
 
-  const propertySettings = propertySettingsStore.getSettings(propertyId);
-  const propertyName = propertySettings?.propertyName || "Ramesh Residencies";
+  const [propSettings, setPropSettings] = useState(() =>
+    propertySettingsStore.getSettings(propertyId)
+  );
+
+  useEffect(() => {
+    if (!propertyId) return;
+    propertySettingsStore.initFirebaseListener(propertyId);
+    setPropSettings(propertySettingsStore.getSettings(propertyId));
+    const unsub = propertySettingsStore.subscribe(() => {
+      setPropSettings(propertySettingsStore.getSettings(propertyId));
+    });
+    return unsub;
+  }, [propertyId]);
+
+  const propertyName = propSettings?.propertyName || "Ramesh Residencies";
 
   // Existing active residents (phone & email sets) to block duplicate registration on public desk check-in without exposing PII
   const [existingResidentPhones, setExistingResidentPhones] = useState<Set<string>>(new Set());
@@ -411,12 +423,25 @@ export default function WalkInSelfKycCheckinPage({
 
   return (
     <div className="min-h-screen bg-[#fcf9f8] text-gray-900 font-sans flex flex-col justify-between p-4 sm:p-6">
-      {/* Brand Header */}
-      <header className="max-w-2xl w-full mx-auto flex items-center justify-between pb-6 border-b border-gray-200">
-        <TenoPilotLogo size="sm" />
-        <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-2xs">
-          <Lock className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Reception Desk Check-In</span>
+      {/* Top Brand Header — PG First Architecture */}
+      <header className="max-w-2xl w-full mx-auto flex items-center justify-between pb-5 border-b border-gray-200/80">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#c2652a] to-amber-600 text-white flex items-center justify-center font-bold shadow-md shadow-[#c2652a]/20">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="font-serif font-bold text-base sm:text-lg text-gray-900 leading-tight">
+              {propertyName}
+            </h2>
+            <p className="text-[11px] font-semibold text-gray-500">
+              Official Walk-In Check-In Desk
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-800 bg-emerald-50/90 px-3 py-1.5 rounded-full border border-emerald-200/80 shadow-2xs">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden sm:inline">256-Bit Encrypted</span>
+          <span className="sm:hidden">Verified</span>
         </div>
       </header>
 
@@ -690,12 +715,11 @@ export default function WalkInSelfKycCheckinPage({
                   <label className="block font-bold text-gray-700 mb-1">Full Legal Name *</label>
                   <input
                     type="text"
+                    name="fullName"
+                    autoComplete="name"
                     required
                     value={fullName}
-                    onChange={(e) => {
-                      setFullName(e.target.value);
-                      if (!signatureName) setSignatureName(e.target.value);
-                    }}
+                    onChange={(e) => setFullName(e.target.value)}
                     placeholder="As shown on Aadhaar card"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 focus:border-[#c2652a]"
                   />
@@ -983,22 +1007,7 @@ export default function WalkInSelfKycCheckinPage({
                   </div>
                 </div>
 
-                {/* Digital Signature */}
-                <div>
-                  <label className="block font-bold text-gray-700 mb-1">
-                    Electronic Signature (Type Your Full Legal Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={signatureName}
-                    onChange={(e) => setSignatureName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-serif font-bold text-gray-900 text-sm focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    By submitting, I confirm that all provided details and identity documents are authentic.
-                  </p>
-                </div>
+
 
                 {/* Terms Consent */}
                 <div
@@ -1131,15 +1140,20 @@ export default function WalkInSelfKycCheckinPage({
             </div>
 
             <p className="text-[11px] text-gray-400">
-              You can now show this screen to the reception desk manager. Welcome to TenoPilot!
+              You can now show this screen to the reception desk manager. Welcome to {propertyName}!
             </p>
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="text-center text-[11px] text-gray-400 py-2">
-        Powered by TenoPilot Intelligent Property Operating System
+      {/* Footer — PG Branding First */}
+      <footer className="text-center text-[11px] text-gray-500 py-3 border-t border-gray-200/80 flex flex-col sm:flex-row items-center justify-between gap-1 max-w-2xl w-full mx-auto">
+        <span className="font-semibold text-gray-600">
+          © {new Date().getFullYear()} {propertyName} • Resident Care
+        </span>
+        <span className="text-[10px] text-gray-400">
+          Powered by TenoPilot Cloud OS
+        </span>
       </footer>
     </div>
   );
