@@ -71,7 +71,7 @@ const templates: { filename: string; title: string; params: SESSendParams }[] = 
       propertyName: "Arihant Luxury Living",
       type: "ONBOARDING_INVITE",
       params: {
-        onboardUrl: "https://tenopilot.com/self-onboard/inv-93821038",
+        onboardUrl: "https://www.tenopilot.com/self-onboard/inv-93821038",
       },
     },
   },
@@ -86,7 +86,7 @@ const templates: { filename: string; title: string; params: SESSendParams }[] = 
       type: "CHECKOUT_THANK_YOU",
       params: {
         receiptId: "SETTLE-49201",
-        receiptUrl: "https://tenopilot.com/api/receipt/pdf?receiptNo=SETTLE-49201",
+        receiptUrl: "https://www.tenopilot.com/api/receipt/pdf?receiptNo=SETTLE-49201",
         managerPhone: "+91 98765 43210",
       },
     },

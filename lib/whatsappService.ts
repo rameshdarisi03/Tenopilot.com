@@ -151,7 +151,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `Welcome to ${pName}! 🎉\n\n` +
         `Dear *${payload.recipientName}*,\n\n` +
         `We are delighted to welcome you to our community! To ensure a seamless check-in experience, please complete your digital resident registration and KYC:\n\n` +
-        `🔗 *Registration Link*: ${p.onboardUrl || "https://tenopilot.com"}\n\n` +
+        `🔗 *Registration Link*: ${p.onboardUrl || "https://www.tenopilot.com"}\n\n` +
         `Please have your photo ID handy. It takes only 2 minutes.\n\n` +
         `Warm regards,\n` +
         `*${pName} Administration*`
@@ -205,7 +205,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `• *Automated Reminders*: WhatsApp digital invoices & check-in KYC\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
         `👉 *Open Your Workspace*\n` +
-        `https://tenopilot.com/login\n\n` +
+        `https://www.tenopilot.com/login\n\n` +
         `🔐 *Quick Login Tip*:\n` +
         `Log in directly with your registered mobile number (*${ownerPhone}*)${ownerEmail ? ` or email (*${ownerEmail}*)` : ""} anytime to access your property dashboard.\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -237,7 +237,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
     case "KYC_CORRECTION_REQUEST": {
       const candidateName = payload.recipientName || "Resident";
       const reason = p.rejectionReason || p.customMessage || "Please re-upload clear identity documents.";
-      const reuploadUrl = p.onboardUrl || "https://tenopilot.com";
+      const reuploadUrl = p.onboardUrl || "https://www.tenopilot.com";
       const roomStay = p.roomNumber ? `Room ${p.roomNumber}${p.bedCode ? ` (${p.bedCode})` : ""}` : "Accommodation";
 
       return (
@@ -369,7 +369,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const receiptNoStr = p.receiptId || `RCP-${Date.now().toString().slice(-6)}`;
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
         const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
         const paidDateStr = p.paidDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -477,7 +477,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
         const pName = payload.propertyName || "Your Property";
         const fileName = `TenoPilot_Tax_Invoice_${invoiceNo}.pdf`;
-        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
+        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
 
         requestBody = {

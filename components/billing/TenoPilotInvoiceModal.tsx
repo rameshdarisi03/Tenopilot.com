@@ -117,7 +117,7 @@ export function TenoPilotInvoiceModal({
     `💎 *Plan*: ${planTitle}\n` +
     `💰 *Amount Paid*: ₹${totalAmount.toLocaleString("en-IN")}\n` +
     `✅ *Status*: PAID & VERIFIED\n\n` +
-    `Official Tax Invoice PDF: https://tenopilot.com${pdfDownloadUrl}\n\n` +
+    `Official Tax Invoice PDF: https://www.tenopilot.com${pdfDownloadUrl}\n\n` +
     `Thank you for choosing *TenoPilot OS*!`;
 
   const whatsAppShareUrl = buildWhatsAppUrl(

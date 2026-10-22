@@ -85,7 +85,7 @@ export default function ApexCommandInvitesPage() {
       `🎉 Welcome to TenoPilot!\n\n` +
         `Hi ${invite.ownerName}, your VIP onboarding pass for *${invite.pgName}* has been issued.\n\n` +
         `🔑 *1-Time Activation Code:* ${invite.activationCode}\n\n` +
-        `📲 Complete your 30-second setup here: https://tenopilot.com/signup\n\n` +
+        `📲 Complete your 30-second setup here: https://www.tenopilot.com/signup\n\n` +
         `Need help? Reply to this message.`
     );
     const waUrl = `https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`;

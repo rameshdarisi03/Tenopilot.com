@@ -51,6 +51,7 @@ import { propertySettingsStore } from "@/constants/propertySettings";
 import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
+import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 
 export default function SelfKycDeskPage({
   params,
@@ -409,7 +410,7 @@ export default function SelfKycDeskPage({
     await selfKycStore.createInvite(newInvite);
 
     // 2. Build portal invite link with self-contained property parameter
-    const portalOrigin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+    const portalOrigin = getCanonicalPortalOrigin();
     const inviteLink = `${portalOrigin}/self-onboard/${token}?p=${propertyId}`;
 
     // 3. Attempt WhatsApp & Email dispatch
@@ -489,7 +490,7 @@ export default function SelfKycDeskPage({
 
   // 1-Tap Share Invite Directly via WhatsApp Web / App
   const handleShareInviteViaWhatsApp = (inv: SelfKycInvite) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+    const origin = getCanonicalPortalOrigin();
     const url = `${origin}/self-onboard/${inv.id}?p=${inv.propertyId || propertyId}`;
     const cleanDigits = inv.candidatePhone.replace(/\D/g, "");
     const targetPhone = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : "";
@@ -522,7 +523,7 @@ export default function SelfKycDeskPage({
 
   // Copy Invite URL
   const handleCopyInviteUrl = (inviteToken: string) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+    const origin = getCanonicalPortalOrigin();
     const url = `${origin}/self-onboard/${inviteToken}?p=${propertyId}`;
     if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(url).catch(() => {});
@@ -566,7 +567,7 @@ export default function SelfKycDeskPage({
                   dueDate: createdResident.joiningDate,
                   paidDate: createdResident.joiningDate,
                   amount: createdResident.rentAmount,
-                  onboardUrl: `https://tenopilot.com/p/${propertyId}/tenants/${createdResident.id}`,
+                  onboardUrl: `${getCanonicalPortalOrigin()}/p/${propertyId}/tenants/${createdResident.id}`,
                 },
               },
             ],
@@ -611,7 +612,7 @@ export default function SelfKycDeskPage({
 
       const settings = propertySettingsStore.getSettings(propertyId);
       const propName = settings?.propertyName || "Ramesh Residencies";
-      const origin = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+      const origin = getCanonicalPortalOrigin();
       const reuploadUrl = subToReject.inviteId
         ? `${origin}/self-onboard/${subToReject.inviteId}?p=${propertyId}`
         : `${origin}/p/${propertyId}/self-kyc-checkin`;

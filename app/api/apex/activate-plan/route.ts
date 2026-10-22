@@ -422,7 +422,7 @@ export async function POST(req: NextRequest) {
       // 5. Deliver Luxury Subscription Tax Invoice (PDF + Email + WhatsApp)
       try {
         const invoiceNumber = receiptNumber || `INV-${Date.now().toString().slice(-6)}`;
-        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://tenopilot.com";
+        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const validityPeriodStr = `${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} - ${new Date(expiryIso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
         const invoicePdfUrl = `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNumber)}&ownerName=${encodeURIComponent(customerName)}&propertyName=${encodeURIComponent(customerPropName)}&ownerEmail=${encodeURIComponent(cleanEmail)}&ownerPhone=${encodeURIComponent(customerPhone)}&planName=${encodeURIComponent(resolvedPlan)}&amount=${amountPaid}${Number(discountPercentage) > 0 ? `&discount=${encodeURIComponent(String(discountPercentage))}` : ""}&validityPeriod=${encodeURIComponent(validityPeriodStr)}`;
 

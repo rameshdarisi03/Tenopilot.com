@@ -18,6 +18,7 @@ import { expenseStore } from "@/constants/expenseStore";
 import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -164,7 +165,7 @@ export function CheckOutSettlementModal({
       // 5. 💬 Auto-Dispatch Thank You Note & Settlement PDF Receipt via WhatsApp & Email
       if (sendThankYouNotice) {
         try {
-          const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://tenopilot.com";
+          const baseUrl = getCanonicalPortalOrigin();
           const receiptNoStr = `REF-${Date.now().toString().slice(-6)}`;
           const settings = propertySettingsStore.getSettings(propertyId);
           const propName = settings?.propertyName || "TenoPilot PG";

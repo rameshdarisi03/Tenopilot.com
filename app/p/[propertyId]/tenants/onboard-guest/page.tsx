@@ -571,7 +571,7 @@ export default function OnboardGuestPage({
                 dueDate: formattedCheckOut,
                 paidDate: formattedCheckIn,
                 amount: totalTariff,
-                onboardUrl: `https://tenopilot.com/p/${propertyId}/tenants/${newId}`,
+                onboardUrl: `https://www.tenopilot.com/p/${propertyId}/tenants/${newId}`,
               },
             },
           ],

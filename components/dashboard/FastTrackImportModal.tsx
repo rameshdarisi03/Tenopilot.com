@@ -3024,7 +3024,7 @@ Anil Verma   9812345678   Room 103   12000"
               <button
                 onClick={() => {
                   const samplePhone = ingestResult.occupants[0]?.phone || "9876543210";
-                  const text = `Hello! Your room at ${propertyId} has been setup on TenoPilot. Please click here to verify your details and upload your Aadhaar: https://tenopilot.com/self-onboard/${propertyId}`;
+                  const text = `Hello! Your room at ${propertyId} has been setup on TenoPilot. Please click here to verify your details and upload your Aadhaar: https://www.tenopilot.com/self-onboard/${propertyId}`;
                   const waUrl = buildWhatsAppUrl(samplePhone, text);
                   if (waUrl) {
                     window.open(waUrl, "_blank");

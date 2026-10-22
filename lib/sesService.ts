@@ -95,7 +95,7 @@ function getCompliantEmailFooter(pName: string): string {
   return `
     <!-- Zoho CPaaS & Anti-Spam Compliant Legal Footer -->
     <div style="background:#f8fafc;padding:20px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:11px;color:#94a3b8;line-height:1.6;">
-      <p style="margin:0 0 4px 0;font-weight:700;color:#64748b;">${pName} • Powered by <a href="https://tenopilot.com" style="color:#c2652a;text-decoration:none;font-weight:600;">TenoPilot.com</a></p>
+      <p style="margin:0 0 4px 0;font-weight:700;color:#64748b;">${pName} • Powered by <a href="https://www.tenopilot.com" style="color:#c2652a;text-decoration:none;font-weight:600;">TenoPilot.com</a></p>
       <p style="margin:0 0 4px 0;color:#64748b;">Cloud Operating System for PGs, Hostels & Co-Living Spaces • Bangalore, Karnataka, India</p>
       <p style="margin:0;font-size:10px;color:#94a3b8;">Support: <a href="mailto:support@tenopilot.com" style="color:#64748b;text-decoration:underline;">support@tenopilot.com</a> | Legal & Compliance: <a href="mailto:abuse@tenopilot.com" style="color:#64748b;text-decoration:underline;">abuse@tenopilot.com</a></p>
     </div>
@@ -221,7 +221,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       const payMode = p.paymentMode || "UPI / Digital Transfer";
       const isDeposit = cleanReceiptNo.startsWith("DEP") || (typeof p.customSubject === "string" && p.customSubject.toLowerCase().includes("deposit"));
       const hasBreakup = p.rentAmount !== undefined && p.depositAmount !== undefined && Number(p.rentAmount) > 0 && Number(p.depositAmount) > 0;
-      const downloadReceiptUrl = p.receiptUrl || `https://tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(cleanReceiptNo)}&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}&amount=${encodeURIComponent(String(p.amount || 0))}&roomNumber=${encodeURIComponent(p.roomNumber || "")}&bedCode=${encodeURIComponent(p.bedCode || "")}&paidDate=${encodeURIComponent(paidDate)}&paymentMode=${encodeURIComponent(payMode)}${p.month ? `&month=${encodeURIComponent(p.month)}` : ""}${isDeposit ? "&isDeposit=true" : ""}${hasBreakup ? `&rentAmount=${encodeURIComponent(String(p.rentAmount))}&depositAmount=${encodeURIComponent(String(p.depositAmount))}` : ""}`;
+      const downloadReceiptUrl = p.receiptUrl || `https://www.tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(cleanReceiptNo)}&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}&amount=${encodeURIComponent(String(p.amount || 0))}&roomNumber=${encodeURIComponent(p.roomNumber || "")}&bedCode=${encodeURIComponent(p.bedCode || "")}&paidDate=${encodeURIComponent(paidDate)}&paymentMode=${encodeURIComponent(payMode)}${p.month ? `&month=${encodeURIComponent(p.month)}` : ""}${isDeposit ? "&isDeposit=true" : ""}${hasBreakup ? `&rentAmount=${encodeURIComponent(String(p.rentAmount))}&depositAmount=${encodeURIComponent(String(p.depositAmount))}` : ""}`;
 
       const html = `
 <!DOCTYPE html>
@@ -333,7 +333,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 
     case "ONBOARDING_INVITE": {
       const subject = `🏢 Welcome to ${pName}! Complete Your Digital Resident Check-In`;
-      const onboardUrl = p.onboardUrl || "https://tenopilot.com";
+      const onboardUrl = p.onboardUrl || "https://www.tenopilot.com";
       const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
       const rentStr = p.rentAmount ? `₹${Number(p.rentAmount).toLocaleString("en-IN")} / month` : undefined;
 
@@ -427,7 +427,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
     case "CHECKOUT_THANK_YOU": {
       const subject = `🌟 Thank You for Staying With Us! Check-Out & Settlement Confirmation — ${pName}`;
       const receiptNo = p.receiptId || `REF-${Date.now().toString().slice(-6)}`;
-      const downloadLink = p.receiptUrl || `https://tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(receiptNo)}&isSettlement=true&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}`;
+      const downloadLink = p.receiptUrl || `https://www.tenopilot.com/api/receipt/pdf?receiptNo=${encodeURIComponent(receiptNo)}&isSettlement=true&residentName=${encodeURIComponent(payload.recipientName)}&propertyName=${encodeURIComponent(pName)}`;
 
       const html = `
 <!DOCTYPE html>
@@ -609,7 +609,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 
       <!-- CTA Button -->
       <div style="text-align:center;margin:28px 0;">
-        <a href="https://tenopilot.com/login" style="display:inline-block;padding:14px 36px;background:#c2652a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(194,101,42,0.35);">
+        <a href="https://www.tenopilot.com/login" style="display:inline-block;padding:14px 36px;background:#c2652a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(194,101,42,0.35);">
           👉 Open Your Workspace
         </a>
       </div>
@@ -637,7 +637,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `TenoPilot.com 🚀\nThe Intelligent Operating System for Coliving & Student Housing\n\nWelcome to TenoPilot, ${ownerName}!\n\nCongratulations! ${pName} is officially ready and live 🎉\n\nWe built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.\n\nYOUR WORKSPACE HIGHLIGHTS:\n• Property: ${pName}\n• FastTrack Migration: 1-Click AI paper register / diary scanner\n• Automated Reminders: WhatsApp digital invoices & check-in KYC\n\n👉 Open Your Workspace:\nhttps://tenopilot.com/login\n\nQuick Login Tip:\nLog in directly with your registered mobile number (${ownerPhone})${ownerEmail ? ` or email (${ownerEmail})` : ""} anytime to access your property dashboard.\n\nNeed assistance setting up your room layout or migrating your paper registers?\nTap reply or call our Founder Support Desk directly at +91 92066 51295.\n\nWelcome aboard,\nTeam TenoPilot 🏢✨`;
+      const text = `TenoPilot.com 🚀\nThe Intelligent Operating System for Coliving & Student Housing\n\nWelcome to TenoPilot, ${ownerName}!\n\nCongratulations! ${pName} is officially ready and live 🎉\n\nWe built TenoPilot specifically for visionary PG & coliving owners like you—to eliminate messy registers, separate your security deposits from monthly rent, and put your daily collections on autopilot.\n\nYOUR WORKSPACE HIGHLIGHTS:\n• Property: ${pName}\n• FastTrack Migration: 1-Click AI paper register / diary scanner\n• Automated Reminders: WhatsApp digital invoices & check-in KYC\n\n👉 Open Your Workspace:\nhttps://www.tenopilot.com/login\n\nQuick Login Tip:\nLog in directly with your registered mobile number (${ownerPhone})${ownerEmail ? ` or email (${ownerEmail})` : ""} anytime to access your property dashboard.\n\nNeed assistance setting up your room layout or migrating your paper registers?\nTap reply or call our Founder Support Desk directly at +91 92066 51295.\n\nWelcome aboard,\nTeam TenoPilot 🏢✨`;
 
       return { subject, html, text };
     }
@@ -736,7 +736,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
       const subject = `⚠️ Action Required: Resident Verification Update — ${pName}`;
       const candidateName = payload.recipientName || "Resident";
       const reason = p.rejectionReason || p.customBody || "Please re-upload clear identity documents.";
-      const reuploadUrl = p.onboardUrl || "https://tenopilot.com";
+      const reuploadUrl = p.onboardUrl || "https://www.tenopilot.com";
       const roomStay = p.roomNumber ? `Room ${p.roomNumber}${p.bedCode ? ` (${p.bedCode})` : ""}` : "Accommodation";
 
       const html = `
