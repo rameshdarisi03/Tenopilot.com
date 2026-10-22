@@ -159,7 +159,7 @@ export default function SelfKycDeskPage({
 
   // Conflict calculation in Send Invite modal
   const cleanCandidateDigits = useMemo(() => {
-    return inviteCandidatePhone.replace(/\D/g, "").slice(-10);
+    return inviteCandidatePhone.replace(/\D/g, "").slice(0, 10);
   }, [inviteCandidatePhone]);
 
   const existingResidentConflict = useMemo(() => {
@@ -362,8 +362,8 @@ export default function SelfKycDeskPage({
       return;
     }
     const cleanPhone = inviteCandidatePhone.replace(/\D/g, "");
-    if (cleanPhone.length < 10) {
-      triggerToast("Mobile phone number must be at least 10 digits.", "error");
+    if (cleanPhone.length !== 10) {
+      triggerToast("Mobile phone number must be exactly 10 digits.", "error");
       return;
     }
 
@@ -1464,9 +1464,10 @@ export default function SelfKycDeskPage({
                     <input
                       type="tel"
                       required
+                      maxLength={10}
                       placeholder="9876543210"
                       value={inviteCandidatePhone}
-                      onChange={(e) => setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                      onChange={(e) => setInviteCandidatePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                       className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-semibold text-gray-900 focus:ring-1 transition-colors ${
                         existingResidentConflict
                           ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"

@@ -395,7 +395,7 @@ export default function TenantSelfOnboardingPage({
     }
 
     const cleanEmerPhone = sanitizeDigitsOnly(emergencyPhone, 10);
-    if (cleanEmerPhone.length < 10) {
+    if (cleanEmerPhone.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit emergency contact phone number.");
       return;
     }
@@ -486,7 +486,7 @@ export default function TenantSelfOnboardingPage({
     }
 
     const cleanPhone = sanitizeDigitsOnly(phone, 10);
-    if (cleanPhone.length < 10) {
+    if (cleanPhone.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile phone number.");
       return;
     }
@@ -506,7 +506,7 @@ export default function TenantSelfOnboardingPage({
     }
 
     const cleanEmergency = sanitizeDigitsOnly(emergencyPhone, 10);
-    if (cleanEmergency.length < 10) {
+    if (cleanEmergency.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit emergency contact phone number.");
       return;
     }
@@ -810,7 +810,7 @@ export default function TenantSelfOnboardingPage({
                         required
                         maxLength={10}
                         value={emergencyPhone}
-                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                         placeholder="10-digit phone number *"
                         className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
                           isEmergencySameAsMobile ? "border-rose-500 bg-rose-50/40" : "border-gray-300 bg-white"
@@ -1241,7 +1241,7 @@ export default function TenantSelfOnboardingPage({
                       required
                       maxLength={10}
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                       placeholder="10-digit mobile number"
                       className={`w-full pl-12 pr-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 focus:ring-2 focus:ring-[#c2652a]/20 ${
                         isPhoneAlreadyRegistered
@@ -1325,7 +1325,7 @@ export default function TenantSelfOnboardingPage({
                         required
                         maxLength={10}
                         value={emergencyPhone}
-                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                         placeholder="10-digit phone number *"
                         className={`w-full px-3.5 py-2 rounded-xl border font-mono font-bold text-gray-900 text-xs focus:ring-1 focus:ring-[#c2652a] ${
                           isEmergencySameAsMobile ? "border-rose-500 bg-rose-50/40" : "border-gray-300 bg-white"
