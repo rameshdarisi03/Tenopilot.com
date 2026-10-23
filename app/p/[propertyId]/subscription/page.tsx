@@ -94,7 +94,7 @@ export default function SubscriptionBillingPage() {
 
   // 💬 WhatsApp Cloud Message Wallet & Credits State
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() =>
-    whatsappCreditStore.getCredits(propertyId, sub.isPro, platformConfig.proWhatsAppCredits || 300)
+    whatsappCreditStore.getCredits(propertyId)
   );
   const [whatsappTransactions, setWhatsappTransactions] = useState<WhatsAppCreditTransaction[]>(() => whatsappCreditStore.getTransactions(propertyId));
   const [selectedCreditPack, setSelectedCreditPack] = useState<WhatsAppCreditPackage | null>(null);
@@ -103,20 +103,18 @@ export default function SubscriptionBillingPage() {
 
   // Sync WhatsApp Credits in Real-Time
   useEffect(() => {
-    const proLimit = platformConfig.proWhatsAppCredits || 300;
-    whatsappCreditStore.initFirebaseListener(propertyId, sub.isPro, proLimit);
-    whatsappCreditStore.fetchWalletFromFirestore(propertyId, sub.isPro, proLimit);
-    whatsappCreditStore.syncWithSubscription(propertyId, sub.isPro, proLimit);
-    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
+    whatsappCreditStore.initFirebaseListener(propertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
     setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
     const unsub = whatsappCreditStore.subscribe(() => {
-      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
       setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
     });
     return () => {
       unsub();
     };
-  }, [propertyId, sub.isPro, platformConfig.proWhatsAppCredits]);
+  }, [propertyId]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);

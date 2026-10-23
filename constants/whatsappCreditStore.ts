@@ -123,33 +123,13 @@ export const whatsappCreditStore = {
     return fromStorage;
   },
 
-  syncWithSubscription(propertyId: string, isPro: boolean, proCredits: number = 300) {
-    if (!propertyId || typeof window === "undefined") return;
-    const current = this.getWallet(propertyId);
-    if (isPro && current.credits < proCredits) {
-      const diff = proCredits - current.credits;
-      const newBalance = proCredits;
-      const newTx: WhatsAppCreditTransaction = {
-        id: `tx-pro-bonus-${Date.now()}`,
-        type: "PURCHASE",
-        amount: diff,
-        balanceAfter: newBalance,
-        description: `+${diff} Pro Plan Monthly Allocation (${proCredits} Total Messages)`,
-        timestamp: new Date().toISOString(),
-        status: "DELIVERED",
-      };
-      const newState: PropertyWalletState = {
-        credits: newBalance,
-        transactions: [newTx, ...current.transactions].slice(0, 100),
-      };
-      PROPERTY_WALLET_MAP.set(propertyId, newState);
-      setStoredWallet(propertyId, newState);
-      this.syncToFirestore(propertyId, newState);
-      notify();
-    }
+  syncWithSubscription(propertyId: string, isPro?: boolean, proCredits?: number) {
+    // Deprecated: Strict SSOT architecture. Wallet balances are never automatically topped up
+    // on page mounts or re-renders. Only explicit pack purchases or founder grants increase credits.
+    return;
   },
 
-  initFirebaseListener(propertyId?: string, isPro?: boolean, proCredits: number = 300) {
+  initFirebaseListener(propertyId?: string, isPro?: boolean, proCredits?: number) {
     if (!propertyId || typeof window === "undefined" || !db) return;
     if (ACTIVE_WALLET_UNSUBSCRIBES.has(propertyId)) return;
 
@@ -161,16 +141,34 @@ export const whatsappCreditStore = {
           if (snapshot.exists()) {
             const data = snapshot.data();
             let credits = typeof data.credits === "number" ? data.credits : DEFAULT_STARTER_CREDITS;
-            const transactions = Array.isArray(data.transactions) ? data.transactions : [];
+            const rawTransactions: WhatsAppCreditTransaction[] = Array.isArray(data.transactions) ? data.transactions : [];
 
-            if (isPro && credits < proCredits) {
-              credits = proCredits;
-              this.syncWithSubscription(propertyId, true, proCredits);
+            // 🛡️ Data Sanitization: Filter out any phantom auto-refill bug transactions (+1 Pro Plan Monthly Allocation)
+            const cleanTransactions = rawTransactions.filter(
+              (tx) => !(tx.amount > 0 && tx.amount < 50 && tx.description?.includes("Pro Plan Monthly Allocation"))
+            );
+
+            // If phantom top-up transactions existed, deduct their spurious points and persist clean ledger
+            if (cleanTransactions.length !== rawTransactions.length) {
+              const removedPoints = rawTransactions
+                .filter((tx) => tx.amount > 0 && tx.amount < 50 && tx.description?.includes("Pro Plan Monthly Allocation"))
+                .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+              credits = Math.max(0, credits - removedPoints);
+
+              const cleanState: PropertyWalletState = {
+                credits,
+                transactions: cleanTransactions,
+              };
+              PROPERTY_WALLET_MAP.set(propertyId, cleanState);
+              setStoredWallet(propertyId, cleanState);
+              this.syncToFirestore(propertyId, cleanState);
+              notify();
+              return;
             }
 
             const state: PropertyWalletState = {
               credits,
-              transactions,
+              transactions: cleanTransactions,
             };
             PROPERTY_WALLET_MAP.set(propertyId, state);
             setStoredWallet(propertyId, state);
@@ -187,7 +185,7 @@ export const whatsappCreditStore = {
     }
   },
 
-  async fetchWalletFromFirestore(propertyId?: string, isPro?: boolean, proCredits: number = 300) {
+  async fetchWalletFromFirestore(propertyId?: string, isPro?: boolean, proCredits?: number) {
     if (!propertyId || !db) return;
     try {
       const docRef = doc(db, `properties/${propertyId}/whatsapp/wallet`);
@@ -195,26 +193,40 @@ export const whatsappCreditStore = {
       if (snap.exists()) {
         const data = snap.data();
         let credits = typeof data.credits === "number" ? data.credits : DEFAULT_STARTER_CREDITS;
-        const transactions = Array.isArray(data.transactions) ? data.transactions : [];
+        const rawTransactions: WhatsAppCreditTransaction[] = Array.isArray(data.transactions) ? data.transactions : [];
 
-        if (isPro && credits < proCredits) {
-          credits = proCredits;
-          this.syncWithSubscription(propertyId, true, proCredits);
+        // 🛡️ Data Sanitization: Filter out any phantom auto-refill bug transactions
+        const cleanTransactions = rawTransactions.filter(
+          (tx) => !(tx.amount > 0 && tx.amount < 50 && tx.description?.includes("Pro Plan Monthly Allocation"))
+        );
+
+        if (cleanTransactions.length !== rawTransactions.length) {
+          const removedPoints = rawTransactions
+            .filter((tx) => tx.amount > 0 && tx.amount < 50 && tx.description?.includes("Pro Plan Monthly Allocation"))
+            .reduce((acc, tx) => acc + (tx.amount || 0), 0);
+          credits = Math.max(0, credits - removedPoints);
+
+          const cleanState: PropertyWalletState = {
+            credits,
+            transactions: cleanTransactions,
+          };
+          PROPERTY_WALLET_MAP.set(propertyId, cleanState);
+          setStoredWallet(propertyId, cleanState);
+          await this.syncToFirestore(propertyId, cleanState);
+          notify();
+          return;
         }
 
         const state: PropertyWalletState = {
           credits,
-          transactions,
+          transactions: cleanTransactions,
         };
         PROPERTY_WALLET_MAP.set(propertyId, state);
         setStoredWallet(propertyId, state);
         notify();
       } else {
-        // First-time initialization in Firestore
+        // First-time initialization in Firestore ONLY if wallet doc does not exist
         const defaultState = getStoredWallet(propertyId);
-        if (isPro && defaultState.credits < proCredits) {
-          defaultState.credits = proCredits;
-        }
         await this.syncToFirestore(propertyId, defaultState);
       }
     } catch (e) {
@@ -222,13 +234,9 @@ export const whatsappCreditStore = {
     }
   },
 
-  getCredits(propertyId?: string, isPro?: boolean, proCredits: number = 300): number {
-    if (!propertyId) return isPro ? proCredits : DEFAULT_STARTER_CREDITS;
+  getCredits(propertyId?: string, isPro?: boolean, proCredits?: number): number {
+    if (!propertyId) return DEFAULT_STARTER_CREDITS;
     const current = this.getWallet(propertyId);
-    if (isPro && current.credits < proCredits) {
-      this.syncWithSubscription(propertyId, true, proCredits);
-      return proCredits;
-    }
     return current.credits;
   },
 
@@ -295,7 +303,7 @@ export const whatsappCreditStore = {
     const currentTxs = this.getTransactions(propertyId);
     const updatedState: PropertyWalletState = {
       credits: newBalance,
-      transactions: [newTx, ...currentTxs],
+      transactions: [newTx, ...currentTxs].slice(0, 100),
     };
 
     PROPERTY_WALLET_MAP.set(propertyId, updatedState);
@@ -330,7 +338,7 @@ export const whatsappCreditStore = {
     const currentTxs = this.getTransactions(propertyId);
     const updatedState: PropertyWalletState = {
       credits: newBalance,
-      transactions: [newTx, ...currentTxs],
+      transactions: [newTx, ...currentTxs].slice(0, 100),
     };
 
     PROPERTY_WALLET_MAP.set(propertyId, updatedState);

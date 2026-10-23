@@ -72,13 +72,11 @@ export function WhatsAppWalletModal({
   useEffect(() => {
     if (!isOpen || !propertyId) return;
 
-    const isPro = Boolean(profile?.plan?.startsWith("PRO_") || profile?.plan === "VIP_PASS" || profile?.subscriptionStatus === "ACTIVE_PRO" || (profile?.planExpiresAt && new Date(profile.planExpiresAt).getTime() > Date.now()));
-    whatsappCreditStore.initFirebaseListener(propertyId, isPro, 300);
-    whatsappCreditStore.fetchWalletFromFirestore(propertyId, isPro, 300);
-    whatsappCreditStore.syncWithSubscription(propertyId, isPro, 300);
+    whatsappCreditStore.initFirebaseListener(propertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
 
     const updateState = () => {
-      setCredits(whatsappCreditStore.getCredits(propertyId, isPro, 300));
+      setCredits(whatsappCreditStore.getCredits(propertyId));
       setTransactions(whatsappCreditStore.getTransactions(propertyId));
     };
 

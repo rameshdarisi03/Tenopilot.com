@@ -261,7 +261,7 @@ export default function TenantsDirectoryPage({
   // WhatsApp & Brevo Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() =>
-    whatsappCreditStore.getCredits(propertyId, sub.isPro, platformConfig.proWhatsAppCredits || 300)
+    whatsappCreditStore.getCredits(propertyId)
   );
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [isSendingCloudEmail, setIsSendingCloudEmail] = useState(false);
@@ -447,19 +447,17 @@ export default function TenantsDirectoryPage({
   useEffect(() => {
     runAutoCheckInEngine();
     
-    const proLimit = platformConfig.proWhatsAppCredits || 300;
-    whatsappCreditStore.initFirebaseListener(propertyId, sub.isPro, proLimit);
-    whatsappCreditStore.fetchWalletFromFirestore(propertyId, sub.isPro, proLimit);
-    whatsappCreditStore.syncWithSubscription(propertyId, sub.isPro, proLimit);
-    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
+    whatsappCreditStore.initFirebaseListener(propertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(propertyId);
+    setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
     const unsubscribeWallet = whatsappCreditStore.subscribe(() => {
-      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId, sub.isPro, proLimit));
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
     });
 
     return () => {
       unsubscribeWallet();
     };
-  }, [propertyId, sub.isPro, platformConfig.proWhatsAppCredits]);
+  }, [propertyId]);
 
   // Sync Real-Time Property Settings
   useEffect(() => {
