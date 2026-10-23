@@ -600,9 +600,13 @@ export default function SelfKycDeskPage({
                 params: {
                   roomNumber: createdResident.roomNumber,
                   bedCode: createdResident.bedCode,
+                  joiningDate: createdResident.joiningDate,
                   dueDate: createdResident.joiningDate,
                   paidDate: createdResident.joiningDate,
                   amount: createdResident.rentAmount,
+                  rentAmount: createdResident.rentAmount,
+                  depositAmount: createdResident.securityDeposit || 0,
+                  propertyAddress: settings?.propertyAddress,
                   onboardUrl: `${getCanonicalPortalOrigin()}/p/${propertyId}/tenants/${createdResident.id}`,
                 },
               },

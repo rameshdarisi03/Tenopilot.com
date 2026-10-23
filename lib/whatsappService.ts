@@ -35,6 +35,8 @@ export interface WhatsAppSendParams {
     ownerEmail?: string;
     planName?: string;
     rejectionReason?: string;
+    joiningDate?: string;
+    propertyAddress?: string;
   };
 }
 
@@ -159,9 +161,23 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
     }
 
     case "TENANT_WELCOME": {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
       const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
-      const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      const tariffStr = p.amount ? `\n💰 *Monthly Tariff*: ₹${Number(p.amount).toLocaleString("en-IN")}` : "";
+      const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const tariffStr = p.rentAmount || p.amount ? `\n💰 *Monthly Tariff*: ₹${Number(p.rentAmount || p.amount).toLocaleString("en-IN")}` : "";
+
+      const agreementParams = new URLSearchParams({
+        tenantName: payload.recipientName,
+        phone: payload.toPhone,
+        roomNumber: p.roomNumber || "N/A",
+        bedCode: p.bedCode || "Standard Bed",
+        joiningDate: checkinDate,
+        monthlyRent: String(p.rentAmount || p.amount || 0),
+        securityDeposit: String(p.depositAmount || 0),
+        propertyName: pName,
+        propertyAddress: p.propertyAddress || "",
+      });
+      const agreementPdfUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
 
       return (
         `*${pName}*\n` +
@@ -171,6 +187,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `🏠 *Allocated Stay*: Room ${roomStay}\n` +
         `📅 *Move-In Date*: ${checkinDate}` +
         tariffStr + `\n\n` +
+        `📄 *Your Official Rental Agreement (PDF)*:\n${agreementPdfUrl}\n\n` +
         (p.onboardUrl ? `🔗 *Resident Portal*: ${p.onboardUrl}\n\n` : "") +
         `Your room key and welcome kit are ready at reception. We are thrilled to have you with us!\n\n` +
         `Warm regards,\n` +

@@ -668,9 +668,13 @@ export default function OnboardTenantPage({
               params: {
                 roomNumber: selectedBed ? selectedBed.roomNumber : "101",
                 bedCode: selectedBed ? selectedBed.bedCode : "BED A",
+                joiningDate: formattedJoiningDate,
                 dueDate: formattedJoiningDate,
                 paidDate: formattedJoiningDate,
                 amount: monthlyRent,
+                rentAmount: monthlyRent,
+                depositAmount: newTenant.securityDeposit || depositAmount || 0,
+                propertyAddress: propSettings?.propertyAddress,
                 onboardUrl: `https://www.tenopilot.com/p/${propertyId}/tenants/${newId}`,
               },
             },
