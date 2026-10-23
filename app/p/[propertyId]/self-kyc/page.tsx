@@ -578,6 +578,12 @@ export default function SelfKycDeskPage({
       const settings = propertySettingsStore.getSettings(propertyId);
       const propName = settings?.propertyName || "TenoPilot PG";
 
+      const billingCycleText = settings?.billingCycleDates === "Anniversary Date"
+        ? "Anniversary Date (Due on Move-in Date)"
+        : `1st to End of Month (Due by ${settings?.desiredDueDate || 5}th)`;
+      const houseRulesText = (settings as any)?.houseRulesAndRegulations || "";
+      const ownerSigName = propName;
+
       // 1. Automated WhatsApp Welcome & Agreement Notification
       try {
         const cleanPhone = createdResident.phone.replace(/\D/g, "");
@@ -607,6 +613,9 @@ export default function SelfKycDeskPage({
                   rentAmount: createdResident.rentAmount,
                   depositAmount: createdResident.securityDeposit || 0,
                   propertyAddress: settings?.propertyAddress,
+                  houseRules: houseRulesText,
+                  billingCycle: billingCycleText,
+                  ownerName: ownerSigName,
                   onboardUrl: `${getCanonicalPortalOrigin()}/p/${propertyId}/tenants/${createdResident.id}`,
                 },
               },
@@ -650,7 +659,9 @@ export default function SelfKycDeskPage({
                     managerPhone: settings?.managerPhone,
                     phone: createdResident.phone,
                     propertyAddress: settings?.propertyAddress,
-                    houseRules: (settings as any)?.houseRulesAndRegulations || "",
+                    houseRules: houseRulesText,
+                    billingCycle: billingCycleText,
+                    ownerName: ownerSigName,
                     onboardUrl: `${getCanonicalPortalOrigin()}/p/${propertyId}/tenants/${createdResident.id}`,
                   },
                 },

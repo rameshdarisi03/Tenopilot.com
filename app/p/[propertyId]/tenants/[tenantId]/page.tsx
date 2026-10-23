@@ -2881,6 +2881,9 @@ export default function IndividualTenantProfilePage({
                       <button
                         onClick={() => {
                           const effectiveDeposit = occupantState.securityDeposit ?? occupantState.rentAmount * 2;
+                          const bCycle = propertySettings?.billingCycleDates === "Anniversary Date"
+                            ? "Anniversary Date (Due on Move-in Date)"
+                            : `1st to End of Month (Due by ${propertySettings?.desiredDueDate || 5}th)`;
                           downloadRentalAgreementPdf({
                             tenantName: occupantState.name,
                             phone: occupantState.phone,
@@ -2892,6 +2895,8 @@ export default function IndividualTenantProfilePage({
                             propertyTitle: displayPropertyName,
                             propertyAddress: propertySettings?.propertyAddress,
                             houseRulesAndRegulations: propertySettings?.houseRulesAndRegulations,
+                            billingCycle: bCycle,
+                            ownerName: displayPropertyName,
                           });
                           triggerToast("✓ Downloaded Rental Agreement PDF!");
                         }}
@@ -5099,6 +5104,9 @@ export default function IndividualTenantProfilePage({
                   type="button"
                   onClick={() => {
                     const effectiveDeposit = occupantState.securityDeposit ?? occupantState.rentAmount * 2;
+                    const bCycle = propertySettings?.billingCycleDates === "Anniversary Date"
+                      ? "Anniversary Date (Due on Move-in Date)"
+                      : `1st to End of Month (Due by ${propertySettings?.desiredDueDate || 5}th)`;
                     downloadRentalAgreementPdf({
                       tenantName: occupantState.name,
                       phone: occupantState.phone,
@@ -5110,6 +5118,8 @@ export default function IndividualTenantProfilePage({
                       propertyTitle: displayPropertyName,
                       propertyAddress: propertySettings?.propertyAddress,
                       houseRulesAndRegulations: propertySettings?.houseRulesAndRegulations,
+                      billingCycle: bCycle,
+                      ownerName: displayPropertyName,
                     });
                     setViewAgreementModal(false);
                     triggerToast("✓ Rental Agreement PDF Downloaded");

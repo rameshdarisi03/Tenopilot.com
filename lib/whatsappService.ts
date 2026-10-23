@@ -37,6 +37,9 @@ export interface WhatsAppSendParams {
     rejectionReason?: string;
     joiningDate?: string;
     propertyAddress?: string;
+    houseRules?: string;
+    billingCycle?: string;
+    ownerName?: string;
   };
 }
 
@@ -352,6 +355,15 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           propertyName: pName,
           propertyAddress: p.propertyAddress || "",
         });
+        if (p.houseRules) {
+          agreementParams.set("houseRules", p.houseRules);
+        }
+        if (p.billingCycle) {
+          agreementParams.set("billingCycle", p.billingCycle);
+        }
+        if (p.ownerName) {
+          agreementParams.set("ownerName", p.ownerName);
+        }
         const pdfUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
         const safeName = (payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_");
         const safeRoom = (p.roomNumber || "Room").replace(/[^a-zA-Z0-9_-]/g, "_");

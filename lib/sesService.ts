@@ -45,6 +45,8 @@ export interface SESSendParams {
     phone?: string;
     propertyAddress?: string;
     houseRules?: string;
+    billingCycle?: string;
+    ownerName?: string;
   };
   attachments?: {
     name: string;
@@ -1057,6 +1059,8 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
         propertyTitle: pName,
         propertyAddress: p.propertyAddress || p.bankLabel || "",
         houseRulesAndRegulations: p.houseRules || "",
+        billingCycle: p.billingCycle,
+        ownerName: p.ownerName,
       });
 
       const base64Pdf = Buffer.from(pdfUint8).toString("base64");

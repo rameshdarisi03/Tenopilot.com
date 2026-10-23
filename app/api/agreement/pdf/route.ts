@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
     const propertyTitle = searchParams.get("propertyName") || searchParams.get("propertyTitle") || "TenoPilot Coliving";
     const propertyAddress = searchParams.get("propertyAddress") || "";
     const houseRulesAndRegulations = searchParams.get("houseRules") || "";
+    const billingCycle = searchParams.get("billingCycle") || undefined;
+    const ownerName = searchParams.get("ownerName") || undefined;
 
     const pdfData: RentalAgreementPdfData = {
       tenantName,
@@ -28,6 +30,8 @@ export async function GET(req: NextRequest) {
       propertyTitle,
       propertyAddress,
       houseRulesAndRegulations,
+      billingCycle,
+      ownerName,
     };
 
     const pdfBuffer = await generateRentalAgreementPdfBuffer(pdfData);

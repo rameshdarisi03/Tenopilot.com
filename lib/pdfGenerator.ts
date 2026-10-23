@@ -42,6 +42,8 @@ export interface RentalAgreementPdfData {
   propertyTitle?: string;
   propertyAddress?: string;
   houseRulesAndRegulations?: string;
+  billingCycle?: string;
+  ownerName?: string;
 }
 
 /**
@@ -56,6 +58,7 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  const fontScript = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
 
   // Color Palette
   const brandTerracotta = rgb(0.76, 0.40, 0.16); // #c2652a
@@ -64,8 +67,9 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
   const slateLight = rgb(0.97, 0.98, 0.99); // #f8fafc
   const borderStroke = rgb(0.88, 0.91, 0.94); // #e2e8f0
   const emeraldGreen = rgb(0.02, 0.59, 0.41); // #059669
+  const inkBlue = rgb(0.08, 0.22, 0.52); // Handwriting ink
 
-  const pTitle = (data.propertyTitle || "Friendly Space Premium Coliving PG").toUpperCase();
+  const pTitle = (data.propertyTitle || "Friendly Space Premium Coliving PG").trim();
   const agreementId = `AGR-${new Date().getFullYear()}-${(data.roomNumber || "101").replace(/\D/g, "") || "101"}${(data.bedCode || "A").replace(/\D/g, "") || "A"}`;
   const issueDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -78,11 +82,11 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
     color: brandTerracotta,
   });
 
-  // 2. Header: Property Name & Crest
-  page.drawText(pTitle.slice(0, 48), {
+  // 2. Header: Big Bold Property Name & Address (Tenopilot line removed)
+  page.drawText(pTitle.toUpperCase(), {
     x: 40,
     y: height - 48,
-    size: 16,
+    size: 20, // Highlighted in big, bold font
     font: fontBold,
     color: brandDark,
   });
@@ -90,20 +94,12 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
   if (data.propertyAddress) {
     page.drawText(data.propertyAddress.slice(0, 75), {
       x: 40,
-      y: height - 63,
+      y: height - 66,
       size: 9,
       font: fontRegular,
       color: slateGray,
     });
   }
-
-  page.drawText("TENOPILOT RESIDENTIAL CO-LIVING OPERATING SYSTEM", {
-    x: 40,
-    y: height - (data.propertyAddress ? 76 : 63),
-    size: 8,
-    font: fontBold,
-    color: brandTerracotta,
-  });
 
   // Agreement Meta Badges (Right Aligned)
   page.drawText(`AGREEMENT ID: ${agreementId}`, {
@@ -123,32 +119,32 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
 
   // Divider
   page.drawLine({
-    start: { x: 40, y: height - 88 },
-    end: { x: width - 40, y: height - 88 },
+    start: { x: 40, y: height - 82 },
+    end: { x: width - 40, y: height - 82 },
     thickness: 1,
     color: borderStroke,
   });
 
-  // 3. Document Title Banner
+  // 3. Document Title Banner: RENTAL AGREEMENT & ALLOCATION RECORD
   page.drawRectangle({
     x: 40,
-    y: height - 128,
+    y: height - 124,
     width: width - 80,
-    height: 32,
+    height: 30,
     color: slateLight,
     borderColor: borderStroke,
     borderWidth: 1,
   });
-  page.drawText("RESIDENTIAL LEASE AGREEMENT & ALLOCATION RECORD", {
+  page.drawText("RENTAL AGREEMENT & ALLOCATION RECORD", {
     x: 52,
-    y: height - 117,
+    y: height - 114,
     size: 11,
     font: fontBold,
     color: brandDark,
   });
 
   // 4. Section 1: Tenant & Accommodation Details
-  let currentY = height - 150;
+  let currentY = height - 144;
   page.drawText("1. TENANT & ACCOMMODATION PARTICULARS", {
     x: 40,
     y: currentY,
@@ -157,12 +153,12 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
     color: brandTerracotta,
   });
 
-  currentY -= 15;
+  currentY -= 14;
   page.drawRectangle({
     x: 40,
-    y: currentY - 70,
+    y: currentY - 66,
     width: width - 80,
-    height: 70,
+    height: 66,
     color: rgb(1, 1, 1),
     borderColor: borderStroke,
     borderWidth: 1,
@@ -185,9 +181,9 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
   page.drawText("Move-In / Start Date:", { x: col2X, y: fieldY, size: 9, font: fontRegular, color: slateGray });
   page.drawText(data.joiningDate || "On Check-In", { x: col2X + 95, y: fieldY, size: 9, font: fontBold, color: brandDark });
 
-  currentY -= 95;
+  currentY -= 88;
 
-  // 5. Section 2: Financial Terms & Dual-Ledger Security Matrix
+  // 5. Section 2: Financial Terms & Dual-Ledger Security Matrix (Deposit Nature removed)
   page.drawText("2. FINANCIAL TERMS & DUAL-LEDGER SECURITY MATRIX", {
     x: 40,
     y: currentY,
@@ -196,18 +192,18 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
     color: brandTerracotta,
   });
 
-  currentY -= 15;
+  currentY -= 14;
   page.drawRectangle({
     x: 40,
-    y: currentY - 60,
+    y: currentY - 56,
     width: width - 80,
-    height: 60,
+    height: 56,
     color: slateLight,
     borderColor: borderStroke,
     borderWidth: 1,
   });
 
-  fieldY = currentY - 22;
+  fieldY = currentY - 20;
   page.drawText("Agreed Monthly Rent:", { x: col1X, y: fieldY, size: 9, font: fontRegular, color: slateGray });
   page.drawText(`Rs. ${(data.monthlyRent || 0).toLocaleString("en-IN")} / month`, { x: col1X + 115, y: fieldY, size: 10, font: fontBold, color: brandTerracotta });
 
@@ -215,18 +211,16 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
   page.drawText(`Rs. ${(data.securityDeposit || 0).toLocaleString("en-IN")}`, { x: col2X + 95, y: fieldY, size: 10, font: fontBold, color: emeraldGreen });
 
   fieldY -= 20;
+  const billingCycleText = data.billingCycle || "1st to End of Month (Due by 5th)";
   page.drawText("Rent Billing Cycle:", { x: col1X, y: fieldY, size: 9, font: fontRegular, color: slateGray });
-  page.drawText("Monthly Cycle (Due by 5th)", { x: col1X + 115, y: fieldY, size: 9, font: fontRegular, color: brandDark });
+  page.drawText(billingCycleText, { x: col1X + 115, y: fieldY, size: 9, font: fontBold, color: brandDark });
 
-  page.drawText("Deposit Nature:", { x: col2X, y: fieldY, size: 9, font: fontRegular, color: slateGray });
-  page.drawText("Refundable upon Move-Out", { x: col2X + 95, y: fieldY, size: 9, font: fontRegular, color: brandDark });
+  currentY -= 78;
 
-  currentY -= 85;
-
-  // 6. Section 3: House Rules & Regulations (Conditional: Only if rules exist)
+  // 6. Section 3: Property Terms, Rules and Regulations (Conditional: ONLY if rules exist in config)
   const customRules = data.houseRulesAndRegulations?.trim();
   if (customRules) {
-    page.drawText("3. TERMS, HOUSE RULES & PROPERTY REGULATIONS (ANNEXURE)", {
+    page.drawText("3. PROPERTY TERMS, RULES & REGULATIONS", {
       x: 40,
       y: currentY,
       size: 10,
@@ -234,13 +228,13 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
       color: brandTerracotta,
     });
 
-    currentY -= 15;
+    currentY -= 14;
     const ruleLines = customRules
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
 
-    const rulesBoxHeight = Math.min(260, Math.max(70, ruleLines.length * 16 + 20));
+    const rulesBoxHeight = Math.min(240, Math.max(65, ruleLines.length * 15 + 18));
 
     page.drawRectangle({
       x: 40,
@@ -252,7 +246,7 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
       borderWidth: 1,
     });
 
-    let ruleY = currentY - 18;
+    let ruleY = currentY - 17;
     ruleLines.slice(0, 14).forEach((line) => {
       const text = line.length > 95 ? line.substring(0, 92) + "..." : line;
       page.drawText(text, {
@@ -262,107 +256,98 @@ export async function generateRentalAgreementPdfBuffer(data: RentalAgreementPdfD
         font: fontRegular,
         color: brandDark,
       });
-      ruleY -= 16;
+      ruleY -= 15;
     });
 
     currentY -= rulesBoxHeight + 20;
-  } else {
-    // Clean statutory declaration (NO filler rules)
-    page.drawText("3. MUTUAL CONSENT & TENANCY DECLARATION", {
-      x: 40,
-      y: currentY,
-      size: 10,
-      font: fontBold,
-      color: brandTerracotta,
-    });
-
-    currentY -= 15;
-    page.drawRectangle({
-      x: 40,
-      y: currentY - 50,
-      width: width - 80,
-      height: 50,
-      color: rgb(1, 1, 1),
-      borderColor: borderStroke,
-      borderWidth: 1,
-    });
-
-    page.drawText(
-      "This official tenancy record verifies the reserved accommodation allocation. Both the resident and the property",
-      { x: 55, y: currentY - 20, size: 8.5, font: fontRegular, color: slateGray }
-    );
-    page.drawText(
-      "management agree to adhere to standard coliving etiquette, timely monthly settlements, and agreed notice periods.",
-      { x: 55, y: currentY - 34, size: 8.5, font: fontRegular, color: slateGray }
-    );
-
-    currentY -= 70;
   }
+  // If rules are not mentioned in config, this section DOES NOT APPEAR at all!
 
   // 7. Signatures & Attestation Block
+  const sigBoxHeight = 84;
+  const sigBoxY = Math.max(45, currentY - 15 - sigBoxHeight);
+
   page.drawRectangle({
     x: 40,
-    y: currentY - 75,
+    y: sigBoxY,
     width: width - 80,
-    height: 75,
+    height: sigBoxHeight,
     color: slateLight,
     borderColor: borderStroke,
     borderWidth: 1,
   });
 
+  // Resident Signature (Left)
+  page.drawText((data.tenantName || "Resident").slice(0, 25), {
+    x: 60,
+    y: sigBoxY + 52,
+    size: 15,
+    font: fontScript,
+    color: inkBlue,
+  });
+
   page.drawLine({
-    start: { x: 55, y: currentY - 45 },
-    end: { x: 250, y: currentY - 45 },
+    start: { x: 55, y: sigBoxY + 44 },
+    end: { x: 250, y: sigBoxY + 44 },
     thickness: 0.75,
     color: slateGray,
   });
-  page.drawText(`Resident Digital Signature: ${(data.tenantName || "Resident").slice(0, 30)}`, {
+  page.drawText(`Resident Digital Signature: ${(data.tenantName || "Resident").slice(0, 25)}`, {
     x: 55,
-    y: currentY - 58,
+    y: sigBoxY + 30,
     size: 8,
     font: fontBold,
     color: brandDark,
   });
   page.drawText("Digitally Attested via TenoPilot Verified Onboarding", {
     x: 55,
-    y: currentY - 68,
+    y: sigBoxY + 18,
     size: 7,
     font: fontOblique,
     color: slateGray,
   });
 
+  // Owner / Management Signature (Right - Mimics Owner Handwriting)
+  const ownerSigName = (data.ownerName || data.propertyTitle || "Property Management").trim();
+  page.drawText(ownerSigName.slice(0, 26), {
+    x: 345,
+    y: sigBoxY + 52,
+    size: 15,
+    font: fontScript,
+    color: inkBlue,
+  });
+
   page.drawLine({
-    start: { x: 340, y: currentY - 45 },
-    end: { x: width - 55, y: currentY - 45 },
+    start: { x: 340, y: sigBoxY + 44 },
+    end: { x: width - 55, y: sigBoxY + 44 },
     thickness: 0.75,
     color: slateGray,
   });
   page.drawText("Property Authorized Signatory", {
     x: 340,
-    y: currentY - 58,
+    y: sigBoxY + 30,
     size: 8,
     font: fontBold,
     color: brandDark,
   });
-  page.drawText("For " + (data.propertyTitle || "Property Management").slice(0, 35), {
+  page.drawText(`Digitally Attested & Verified • ${issueDate}`, {
     x: 340,
-    y: currentY - 68,
+    y: sigBoxY + 18,
     size: 7,
     font: fontOblique,
-    color: slateGray,
+    color: emeraldGreen,
   });
 
-  // Footer
-  page.drawText(
-    "CONFIDENTIAL & LEGALLY BINDING • GENERATED BY TENOPILOT OPERATING SYSTEM • VERIFIED DIGITAL RECORD",
-    {
-      x: 75,
-      y: 25,
-      size: 7,
-      font: fontBold,
-      color: rgb(0.65, 0.70, 0.75),
-    }
-  );
+  // Footer: Powered by tenopilot.com
+  const footerText = "CONFIDENTIAL & LEGALLY BINDING TENANCY RECORD • Powered by TenoPilot.com";
+  const footerWidth = fontBold.widthOfTextAtSize(footerText, 7.5);
+  page.drawText(footerText, {
+    x: (width - footerWidth) / 2,
+    y: 20,
+    size: 7.5,
+    font: fontBold,
+    color: rgb(0.55, 0.60, 0.68),
+  });
 
   return await pdfDoc.save();
 }

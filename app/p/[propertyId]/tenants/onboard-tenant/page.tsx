@@ -647,10 +647,15 @@ export default function OnboardTenantPage({
     setShowSuccessModal(true);
 
     // 💬 Automated WhatsApp Welcome & Desk Notice Dispatch
-    if (sendWelcomeWa) {
-      const propSettings = propertySettingsStore.getSettings(propertyId);
-      const propName = propSettings?.propertyName || "TenoPilot PG";
+    const propSettings = propertySettingsStore.getSettings(propertyId);
+    const propName = propSettings?.propertyName || "TenoPilot PG";
+    const billingCycleText = propSettings?.billingCycleDates === "Anniversary Date"
+      ? "Anniversary Date (Due on Move-in Date)"
+      : `1st to End of Month (Due by ${propSettings?.desiredDueDate || 5}th)`;
+    const houseRulesText = (propSettings as any)?.houseRulesAndRegulations || "";
+    const ownerSigName = propName;
 
+    if (sendWelcomeWa) {
       fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -675,6 +680,9 @@ export default function OnboardTenantPage({
                 rentAmount: monthlyRent,
                 depositAmount: newTenant.securityDeposit || depositAmount || 0,
                 propertyAddress: propSettings?.propertyAddress,
+                houseRules: houseRulesText,
+                billingCycle: billingCycleText,
+                ownerName: ownerSigName,
                 onboardUrl: `https://www.tenopilot.com/p/${propertyId}/tenants/${newId}`,
               },
             },
@@ -736,7 +744,9 @@ export default function OnboardTenantPage({
                 managerPhone: propSettings?.managerPhone,
                 phone: fullPhoneNumber,
                 propertyAddress: propSettings?.propertyAddress,
-                houseRules: (propSettings as any)?.houseRulesAndRegulations || "",
+                houseRules: houseRulesText,
+                billingCycle: billingCycleText,
+                ownerName: ownerSigName,
                 onboardUrl: `https://www.tenopilot.com/p/${propertyId}/tenants/${newId}`,
               },
             },
