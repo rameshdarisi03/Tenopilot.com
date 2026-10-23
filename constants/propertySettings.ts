@@ -57,6 +57,7 @@ export interface PropertySettingsData {
   includeDepositInOutstanding?: boolean; // When false (default), unpaid deposit is not mixed into monthly rent outstanding balance
   invoiceConfig?: InvoiceConfig;
   houseRulesAndRegulations?: string; // Optional custom rules, curfew, terms to attach to rental agreements
+  ownerName?: string; // Property Owner / Authorized Signatory Name for rental agreements
 }
 
 export const DEFAULT_PROPERTY_RENTAL_TIERS = {
@@ -79,6 +80,7 @@ export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
   includeDepositInOutstanding: false,
   invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
+  ownerName: "",
 };
 
 export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
@@ -94,6 +96,7 @@ export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
   includeDepositInOutstanding: false,
   invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
+  ownerName: "Property Owner",
 };
 
 // In-Memory Multi-Tenant Cache & Active Listeners Map

@@ -345,6 +345,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
 
         const agreementParams = new URLSearchParams({
+          propertyId: payload.propertyId || "",
           tenantName: payload.recipientName,
           phone: payload.toPhone,
           roomNumber: p.roomNumber || "N/A",

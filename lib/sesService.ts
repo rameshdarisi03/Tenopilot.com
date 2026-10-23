@@ -3,6 +3,8 @@
 
 import { SESClient, SendEmailCommand, SendEmailCommandInput } from "@aws-sdk/client-ses";
 import { generateReceiptPdfBuffer, generateRentalAgreementPdfBuffer } from "./pdfGenerator";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
 
 export interface SESSendParams {
   toEmail: string;
@@ -1048,6 +1050,69 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
       const safeRoom = (p.roomNumber || "Room").replace(/[^a-zA-Z0-9_-]/g, "_");
       const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
+      let resolvedHouseRules = p.houseRules || "";
+      let resolvedOwnerName = p.ownerName || "";
+      let resolvedBillingCycle = p.billingCycle;
+      let resolvedPropAddress = p.propertyAddress || p.bankLabel || "";
+      let resolvedPropTitle = pName;
+
+      // If rules, owner name or billing cycle are missing, fetch directly from Cloud Firestore settings
+      if (payload.propertyId && db && (!resolvedHouseRules || !resolvedOwnerName || !resolvedBillingCycle)) {
+        try {
+          let propDocId = payload.propertyId;
+          let cfgSnap = await getDoc(doc(db, "properties", propDocId, "settings", "config"));
+
+          if (!cfgSnap.exists()) {
+            // Check if propertyId maps to an existing property by name/slug
+            const pQuery = query(collection(db, "properties"), where("propertyName", "==", payload.propertyName || ""));
+            const pSnap = await getDocs(pQuery);
+            if (!pSnap.empty) {
+              propDocId = pSnap.docs[0].id;
+              cfgSnap = await getDoc(doc(db, "properties", propDocId, "settings", "config"));
+            }
+          }
+
+          if (cfgSnap.exists()) {
+            const cfg = cfgSnap.data();
+            if (!resolvedHouseRules && cfg.houseRulesAndRegulations) {
+              resolvedHouseRules = cfg.houseRulesAndRegulations;
+            }
+            if (!resolvedOwnerName && cfg.ownerName) {
+              resolvedOwnerName = cfg.ownerName;
+            }
+            if (!resolvedBillingCycle && cfg.billingCycleDates) {
+              resolvedBillingCycle = cfg.billingCycleDates === "Anniversary Date"
+                ? "Anniversary Date (Due on Move-in Date)"
+                : `1st to End of Month (Due by ${cfg.desiredDueDate || 5}th)`;
+            }
+            if (!resolvedPropAddress && cfg.propertyAddress) {
+              resolvedPropAddress = cfg.propertyAddress;
+            }
+            if (cfg.propertyName) {
+              resolvedPropTitle = cfg.propertyName;
+            }
+          }
+
+          // Fallback for owner name from property root or user profile if still not found
+          if (!resolvedOwnerName) {
+            const pDocSnap = await getDoc(doc(db, "properties", propDocId));
+            if (pDocSnap.exists()) {
+              const pData = pDocSnap.data();
+              if (pData.ownerName) resolvedOwnerName = pData.ownerName;
+              else if (pData.ownerEmail) {
+                const uQuery = query(collection(db, "users"), where("email", "==", pData.ownerEmail));
+                const uSnap = await getDocs(uQuery);
+                if (!uSnap.empty && uSnap.docs[0].data().displayName) {
+                  resolvedOwnerName = uSnap.docs[0].data().displayName;
+                }
+              }
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("Notice: Fetching property config for agreement email attachment:", fetchErr);
+        }
+      }
+
       const pdfUint8 = await generateRentalAgreementPdfBuffer({
         tenantName: payload.recipientName || "Resident",
         phone: p.phone || payload.toEmail || "N/A",
@@ -1056,11 +1121,11 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
         joiningDate: checkinDate,
         monthlyRent: Number(p.rentAmount || p.amount || 0),
         securityDeposit: Number(p.depositAmount || 0),
-        propertyTitle: pName,
-        propertyAddress: p.propertyAddress || p.bankLabel || "",
-        houseRulesAndRegulations: p.houseRules || "",
-        billingCycle: p.billingCycle,
-        ownerName: p.ownerName,
+        propertyTitle: resolvedPropTitle,
+        propertyAddress: resolvedPropAddress,
+        houseRulesAndRegulations: resolvedHouseRules,
+        billingCycle: resolvedBillingCycle,
+        ownerName: resolvedOwnerName,
       });
 
       const base64Pdf = Buffer.from(pdfUint8).toString("base64");

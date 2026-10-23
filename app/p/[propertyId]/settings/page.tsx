@@ -197,11 +197,17 @@ export default function PropertySettingsPage({
     if (!loaded.managerPhone && profile?.phone) {
       loaded.managerPhone = profile.phone;
     }
+    if (!loaded.ownerName && profile?.displayName) {
+      loaded.ownerName = profile.displayName;
+    }
     setSettings(loaded);
     propertySettingsStore.fetchSettingsFromFirestore(propertyId).then((fs) => {
       if (fs) {
         if (!fs.managerPhone && profile?.phone) {
           fs.managerPhone = profile.phone;
+        }
+        if (!fs.ownerName && profile?.displayName) {
+          fs.ownerName = profile.displayName;
         }
         setSettings(fs);
       }
@@ -1349,6 +1355,32 @@ export default function PropertySettingsPage({
                       />
                       <p className="text-[10px] text-gray-400 mt-1 font-medium">
                         Syncs location badge on Home Welcome Screen building cards.
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
+                        <label className="block text-xs font-bold text-gray-700">PG Owner / Signatory Name *</label>
+                        {profile?.displayName && settings.ownerName !== profile.displayName && (
+                          <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, ownerName: profile.displayName! })}
+                            className="text-[10px] font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                          >
+                            ⚡ Use Profile Name ({profile.displayName})
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={settings.ownerName || ""}
+                        onChange={(e) => setSettings({ ...settings, ownerName: e.target.value })}
+                        placeholder="e.g. Ramesh Darisi"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Attested as the digital signature of the property owner on tenant rental agreements.
                       </p>
                     </div>
 

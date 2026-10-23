@@ -653,7 +653,7 @@ export default function OnboardTenantPage({
       ? "Anniversary Date (Due on Move-in Date)"
       : `1st to End of Month (Due by ${propSettings?.desiredDueDate || 5}th)`;
     const houseRulesText = (propSettings as any)?.houseRulesAndRegulations || "";
-    const ownerSigName = propName;
+    const ownerSigName = (propSettings as any)?.ownerName || profile?.displayName || "Property Owner";
 
     if (sendWelcomeWa) {
       fetch("/api/whatsapp/send", {

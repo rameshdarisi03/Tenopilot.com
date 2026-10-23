@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateRentalAgreementPdfBuffer, RentalAgreementPdfData } from "@/lib/pdfGenerator";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const propertyId = searchParams.get("propertyId") || "";
     const tenantName = searchParams.get("tenantName") || "Resident";
     const phone = searchParams.get("phone") || "N/A";
     const roomNumber = searchParams.get("roomNumber") || "N/A";
@@ -13,11 +16,51 @@ export async function GET(req: NextRequest) {
     const joiningDate = searchParams.get("joiningDate") || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
     const monthlyRent = Number(searchParams.get("monthlyRent") || searchParams.get("rentAmount") || searchParams.get("amount") || 0);
     const securityDeposit = Number(searchParams.get("securityDeposit") || searchParams.get("depositAmount") || 0);
-    const propertyTitle = searchParams.get("propertyName") || searchParams.get("propertyTitle") || "TenoPilot Coliving";
-    const propertyAddress = searchParams.get("propertyAddress") || "";
-    const houseRulesAndRegulations = searchParams.get("houseRules") || "";
-    const billingCycle = searchParams.get("billingCycle") || undefined;
-    const ownerName = searchParams.get("ownerName") || undefined;
+    let propertyTitle = searchParams.get("propertyName") || searchParams.get("propertyTitle") || "TenoPilot Coliving";
+    let propertyAddress = searchParams.get("propertyAddress") || "";
+    let houseRulesAndRegulations = searchParams.get("houseRules") || "";
+    let billingCycle = searchParams.get("billingCycle") || undefined;
+    let ownerName = searchParams.get("ownerName") || undefined;
+
+    // If propertyId is provided and rules/ownerName are missing, fetch directly from Firestore settings
+    if (propertyId && db && (!houseRulesAndRegulations || !ownerName || !billingCycle)) {
+      try {
+        let propDocId = propertyId;
+        let cfgSnap = await getDoc(doc(db, "properties", propDocId, "settings", "config"));
+
+        if (!cfgSnap.exists()) {
+          const pQuery = query(collection(db, "properties"), where("propertyName", "==", propertyTitle));
+          const pSnap = await getDocs(pQuery);
+          if (!pSnap.empty) {
+            propDocId = pSnap.docs[0].id;
+            cfgSnap = await getDoc(doc(db, "properties", propDocId, "settings", "config"));
+          }
+        }
+
+        if (cfgSnap.exists()) {
+          const cfg = cfgSnap.data();
+          if (!houseRulesAndRegulations && cfg.houseRulesAndRegulations) {
+            houseRulesAndRegulations = cfg.houseRulesAndRegulations;
+          }
+          if (!ownerName && cfg.ownerName) {
+            ownerName = cfg.ownerName;
+          }
+          if (!billingCycle && cfg.billingCycleDates) {
+            billingCycle = cfg.billingCycleDates === "Anniversary Date"
+              ? "Anniversary Date (Due on Move-in Date)"
+              : `1st to End of Month (Due by ${cfg.desiredDueDate || 5}th)`;
+          }
+          if (!propertyAddress && cfg.propertyAddress) {
+            propertyAddress = cfg.propertyAddress;
+          }
+          if (cfg.propertyName) {
+            propertyTitle = cfg.propertyName;
+          }
+        }
+      } catch (err) {
+        console.warn("Notice: Fetching property config in agreement pdf route:", err);
+      }
+    }
 
     const pdfData: RentalAgreementPdfData = {
       tenantName,

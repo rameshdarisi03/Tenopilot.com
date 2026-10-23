@@ -582,7 +582,7 @@ export default function SelfKycDeskPage({
         ? "Anniversary Date (Due on Move-in Date)"
         : `1st to End of Month (Due by ${settings?.desiredDueDate || 5}th)`;
       const houseRulesText = (settings as any)?.houseRulesAndRegulations || "";
-      const ownerSigName = propName;
+      const ownerSigName = (settings as any)?.ownerName || profile?.displayName || "Property Owner";
 
       // 1. Automated WhatsApp Welcome & Agreement Notification
       try {

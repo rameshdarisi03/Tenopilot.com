@@ -2896,7 +2896,7 @@ export default function IndividualTenantProfilePage({
                             propertyAddress: propertySettings?.propertyAddress,
                             houseRulesAndRegulations: propertySettings?.houseRulesAndRegulations,
                             billingCycle: bCycle,
-                            ownerName: displayPropertyName,
+                            ownerName: (propertySettings as any)?.ownerName || profile?.displayName || "Property Owner",
                           });
                           triggerToast("✓ Downloaded Rental Agreement PDF!");
                         }}
@@ -5119,7 +5119,7 @@ export default function IndividualTenantProfilePage({
                       propertyAddress: propertySettings?.propertyAddress,
                       houseRulesAndRegulations: propertySettings?.houseRulesAndRegulations,
                       billingCycle: bCycle,
-                      ownerName: displayPropertyName,
+                      ownerName: (propertySettings as any)?.ownerName || profile?.displayName || "Property Owner",
                     });
                     setViewAgreementModal(false);
                     triggerToast("✓ Rental Agreement PDF Downloaded");

@@ -187,6 +187,8 @@ export async function downloadRentalAgreementPdf(data: {
 
     currentY -= 78;
 
+    const sigBoxHeight = 84;
+
     // 6. Section 3: Property Terms, Rules and Regulations (Conditional: ONLY if rules exist in config)
     const customRules = data.houseRulesAndRegulations?.trim();
     if (customRules) {
@@ -199,12 +201,37 @@ export async function downloadRentalAgreementPdf(data: {
       });
 
       currentY -= 14;
-      const ruleLines = customRules
+
+      // Split into paragraphs and wrap lines to fit nicely inside page margins
+      const rawParagraphs = customRules
         .split("\n")
         .map((l) => l.trim())
         .filter(Boolean);
 
-      const rulesBoxHeight = Math.min(240, Math.max(65, ruleLines.length * 15 + 18));
+      const wrappedLines: string[] = [];
+      for (const para of rawParagraphs) {
+        if (para.length <= 95) {
+          wrappedLines.push(para);
+        } else {
+          const words = para.split(/\s+/);
+          let curLine = "";
+          for (const w of words) {
+            if ((curLine + " " + w).trim().length <= 95) {
+              curLine = (curLine + " " + w).trim();
+            } else {
+              if (curLine) wrappedLines.push(curLine);
+              curLine = w;
+            }
+          }
+          if (curLine) wrappedLines.push(curLine);
+        }
+      }
+
+      // Determine font size and line height dynamically so all rules fit cleanly
+      const maxAvailableHeight = currentY - (sigBoxHeight + 50);
+      const lineHeight = wrappedLines.length > 20 ? 11 : wrappedLines.length > 13 ? 12.5 : 14;
+      const ruleFontSize = wrappedLines.length > 20 ? 7 : wrappedLines.length > 13 ? 7.6 : 8.2;
+      const rulesBoxHeight = Math.min(maxAvailableHeight, Math.max(50, wrappedLines.length * lineHeight + 16));
 
       page.drawRectangle({
         x: 40,
@@ -216,25 +243,24 @@ export async function downloadRentalAgreementPdf(data: {
         borderWidth: 1,
       });
 
-      let ruleY = currentY - 17;
-      ruleLines.slice(0, 14).forEach((line) => {
-        const text = line.length > 95 ? line.substring(0, 92) + "..." : line;
-        page.drawText(text, {
+      let ruleY = currentY - 14;
+      const maxLinesToShow = Math.floor((rulesBoxHeight - 12) / lineHeight);
+      wrappedLines.slice(0, maxLinesToShow).forEach((line) => {
+        page.drawText(line, {
           x: 55,
           y: ruleY,
-          size: 8.5,
+          size: ruleFontSize,
           font: fontRegular,
           color: brandDark,
         });
-        ruleY -= 15;
+        ruleY -= lineHeight;
       });
 
-      currentY -= rulesBoxHeight + 20;
+      currentY -= rulesBoxHeight + 16;
     }
     // If rules are not mentioned in config, this section DOES NOT APPEAR at all!
 
     // 7. Signatures & Attestation Block
-    const sigBoxHeight = 84;
     const sigBoxY = Math.max(45, currentY - 15 - sigBoxHeight);
 
     page.drawRectangle({
@@ -247,39 +273,31 @@ export async function downloadRentalAgreementPdf(data: {
       borderWidth: 1,
     });
 
-    // Resident Signature (Left)
-    page.drawText(data.tenantName.slice(0, 25), {
-      x: 60,
-      y: sigBoxY + 52,
-      size: 15,
-      font: fontScript,
-      color: inkBlue,
-    });
-
+    // Resident Signature (Left - Clean physical signing line, NO electronic simulated cursive signature)
     page.drawLine({
-      start: { x: 55, y: sigBoxY + 44 },
-      end: { x: 250, y: sigBoxY + 44 },
+      start: { x: 55, y: sigBoxY + 38 },
+      end: { x: 250, y: sigBoxY + 38 },
       thickness: 0.75,
       color: slateGray,
     });
-    page.drawText(`Resident Digital Signature: ${data.tenantName}`, {
+    page.drawText(`Resident Signature (${(data.tenantName || "Resident").slice(0, 25)})`, {
       x: 55,
-      y: sigBoxY + 30,
+      y: sigBoxY + 24,
       size: 8,
       font: fontBold,
       color: brandDark,
     });
-    page.drawText("Digitally Attested via TenoPilot Verified Onboarding", {
+    page.drawText("Date: ____________________", {
       x: 55,
-      y: sigBoxY + 18,
-      size: 7,
-      font: fontOblique,
+      y: sigBoxY + 12,
+      size: 7.5,
+      font: fontRegular,
       color: slateGray,
     });
 
-    // Owner / Management Signature (Right - Mimics Owner Handwriting)
-    const ownerSigName = (data.ownerName || data.propertyTitle || "Property Management").trim();
-    page.drawText(ownerSigName.slice(0, 26), {
+    // Owner / Management Signature (Right - Mimics Owner Handwriting using Owner's Name)
+    const ownerSigName = (data.ownerName || "Property Owner").trim();
+    page.drawText(ownerSigName.slice(0, 28), {
       x: 345,
       y: sigBoxY + 52,
       size: 15,
@@ -293,7 +311,7 @@ export async function downloadRentalAgreementPdf(data: {
       thickness: 0.75,
       color: slateGray,
     });
-    page.drawText("Property Authorized Signatory", {
+    page.drawText(`Property Authorized Signatory (${ownerSigName.slice(0, 22)})`, {
       x: 340,
       y: sigBoxY + 30,
       size: 8,
