@@ -493,9 +493,10 @@ export default function IndividualTenantProfilePage({
         setRentPaymentPortion(0);
         setDepositPaymentPortion(depDue);
       } else if (stmt.remainingRentDue > 0 && depDue > 0) {
+        const includeDeposit = Boolean(propertySettings?.includeDepositInOutstanding);
         setPaymentPurpose("RENT");
         setRentPaymentPortion(rentDue);
-        setDepositPaymentPortion(depDue);
+        setDepositPaymentPortion(includeDeposit ? depDue : 0);
       } else {
         setPaymentPurpose("RENT");
         setRentPaymentPortion(rentDue);

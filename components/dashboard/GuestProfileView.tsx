@@ -343,13 +343,15 @@ export function GuestProfileView({
                     }`}>
                       🏠 Stay: {stmt.remainingRentDue > 0 ? `₹${stmt.remainingRentDue.toLocaleString("en-IN")}` : "Paid ✓"}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold border ${
-                      stmt.remainingDepositDue > 0
-                        ? "bg-purple-50 text-purple-900 border-purple-200/70"
-                        : "bg-emerald-50 text-emerald-800 border-emerald-200/70"
-                    }`}>
-                      🔒 Deposit: {stmt.remainingDepositDue > 0 ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : "Paid ✓"}
-                    </span>
+                    {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold border ${
+                        stmt.remainingDepositDue > 0
+                          ? "bg-purple-50 text-purple-900 border-purple-200/70"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-200/70"
+                      }`}>
+                        🔒 Deposit: {stmt.remainingDepositDue > 0 ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : "Paid ✓"}
+                      </span>
+                    )}
                   </>
                 )}
               </div>
@@ -399,21 +401,23 @@ export function GuestProfileView({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between py-1 text-gray-700">
-                          <span className="flex items-center gap-2">
-                            🔒 Refundable Key Deposit
-                          </span>
-                          <div className="text-right">
-                            <span className="font-bold font-mono text-gray-900 text-sm">
-                              ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                        {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                          <div className="flex items-center justify-between py-1 text-gray-700">
+                            <span className="flex items-center gap-2">
+                              🔒 Refundable Key Deposit
                             </span>
-                            {stmt.totalDepositPaid > 0 && (
-                              <span className="block text-[10px] text-emerald-600 font-semibold">
-                                Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")} of ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
+                            <div className="text-right">
+                              <span className="font-bold font-mono text-gray-900 text-sm">
+                                ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
                               </span>
-                            )}
+                              {stmt.totalDepositPaid > 0 && (
+                                <span className="block text-[10px] text-emerald-600 font-semibold">
+                                  Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")} of ₹{stmt.securityDepositRequired.toLocaleString("en-IN")}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         <div className="pt-3 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900">
                           <span className="text-xs">Total Net Outstanding:</span>
@@ -477,21 +481,23 @@ export function GuestProfileView({
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between py-1 text-gray-700">
-                        <span className="flex items-center gap-1.5">
-                          🔒 Refundable Key Deposit
-                        </span>
-                        <div className="text-right">
-                          <span className="font-bold font-mono text-gray-900">
-                            ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
+                      {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                        <div className="flex items-center justify-between py-1 text-gray-700">
+                          <span className="flex items-center gap-1.5">
+                            🔒 Refundable Key Deposit
                           </span>
-                          {stmt.totalDepositPaid > 0 && (
-                            <span className="block text-[9px] text-emerald-600 font-semibold">
-                              Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")}
+                          <div className="text-right">
+                            <span className="font-bold font-mono text-gray-900">
+                              ₹{stmt.remainingDepositDue.toLocaleString("en-IN")}
                             </span>
-                          )}
+                            {stmt.totalDepositPaid > 0 && (
+                              <span className="block text-[9px] text-emerald-600 font-semibold">
+                                Paid: ₹{stmt.totalDepositPaid.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-gray-900 text-xs">
                         <span>Total Net Outstanding:</span>
