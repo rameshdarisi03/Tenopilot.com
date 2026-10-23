@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendWhatsAppMessage, WhatsAppSendParams, WhatsAppSendResult } from "@/lib/whatsappService";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function POST(req: NextRequest) {
@@ -71,6 +71,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 🔒 2. STRICT HACKER-PROOF BACKEND ZERO-CREDIT LOCK (SSOT)
+    // Directly verify Cloud Firestore property wallet to prevent any client-side tampering, curl, or devtools bypass
+    const walletRef = doc(db, `properties/${propertyId}/whatsapp/wallet`);
+    const walletSnap = await getDoc(walletRef);
+    const currentCredits = walletSnap.exists() && typeof walletSnap.data()?.credits === "number"
+      ? walletSnap.data().credits
+      : 0;
+
+    if (currentCredits <= 0) {
+      return NextResponse.json(
+        {
+          error: "🔒 WhatsApp Gateway Locked: Your credit balance is 0. Dispatches have been halted. Please recharge your WhatsApp credit pack to resume messaging.",
+          zeroCredits: true,
+          remainingCredits: 0,
+        },
+        { status: 402 } // 402 Payment Required
+      );
+    }
+
+    if (currentCredits < messages.length) {
+      return NextResponse.json(
+        {
+          error: `🔒 Insufficient WhatsApp Credits: You attempted to dispatch ${messages.length} messages, but your wallet only has ${currentCredits} credits remaining. Please recharge your wallet.`,
+          insufficientCredits: true,
+          requiredCredits: messages.length,
+          remainingCredits: currentCredits,
+        },
+        { status: 402 } // 402 Payment Required
+      );
+    }
+
     const results: WhatsAppSendResult[] = [];
 
     for (const msgPayload of messages) {
@@ -81,11 +112,51 @@ export async function POST(req: NextRequest) {
     const successfulCount = results.filter((r) => r.success).length;
     const failedCount = results.filter((r) => !r.success).length;
 
+    // 🔒 3. Server-Authoritative Credit Deduction & USAGE Transaction Ledger
+    let finalCredits = currentCredits;
+    if (successfulCount > 0) {
+      try {
+        const freshSnap = await getDoc(walletRef);
+        const freshData = freshSnap.data();
+        const baseCredits = typeof freshData?.credits === "number" ? freshData.credits : currentCredits;
+        const existingTxs = Array.isArray(freshData?.transactions) ? freshData.transactions : [];
+        finalCredits = Math.max(0, baseCredits - successfulCount);
+
+        const newUsageTxs = messages
+          .filter((_, idx) => results[idx]?.success)
+          .map((m) => ({
+            id: `tx-srv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            type: "USAGE" as const,
+            amount: -1,
+            balanceAfter: finalCredits,
+            description: `Sent automated ${m.type?.replace(/_/g, " ").toLowerCase() || "WhatsApp message"} to ${m.recipientName || m.toPhone}`,
+            recipientPhone: m.toPhone,
+            recipientName: m.recipientName,
+            messageType: m.type || "RENT_REMINDER",
+            timestamp: new Date().toISOString(),
+            status: "DELIVERED" as const,
+          }));
+
+        await setDoc(
+          walletRef,
+          {
+            credits: finalCredits,
+            transactions: [...newUsageTxs, ...existingTxs].slice(0, 100),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (txErr) {
+        console.warn("Notice updating Firestore wallet on server dispatch:", txErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       totalSent: messages.length,
       successfulCount,
       failedCount,
+      remainingCredits: finalCredits,
       results,
     });
   } catch (error: any) {

@@ -850,9 +850,12 @@ export default function SubscriptionBillingPage() {
               <div className="flex items-center gap-3 bg-[#fcf9f8] p-2.5 px-4 rounded-2xl border border-gray-200 shadow-2xs">
                 <div className="text-right">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Wallet Balance</span>
-                  <span className="font-mono font-black text-xl text-emerald-800 tabular-nums">
+                  <span className={`font-mono font-black text-xl tabular-nums ${whatsappCredits <= 0 ? "text-rose-600" : "text-emerald-800"}`}>
                     {whatsappCredits} <span className="text-xs font-semibold text-gray-600">Credits</span>
                   </span>
+                  {whatsappCredits <= 0 && (
+                    <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
+                  )}
                 </div>
                 <div className={`w-3 h-3 rounded-full ${whatsappCredits > 50 ? "bg-emerald-500" : whatsappCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
               </div>

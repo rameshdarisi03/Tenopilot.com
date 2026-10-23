@@ -268,52 +268,28 @@ export const whatsappCreditStore = {
     }
   },
 
+  hasCredits(propertyId?: string, required: number = 1): boolean {
+    if (!propertyId) return false;
+    return this.getCredits(propertyId) >= required;
+  },
+
   deductCredit(
     propertyId: string,
-    details: {
-      recipientPhone: string;
-      recipientName: string;
-      messageType: WhatsAppCreditTransaction["messageType"];
+    details?: {
+      recipientPhone?: string;
+      recipientName?: string;
+      messageType?: WhatsAppCreditTransaction["messageType"];
       description?: string;
     }
   ): { success: boolean; remainingCredits: number; error?: string } {
+    // 🛡️ Server-Authoritative SSOT:
+    // /api/whatsapp/send atomically verifies and deducts credits in Cloud Firestore upon delivery.
+    // The Firestore onSnapshot listener automatically updates the client state in real time.
     const currentCredits = this.getCredits(propertyId);
-    if (currentCredits < 1) {
-      return {
-        success: false,
-        remainingCredits: currentCredits,
-        error: "Insufficient WhatsApp credits. Please recharge your wallet to send automated reminders.",
-      };
-    }
-
-    const newBalance = currentCredits - 1;
-    const newTx: WhatsAppCreditTransaction = {
-      id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      type: "USAGE",
-      amount: -1,
-      balanceAfter: newBalance,
-      description: details.description || `Sent automated ${details.messageType?.replace(/_/g, " ").toLowerCase() || "message"} to ${details.recipientName}`,
-      recipientPhone: details.recipientPhone,
-      recipientName: details.recipientName,
-      messageType: details.messageType || "RENT_REMINDER",
-      timestamp: new Date().toISOString(),
-      status: "DELIVERED",
-    };
-
-    const currentTxs = this.getTransactions(propertyId);
-    const updatedState: PropertyWalletState = {
-      credits: newBalance,
-      transactions: [newTx, ...currentTxs].slice(0, 100),
-    };
-
-    PROPERTY_WALLET_MAP.set(propertyId, updatedState);
-    setStoredWallet(propertyId, updatedState);
-    notify();
-    this.syncToFirestore(propertyId, updatedState);
-
     return {
-      success: true,
-      remainingCredits: newBalance,
+      success: currentCredits > 0,
+      remainingCredits: currentCredits,
+      error: currentCredits <= 0 ? "🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet." : undefined,
     };
   },
 

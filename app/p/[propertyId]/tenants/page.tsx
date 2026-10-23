@@ -309,7 +309,8 @@ export default function TenantsDirectoryPage({
   const handleSendCustomCloudMessage = async () => {
     if (!customMessageTargetOccupant || !customMessageText.trim()) return;
 
-    if (whatsappCredits < 1) {
+    if (whatsappCredits <= 0) {
+      triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet to dispatch messages.");
       setShowWhatsAppWalletModal(true);
       return;
     }
@@ -813,6 +814,11 @@ export default function TenantsDirectoryPage({
     // Check WhatsApp credit balance if WhatsApp is ticked
     if (selectedReminderChannels.whatsapp) {
       const currentBal = whatsappCreditStore.getCredits(propertyId);
+      if (currentBal <= 0) {
+        triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet to dispatch reminders.");
+        setShowWhatsAppWalletModal(true);
+        return;
+      }
       if (currentBal < selectedOccupants.length) {
         triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge or uncheck WhatsApp.`);
         setShowWhatsAppWalletModal(true);
@@ -3226,12 +3232,18 @@ Scroll vertically to browse all residents without pagination limits
                   <button
                     type="button"
                     onClick={() => setShowWhatsAppWalletModal(true)}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-full font-bold text-[10px] sm:text-[11px] cursor-pointer shadow-2xs transition-all"
+                    className={`flex items-center gap-1 px-2.5 py-1 border rounded-full font-bold text-[10px] sm:text-[11px] cursor-pointer shadow-2xs transition-all ${
+                      whatsappCredits <= 0
+                        ? "bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-800"
+                        : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800"
+                    }`}
                     title="Click to recharge credits or view delivery history"
                   >
-                    <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    {whatsappCredits <= 0 ? <Lock className="w-3 h-3 text-rose-600" /> : <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />}
                     <span>{whatsappCredits} Credits</span>
-                    <span className="text-[9px] text-emerald-700 font-extrabold bg-emerald-200/70 px-1 py-0.2 rounded">+ Add</span>
+                    <span className={`text-[9px] font-extrabold px-1 py-0.2 rounded ${whatsappCredits <= 0 ? "bg-rose-200 text-rose-800" : "bg-emerald-200/70 text-emerald-700"}`}>
+                      {whatsappCredits <= 0 ? "Locked 🔒" : "+ Add"}
+                    </span>
                   </button>
 
                   <button
@@ -3519,14 +3531,21 @@ Scroll vertically to browse all residents without pagination limits
                       {/* WhatsApp Tick Button */}
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          if (whatsappCredits <= 0) {
+                            triggerToast("🔒 WhatsApp Gateway Locked: Your credit balance is 0. Please recharge your wallet to dispatch reminders.");
+                            setShowWhatsAppWalletModal(true);
+                            return;
+                          }
                           setSelectedReminderChannels((prev) => ({
                             ...prev,
                             whatsapp: !prev.whatsapp,
-                          }))
-                        }
+                          }));
+                        }}
                         className={`p-2.5 sm:p-3 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer active:scale-98 ${
-                          selectedReminderChannels.whatsapp
+                          whatsappCredits <= 0
+                            ? "border-rose-300 bg-rose-50/40 text-rose-950"
+                            : selectedReminderChannels.whatsapp
                             ? "border-emerald-600 bg-emerald-50/80 text-emerald-950 shadow-xs"
                             : "border-gray-200 bg-white hover:bg-gray-50 text-gray-500"
                         }`}
@@ -3534,28 +3553,36 @@ Scroll vertically to browse all residents without pagination limits
                         <div className="flex items-center gap-2 min-w-0">
                           <div
                             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                              selectedReminderChannels.whatsapp
+                              whatsappCredits <= 0
+                                ? "bg-rose-500 text-white"
+                                : selectedReminderChannels.whatsapp
                                 ? "bg-emerald-600 text-white"
                                 : "bg-gray-100 text-gray-500"
                             }`}
                           >
-                            <MessageSquare className="w-4 h-4" />
+                            {whatsappCredits <= 0 ? <Lock className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
                           </div>
                           <div className="min-w-0">
                             <span className="block font-bold text-xs truncate">WhatsApp</span>
-                            <span className="block text-[10px] text-emerald-700 font-semibold truncate">
-                              {selectedCandidateCount} {selectedCandidateCount === 1 ? "Credit" : "Credits"}
+                            <span className={`block text-[10px] font-semibold truncate ${whatsappCredits <= 0 ? "text-rose-600 font-bold" : "text-emerald-700"}`}>
+                              {whatsappCredits <= 0 ? "0 Credits • Locked 🔒" : `${selectedCandidateCount} ${selectedCandidateCount === 1 ? "Credit" : "Credits"}`}
                             </span>
                           </div>
                         </div>
                         <div
                           className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
-                            selectedReminderChannels.whatsapp
+                            whatsappCredits <= 0
+                              ? "border-rose-300 bg-rose-100 text-rose-600"
+                              : selectedReminderChannels.whatsapp
                               ? "bg-emerald-600 border-emerald-600 text-white"
                               : "border-gray-300 bg-white"
                           }`}
                         >
-                          {selectedReminderChannels.whatsapp && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          {whatsappCredits <= 0 ? (
+                            <Lock className="w-3 h-3" />
+                          ) : (
+                            selectedReminderChannels.whatsapp && <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          )}
                         </div>
                       </button>
                     </div>
