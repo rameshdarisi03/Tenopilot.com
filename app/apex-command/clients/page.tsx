@@ -199,6 +199,7 @@ export default function ApexCommandClientsPage() {
   const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(300);
   const [capacityExtensionPacks, setCapacityExtensionPacks] = useState<number>(0);
   const [capacityWhatsAppCredits, setCapacityWhatsAppCredits] = useState<number>(300);
+  const [liveWalletCredits, setLiveWalletCredits] = useState<number | null>(null);
   const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
   // Plan Activation Form State
@@ -418,7 +419,8 @@ export default function ApexCommandClientsPage() {
       setCapacityMaxProps(selectedCustomer360.maxPropertiesAllowed ?? globalAllowedProps);
       setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
-      setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 300) : (platformConfig.trialWhatsAppCredits || 10)));
+      setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : (platformConfig.trialWhatsAppCredits || 10)));
+      setLiveWalletCredits(null);
 
       // 🛡️ Live Property Wallet Sync: Read exact current credits from primary property wallet
       if (selectedCustomer360.propertyIds && selectedCustomer360.propertyIds.length > 0 && db) {
@@ -426,7 +428,7 @@ export default function ApexCommandClientsPage() {
         getDoc(doc(db, `properties/${primPropId}/whatsapp/wallet`))
           .then((wSnap) => {
             if (wSnap.exists() && typeof wSnap.data()?.credits === "number") {
-              setCapacityWhatsAppCredits(wSnap.data().credits);
+              setLiveWalletCredits(wSnap.data().credits);
             }
           })
           .catch(() => {});
@@ -439,7 +441,8 @@ export default function ApexCommandClientsPage() {
     if (!selectedCustomer360) return;
     setIsSavingCapacity(true);
     try {
-      const deltaCredits = Number(capacityWhatsAppCredits) - (selectedCustomer360.whatsappCreditsLimit ?? 0);
+      const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
+      const prevQuota = selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : 10);
       const res = await fetch("/api/apex/update-limits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -451,14 +454,13 @@ export default function ApexCommandClientsPage() {
           maxTenantsLimit: Number(capacityBaseTenants),
           tenantExtensionPacks: Number(capacityExtensionPacks),
           whatsappCreditsLimit: Number(capacityWhatsAppCredits),
-          deltaWhatsAppCredits: deltaCredits,
+          previousQuotaLimit: prevQuota,
           updatedBy: "Founder Apex Command",
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        const finalCredits = typeof data.limits?.whatsappCreditsLimit === "number" ? data.limits.whatsappCreditsLimit : Number(capacityWhatsAppCredits);
         triggerToast(`✓ Capacity & WhatsApp limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
         setSelectedCustomer360((prev) =>
           prev
@@ -467,7 +469,7 @@ export default function ApexCommandClientsPage() {
                 maxPropertiesAllowed: Number(capacityMaxProps),
                 maxTenantsLimit: Number(capacityBaseTenants),
                 tenantExtensionPacks: Number(capacityExtensionPacks),
-                whatsappCreditsLimit: finalCredits,
+                whatsappCreditsLimit: Number(capacityWhatsAppCredits),
               }
             : null
         );
@@ -479,7 +481,7 @@ export default function ApexCommandClientsPage() {
                   maxPropertiesAllowed: Number(capacityMaxProps),
                   maxTenantsLimit: Number(capacityBaseTenants),
                   tenantExtensionPacks: Number(capacityExtensionPacks),
-                  whatsappCreditsLimit: finalCredits,
+                  whatsappCreditsLimit: Number(capacityWhatsAppCredits),
                 }
               : a
           )
@@ -2152,9 +2154,37 @@ export default function ApexCommandClientsPage() {
                             : `Trial Default: ${platformConfig.trialWhatsAppCredits || 10}`}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-400">
-                        Total official Meta WhatsApp Cloud API balance available to this account.
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-gray-400">
+                          Account Monthly Quota Limit.
+                        </span>
+                        {liveWalletCredits !== null && (
+                          <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            Current Live Wallet: {liveWalletCredits} Credits
+                          </span>
+                        )}
+                      </div>
+                      {/* Live Protective Calculation Preview */}
+                      {(() => {
+                        const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
+                        const prevQuota = selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : 10);
+                        const delta = capacityWhatsAppCredits - prevQuota;
+                        if (delta > 0) {
+                          const previewNewBal = (liveWalletCredits ?? prevQuota) + delta;
+                          return (
+                            <p className="text-[10px] text-emerald-300 font-mono mt-1 flex items-center gap-1 font-semibold">
+                              <span>⚡ Instant Grant: +{delta} credits added immediately (New Live Balance: {previewNewBal})</span>
+                            </p>
+                          );
+                        } else if (delta < 0) {
+                          return (
+                            <p className="text-[10px] text-amber-300 font-sans mt-1 flex items-center gap-1">
+                              <span>⏳ Grace Rule: {capacityWhatsAppCredits} takes effect next monthly renewal. Current month&apos;s balance will not be deducted.</span>
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div className="flex items-center gap-2">
                       <button

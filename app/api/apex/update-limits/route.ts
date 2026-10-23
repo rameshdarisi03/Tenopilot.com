@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       maxTenantsLimit,
       tenantExtensionPacks,
       whatsappCreditsLimit,
-      deltaWhatsAppCredits,
+      previousQuotaLimit,
       updatedBy = "Founder Console",
     } = body;
 
@@ -135,8 +135,12 @@ export async function POST(req: NextRequest) {
       } catch (e) {}
     }
 
-    // 4. Update WhatsApp Wallet with additive delta / new limit
+    // 4. Update WhatsApp Wallet with the protective SSOT formula
     if (whatsappCreditsLimit !== undefined) {
+      const newQuota = Number(whatsappCreditsLimit);
+      const prevQuota = typeof previousQuotaLimit === "number" ? previousQuotaLimit : newQuota;
+      const quotaDelta = newQuota - prevQuota;
+
       for (const propId of Array.from(targetPropertyIds)) {
         try {
           const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
@@ -144,42 +148,52 @@ export async function POST(req: NextRequest) {
           const currentCredits = wSnap.exists() && typeof wSnap.data()?.credits === "number" ? wSnap.data().credits : 0;
           const currentTxs = wSnap.exists() && Array.isArray(wSnap.data()?.transactions) ? wSnap.data().transactions : [];
 
-          // Compute new balance: If deltaWhatsAppCredits was explicitly passed, add it on top of existing credits
-          let newBalance = Number(whatsappCreditsLimit);
-          let amountDelta = newBalance - currentCredits;
+          // 🛡️ PROTECTIVE GRACE RULE:
+          // A. If quota increased (quotaDelta > 0): add the incremental delta to the current live balance!
+          // B. If quota decreased (quotaDelta < 0): DO NOT deduct credits mid-month! Preserve live balance for current cycle.
+          // C. If first-time initialization (no wallet existed): grant full newQuota.
 
-          if (typeof deltaWhatsAppCredits === "number" && deltaWhatsAppCredits !== 0) {
-            amountDelta = deltaWhatsAppCredits;
-            newBalance = Math.max(0, currentCredits + deltaWhatsAppCredits);
+          let newBalance = currentCredits;
+          let shouldUpdateWallet = false;
+          let amountDelta = 0;
+
+          if (!wSnap.exists() || currentTxs.length === 0) {
+            // First time initialization
+            newBalance = newQuota;
+            amountDelta = newQuota;
+            shouldUpdateWallet = true;
+          } else if (quotaDelta > 0) {
+            // Incremental grant on top of live balance
+            amountDelta = quotaDelta;
+            newBalance = currentCredits + quotaDelta;
+            shouldUpdateWallet = true;
+          } else {
+            // Quota reduced or identical: Do NOT deduct mid-month
+            // Keep currentCredits intact for this month; the newQuota saved in users doc takes effect next renewal!
+            shouldUpdateWallet = false;
           }
 
-          const newTx = {
-            id: `tx-apex-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            type: "PURCHASE" as const,
-            amount: amountDelta,
-            balanceAfter: newBalance,
-            description: amountDelta >= 0
-              ? `Apex Command Grant: +${amountDelta} WhatsApp Credits (${updatedBy})`
-              : `Apex Command Adjustment: ${amountDelta} WhatsApp Credits (${updatedBy})`,
-            timestamp: nowIso,
-            status: "DELIVERED" as const,
-          };
+          if (shouldUpdateWallet) {
+            const newTx = {
+              id: `tx-apex-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              type: "PURCHASE" as const,
+              amount: amountDelta,
+              balanceAfter: newBalance,
+              description: `Apex Command Grant: +${amountDelta} WhatsApp Credits (${updatedBy})`,
+              timestamp: nowIso,
+              status: "DELIVERED" as const,
+            };
 
-          await setDoc(
-            walletRef,
-            {
-              credits: newBalance,
-              transactions: [newTx, ...currentTxs].slice(0, 100),
-              updatedAt: nowIso,
-              updatedBy: updatedBy,
-            },
-            { merge: true }
-          );
-
-          // Keep user limit in sync with actual final wallet balance
-          updatePayload.whatsappCreditsLimit = newBalance;
-          if (userId) {
-            await setDoc(doc(db, "users", userId), { whatsappCreditsLimit: newBalance }, { merge: true });
+            await setDoc(
+              walletRef,
+              {
+                credits: newBalance,
+                transactions: [newTx, ...currentTxs].slice(0, 100),
+                updatedAt: nowIso,
+                updatedBy: updatedBy,
+              },
+              { merge: true }
+            );
           }
         } catch (wErr) {
           console.warn(`Notice updating property ${propId} WhatsApp wallet:`, wErr);
