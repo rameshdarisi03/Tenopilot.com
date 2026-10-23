@@ -7,7 +7,7 @@ export interface WhatsAppSendParams {
   propertyId: string;
   propertyName?: string;
   occupantId?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "COMPLAINT_UPDATE" | "CHECKOUT_THANK_YOU" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
   params?: {
     roomNumber?: string;
     bedCode?: string;
@@ -155,6 +155,26 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `Please have your photo ID handy. It takes only 2 minutes.\n\n` +
         `Warm regards,\n` +
         `*${pName} Administration*`
+      );
+    }
+
+    case "TENANT_WELCOME": {
+      const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+      const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const tariffStr = p.amount ? `\n💰 *Monthly Tariff*: ₹${Number(p.amount).toLocaleString("en-IN")}` : "";
+
+      return (
+        `*${pName}*\n` +
+        `Welcome to ${pName}! 🎉\n\n` +
+        `Dear *${payload.recipientName}*,\n\n` +
+        `Congratulations! Your resident check-in and KYC documents have been officially *APPROVED* by management. 🥳\n\n` +
+        `🏠 *Allocated Stay*: Room ${roomStay}\n` +
+        `📅 *Move-In Date*: ${checkinDate}` +
+        tariffStr + `\n\n` +
+        (p.onboardUrl ? `🔗 *Resident Portal*: ${p.onboardUrl}\n\n` : "") +
+        `Your room key and welcome kit are ready at reception. We are thrilled to have you with us!\n\n` +
+        `Warm regards,\n` +
+        `*${pName} Management Desk*`
       );
     }
 
@@ -311,14 +331,36 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
-      } else if (payload.type === "ONBOARDING_INVITE") {
+      } else if (payload.type === "ONBOARDING_INVITE" || payload.type === "TENANT_WELCOME") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
         const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
         const tariffStr = String(p.amount || "12000");
 
-        if (p.onboardUrl) {
+        if (payload.type === "TENANT_WELCOME" || !p.onboardUrl) {
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_welcome_onboarding",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: payload.recipientName },
+                    { type: "text", text: pName },
+                    { type: "text", text: roomStay },
+                    { type: "text", text: checkinDate },
+                  ],
+                },
+              ],
+            },
+          };
+        } else {
           // Attempt dedicated Self-KYC Invite Link template
           requestBody = {
             messaging_product: "whatsapp",
@@ -337,28 +379,6 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                     { type: "text", text: roomStay },
                     { type: "text", text: tariffStr },
                     { type: "text", text: p.onboardUrl },
-                  ],
-                },
-              ],
-            },
-          };
-        } else {
-          requestBody = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: formattedPhone,
-            type: "template",
-            template: {
-              name: "pg_welcome_onboarding",
-              language: { code: "en_US" },
-              components: [
-                {
-                  type: "body",
-                  parameters: [
-                    { type: "text", text: payload.recipientName },
-                    { type: "text", text: pName },
-                    { type: "text", text: roomStay },
-                    { type: "text", text: checkinDate },
                   ],
                 },
               ],

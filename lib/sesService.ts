@@ -10,13 +10,14 @@ export interface SESSendParams {
   propertyId: string;
   propertyName?: string;
   replyToEmail?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
   params?: {
     otpCode?: string;
     roomNumber?: string;
     bedCode?: string;
     amount?: number | string;
     dueDate?: string;
+    joiningDate?: string;
     upiId?: string;
     bankLabel?: string;
     accountType?: string;
@@ -404,6 +405,110 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </html>`;
 
       const text = `Welcome to ${pName}!\n\nHello ${payload.recipientName},\nYour stay at Room ${roomStay} has been reserved.\nPlease complete your digital check-in and KYC at:\n${onboardUrl}\n\n— ${pName} Management Desk`;
+      return { subject, html, text };
+    }
+
+    case "TENANT_WELCOME": {
+      const subject = `🎉 Welcome to ${pName}! Your Resident Check-In is Confirmed`;
+      const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+      const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const rentStr = p.rentAmount ? `₹${Number(p.rentAmount).toLocaleString("en-IN")} / month` : p.amount ? `₹${Number(p.amount).toLocaleString("en-IN")} / month` : undefined;
+      const depositStr = p.depositAmount && Number(p.depositAmount) > 0 ? `₹${Number(p.depositAmount).toLocaleString("en-IN")}` : undefined;
+      const managerPhone = p.managerPhone;
+      const residentPortalUrl = p.onboardUrl || `https://www.tenopilot.com`;
+
+      const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:28px 12px;background-color:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c140e;-webkit-font-smoothing:antialiased;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e8dfd8;box-shadow:0 12px 36px rgba(28,20,14,0.08);">
+    
+    <!-- Top Warm Terracotta Gradient Header -->
+    <div style="background:linear-gradient(135deg,#1c140e 0%,#2d1d13 55%,#c2652a 100%);padding:36px 28px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(194,101,42,0.28);padding:6px 16px;border-radius:30px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.2);">
+        ✨ RESIDENT CHECK-IN CONFIRMED
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:26px;font-weight:800;letter-spacing:-0.5px;">Welcome to ${pName}! 🎉</h1>
+      <p style="margin:0;color:#f3d7c3;font-size:13.5px;">Your digital onboarding & KYC verification are officially approved</p>
+    </div>
+
+    <!-- Main Content Body -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#1c140e;">Dear <strong>${payload.recipientName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 20px 0;line-height:1.65;">
+        Congratulations and welcome to the community! 🥳 We are thrilled to confirm that your resident profile and KYC verification for <strong>${pName}</strong> have been reviewed and approved by management.
+      </p>
+
+      <!-- Stay Summary Card -->
+      <div style="background:#fcfaf7;border-radius:18px;padding:22px 24px;margin-bottom:24px;border:1px solid #ede5de;">
+        <h3 style="margin:0 0 14px 0;font-size:12px;font-weight:800;color:#c2652a;text-transform:uppercase;letter-spacing:0.8px;">
+          🏠 YOUR ALLOCATED RESIDENCE DETAILS
+        </h3>
+        <table style="width:100%;font-size:13.5px;border-collapse:collapse;line-height:1.7;">
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;font-weight:600;">Property:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">${pName}</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;font-weight:600;">Room & Bed:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#1c140e;">Room ${roomStay}</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;font-weight:600;">Check-In Date:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">${checkinDate}</td>
+          </tr>
+          ${rentStr ? `
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;font-weight:600;">Monthly Tariff:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#c2652a;">${rentStr}</td>
+          </tr>` : ""}
+          ${depositStr ? `
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;font-weight:600;">Security Deposit:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">${depositStr}</td>
+          </tr>` : ""}
+          ${managerPhone ? `
+          <tr>
+            <td style="padding:8px 0;color:#7b746c;font-weight:600;">Host Desk / Manager:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">+91 ${managerPhone}</td>
+          </tr>` : ""}
+        </table>
+      </div>
+
+      <!-- Highlights Box -->
+      <div style="background:#f0fdf4;border-radius:14px;padding:16px 20px;margin-bottom:24px;border:1px solid #bbf7d0;">
+        <p style="margin:0 0 6px 0;font-weight:700;color:#166534;font-size:13px;">✅ What Happens Next?</p>
+        <ul style="margin:0;padding-left:18px;font-size:12.5px;color:#15803d;line-height:1.6;">
+          <li>Your room key and bed assignment are ready at the front desk.</li>
+          <li>All rent receipts and payment invoices will be automatically sent to this email.</li>
+          <li>You can register maintenance or service requests directly via the property care portal.</li>
+        </ul>
+      </div>
+
+      <!-- Action Button -->
+      <div style="text-align:center;margin:28px 0 16px 0;">
+        <a href="${residentPortalUrl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#c2652a 0%,#a84e1b 100%);color:#ffffff;font-weight:800;font-size:14.5px;padding:14px 34px;border-radius:14px;text-decoration:none;box-shadow:0 6px 18px rgba(194,101,42,0.35);letter-spacing:0.3px;">
+          View Resident Pass & Details 👉
+        </a>
+      </div>
+
+      <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0;line-height:1.5;">
+        Need assistance with your move-in? Please contact the reception desk${managerPhone ? ` at +91 ${managerPhone}` : ""}.
+      </p>
+    </div>
+
+    ${getCompliantEmailFooter(pName)}
+  </div>
+</body>
+</html>`;
+
+      const text = `Welcome to ${pName}! 🎉\n\nDear ${payload.recipientName},\n\nCongratulations! Your resident check-in and KYC verification have been officially approved.\n\nAccommodation Details:\nProperty: ${pName}\nRoom: Room ${roomStay}\nCheck-In Date: ${checkinDate}\n${rentStr ? `Monthly Tariff: ${rentStr}\n` : ""}${depositStr ? `Security Deposit: ${depositStr}\n` : ""}${managerPhone ? `Manager Contact: +91 ${managerPhone}\n` : ""}\nView Resident Details: ${residentPortalUrl}\n\nWarm regards,\n${pName} Management Desk • Powered by TenoPilot.com`;
       return { subject, html, text };
     }
 

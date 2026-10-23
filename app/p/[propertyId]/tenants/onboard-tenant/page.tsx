@@ -664,7 +664,7 @@ export default function OnboardTenantPage({
               recipientName: fullName.trim(),
               propertyId,
               propertyName: propName,
-              type: "ONBOARDING_INVITE",
+              type: "TENANT_WELCOME",
               params: {
                 roomNumber: selectedBed ? selectedBed.roomNumber : "101",
                 bedCode: selectedBed ? selectedBed.bedCode : "BED A",
@@ -698,6 +698,44 @@ export default function OnboardTenantPage({
         });
     } else {
       setWaDispatchStatus("skipped");
+    }
+
+    // ✉️ Automated Luxury Welcome Email to Tenant (if email provided)
+    const cleanResidentEmail = (email || "").trim().toLowerCase();
+    if (cleanResidentEmail && cleanResidentEmail.includes("@") && !cleanResidentEmail.includes("resident.tenopilot.com")) {
+      const propSettings = propertySettingsStore.getSettings(propertyId);
+      const propName = propSettings?.propertyName || "TenoPilot PG";
+
+      fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          userId: profile?.uid,
+          userEmail: profile?.email,
+          messages: [
+            {
+              toEmail: cleanResidentEmail,
+              recipientName: fullName.trim(),
+              propertyId,
+              propertyName: propName,
+              replyToEmail: profile?.email,
+              type: "TENANT_WELCOME",
+              params: {
+                roomNumber: selectedBed ? selectedBed.roomNumber : "101",
+                bedCode: selectedBed ? selectedBed.bedCode : "BED A",
+                joiningDate: formattedJoiningDate,
+                paidDate: formattedJoiningDate,
+                dueDate: formattedJoiningDate,
+                rentAmount: monthlyRent,
+                depositAmount: newTenant.securityDeposit || depositAmount || 0,
+                managerPhone: propSettings?.managerPhone,
+                onboardUrl: `https://www.tenopilot.com/p/${propertyId}/tenants/${newId}`,
+              },
+            },
+          ],
+        }),
+      }).catch((err) => console.warn("Email welcome dispatch error:", err));
     }
   };
 

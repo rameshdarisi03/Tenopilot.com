@@ -52,6 +52,7 @@ import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { fireCelebrationConfetti } from "@/components/motion/ConfettiBurst";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
+import { useAuth } from "@/providers/AuthProvider";
 
 export default function SelfKycDeskPage({
   params,
@@ -60,6 +61,7 @@ export default function SelfKycDeskPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "ramesh-residencies";
+  const { profile, user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"INVITES" | "REVIEW" | "APPROVED">("INVITES");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -573,10 +575,11 @@ export default function SelfKycDeskPage({
         "PG Admin"
       );
 
-      // 💬 Automated WhatsApp Welcome & Agreement Notification
+      const settings = propertySettingsStore.getSettings(propertyId);
+      const propName = settings?.propertyName || "TenoPilot PG";
+
+      // 1. Automated WhatsApp Welcome & Agreement Notification
       try {
-        const settings = propertySettingsStore.getSettings(propertyId);
-        const propName = settings?.propertyName || "TenoPilot PG";
         const cleanPhone = createdResident.phone.replace(/\D/g, "");
         const fullPhone = cleanPhone.length === 10 ? `+91 ${cleanPhone}` : createdResident.phone;
 
@@ -585,13 +588,15 @@ export default function SelfKycDeskPage({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             propertyId,
+            userId: profile?.uid || user?.uid,
+            userEmail: profile?.email || user?.email,
             messages: [
               {
                 toPhone: fullPhone,
                 recipientName: createdResident.name,
                 propertyId,
                 propertyName: propName,
-                type: "ONBOARDING_INVITE",
+                type: "TENANT_WELCOME",
                 params: {
                   roomNumber: createdResident.roomNumber,
                   bedCode: createdResident.bedCode,
@@ -608,9 +613,52 @@ export default function SelfKycDeskPage({
         console.warn("Welcome dispatch catch:", waErr);
       }
 
+      // 2. Automated Welcome Email to Tenant (Identical to Owner Managed Form Welcome Engine)
+      let emailDispatched = false;
+      const candidateEmail = (activeReviewSubmission.email || createdResident.email || "").trim().toLowerCase();
+      const isGenuineEmail = candidateEmail && candidateEmail.includes("@") && !candidateEmail.includes("resident.tenopilot.com");
+
+      if (isGenuineEmail) {
+        try {
+          fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid || user?.uid,
+              userEmail: profile?.email || user?.email,
+              messages: [
+                {
+                  toEmail: candidateEmail,
+                  recipientName: createdResident.name,
+                  propertyId,
+                  propertyName: propName,
+                  replyToEmail: profile?.email || user?.email,
+                  type: "TENANT_WELCOME",
+                  params: {
+                    roomNumber: createdResident.roomNumber,
+                    bedCode: createdResident.bedCode,
+                    joiningDate: createdResident.joiningDate,
+                    paidDate: createdResident.joiningDate,
+                    dueDate: createdResident.joiningDate,
+                    rentAmount: createdResident.rentAmount,
+                    depositAmount: createdResident.securityDeposit || 0,
+                    managerPhone: settings?.managerPhone,
+                    onboardUrl: `${getCanonicalPortalOrigin()}/p/${propertyId}/tenants/${createdResident.id}`,
+                  },
+                },
+              ],
+            }),
+          }).catch((e) => console.warn("Email welcome dispatch API error:", e));
+          emailDispatched = true;
+        } catch (emailErr) {
+          console.warn("Welcome email dispatch catch:", emailErr);
+        }
+      }
+
       fireCelebrationConfetti();
       triggerToast(
-        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${formatBedLabel(createdResident.bedCode)}) updated. Welcome notice sent via WhatsApp.`
+        `🎉 ${createdResident.name} approved & checked in! Room ${createdResident.roomNumber} (${formatBedLabel(createdResident.bedCode)}) updated. Welcome notice sent via ${emailDispatched ? "WhatsApp & Email ✉️" : "WhatsApp"}.`
       );
       setActiveReviewSubmission(null);
       setActiveTab("APPROVED");
