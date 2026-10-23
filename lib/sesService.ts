@@ -2,7 +2,7 @@
 // Replaces third-party providers with direct, ultra-high deliverability AWS SES v2 infrastructure
 
 import { SESClient, SendEmailCommand, SendEmailCommandInput } from "@aws-sdk/client-ses";
-import { generateReceiptPdfBuffer } from "./pdfGenerator";
+import { generateReceiptPdfBuffer, generateRentalAgreementPdfBuffer } from "./pdfGenerator";
 
 export interface SESSendParams {
   toEmail: string;
@@ -42,6 +42,9 @@ export interface SESSendParams {
     netRefunded?: number | string;
     notes?: string;
     rejectionReason?: string;
+    phone?: string;
+    propertyAddress?: string;
+    houseRules?: string;
   };
   attachments?: {
     name: string;
@@ -481,6 +484,22 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
         </table>
       </div>
 
+      <!-- Attached Agreement Banner Card -->
+      <div style="background:#fcf8f5;border-radius:16px;padding:20px;margin-bottom:24px;border:1.5px solid #f3d7c3;text-align:left;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="width:36px;vertical-align:top;font-size:24px;line-height:1;padding-right:12px;">📎</td>
+            <td style="vertical-align:top;">
+              <p style="margin:0 0 4px 0;font-size:11px;font-weight:800;color:#c2652a;text-transform:uppercase;letter-spacing:0.8px;">OFFICIAL DOCUMENT ATTACHED</p>
+              <p style="margin:0 0 6px 0;font-size:14.5px;font-weight:800;color:#1c140e;">Digitally Attested Rental Agreement (PDF)</p>
+              <p style="margin:0;font-size:12.5px;color:#5a534c;line-height:1.55;">
+                Your verified residential lease agreement—including accommodation particulars, monthly rent, security deposit terms, and property regulations—is attached directly to this email for your records and company reimbursement.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </div>
+
       <!-- Highlights Box -->
       <div style="background:#f0fdf4;border-radius:14px;padding:16px 20px;margin-bottom:24px;border:1px solid #bbf7d0;">
         <p style="margin:0 0 6px 0;font-weight:700;color:#166534;font-size:13px;">✅ What Happens Next?</p>
@@ -508,7 +527,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `Welcome to ${pName}! 🎉\n\nDear ${payload.recipientName},\n\nCongratulations! Your resident check-in and KYC verification have been officially approved.\n\nAccommodation Details:\nProperty: ${pName}\nRoom: Room ${roomStay}\nCheck-In Date: ${checkinDate}\n${rentStr ? `Monthly Tariff: ${rentStr}\n` : ""}${depositStr ? `Security Deposit: ${depositStr}\n` : ""}${managerPhone ? `Manager Contact: +91 ${managerPhone}\n` : ""}\nView Resident Details: ${residentPortalUrl}\n\nWarm regards,\n${pName} Management Desk • Powered by TenoPilot.com`;
+      const text = `Welcome to ${pName}! 🎉\n\nDear ${payload.recipientName},\n\nCongratulations! Your resident check-in and KYC verification have been officially approved.\n\nAccommodation Details:\nProperty: ${pName}\nRoom: Room ${roomStay}\nCheck-In Date: ${checkinDate}\n${rentStr ? `Monthly Tariff: ${rentStr}\n` : ""}${depositStr ? `Security Deposit: ${depositStr}\n` : ""}${managerPhone ? `Manager Contact: +91 ${managerPhone}\n` : ""}\n📎 Official Tenancy Agreement Attached:\nYour digitally attested Residential Lease Agreement (PDF) is attached to this email for your permanent records.\n\nView Resident Details: ${residentPortalUrl}\n\nWarm regards,\n${pName} Management Desk • Powered by TenoPilot.com`;
       return { subject, html, text };
     }
 
@@ -1017,6 +1036,37 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
       });
     } catch (genErr) {
       console.warn("Failed to auto-generate PDF receipt attachment:", genErr);
+    }
+  }
+
+  // Automatically generate official Rental Agreement PDF attachment for TENANT_WELCOME if not explicitly provided
+  if (payload.type === "TENANT_WELCOME" && resolvedAttachments.length === 0) {
+    try {
+      const safeName = (payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeRoom = (p.roomNumber || "Room").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+      const pdfUint8 = await generateRentalAgreementPdfBuffer({
+        tenantName: payload.recipientName || "Resident",
+        phone: p.phone || payload.toEmail || "N/A",
+        roomNumber: p.roomNumber || "N/A",
+        bedCode: p.bedCode || "Standard Bed",
+        joiningDate: checkinDate,
+        monthlyRent: Number(p.rentAmount || p.amount || 0),
+        securityDeposit: Number(p.depositAmount || 0),
+        propertyTitle: pName,
+        propertyAddress: p.propertyAddress || p.bankLabel || "",
+        houseRulesAndRegulations: p.houseRules || "",
+      });
+
+      const base64Pdf = Buffer.from(pdfUint8).toString("base64");
+      resolvedAttachments.push({
+        name: `Rental_Agreement_${safeName}_${safeRoom}.pdf`,
+        mime_type: "application/pdf",
+        content: base64Pdf,
+      });
+    } catch (genErr) {
+      console.warn("Failed to auto-generate Rental Agreement PDF attachment for TENANT_WELCOME:", genErr);
     }
   }
 
