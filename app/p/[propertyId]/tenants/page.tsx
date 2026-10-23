@@ -265,11 +265,19 @@ export default function TenantsDirectoryPage({
   );
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [isSendingCloudEmail, setIsSendingCloudEmail] = useState(false);
-  const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [cloudSendProgress, setCloudSendProgress] = useState<{ sent: number; total: number; channel?: string } | null>(null);
   const [reminderChannel, setReminderChannel] = useState<"WHATSAPP" | "EMAIL" | "BOTH">("BOTH");
   const [showProReminderPaywall, setShowProReminderPaywall] = useState(false);
+  const [selectedReminderChannels, setSelectedReminderChannels] = useState<{
+    email: boolean;
+    whatsapp: boolean;
+  }>({
+    email: true,
+    whatsapp: true,
+  });
+  const [isSendingUnifiedReminders, setIsSendingUnifiedReminders] = useState(false);
   const [grandSuccessData, setGrandSuccessData] = useState<{
-    type: "EMAIL" | "WHATSAPP";
+    type: "EMAIL" | "WHATSAPP" | "BOTH";
     count: number;
     total: number;
     creditsRemaining?: number;
@@ -282,16 +290,20 @@ export default function TenantsDirectoryPage({
   const [customMessageText, setCustomMessageText] = useState("");
   const [isSendingCustomCloud, setIsSendingCustomCloud] = useState(false);
 
-  // Close WhatsApp Dropdown when clicking outside
+  // Close 3-Dots Action Dropdown and WhatsApp Menu when clicking anywhere on screen
   useEffect(() => {
+    if (!activeActionDropdownId && !activeWhatsAppMenuId) return;
     const handleGlobalClick = () => {
+      setActiveActionDropdownId(null);
       setActiveWhatsAppMenuId(null);
     };
-    if (activeWhatsAppMenuId) {
-      window.addEventListener("click", handleGlobalClick);
-      return () => window.removeEventListener("click", handleGlobalClick);
-    }
-  }, [activeWhatsAppMenuId]);
+    window.addEventListener("click", handleGlobalClick);
+    window.addEventListener("touchstart", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+      window.removeEventListener("touchstart", handleGlobalClick);
+    };
+  }, [activeActionDropdownId, activeWhatsAppMenuId]);
 
   // Handler for Cloud Sending a Custom WhatsApp Message (1 Credit)
   const handleSendCustomCloudMessage = async () => {
@@ -643,6 +655,8 @@ export default function TenantsDirectoryPage({
     }
 
     setShowRentReminderQRModal(false);
+    setSelectedIds([]);
+    setIsMobileMultiSelectMode(false);
 
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
@@ -756,6 +770,8 @@ export default function TenantsDirectoryPage({
     }
 
     setShowRentReminderQRModal(false);
+    setSelectedIds([]);
+    setIsMobileMultiSelectMode(false);
 
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
@@ -768,6 +784,179 @@ export default function TenantsDirectoryPage({
     setGrandSuccessData({
       type: "WHATSAPP",
       count: waSentCount,
+      total: selectedOccupants.length,
+      creditsRemaining: whatsappCreditStore.getCredits(propertyId),
+    });
+  };
+
+  // Unified 1-Click Send Rent Reminders Handler (Dispatches to all ticked channels in one tap)
+  const handleUnifiedSendReminders = async () => {
+    const sub = evaluateSubscription(profile);
+    if (!sub.isPro) {
+      setShowProReminderPaywall(true);
+      triggerToast("🔒 Automated Reminders are exclusive to the Pro Plan! Upgrade to Pro to unlock unlimited dispatches.");
+      return;
+    }
+
+    if (!selectedReminderChannels.email && !selectedReminderChannels.whatsapp) {
+      triggerToast("⚠️ Please select at least one delivery channel (Email or WhatsApp).");
+      return;
+    }
+
+    const reminderCards = getReminderPaymentCards();
+    const activeQr = reminderCards[activeQrIndex] || reminderCards[0];
+    const selectedOccupants = reminderCandidateOccupants.filter((o) => selectedIds.includes(o.id));
+
+    if (selectedOccupants.length === 0) {
+      triggerToast("⚠️ Please select at least one tenant to send rent reminders.");
+      return;
+    }
+
+    // Check WhatsApp credit balance if WhatsApp is ticked
+    if (selectedReminderChannels.whatsapp) {
+      const currentBal = whatsappCreditStore.getCredits(propertyId);
+      if (currentBal < selectedOccupants.length) {
+        triggerToast(`⚠️ Insufficient WhatsApp Credits! You need ${selectedOccupants.length} credits, but have ${currentBal}. Please recharge or uncheck WhatsApp.`);
+        setShowWhatsAppWalletModal(true);
+        return;
+      }
+    }
+
+    setIsSendingUnifiedReminders(true);
+    setCloudSendProgress({ sent: 0, total: selectedOccupants.length, channel: "" });
+
+    let emailSentCount = 0;
+    let waSentCount = 0;
+    let lastAwsError = "";
+
+    // 1. Send via Email if ticked
+    if (selectedReminderChannels.email) {
+      setCloudSendProgress({ sent: 0, total: selectedOccupants.length, channel: "Email" });
+      for (const occ of selectedOccupants) {
+        const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
+        try {
+          const emailRes = await fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid,
+              userEmail: profile?.email,
+              messages: [
+                {
+                  toEmail: destEmail,
+                  recipientName: occ.name,
+                  propertyId,
+                  propertyName: currentSettings.propertyName || "TenoPilot PG",
+                  replyToEmail: profile?.email,
+                  type: "RENT_REMINDER",
+                  params: {
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    amount: occ.rentAmount,
+                    dueDate: occ.dueDate,
+                    upiId: activeQr?.upiId,
+                    bankLabel: activeQr?.bankLabel,
+                    accountType: activeQr?.accountType,
+                  },
+                },
+              ],
+            }),
+          });
+          const resData = await emailRes.json().catch(() => ({}));
+          if (emailRes.ok && resData?.successfulCount > 0) {
+            emailSentCount++;
+          } else {
+            lastAwsError = resData?.results?.[0]?.error || resData?.error || "";
+          }
+        } catch (err: any) {
+          lastAwsError = err.message || "";
+        }
+        setCloudSendProgress({ sent: emailSentCount, total: selectedOccupants.length, channel: "Email" });
+      }
+    }
+
+    // 2. Send via WhatsApp if ticked
+    if (selectedReminderChannels.whatsapp) {
+      setCloudSendProgress({ sent: 0, total: selectedOccupants.length, channel: "WhatsApp" });
+      for (const occ of selectedOccupants) {
+        try {
+          const res = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              userId: profile?.uid,
+              userEmail: profile?.email,
+              messages: [
+                {
+                  toPhone: occ.phone,
+                  recipientName: occ.name,
+                  propertyId,
+                  propertyName: currentSettings.propertyName || "TenoPilot PG",
+                  type: "RENT_REMINDER",
+                  params: {
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    amount: occ.rentAmount,
+                    dueDate: occ.dueDate,
+                    upiId: activeQr?.upiId,
+                    bankLabel: activeQr?.bankLabel,
+                    accountType: activeQr?.accountType,
+                  },
+                },
+              ],
+            }),
+          });
+          if (res.ok) {
+            whatsappCreditStore.deductCredit(propertyId, {
+              recipientPhone: occ.phone,
+              recipientName: occ.name,
+              messageType: "RENT_REMINDER",
+              description: `Auto-sent Rent Reminder to ${occ.name} (Room ${occ.roomNumber})`,
+            });
+            waSentCount++;
+          }
+        } catch (err) {
+          console.warn("Failed sending WhatsApp for", occ.name, err);
+        }
+        setCloudSendProgress({ sent: waSentCount, total: selectedOccupants.length, channel: "WhatsApp" });
+      }
+      setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
+    }
+
+    setIsSendingUnifiedReminders(false);
+    setCloudSendProgress(null);
+
+    // If neither channel dispatched any message successfully
+    if (emailSentCount === 0 && waSentCount === 0) {
+      triggerToast(`⚠️ Reminders not delivered. ${lastAwsError || "Please check recipient details & wallet balance."}`);
+      return;
+    }
+
+    // Close modal & immediately exit selection mode (Image 4 requirement)
+    setShowRentReminderQRModal(false);
+    setSelectedIds([]);
+    setIsMobileMultiSelectMode(false);
+
+    const isBoth = selectedReminderChannels.email && selectedReminderChannels.whatsapp;
+    const resolvedType: "BOTH" | "EMAIL" | "WHATSAPP" = isBoth
+      ? "BOTH"
+      : selectedReminderChannels.email
+      ? "EMAIL"
+      : "WHATSAPP";
+
+    activityAuditStore.logActivity(propertyId, {
+      type: "PAYMENT",
+      title: `Rent Reminders Sent: ${Math.max(emailSentCount, waSentCount)} tenants`,
+      subtitle: `Dispatched via ${isBoth ? "Email & WhatsApp" : selectedReminderChannels.email ? "Official Email Gateway" : "WhatsApp Cloud API"}`,
+      staffName: profile?.displayName || "Manager",
+      staffRole: "Property Admin",
+    });
+
+    setGrandSuccessData({
+      type: resolvedType,
+      count: Math.max(emailSentCount, waSentCount),
       total: selectedOccupants.length,
       creditsRemaining: whatsappCreditStore.getCredits(propertyId),
     });
@@ -1861,59 +2050,73 @@ export default function TenantsDirectoryPage({
                               </button>
 
                               {activeWhatsAppMenuId === occ.id && (
-                                <div
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="absolute right-0 top-8 z-50 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left whitespace-nowrap"
-                                >
-                                  <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                                    WhatsApp for {occ.name}
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveWhatsAppMenuId(null);
+                                    }}
+                                  />
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-8 z-50 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 text-xs font-semibold animate-in fade-in zoom-in-95 space-y-0.5 text-left whitespace-nowrap"
+                                  >
+                                    <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                      WhatsApp for {occ.name}
+                                    </div>
+                                    <a
+                                      href={getIndividualRentReminderUrl(occ)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={() => setActiveWhatsAppMenuId(null)}
+                                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
+                                    >
+                                      <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      <span>Send Rent Reminder</span>
+                                    </a>
+                                    <a
+                                      href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      onClick={() => setActiveWhatsAppMenuId(null)}
+                                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-700 transition-colors cursor-pointer"
+                                    >
+                                      <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      <span>Send Custom Message</span>
+                                    </a>
                                   </div>
-                                  <a
-                                    href={getIndividualRentReminderUrl(occ)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={() => setActiveWhatsAppMenuId(null)}
-                                    className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 transition-colors cursor-pointer"
-                                  >
-                                    <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span>Send Rent Reminder</span>
-                                  </a>
-                                  <a
-                                    href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={() => setActiveWhatsAppMenuId(null)}
-                                    className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-700 transition-colors cursor-pointer"
-                                  >
-                                    <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span>Send Custom Message</span>
-                                  </a>
-                                </div>
+                                </>
                               )}
                             </div>
 
-                            <a
-                              href={`tel:${occ.phone}`}
-                              className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                              title="Call Tenant"
-                            >
-                              <Phone className="w-4 h-4" />
-                            </a>
-
                             <div className={`relative ${activeActionDropdownId === occ.id ? "z-50" : ""}`}>
                               <button
-                                onClick={() =>
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setActiveActionDropdownId(
                                     activeActionDropdownId === occ.id ? null : occ.id
-                                  )
-                                }
-                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                                  );
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors cursor-pointer"
                               >
                                 <MoreVertical className="w-4 h-4" />
                               </button>
 
                               {activeActionDropdownId === occ.id && (
-                                <div className="absolute right-0 top-8 z-50 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-1 text-xs font-semibold animate-in fade-in">
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveActionDropdownId(null);
+                                    }}
+                                  />
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-8 z-50 w-44 bg-white rounded-xl border border-gray-200 shadow-xl py-1 text-xs font-semibold animate-in fade-in"
+                                  >
                                   <Link
                                     href={`/p/${propertyId}/tenants/${occ.id}`}
                                     className="flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
@@ -1953,7 +2156,8 @@ export default function TenantsDirectoryPage({
                                     </button>
                                   )}
                                 </div>
-                              )}
+                              </>
+                            )}
                             </div>
                           </div>
                         </td>
@@ -2173,46 +2377,45 @@ Scroll vertically to browse all residents without pagination limits
                           </button>
 
                           {activeWhatsAppMenuId === occ.id && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
-                            >
-                              <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                                WhatsApp for {occ.name}
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveWhatsAppMenuId(null);
+                                }}
+                              />
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-0 top-full mt-1.5 w-56 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-0.5 font-semibold text-left whitespace-nowrap"
+                              >
+                                <div className="px-3 py-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                  WhatsApp for {occ.name}
+                                </div>
+                                <a
+                                  href={getIndividualRentReminderUrl(occ)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={() => setActiveWhatsAppMenuId(null)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                >
+                                  <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <span>Send Rent Reminder</span>
+                                </a>
+                                <a
+                                  href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={() => setActiveWhatsAppMenuId(null)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
+                                >
+                                  <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <span>Send Custom Message</span>
+                                </a>
                               </div>
-                              <a
-                                href={getIndividualRentReminderUrl(occ)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={() => setActiveWhatsAppMenuId(null)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-emerald-900 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                              >
-                                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span>Send Rent Reminder</span>
-                              </a>
-                              <a
-                                href={buildWhatsAppUrl(occ.phone, `Hi ${occ.name}! `)}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={() => setActiveWhatsAppMenuId(null)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-gray-700 hover:bg-emerald-50 transition-all text-left cursor-pointer"
-                              >
-                                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span>Send Custom Message</span>
-                              </a>
-                            </div>
+                            </>
                           )}
                         </div>
-
-                        {/* Mobile Phone Call Button */}
-                        <a
-                          href={`tel:${occ.phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 transition-all min-h-[32px] min-w-[32px] flex items-center justify-center"
-                          title="Call Tenant"
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                        </a>
 
                         {/* Mobile Three-Dots Action Button */}
                         <div className={`relative ${isActionMenuOpen ? "z-50" : ""}`}>
@@ -2230,10 +2433,18 @@ Scroll vertically to browse all residents without pagination limits
 
                           {/* Mobile Action Dropdown Popup */}
                           {isActionMenuOpen && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
-                            >
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveActionDropdownId(null);
+                                }}
+                              />
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-in fade-in zoom-in-95 text-xs space-y-1 font-semibold"
+                              >
                               <Link
                                 href={`/p/${propertyId}/tenants/${occ.id}`}
                                 className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-700 hover:bg-orange-50 hover:text-[#c2652a] transition-all"
@@ -2281,7 +2492,8 @@ Scroll vertically to browse all residents without pagination limits
                                 </button>
                               )}
                             </div>
-                          )}
+                          </>
+                        )}
                         </div>
                       </div>
                     </div>
@@ -3240,12 +3452,12 @@ Scroll vertically to browse all residents without pagination limits
                 </div>
               </div>
 
-              {/* 1-Click Send Rent Reminders Action Bar */}
-              <div className="space-y-2 pt-2.5 border-t border-gray-100">
+              {/* 1-Click Send Rent Reminders Multi-Channel Action Bar */}
+              <div className="space-y-3 pt-2.5 border-t border-gray-100">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                    <span>1-Click Send Rent Reminders</span>
+                    <span>Delivery Channels</span>
                   </span>
                   <span className="text-[10px] text-gray-400 font-medium">
                     {selectedCandidateCount} Selected
@@ -3262,56 +3474,119 @@ Scroll vertically to browse all residents without pagination limits
                     <span>Upgrade to Pro to Dispatch (₹999/mo)</span>
                   </button>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {/* Email (Free) Button */}
-                    <button
-                      type="button"
-                      disabled={isSendingCloudEmail || isSendingCloudWhatsApp || selectedCandidateCount === 0}
-                      onClick={handleSendEmailReminders}
-                      className="py-2.5 sm:py-3 px-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95"
-                    >
-                      {isSendingCloudEmail ? (
-                        <div className="flex items-center gap-1.5">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span className="text-xs">
-                            {cloudSendProgress ? `${cloudSendProgress.sent}/${cloudSendProgress.total}` : "Sending..."}
-                          </span>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-1.5">
+                  <div className="space-y-3">
+                    {/* Tick Checkbox Options for Channels */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Email Tick Button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedReminderChannels((prev) => ({
+                            ...prev,
+                            email: !prev.email,
+                          }))
+                        }
+                        className={`p-2.5 sm:p-3 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer active:scale-98 ${
+                          selectedReminderChannels.email
+                            ? "border-blue-600 bg-blue-50/80 text-blue-950 shadow-xs"
+                            : "border-gray-200 bg-white hover:bg-gray-50 text-gray-500"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              selectedReminderChannels.email
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
                             <Mail className="w-4 h-4" />
-                            <span>Email (Free)</span>
                           </div>
-                          <span className="text-[10px] text-blue-200 font-normal">Official Gateway • Free</span>
-                        </>
-                      )}
-                    </button>
+                          <div className="min-w-0">
+                            <span className="block font-bold text-xs truncate">Email</span>
+                            <span className="block text-[10px] text-blue-700 font-semibold truncate">Free Gateway</span>
+                          </div>
+                        </div>
+                        <div
+                          className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                            selectedReminderChannels.email
+                              ? "bg-blue-600 border-blue-600 text-white"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          {selectedReminderChannels.email && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                      </button>
 
-                    {/* WhatsApp (Credits) Button */}
+                      {/* WhatsApp Tick Button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedReminderChannels((prev) => ({
+                            ...prev,
+                            whatsapp: !prev.whatsapp,
+                          }))
+                        }
+                        className={`p-2.5 sm:p-3 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer active:scale-98 ${
+                          selectedReminderChannels.whatsapp
+                            ? "border-emerald-600 bg-emerald-50/80 text-emerald-950 shadow-xs"
+                            : "border-gray-200 bg-white hover:bg-gray-50 text-gray-500"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              selectedReminderChannels.whatsapp
+                                ? "bg-emerald-600 text-white"
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block font-bold text-xs truncate">WhatsApp</span>
+                            <span className="block text-[10px] text-emerald-700 font-semibold truncate">
+                              {selectedCandidateCount} {selectedCandidateCount === 1 ? "Credit" : "Credits"}
+                            </span>
+                          </div>
+                        </div>
+                        <div
+                          className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                            selectedReminderChannels.whatsapp
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          {selectedReminderChannels.whatsapp && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Single Unified Send Rent Reminders Button */}
                     <button
                       type="button"
-                      disabled={isSendingCloudWhatsApp || isSendingCloudEmail || selectedCandidateCount === 0}
-                      onClick={handleSendCloudWhatsAppReminders}
-                      className="py-2.5 sm:py-3 px-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-95"
+                      disabled={
+                        isSendingUnifiedReminders ||
+                        selectedCandidateCount === 0 ||
+                        (!selectedReminderChannels.email && !selectedReminderChannels.whatsapp)
+                      }
+                      onClick={handleUnifiedSendReminders}
+                      className="w-full py-3 sm:py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#c2652a] to-[#964407] hover:from-[#b15822] hover:to-[#833a05] disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                     >
-                      {isSendingCloudWhatsApp ? (
-                        <div className="flex items-center gap-1.5">
+                      {isSendingUnifiedReminders ? (
+                        <div className="flex items-center gap-2">
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span className="text-xs">
-                            {cloudSendProgress ? `${cloudSendProgress.sent}/${cloudSendProgress.total}` : "Sending..."}
+                          <span>
+                            {cloudSendProgress?.channel
+                              ? `Sending ${cloudSendProgress.channel} (${cloudSendProgress.sent}/${cloudSendProgress.total})...`
+                              : "Dispatching Reminders..."}
                           </span>
                         </div>
                       ) : (
-                        <>
-                          <div className="flex items-center gap-1.5">
-                            <MessageSquare className="w-4 h-4 fill-current" />
-                            <span>WhatsApp</span>
-                          </div>
-                          <span className="text-[10px] text-emerald-200 font-normal">
-                            ({selectedCandidateCount} {selectedCandidateCount === 1 ? "Credit" : "Credits"})
-                          </span>
-                        </>
+                        <div className="flex items-center gap-2">
+                          <Send className="w-4 h-4" />
+                          <span>Send Rent Reminders ({selectedCandidateCount})</span>
+                        </div>
                       )}
                     </button>
                   </div>
@@ -3333,7 +3608,28 @@ Scroll vertically to browse all residents without pagination limits
         {grandSuccessData && (
           <div className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
             <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-sm w-full p-6 sm:p-7 text-center space-y-5 animate-in zoom-in-95">
-              {grandSuccessData.type === "EMAIL" ? (
+              {grandSuccessData.type === "BOTH" ? (
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#c2652a] to-emerald-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-orange-500/20">
+                    <Send className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-extrabold uppercase tracking-wider inline-block border border-emerald-200">
+                      Multi-Channel Dispatched ⚡
+                    </span>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight font-serif pt-1">
+                      Reminders Sent! 🎉
+                    </h3>
+                    <p className="text-xs text-gray-600 leading-relaxed px-1">
+                      Rent reminders delivered via <strong>Official Email Gateway</strong> and <strong>WhatsApp Cloud API</strong> to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs flex items-center justify-between text-emerald-950 font-medium">
+                    <span>Wallet Balance:</span>
+                    <span className="font-mono font-bold text-emerald-800">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
+                  </div>
+                </>
+              ) : grandSuccessData.type === "EMAIL" ? (
                 <>
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-blue-500/20">
                     <Mail className="w-8 h-8" />
@@ -3376,7 +3672,11 @@ Scroll vertically to browse all residents without pagination limits
 
               <button
                 type="button"
-                onClick={() => setGrandSuccessData(null)}
+                onClick={() => {
+                  setGrandSuccessData(null);
+                  setSelectedIds([]);
+                  setIsMobileMultiSelectMode(false);
+                }}
                 className="w-full py-3 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
               >
                 Awesome, Done! ✨
