@@ -49,7 +49,7 @@ import {
 import { ScannedAccountRecord } from "@/app/api/apex/scan-accounts/route";
 import { usePlatformConfig } from "@/lib/usePlatformConfig";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { TenoPilotInvoiceModal, InvoiceData } from "@/components/billing/TenoPilotInvoiceModal";
@@ -419,6 +419,18 @@ export default function ApexCommandClientsPage() {
       setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
       setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 300) : (platformConfig.trialWhatsAppCredits || 10)));
+
+      // 🛡️ Live Property Wallet Sync: Read exact current credits from primary property wallet
+      if (selectedCustomer360.propertyIds && selectedCustomer360.propertyIds.length > 0 && db) {
+        const primPropId = selectedCustomer360.propertyIds[0];
+        getDoc(doc(db, `properties/${primPropId}/whatsapp/wallet`))
+          .then((wSnap) => {
+            if (wSnap.exists() && typeof wSnap.data()?.credits === "number") {
+              setCapacityWhatsAppCredits(wSnap.data().credits);
+            }
+          })
+          .catch(() => {});
+      }
     }
   }, [selectedCustomer360, globalProLimit, globalTrialLimit, globalAllowedProps, platformConfig]);
 
@@ -427,22 +439,26 @@ export default function ApexCommandClientsPage() {
     if (!selectedCustomer360) return;
     setIsSavingCapacity(true);
     try {
+      const deltaCredits = Number(capacityWhatsAppCredits) - (selectedCustomer360.whatsappCreditsLimit ?? 0);
       const res = await fetch("/api/apex/update-limits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: selectedCustomer360.userId || selectedCustomer360.id,
           email: selectedCustomer360.email,
+          propertyIds: selectedCustomer360.propertyIds,
           maxPropertiesAllowed: Number(capacityMaxProps),
           maxTenantsLimit: Number(capacityBaseTenants),
           tenantExtensionPacks: Number(capacityExtensionPacks),
           whatsappCreditsLimit: Number(capacityWhatsAppCredits),
+          deltaWhatsAppCredits: deltaCredits,
           updatedBy: "Founder Apex Command",
         }),
       });
 
       const data = await res.json();
       if (data.success) {
+        const finalCredits = typeof data.limits?.whatsappCreditsLimit === "number" ? data.limits.whatsappCreditsLimit : Number(capacityWhatsAppCredits);
         triggerToast(`✓ Capacity & WhatsApp limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
         setSelectedCustomer360((prev) =>
           prev
@@ -451,7 +467,7 @@ export default function ApexCommandClientsPage() {
                 maxPropertiesAllowed: Number(capacityMaxProps),
                 maxTenantsLimit: Number(capacityBaseTenants),
                 tenantExtensionPacks: Number(capacityExtensionPacks),
-                whatsappCreditsLimit: Number(capacityWhatsAppCredits),
+                whatsappCreditsLimit: finalCredits,
               }
             : null
         );
@@ -463,7 +479,7 @@ export default function ApexCommandClientsPage() {
                   maxPropertiesAllowed: Number(capacityMaxProps),
                   maxTenantsLimit: Number(capacityBaseTenants),
                   tenantExtensionPacks: Number(capacityExtensionPacks),
-                  whatsappCreditsLimit: Number(capacityWhatsAppCredits),
+                  whatsappCreditsLimit: finalCredits,
                 }
               : a
           )

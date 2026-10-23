@@ -138,6 +138,20 @@ export async function GET(req: NextRequest) {
     try {
       const usersSnap = await getDocs(collection(db, "users"));
 
+      // 🛡️ Pre-index all portfolio documents from users collection
+      const portfolioPropertiesMap = new Map<string, { ids: string[]; names: string[] }>();
+      for (const d of usersSnap.docs) {
+        if (d.id.startsWith("portfolio_")) {
+          const key = d.id.replace(/^portfolio_/, "").toLowerCase().trim();
+          const pData = d.data() as any;
+          if (Array.isArray(pData?.properties)) {
+            const ids = pData.properties.map((p: any) => p?.id).filter(Boolean);
+            const names = pData.properties.map((p: any) => p?.name || p?.propertyName).filter(Boolean);
+            portfolioPropertiesMap.set(key, { ids, names });
+          }
+        }
+      }
+
       // 🛡️ Sort user documents so the most authoritative / Active Pro / latest expiry profile is processed first
       const sortedUserDocs = [...usersSnap.docs].sort((a, b) => {
         const aData = a.data() as any;
@@ -203,8 +217,28 @@ export async function GET(req: NextRequest) {
             if (!propIds.includes(id)) propIds.push(id);
           });
         }
+
+        const sanitizedKey = email ? email.replace(/[^a-zA-Z0-9_-]/g, "_") : "";
+        const userPort = portfolioPropertiesMap.get(sanitizedKey) || (d.id ? portfolioPropertiesMap.get(d.id) : null);
+        if (userPort) {
+          userPort.ids.forEach((id: string) => {
+            if (!propIds.includes(id)) propIds.push(id);
+          });
+        }
+
         if (founderClient?.id && !propIds.includes(founderClient.id)) {
           propIds.push(founderClient.id);
+        }
+
+        // Fetch live wallet balance from primary property if present
+        let liveWhatsAppCredits: number | null = null;
+        if (propIds.length > 0) {
+          try {
+            const wDoc = await getDoc(doc(db, `properties/${propIds[0]}/whatsapp/wallet`));
+            if (wDoc.exists() && typeof wDoc.data()?.credits === "number") {
+              liveWhatsAppCredits = wDoc.data().credits;
+            }
+          } catch (e) {}
         }
 
         // Compute Live Subscription Lifecycle via SSOT Engine
@@ -218,6 +252,7 @@ export async function GET(req: NextRequest) {
 
         const primaryPropName =
           mappedProps?.names[0] ||
+          userPort?.names[0] ||
           founderClient?.pgName ||
           vipInvite?.pgName ||
           (propIds.length > 0 ? propIds[0] : "New Property");
@@ -252,7 +287,9 @@ export async function GET(req: NextRequest) {
             data.maxTenantsLimit ??
             (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 50),
           tenantExtensionPacks: data.tenantExtensionPacks ?? 0,
-          whatsappCreditsLimit: data.whatsappCreditsLimit ?? (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 10),
+          whatsappCreditsLimit: liveWhatsAppCredits !== null
+            ? liveWhatsAppCredits
+            : (data.whatsappCreditsLimit ?? (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 10)),
         });
       }
     } catch (e) {
