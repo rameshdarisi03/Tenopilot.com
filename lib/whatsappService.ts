@@ -161,23 +161,9 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
     }
 
     case "TENANT_WELCOME": {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
       const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
       const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const tariffStr = p.rentAmount || p.amount ? `\n💰 *Monthly Tariff*: ₹${Number(p.rentAmount || p.amount).toLocaleString("en-IN")}` : "";
-
-      const agreementParams = new URLSearchParams({
-        tenantName: payload.recipientName,
-        phone: payload.toPhone,
-        roomNumber: p.roomNumber || "N/A",
-        bedCode: p.bedCode || "Standard Bed",
-        joiningDate: checkinDate,
-        monthlyRent: String(p.rentAmount || p.amount || 0),
-        securityDeposit: String(p.depositAmount || 0),
-        propertyName: pName,
-        propertyAddress: p.propertyAddress || "",
-      });
-      const agreementPdfUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
 
       return (
         `*${pName}*\n` +
@@ -187,7 +173,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `🏠 *Allocated Stay*: Room ${roomStay}\n` +
         `📅 *Move-In Date*: ${checkinDate}` +
         tariffStr + `\n\n` +
-        `📄 *Your Official Rental Agreement (PDF)*:\n${agreementPdfUrl}\n\n` +
+        `📎 *ATTACHMENT*: Official Residential Lease & Tenancy Agreement (PDF) is attached to this message.\n\n` +
         (p.onboardUrl ? `🔗 *Resident Portal*: ${p.onboardUrl}\n\n` : "") +
         `Your room key and welcome kit are ready at reception. We are thrilled to have you with us!\n\n` +
         `Warm regards,\n` +
@@ -348,14 +334,49 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
-      } else if (payload.type === "ONBOARDING_INVITE" || payload.type === "TENANT_WELCOME") {
+      } else if (payload.type === "TENANT_WELCOME") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+
+        const agreementParams = new URLSearchParams({
+          tenantName: payload.recipientName,
+          phone: payload.toPhone,
+          roomNumber: p.roomNumber || "N/A",
+          bedCode: p.bedCode || "Standard Bed",
+          joiningDate: checkinDate,
+          monthlyRent: String(p.rentAmount || p.amount || 0),
+          securityDeposit: String(p.depositAmount || 0),
+          propertyName: pName,
+          propertyAddress: p.propertyAddress || "",
+        });
+        const pdfUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
+        const safeName = (payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const safeRoom = (p.roomNumber || "Room").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const fileName = `Rental_Agreement_${safeName}_${safeRoom}.pdf`;
+
+        // 📎 Send official Rental Agreement PDF as a native WhatsApp Document Attachment
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "document",
+          document: {
+            link: pdfUrl,
+            filename: fileName,
+            caption: `🎉 Welcome to ${pName}, ${payload.recipientName}!\n\nAttached is your official digitally attested Residential Tenancy & Lease Agreement (Room ${roomStay}).\n\nCheck-In Date: ${checkinDate}\n\n— Management Desk`,
+          },
+        };
+      } else if (payload.type === "ONBOARDING_INVITE") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
         const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
         const tariffStr = String(p.amount || "12000");
 
-        if (payload.type === "TENANT_WELCOME" || !p.onboardUrl) {
+        if (!p.onboardUrl) {
           requestBody = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
@@ -580,6 +601,46 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
         const checkinDate = p.paidDate || p.dueDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        
+        const fallbackBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_welcome_onboarding",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: pName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: checkinDate },
+                ],
+              },
+            ],
+          },
+        };
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Graceful fallback: If direct document attachment fails due to 24h conversation policy, fallback to pg_welcome_onboarding template
+      if (!response.ok && requestBody?.type === "document" && payload.type === "TENANT_WELCOME") {
+        console.warn("Notice: Direct WhatsApp document attachment requires active window, falling back to pg_welcome_onboarding:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
         
         const fallbackBody = {
           messaging_product: "whatsapp",
