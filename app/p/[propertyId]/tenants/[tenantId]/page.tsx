@@ -502,8 +502,8 @@ export default function IndividualTenantProfilePage({
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
     if (showCollectRentModal && occupantState) {
-      setParkingPaymentPortion(0);
       const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
+      setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount;
       const depDue = stmt.remainingDepositDue;
       const isDepCleared = stmt.isDepositCleared || depDue <= 0;
@@ -571,6 +571,7 @@ export default function IndividualTenantProfilePage({
   const [editOccupation, setEditOccupation] = useState<string>(occupantState?.occupation || "");
   const [editWorkplace, setEditWorkplace] = useState<string>(occupantState?.workplace || "");
   const [editPurposeOfVisit, setEditPurposeOfVisit] = useState<string>(occupantState?.purposeOfVisit || "");
+  const [editParkingCharges, setEditParkingCharges] = useState<string>(occupantState?.parkingCharges !== undefined && occupantState?.parkingCharges !== null ? String(occupantState.parkingCharges) : "");
   const [editVehicleNumbers, setEditVehicleNumbers] = useState<string[]>(() => {
     if (occupantState?.vehicleNumbers && occupantState.vehicleNumbers.length > 0) {
       return occupantState.vehicleNumbers;
@@ -1625,6 +1626,7 @@ export default function IndividualTenantProfilePage({
     setEditOccupation(occupantState.occupation || "");
     setEditWorkplace(occupantState.workplace || "");
     setEditPurposeOfVisit(occupantState.purposeOfVisit || "");
+    setEditParkingCharges(occupantState.parkingCharges !== undefined && occupantState.parkingCharges !== null ? String(occupantState.parkingCharges) : "");
     if (occupantState.vehicleNumbers && occupantState.vehicleNumbers.length > 0) {
       setEditVehicleNumbers(occupantState.vehicleNumbers);
     } else if (occupantState.vehicleNumber) {
@@ -1710,6 +1712,7 @@ export default function IndividualTenantProfilePage({
       purposeOfVisit: editPurposeOfVisit.trim() || undefined,
       vehicleNumber: cleanVehicles[0] || undefined,
       vehicleNumbers: cleanVehicles.length > 0 ? cleanVehicles : undefined,
+      parkingCharges: editParkingCharges.trim() === "" ? 0 : Number(editParkingCharges),
     };
 
     setOccupantState(updated);
@@ -3510,33 +3513,57 @@ export default function IndividualTenantProfilePage({
                         </div>
 
                         {/* Collapsible Details */}
-                        {showLedgerBreakdownDetail && (
-                          <div className="pt-2 border-t border-amber-200/80 space-y-1.5 text-[11px] text-gray-700 font-medium animate-in fade-in">
-                            {isTenant ? (
-                              <>
+                      {showLedgerBreakdownDetail && (
+                        <div className="pt-2 border-t border-amber-200/80 space-y-1.5 text-[11px] text-gray-700 font-medium animate-in fade-in">
+                          {isTenant ? (
+                            <>
+                              {stmt.remainingRentDue > 0 && (
                                 <div className="flex justify-between items-center">
                                   <span>▫️ Rent{isAnniversary || proRataInfo.isFullMonth ? "" : ` (${proRataInfo.remainingDays}d Pro-Rata)`}:</span>
-                                  <span className="font-mono font-bold">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingRentDue.toLocaleString("en-IN")}</span>
                                 </div>
-                                <div className="flex justify-between items-center">
+                              )}
+                              {stmt.remainingParkingDue > 0 && (
+                                <div className="flex justify-between items-center text-amber-900">
+                                  <span>▫️ Vehicle Parking Fee:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingParkingDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                              {!stmt.isDepositCleared && stmt.remainingDepositDue > 0 && (
+                                <div className="flex justify-between items-center text-purple-900">
                                   <span>▫️ Security Deposit:</span>
-                                  <span className="font-mono font-bold">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingDepositDue.toLocaleString("en-IN")}</span>
                                 </div>
-                                {stmt.priorArrears > 0 && (
-                                  <div className="flex justify-between items-center text-red-700">
-                                    <span>▫️ Prior Arrears:</span>
-                                    <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
+                              )}
+                              {stmt.priorArrears > 0 && (
+                                <div className="flex justify-between items-center text-red-700">
+                                  <span>▫️ Prior Arrears:</span>
+                                  <span className="font-mono font-bold">₹{stmt.priorArrears.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
                               <div className="flex justify-between items-center">
-                                <span>▫️ Stay Package:</span>
-                                <span className="font-mono font-bold">₹{(stmt.proRataRent + stmt.securityDepositRequired).toLocaleString("en-IN")}</span>
+                                <span>▫️ Stay Package Tariff:</span>
+                                <span className="font-mono font-bold">₹{stmt.remainingRentDue.toLocaleString("en-IN")}</span>
                               </div>
-                            )}
-                          </div>
-                        )}
+                              {stmt.remainingParkingDue > 0 && (
+                                <div className="flex justify-between items-center text-amber-900">
+                                  <span>▫️ Vehicle Parking Fee:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingParkingDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                              {!stmt.isDepositCleared && stmt.remainingDepositDue > 0 && (
+                                <div className="flex justify-between items-center text-purple-900">
+                                  <span>▫️ Security Deposit:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingDepositDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
 
                         <div className="pt-1">
                           <button
@@ -3544,11 +3571,13 @@ export default function IndividualTenantProfilePage({
                             onClick={() => {
                               if (paymentPurpose === "RENT") {
                                 setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount);
+                                setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
                               } else if (paymentPurpose === "DEPOSIT") {
                                 setDepositPaymentPortion(stmt.remainingDepositDue);
                               } else {
                                 setRentPaymentPortion(stmt.remainingRentDue);
                                 setDepositPaymentPortion(stmt.remainingDepositDue);
+                                setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
                               }
                             }}
                             className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-98"

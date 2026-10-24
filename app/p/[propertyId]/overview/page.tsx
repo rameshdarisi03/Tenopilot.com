@@ -312,7 +312,7 @@ export default function PropertyOverviewPage({
     });
 
     // Recent complaints
-    complaints.forEach((c) => {
+    (Array.isArray(complaints) ? complaints : []).forEach((c) => {
       list.push({
         id: `cmp-${c.id}`,
         type: "COMPLAINT",

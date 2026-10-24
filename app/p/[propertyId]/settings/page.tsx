@@ -10,6 +10,7 @@ import {
   Calendar,
   CreditCard,
   Building,
+  Car,
   ShieldCheck,
   Check,
   Save,
@@ -59,13 +60,14 @@ import { useAuth } from "@/providers/AuthProvider";
 import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
 
 const SETTINGS_TABS: {
-  id: "FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG";
+  id: "FINANCIAL" | "PROPERTY" | "RENT_CHARGES" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG";
   label: string;
   icon: any;
   activeColor?: string;
 }[] = [
   { id: "FINANCIAL", label: "Billing & Due Date Rules", icon: CreditCard },
-  { id: "PROPERTY", label: "Property Profile & Rent Tiers", icon: Building },
+  { id: "PROPERTY", label: "Property Profile", icon: Building },
+  { id: "RENT_CHARGES", label: "Property Rent & Charges", icon: DollarSign },
   { id: "PARTNERS", label: "Partner Ownership & Equity", icon: Users },
   { id: "QR_PROFILES", label: "Payment Profiles & Accounts", icon: CreditCard },
   { id: "POLICE_REGISTER", label: "Police & Legal Register 📜", icon: ShieldCheck, activeColor: "bg-blue-600 text-white border-blue-600" },
@@ -95,7 +97,7 @@ export default function PropertySettingsPage({
 
   // Navigation & Menu States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG">("FINANCIAL");
+  const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "RENT_CHARGES" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const currentTabIndex = Math.max(0, SETTINGS_TABS.findIndex((t) => t.id === activeTab));
@@ -1209,9 +1211,96 @@ export default function PropertySettingsPage({
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Global Monthly Rental Tiers (Compact 2x2 Grid) */}
-                <div className="md:col-span-2 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+            {activeTab === "PROPERTY" && (
+              <div className="max-w-2xl animate-in fade-in">
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                      <Building className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Property Details</h3>
+                      <p className="text-[11px] text-gray-500">Display name and manager contact</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-1">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        Property Display Name (Single Source of Truth) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={settings.propertyName}
+                        onChange={(e) => setSettings({ ...settings, propertyName: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Single Source of Truth: Renaming here instantly syncs across the Home Welcome Dashboard, Property Sidebar, and WhatsApp Reminders.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        Property Location / Address *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={settings.propertyAddress}
+                        onChange={(e) => setSettings({ ...settings, propertyAddress: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Syncs location badge on Home Welcome Screen building cards.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        PG Owner / Signatory Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={settings.ownerName || ""}
+                        onChange={(e) => setSettings({ ...settings, ownerName: e.target.value })}
+                        placeholder="e.g. Ramesh Darisi"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-semibold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Attested as the digital signature of the property owner on tenant rental agreements.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        Manager Mobile *
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={settings.managerPhone}
+                        onChange={(e) => setSettings({ ...settings, managerPhone: e.target.value.replace(/\D/g, "").slice(0, 15) })}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                        Printed on tenant receipts and shared with occupants as the on-site manager contact.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "RENT_CHARGES" && (
+              <div className="space-y-6 animate-in fade-in max-w-4xl">
+                {/* 1. Global Monthly Rental Tiers */}
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
                   <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                     <div className="p-2 sm:p-2.5 rounded-xl bg-purple-50 text-purple-600 shrink-0">
                       <DollarSign className="w-5 h-5" />
@@ -1324,129 +1413,40 @@ export default function PropertySettingsPage({
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {activeTab === "PROPERTY" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-in fade-in">
+                {/* 2. Global Vehicle Parking Charges */}
                 <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
-                      <Building className="w-5 h-5" />
+                  <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
+                    <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50 text-[#c2652a] shrink-0">
+                      <Car className="w-5 h-5 text-[#c2652a]" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Property Details</h3>
-                      <p className="text-[11px] text-gray-500">Display name and manager contact</p>
+                      <h3 className="font-bold text-sm sm:text-base text-gray-900">Vehicle Parking Charges (₹)</h3>
+                      <p className="text-[11px] text-gray-500">Global default monthly parking fee for residents with registered vehicles</p>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Property Display Name (Single Source of Truth) *</label>
+                  <div className="max-w-md space-y-2">
+                    <label className="block text-xs font-bold text-gray-700">Monthly Parking Fee *</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-gray-400 font-bold text-sm">₹</span>
                       <input
                         type="text"
-                        required
-                        value={settings.propertyName}
-                        onChange={(e) => setSettings({ ...settings, propertyName: e.target.value })}
-                        placeholder="e.g. Sunshine Heights PG"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={settings.parkingCharges ? settings.parkingCharges : ""}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setSettings({
+                            ...settings,
+                            parkingCharges: val === "" ? 0 : Number(val),
+                          });
+                        }}
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-sm text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                       />
-                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                        Single Source of Truth: Renaming here instantly syncs across the Home Welcome Dashboard, Property Sidebar, and WhatsApp Reminders.
-                      </p>
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Property Location / Address *</label>
-                      <input
-                        type="text"
-                        required
-                        value={settings.propertyAddress || "Hitech City, Hyderabad"}
-                        onChange={(e) => setSettings({ ...settings, propertyAddress: e.target.value })}
-                        placeholder="e.g. Hitech City, Hyderabad"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                        Syncs location badge on Home Welcome Screen building cards.
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                        <label className="block text-xs font-bold text-gray-700">PG Owner / Signatory Name *</label>
-                        {profile?.displayName && settings.ownerName !== profile.displayName && (
-                          <button
-                            type="button"
-                            onClick={() => setSettings({ ...settings, ownerName: profile.displayName! })}
-                            className="text-[10px] font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
-                          >
-                            ⚡ Use Profile Name ({profile.displayName})
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={settings.ownerName || ""}
-                        onChange={(e) => setSettings({ ...settings, ownerName: e.target.value })}
-                        placeholder="e.g. Ramesh Darisi"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                        Attested as the digital signature of the property owner on tenant rental agreements.
-                      </p>
-                    </div>
-
-                    <div>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                        <label className="block text-xs font-bold text-gray-700">Manager Mobile *</label>
-                        {profile?.phone && settings.managerPhone !== profile.phone && (
-                          <button
-                            type="button"
-                            onClick={() => setSettings({ ...settings, managerPhone: profile.phone! })}
-                            className="text-[10px] font-bold text-[#964407] hover:underline flex items-center gap-1 cursor-pointer self-start sm:self-auto"
-                          >
-                            ⚡ Use Owner Phone ({profile.phone})
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={settings.managerPhone}
-                        onChange={(e) => setSettings({ ...settings, managerPhone: e.target.value })}
-                        placeholder="e.g. 9876543210 or +91 98765 43210"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                      />
-                      <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                        Printed on tenant receipts and shared with occupants as the on-site manager contact.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-                      <QrCode className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm sm:text-base text-gray-900">UPI Rent Collection VPA</h3>
-                      <p className="text-[11px] text-gray-500">UPI ID printed on rent receipts</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Owner UPI VPA ID *</label>
-                    <input
-                      type="text"
-                      required
-                      value={settings.upiPaymentId}
-                      onChange={(e) => setSettings({ ...settings, upiPaymentId: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      e.g., tenopilot.sunshine@okicici (Google Pay / PhonePe / Paytm)
+                    <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
+                      Applied automatically to occupants with registered vehicle numbers. Overridable per tenant in their edit profile. If set to ₹0, no parking fee breakup is displayed.
                     </p>
                   </div>
                 </div>

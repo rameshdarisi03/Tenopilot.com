@@ -246,8 +246,8 @@ export default function TenantsDirectoryPage({
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
     if (collectRentOccupant) {
-      setParkingPaymentPortion(0);
       const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
+      setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount;
       const depDue = stmt.remainingDepositDue;
       const isDepCleared = stmt.isDepositCleared || depDue <= 0;
@@ -666,6 +666,11 @@ export default function TenantsDirectoryPage({
     let lastAwsError = "";
 
     for (const occ of selectedOccupants) {
+      const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
+      const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+      const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
+      const parkingPart = occStmt.remainingParkingDue;
+      const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
       const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
       try {
         const emailRes = await fetch("/api/email/send", {
@@ -686,7 +691,8 @@ export default function TenantsDirectoryPage({
                 params: {
                   roomNumber: occ.roomNumber,
                   bedCode: occ.bedCode,
-                  amount: occ.rentAmount,
+                  amount: effectiveAmount,
+                  breakupNote,
                   dueDate: occ.dueDate,
                   upiId: activeQr?.upiId,
                   bankLabel: activeQr?.bankLabel,
@@ -790,6 +796,11 @@ export default function TenantsDirectoryPage({
     let waSentCount = 0;
 
     for (const occ of selectedOccupants) {
+      const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
+      const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+      const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
+      const parkingPart = occStmt.remainingParkingDue;
+      const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
@@ -808,7 +819,8 @@ export default function TenantsDirectoryPage({
                 params: {
                   roomNumber: occ.roomNumber,
                   bedCode: occ.bedCode,
-                  amount: occ.rentAmount,
+                  amount: effectiveAmount,
+                  breakupNote,
                   dueDate: occ.dueDate,
                   upiId: activeQr?.upiId,
                   bankLabel: activeQr?.bankLabel,
@@ -936,7 +948,12 @@ export default function TenantsDirectoryPage({
     if (selectedReminderChannels.email) {
       setCloudSendProgress({ sent: 0, total: selectedOccupants.length, channel: "Email" });
       for (const occ of selectedOccupants) {
-        const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
+      const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
+      const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+      const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
+      const parkingPart = occStmt.remainingParkingDue;
+      const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
+      const destEmail = occ.email || `${occ.phone.replace(/\D/g, "")}@example-tenant.com`;
         try {
           const emailRes = await fetch("/api/email/send", {
             method: "POST",
@@ -956,8 +973,9 @@ export default function TenantsDirectoryPage({
                   params: {
                     roomNumber: occ.roomNumber,
                     bedCode: occ.bedCode,
-                    amount: occ.rentAmount,
-                    dueDate: occ.dueDate,
+                    amount: effectiveAmount,
+                  breakupNote,
+                  dueDate: occ.dueDate,
                     upiId: activeQr?.upiId,
                     bankLabel: activeQr?.bankLabel,
                     accountType: activeQr?.accountType,
@@ -990,6 +1008,11 @@ export default function TenantsDirectoryPage({
     if (selectedReminderChannels.whatsapp) {
       setCloudSendProgress({ sent: 0, total: selectedOccupants.length, channel: "WhatsApp" });
       for (const occ of selectedOccupants) {
+        const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
+        const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+        const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
+        const parkingPart = occStmt.remainingParkingDue;
+        const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
         try {
           const res = await fetch("/api/whatsapp/send", {
             method: "POST",
@@ -1008,8 +1031,9 @@ export default function TenantsDirectoryPage({
                   params: {
                     roomNumber: occ.roomNumber,
                     bedCode: occ.bedCode,
-                    amount: occ.rentAmount,
-                    dueDate: occ.dueDate,
+                    amount: effectiveAmount,
+                  breakupNote,
+                  dueDate: occ.dueDate,
                     upiId: activeQr?.upiId,
                     bankLabel: activeQr?.bankLabel,
                     accountType: activeQr?.accountType,
@@ -3115,14 +3139,24 @@ Scroll vertically to browse all residents without pagination limits
                         <div className="pt-2 border-t border-amber-200/80 space-y-1.5 text-[11px] text-gray-700 font-medium animate-in fade-in">
                           {isTenant ? (
                             <>
-                              <div className="flex justify-between items-center">
-                                <span>▫️ Rent{isAnniversary || proRataInfo.isFullMonth ? "" : ` (${proRataInfo.remainingDays}d Pro-Rata)`}:</span>
-                                <span className="font-mono font-bold">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>▫️ Security Deposit:</span>
-                                <span className="font-mono font-bold">₹{stmt.securityDepositRequired.toLocaleString("en-IN")}</span>
-                              </div>
+                              {stmt.remainingRentDue > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span>▫️ Rent{isAnniversary || proRataInfo.isFullMonth ? "" : ` (${proRataInfo.remainingDays}d Pro-Rata)`}:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingRentDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                              {stmt.remainingParkingDue > 0 && (
+                                <div className="flex justify-between items-center text-amber-900">
+                                  <span>▫️ Vehicle Parking Fee:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingParkingDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                              {!stmt.isDepositCleared && stmt.remainingDepositDue > 0 && (
+                                <div className="flex justify-between items-center text-purple-900">
+                                  <span>▫️ Security Deposit:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingDepositDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
                               {stmt.priorArrears > 0 && (
                                 <div className="flex justify-between items-center text-red-700">
                                   <span>▫️ Prior Arrears:</span>
@@ -3131,10 +3165,24 @@ Scroll vertically to browse all residents without pagination limits
                               )}
                             </>
                           ) : (
-                            <div className="flex justify-between items-center">
-                              <span>▫️ Stay Package:</span>
-                              <span className="font-mono font-bold">₹{(stmt.proRataRent + stmt.securityDepositRequired).toLocaleString("en-IN")}</span>
-                            </div>
+                            <>
+                              <div className="flex justify-between items-center">
+                                <span>▫️ Stay Package Tariff:</span>
+                                <span className="font-mono font-bold">₹{stmt.remainingRentDue.toLocaleString("en-IN")}</span>
+                              </div>
+                              {stmt.remainingParkingDue > 0 && (
+                                <div className="flex justify-between items-center text-amber-900">
+                                  <span>▫️ Vehicle Parking Fee:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingParkingDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                              {!stmt.isDepositCleared && stmt.remainingDepositDue > 0 && (
+                                <div className="flex justify-between items-center text-purple-900">
+                                  <span>▫️ Security Deposit:</span>
+                                  <span className="font-mono font-bold">₹{stmt.remainingDepositDue.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
@@ -3145,11 +3193,13 @@ Scroll vertically to browse all residents without pagination limits
                             onClick={() => {
                               if (paymentPurpose === "RENT") {
                                 setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : collectRentOccupant.rentAmount);
+                                setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
                               } else if (paymentPurpose === "DEPOSIT") {
                                 setDepositPaymentPortion(stmt.remainingDepositDue);
                               } else {
                                 setRentPaymentPortion(stmt.remainingRentDue);
                                 setDepositPaymentPortion(stmt.remainingDepositDue);
+                                setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
                               }
                             }}
                             className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-98"

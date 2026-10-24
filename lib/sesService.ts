@@ -18,6 +18,7 @@ export interface SESSendParams {
     roomNumber?: string;
     bedCode?: string;
     amount?: number | string;
+    breakupNote?: string;
     dueDate?: string;
     joiningDate?: string;
     upiId?: string;
@@ -217,7 +218,7 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </body>
 </html>`;
 
-      const text = `Hello ${payload.recipientName},\n\nFriendly rent payment reminder for ${pName}:\n🏠 Resident: ${payload.recipientName}\n🏠 Room: Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n💰 Amount Due: ₹${formattedAmount}\n📅 Due Date: ${p.dueDate || "5th of this month"}\n💳 Payment Mode: ${upiText}\n\nThank you for being a valued resident of ${pName}!\n\n${pName} Management Desk\nGenerated via TenoPilot.com`;
+      const text = `Hello ${payload.recipientName},\n\nFriendly rent payment reminder for ${pName}:\n🏠 Resident: ${payload.recipientName}\n🏠 Room: Room ${p.roomNumber || "N/A"} (${p.bedCode || "Standard Bed"})\n💰 Amount Due: ₹${formattedAmount}${p.breakupNote ? ` (${p.breakupNote})` : ""}\n📅 Due Date: ${p.dueDate || "5th of this month"}\n💳 Payment Mode: ${upiText}\n\nThank you for being a valued resident of ${pName}!\n\n${pName} Management Desk\nGenerated via TenoPilot.com`;
       return { subject, html, text };
     }
 

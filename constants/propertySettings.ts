@@ -54,6 +54,7 @@ export interface PropertySettingsData {
     sharing3: number; // 3-Sharing Triple Room
     sharing4: number; // 4-Sharing Four Room
   };
+  parkingCharges?: number; // Global default monthly parking fee
   includeDepositInOutstanding?: boolean; // When false (default), unpaid deposit is not mixed into monthly rent outstanding balance
   invoiceConfig?: InvoiceConfig;
   houseRulesAndRegulations?: string; // Optional custom rules, curfew, terms to attach to rental agreements
@@ -78,6 +79,7 @@ export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   managerPhone: "",
   qrProfiles: DEFAULT_QR_PROFILES,
   rentalTiers: { ...DEFAULT_PROPERTY_RENTAL_TIERS },
+  parkingCharges: 0,
   includeDepositInOutstanding: false,
   invoiceConfig: { ...DEFAULT_INVOICE_CONFIG },
   ownerName: "",
@@ -114,13 +116,25 @@ export const propertySettingsStore = {
   },
 
   notify() {
-    this.listeners.forEach((fn) => {
-      try {
-        fn();
-      } catch (e) {
-        console.warn("PropertySettings listener error:", e);
-      }
-    });
+    if (typeof window !== "undefined") {
+      setTimeout(() => {
+        this.listeners.forEach((fn) => {
+          try {
+            fn();
+          } catch (e) {
+            console.warn("PropertySettings listener error:", e);
+          }
+        });
+      }, 0);
+    } else {
+      this.listeners.forEach((fn) => {
+        try {
+          fn();
+        } catch (e) {
+          console.warn("PropertySettings listener error:", e);
+        }
+      });
+    }
   },
 
   /**
@@ -142,6 +156,7 @@ export const propertySettingsStore = {
               ...CLEAN_ZERO_PROPERTY_SETTINGS,
               ...existing,
               ...data,
+              parkingCharges: data.parkingCharges !== undefined ? Number(data.parkingCharges) : (existing.parkingCharges ?? 0),
               includeDepositInOutstanding: data.includeDepositInOutstanding !== undefined
                 ? data.includeDepositInOutstanding
                 : (existing.includeDepositInOutstanding ?? false),
@@ -182,8 +197,6 @@ export const propertySettingsStore = {
   getSettings(propertyId?: string): PropertySettingsData {
     if (!propertyId) return { ...CLEAN_ZERO_PROPERTY_SETTINGS };
 
-    this.initFirebaseListener(propertyId);
-
     if (PROPERTY_SETTINGS_MAP.has(propertyId)) {
       return PROPERTY_SETTINGS_MAP.get(propertyId)!;
     }
@@ -196,6 +209,7 @@ export const propertySettingsStore = {
           const merged: PropertySettingsData = {
             ...CLEAN_ZERO_PROPERTY_SETTINGS,
             ...parsed,
+            parkingCharges: parsed.parkingCharges !== undefined ? Number(parsed.parkingCharges) : 0,
             includeDepositInOutstanding: parsed.includeDepositInOutstanding ?? false,
             rentalTiers: {
               ...DEFAULT_PROPERTY_RENTAL_TIERS,

@@ -54,13 +54,25 @@ export const propertyStore = {
   },
 
   notify() {
-    listeners.forEach((l) => {
-      try {
-        l();
-      } catch (e) {
-        console.warn("propertyStore listener error:", e);
-      }
-    });
+    if (typeof window !== "undefined") {
+      setTimeout(() => {
+        listeners.forEach((l) => {
+          try {
+            l();
+          } catch (e) {
+            console.warn("propertyStore listener error:", e);
+          }
+        });
+      }, 0);
+    } else {
+      listeners.forEach((l) => {
+        try {
+          l();
+        } catch (e) {
+          console.warn("propertyStore listener error:", e);
+        }
+      });
+    }
   },
 
   /**
@@ -106,7 +118,7 @@ export const propertyStore = {
     if (!propertyId) return [];
     if (typeof window === "undefined") return PROPERTY_LAYOUT_MAP.get(propertyId) || [];
 
-    this.initFirebaseListener(propertyId);
+    
 
     if (PROPERTY_LAYOUT_MAP.has(propertyId)) {
       return PROPERTY_LAYOUT_MAP.get(propertyId)!;

@@ -429,10 +429,50 @@ export function resolveOccupantPaymentDueDate(
   return `${dayPadded} ${monthStr}`;
 }
 
+
+/**
+ * Resolves whether an occupant has registered any vehicle numbers
+ */
+export function occupantHasRegisteredVehicle(occupant?: Partial<Occupant> | null): boolean {
+  if (!occupant) return false;
+  const single = occupant.vehicleNumber ? String(occupant.vehicleNumber).trim() : "";
+  if (single.length > 0) return true;
+  if (Array.isArray(occupant.vehicleNumbers)) {
+    return occupant.vehicleNumbers.some((v) => v && String(v).trim().length > 0);
+  }
+  return false;
+}
+
+/**
+ * Resolves the monthly parking fee for an occupant:
+ * - If no vehicle registered: 0
+ * - If individual override is set: returns individual override
+ * - If individual override is undefined/empty: fallbacks to global propertySettings.parkingCharges
+ * - Returns 0 if negative or invalid
+ */
+export function resolveOccupantParkingFee(
+  occupant?: Partial<Occupant> | null,
+  settings?: any
+): number {
+  if (!occupant) return 0;
+  if (!occupantHasRegisteredVehicle(occupant)) return 0;
+
+  if (occupant.parkingCharges !== undefined && occupant.parkingCharges !== null) {
+    const parsed = Number(occupant.parkingCharges);
+    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  }
+
+  const globalFee = settings?.parkingCharges !== undefined ? Number(settings.parkingCharges) : 0;
+  return isNaN(globalFee) || globalFee < 0 ? 0 : globalFee;
+}
+
 export interface FinancialStatementSummary {
   proRataRent: number;
   securityDepositRequired: number;
   priorArrears: number;
+  parkingFee: number;
+  remainingParkingDue: number;
+  parkingBreakupText?: string;
   totalGrossDue: number;
   totalPaid: number;
   totalRentPaid: number;
@@ -574,10 +614,19 @@ export function calculateOccupantFinancialStatement(
       }
     }
 
-    const totalPaid = totalRentPaid + totalDepositPaid;
-    const netOutstandingBalance = includeDepositInOutstanding
+    const parkingFee = resolveOccupantParkingFee(occupant, settings);
+    const totalParkingPaid = history.reduce((sum, item) => sum + (item.parkingAmount || 0), 0);
+    const remainingParkingDue = (occupant.paymentStatus === "Paid" || totalParkingPaid >= parkingFee)
+      ? 0
+      : Math.max(0, parkingFee - totalParkingPaid);
+
+    const totalPaid = totalRentPaid + totalDepositPaid + totalParkingPaid;
+    const netOutstandingBalance = (includeDepositInOutstanding
       ? remainingRentDue + remainingDepositDue
-      : remainingRentDue;
+      : remainingRentDue) + remainingParkingDue;
+    const parkingBreakupText = remainingParkingDue > 0
+      ? `₹${remainingRentDue.toLocaleString("en-IN")} rent + ₹${remainingParkingDue.toLocaleString("en-IN")} parking fee`
+      : undefined;
     const isFullyPaid = includeDepositInOutstanding
       ? netOutstandingBalance === 0
       : remainingRentDue === 0;
@@ -615,7 +664,10 @@ export function calculateOccupantFinancialStatement(
       proRataRent: stayTariff,
       securityDepositRequired,
       priorArrears,
-      totalGrossDue,
+      parkingFee,
+      remainingParkingDue,
+      parkingBreakupText,
+      totalGrossDue: totalGrossDue + parkingFee,
       totalPaid,
       totalRentPaid,
       totalDepositPaid,
@@ -691,26 +743,35 @@ export function calculateOccupantFinancialStatement(
     ? 0
     : Math.max(0, proRataRent - totalRentPaidFromReceipts);
 
+  const parkingFee = resolveOccupantParkingFee(occupant, settings);
+  const totalParkingPaidFromReceipts = history.reduce((sum, item) => sum + (item.parkingAmount || 0), 0);
+  const remainingParkingDue = (occupant.paymentStatus === "Paid" || totalParkingPaidFromReceipts >= parkingFee)
+    ? 0
+    : Math.max(0, parkingFee - totalParkingPaidFromReceipts);
+
   // Net Outstanding Balance:
-  // When includeDepositInOutstanding is true: remaining rent + remaining deposit + prior arrears
-  // When includeDepositInOutstanding is false (default): remaining rent + prior arrears (deposit tracked on separate deposit badge)
+  // Includes rent dues, prior arrears, parking dues, and optionally security deposit
   const netOutstandingBalance = includeDepositInOutstanding
-    ? remainingRentDue + remainingDepositDue + priorArrears
-    : remainingRentDue + priorArrears;
+    ? remainingRentDue + remainingDepositDue + priorArrears + remainingParkingDue
+    : remainingRentDue + priorArrears + remainingParkingDue;
+
+  const parkingBreakupText = remainingParkingDue > 0
+    ? `₹${remainingRentDue.toLocaleString("en-IN")} rent + ₹${remainingParkingDue.toLocaleString("en-IN")} parking fee`
+    : undefined;
 
   // Gross package required for cycle
-  const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears;
+  const totalGrossDue = (isDepositCleared ? 0 : securityDepositRequired) + proRataRent + priorArrears + parkingFee;
 
   // Total payments tracked
   const effectiveDepositPaid = baselineDepositPaid;
   const effectiveRentPaid = isRentCleared && totalRentPaidFromReceipts === 0
     ? proRataRent
     : totalRentPaidFromReceipts;
-  const totalPaid = effectiveDepositPaid + effectiveRentPaid;
+  const totalPaid = effectiveDepositPaid + effectiveRentPaid + totalParkingPaidFromReceipts;
 
   const isFullyPaid = includeDepositInOutstanding
     ? netOutstandingBalance === 0
-    : remainingRentDue === 0 && priorArrears === 0;
+    : remainingRentDue === 0 && priorArrears === 0 && remainingParkingDue === 0;
   const isPartialPaid = !isFullyPaid && (totalRentPaidFromReceipts > 0 || totalDepositPaidFromReceipts > 0);
   const isOverdue = !isFullyPaid && (isPastGrace || priorArrears > 0 || occupant.paymentStatus === "Overdue");
 
@@ -748,6 +809,9 @@ export function calculateOccupantFinancialStatement(
     proRataRent,
     securityDepositRequired,
     priorArrears,
+    parkingFee,
+    remainingParkingDue,
+    parkingBreakupText,
     totalGrossDue,
     totalPaid,
     totalRentPaid: effectiveRentPaid,

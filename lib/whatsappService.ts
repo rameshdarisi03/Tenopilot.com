@@ -12,6 +12,7 @@ export interface WhatsAppSendParams {
     roomNumber?: string;
     bedCode?: string;
     amount?: number | string;
+    breakupNote?: string;
     dueDate?: string;
     upiId?: string;
     bankLabel?: string;
@@ -107,7 +108,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `**${pName}**\n\n` +
         `Hello ${payload.recipientName},\n\n` +
         `This is a friendly reminder regarding your monthly accommodation rent for ${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}:\n\n` +
-        `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
+        `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}${p.breakupNote ? `\n(${p.breakupNote})` : ""}\n` +
         `📅 Due Date: ${p.dueDate || "5th of this month"}\n` +
         `💳 ${payHeader}: ${payDest}\n\n` +
         `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
@@ -302,7 +303,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
-        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const baseAmountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const amountStr = p.breakupNote ? `${baseAmountStr} (${p.breakupNote})` : baseAmountStr;
         const dueDateStr = p.dueDate || "5th of this month";
 
         const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";

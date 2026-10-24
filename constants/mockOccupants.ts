@@ -81,6 +81,7 @@ export interface Occupant {
   arrearsBalance?: number;
   vehicleNumber?: string;
   vehicleNumbers?: string[];
+  parkingCharges?: number;
   paymentHistory?: PaymentHistoryItem[];
   checkoutSettlement?: CheckoutSettlementAudit;
 }
@@ -318,6 +319,28 @@ let GLOBAL_OCCUPANTS_CACHE: Occupant[] | null = null;
 const PROPERTY_OCCUPANTS_MAP = new Map<string, Occupant[]>();
 const occupantListeners: Array<() => void> = [];
 
+function notifyOccupantListeners() {
+  if (typeof window !== "undefined") {
+    setTimeout(() => {
+      occupantListeners.forEach((l) => {
+        try {
+          l();
+        } catch (e) {
+          console.warn("occupantListener error:", e);
+        }
+      });
+    }, 0);
+  } else {
+    occupantListeners.forEach((l) => {
+      try {
+        l();
+      } catch (e) {
+        console.warn("occupantListener error:", e);
+      }
+    });
+  }
+}
+
 function loadOccupants(): Occupant[] {
   if (GLOBAL_OCCUPANTS_CACHE) return GLOBAL_OCCUPANTS_CACHE;
   let list: Occupant[] = [];
@@ -424,7 +447,7 @@ export const occupantStore = {
         console.warn("Failed to update cache with Cloud Firestore SSOT:", e);
       }
     }
-    occupantListeners.forEach((l) => l());
+    notifyOccupantListeners();
   },
 
   async deleteOccupant(occupantId: string, propertyId: string = "sunshine-pg") {
@@ -447,7 +470,7 @@ export const occupantStore = {
         console.warn("Failed to save updated occupants store:", e);
       }
     }
-    occupantListeners.forEach((l) => l());
+    notifyOccupantListeners();
   },
 
   updateOccupants(newList: Occupant[], propertyId: string = "sunshine-pg") {
@@ -466,7 +489,7 @@ export const occupantStore = {
         console.warn("Failed to save occupants store:", e);
       }
     }
-    occupantListeners.forEach((l) => l());
+    notifyOccupantListeners();
   },
 
   updateOccupant(updatedOcc: Occupant, propertyId: string = "sunshine-pg") {
@@ -485,7 +508,7 @@ export const occupantStore = {
         console.warn("Failed to clear localStorage occupants:", e);
       }
     }
-    occupantListeners.forEach((l) => l());
+    notifyOccupantListeners();
   },
 
   subscribe(listener: () => void) {
