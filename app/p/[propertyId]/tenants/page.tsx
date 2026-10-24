@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { use, useState, useMemo, useEffect } from "react";
+import { use, useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
@@ -280,6 +280,38 @@ export default function TenantsDirectoryPage({
     whatsapp: true,
   });
   const [isSendingUnifiedReminders, setIsSendingUnifiedReminders] = useState(false);
+
+  const initialUrlActionHandledRef = useRef(false);
+
+  // Close reminder modal, deselect all tenants, clear dues filter, and strip URL action params
+  const handleCloseReminderModal = () => {
+    setShowRentReminderQRModal(false);
+    setSelectedIds([]);
+    setIsMobileMultiSelectMode(false);
+    setPaymentStatusFilter("All");
+    setPaymentDueFilter("All");
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      let changed = false;
+      if (url.searchParams.has("sendReminders")) {
+        url.searchParams.delete("sendReminders");
+        changed = true;
+      }
+      if (url.searchParams.has("filter")) {
+        url.searchParams.delete("filter");
+        changed = true;
+      }
+      if (url.searchParams.has("action")) {
+        url.searchParams.delete("action");
+        changed = true;
+      }
+      if (changed) {
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  };
+
   const [grandSuccessData, setGrandSuccessData] = useState<{
     type: "EMAIL" | "WHATSAPP" | "BOTH";
     count: number;
@@ -385,6 +417,8 @@ export default function TenantsDirectoryPage({
       }
     }
 
+    if (initialUrlActionHandledRef.current) return;
+
     const filterParam = searchParams?.get("filter")?.toLowerCase();
     const sendRemindersParam = searchParams?.get("sendReminders") === "true";
     const actionParam = searchParams?.get("action")?.toLowerCase();
@@ -410,6 +444,7 @@ export default function TenantsDirectoryPage({
         if (sendRemindersParam || actionParam === "reminders") {
           setShowRentReminderQRModal(true);
         }
+        initialUrlActionHandledRef.current = true;
       }
     }
   }, [searchParams, occupantsList]);
@@ -1823,6 +1858,15 @@ export default function TenantsDirectoryPage({
                     onClick={() => {
                       setPaymentStatusFilter("All");
                       setPaymentDueFilter("All");
+                      setSelectedIds([]);
+                      setIsMobileMultiSelectMode(false);
+                      if (typeof window !== "undefined") {
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete("filter");
+                        url.searchParams.delete("sendReminders");
+                        url.searchParams.delete("action");
+                        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+                      }
                     }}
                   />
                 </div>
@@ -3259,7 +3303,7 @@ Scroll vertically to browse all residents without pagination limits
         {showRentReminderQRModal && (
           <div
             className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
-            onClick={() => setShowRentReminderQRModal(false)}
+            onClick={handleCloseReminderModal}
           >
             <div
               className="bg-white rounded-t-3xl sm:rounded-3xl border-t sm:border border-gray-100 shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-3.5 sm:space-y-4 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-xs max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
@@ -3304,7 +3348,7 @@ Scroll vertically to browse all residents without pagination limits
 
                   <button
                     type="button"
-                    onClick={() => setShowRentReminderQRModal(false)}
+                    onClick={handleCloseReminderModal}
                     className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-pointer"
                     aria-label="Close"
                   >
@@ -3695,7 +3739,7 @@ Scroll vertically to browse all residents without pagination limits
 
                 <button
                   type="button"
-                  onClick={() => setShowRentReminderQRModal(false)}
+                  onClick={handleCloseReminderModal}
                   className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-100 cursor-pointer text-center transition-colors"
                 >
                   Close
@@ -3794,8 +3838,7 @@ Scroll vertically to browse all residents without pagination limits
                 type="button"
                 onClick={() => {
                   setGrandSuccessData(null);
-                  setSelectedIds([]);
-                  setIsMobileMultiSelectMode(false);
+                  handleCloseReminderModal();
                 }}
                 className="w-full py-3 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
               >
