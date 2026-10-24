@@ -363,7 +363,7 @@ export function GuestProfileView({
                     }`}>
                       🏠 Stay: {stmt.remainingRentDue > 0 ? `₹${stmt.remainingRentDue.toLocaleString("en-IN")}` : "Paid ✓"}
                     </span>
-                    {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                    {Boolean(propertySettings?.includeDepositInOutstanding) && stmt.remainingDepositDue > 0 && !stmt.isDepositCleared && (
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold border ${
                         stmt.remainingDepositDue > 0
                           ? "bg-purple-50 text-purple-900 border-purple-200/70"
@@ -421,7 +421,7 @@ export function GuestProfileView({
                           </div>
                         </div>
 
-                        {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                        {Boolean(propertySettings?.includeDepositInOutstanding) && stmt.remainingDepositDue > 0 && !stmt.isDepositCleared && (
                           <div className="flex items-center justify-between py-1 text-gray-700">
                             <span className="flex items-center gap-2">
                               🔒 Refundable Key Deposit
@@ -501,7 +501,7 @@ export function GuestProfileView({
                         </div>
                       </div>
 
-                      {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                      {Boolean(propertySettings?.includeDepositInOutstanding) && stmt.remainingDepositDue > 0 && !stmt.isDepositCleared && (
                         <div className="flex items-center justify-between py-1 text-gray-700">
                           <span className="flex items-center gap-1.5">
                             🔒 Refundable Key Deposit

@@ -2264,6 +2264,17 @@ export default function IndividualTenantProfilePage({
                               </span>
                             </div>
 
+                            {topStmt.remainingParkingDue > 0 && (
+                              <div className="flex items-center justify-between py-1.5 text-amber-900 bg-amber-50 px-2.5 rounded-xl border border-amber-200/60">
+                                <span className="flex items-center gap-2 font-bold">
+                                  🚗 Vehicle Parking Fee
+                                </span>
+                                <span className="font-bold font-mono text-sm">
+                                  ₹{topStmt.remainingParkingDue.toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            )}
+
                             {topStmt.priorArrears > 0 && (
                               <div className="flex items-center justify-between py-1.5 text-rose-700 bg-rose-50 px-2.5 rounded-xl">
                                 <span className="flex items-center gap-2 font-bold">
@@ -2275,7 +2286,7 @@ export default function IndividualTenantProfilePage({
                               </div>
                             )}
 
-                            {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                            {Boolean(propertySettings?.includeDepositInOutstanding) && topStmt.remainingDepositDue > 0 && !topStmt.isDepositCleared && (
                               <div className="flex items-center justify-between py-1 text-gray-700">
                                 <span className="flex items-center gap-2">
                                   🔒 Pending Security Deposit
@@ -2328,6 +2339,17 @@ export default function IndividualTenantProfilePage({
                             </span>
                           </div>
 
+                          {topStmt.remainingParkingDue > 0 && (
+                            <div className="flex items-center justify-between py-1 text-amber-900 bg-amber-50/70 px-2 rounded-lg border border-amber-200/50">
+                              <span className="flex items-center gap-1.5 font-bold">
+                                🚗 Vehicle Parking Fee
+                              </span>
+                              <span className="font-bold font-mono">
+                                ₹{topStmt.remainingParkingDue.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+
                           {topStmt.priorArrears > 0 && (
                             <div className="flex items-center justify-between py-1 text-rose-700 bg-rose-50/50 px-2 rounded-lg">
                               <span className="flex items-center gap-1.5 font-bold">
@@ -2339,7 +2361,7 @@ export default function IndividualTenantProfilePage({
                             </div>
                           )}
 
-                          {Boolean(propertySettings?.includeDepositInOutstanding) && (
+                          {Boolean(propertySettings?.includeDepositInOutstanding) && topStmt.remainingDepositDue > 0 && !topStmt.isDepositCleared && (
                             <div className="flex items-center justify-between py-1 text-gray-700">
                               <span className="flex items-center gap-1.5">
                                 🔒 Pending Security Deposit
@@ -4870,6 +4892,37 @@ export default function IndividualTenantProfilePage({
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* 🅿️ Individual Parking Charges Override */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-gray-700">
+                        Vehicle Parking Charges (₹)
+                      </label>
+                      {editParkingCharges !== "" && (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          Individual Override
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-400 font-bold text-xs">₹</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={propertySettings?.parkingCharges ? `Property Default: ₹${propertySettings.parkingCharges}` : "0"}
+                        value={editParkingCharges}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          setEditParkingCharges(val);
+                        }}
+                        className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Leave empty or 0 if no parking fee applies. When entered, it is added to outstanding dues with breakup.
+                    </p>
                   </div>
                 </div>
 

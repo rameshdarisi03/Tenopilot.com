@@ -109,8 +109,18 @@ export function FastTrackImportModal({
   const [customInstructions, setCustomInstructions] = useState<string>("");
   const [reviewAiPrompt, setReviewAiPrompt] = useState<string>("");
   const [isRefiningWithAi, setIsRefiningWithAi] = useState<boolean>(false);
-  const [bulkRentInput, setBulkRentInput] = useState<string>("");
-  const [bulkDepositInput, setBulkDepositInput] = useState<string>("");
+  const [hasAttemptedEnroll, setHasAttemptedEnroll] = useState<boolean>(false);
+  const [dynamicSharingTiers, setDynamicSharingTiers] = useState<
+    Array<{ sharingCount: number; label: string; amount: number | "" }>
+  >(() => {
+    const s = typeof window !== "undefined" ? propertySettingsStore.getSettings(propertyId) : null;
+    return [
+      { sharingCount: 1, label: "Single", amount: s?.rentalTiers?.sharing1 || 15000 },
+      { sharingCount: 2, label: "2-Sharing", amount: s?.rentalTiers?.sharing2 || 12000 },
+      { sharingCount: 3, label: "3-Sharing", amount: s?.rentalTiers?.sharing3 || 9000 },
+      { sharingCount: 4, label: "4-Sharing", amount: s?.rentalTiers?.sharing4 || 7500 },
+    ];
+  });
 
   // Options
   const [autoProvisionBuilding, setAutoProvisionBuilding] = useState<boolean>(true);
@@ -515,78 +525,44 @@ export function FastTrackImportModal({
     }
   };
 
-  // ⚡ 1-Click Instant Bulk Rent Adjuster
-  const handleApplyBulkRent = (amount: number, forceAll: boolean = false) => {
-    if (isNaN(amount) || amount <= 0) return;
-    setEditableRows((prev) => {
-      const updated = prev.map((r) => {
-        if (forceAll || r.rentAmount <= 0) {
-          return { ...r, rentAmount: amount };
-        }
-        return r;
-      });
-      handleSaveDraft(updated);
-      return updated;
-    });
-    setAppendSuccessNotice(`⚡ Updated rent to ₹${amount.toLocaleString("en-IN")}!`);
-    setTimeout(() => setAppendSuccessNotice(null), 3000);
+  // ⚡ Add Dynamic Sharing Tier (e.g. 5-Sharing, 6-Sharing...)
+  const handleAddSharingTier = () => {
+    const nextCount =
+      dynamicSharingTiers.length > 0
+        ? Math.max(...dynamicSharingTiers.map((t) => t.sharingCount)) + 1
+        : 1;
+    setDynamicSharingTiers((prev) => [
+      ...prev,
+      {
+        sharingCount: nextCount,
+        label: `${nextCount}-Sharing`,
+        amount: "",
+      },
+    ]);
+    setAppendSuccessNotice(`⚡ Added ${nextCount}-Sharing tier!`);
+    setTimeout(() => setAppendSuccessNotice(null), 2500);
   };
 
-  // ⚡ 1-Click Instant Bulk Deposit Adjuster
-  const handleApplyBulkDeposit = (amount: number, forceAll: boolean = false) => {
-    if (isNaN(amount) || amount <= 0) return;
-    setEditableRows((prev) => {
-      const updated = prev.map((r) => {
-        if (forceAll || r.securityDeposit <= 0) {
-          const row = { ...r, securityDeposit: amount };
-          const val = validateParsedRow(row);
-          return { ...row, isValid: val.isValid, warnings: val.warnings };
-        }
-        return r;
+  // ⚡ Update Sharing Tier Rate & Auto-Populate Matching Rows in Sheet
+  const handleSharingTierAmountChange = (sharingCount: number, newAmount: number | "") => {
+    setDynamicSharingTiers((prev) =>
+      prev.map((t) => (t.sharingCount === sharingCount ? { ...t, amount: newAmount } : t))
+    );
+    if (typeof newAmount === "number" && newAmount > 0) {
+      setEditableRows((prev) => {
+        const updated = prev.map((r) => {
+          if ((r.sharingType || 2) === sharingCount) {
+            return {
+              ...r,
+              rentAmount: newAmount,
+            };
+          }
+          return r;
+        }).map((r) => ({ ...r, ...validateParsedRow(r) }));
+        handleSaveDraft(updated);
+        return updated;
       });
-      handleSaveDraft(updated);
-      return updated;
-    });
-    setAppendSuccessNotice(`⚡ Updated security deposit to ₹${amount.toLocaleString("en-IN")}!`);
-    setTimeout(() => setAppendSuccessNotice(null), 3000);
-  };
-
-  // ⚡ Set Security Deposit = 1x or 2x Month Rent
-  const handleApplyDepositMultiple = (multiple: number) => {
-    setEditableRows((prev) => {
-      const updated = prev.map((r) => {
-        const rent = r.rentAmount > 0 ? r.rentAmount : 0;
-        const row = { ...r, securityDeposit: rent * multiple };
-        const val = validateParsedRow(row);
-        return { ...row, isValid: val.isValid, warnings: val.warnings };
-      });
-      handleSaveDraft(updated);
-      return updated;
-    });
-    setAppendSuccessNotice(`⚡ Set security deposit to ${multiple} month(s) rent!`);
-    setTimeout(() => setAppendSuccessNotice(null), 3000);
-  };
-
-  // ⚡ Auto-Assign Rent based on Room Sharing Tiers
-  const handleApplySharingTiers = () => {
-    const tiers = settings?.rentalTiers || { sharing1: 15000, sharing2: 12000, sharing3: 9000, sharing4: 7500 };
-    setEditableRows((prev) => {
-      const updated = prev.map((r) => {
-        const sharing = r.sharingType || 2;
-        let rent = tiers.sharing2;
-        if (sharing === 1 && tiers.sharing1) rent = tiers.sharing1;
-        else if (sharing === 2 && tiers.sharing2) rent = tiers.sharing2;
-        else if (sharing === 3 && tiers.sharing3) rent = tiers.sharing3;
-        else if (sharing === 4 && tiers.sharing4) rent = tiers.sharing4;
-        const row = { ...r, rentAmount: rent };
-        const val = validateParsedRow(row);
-        return { ...row, isValid: val.isValid, warnings: val.warnings };
-      });
-      handleSaveDraft(updated);
-      return updated;
-    });
-    setAppendSuccessNotice(`⚡ Applied PG sharing rent tiers across all rooms!`);
-    setTimeout(() => setAppendSuccessNotice(null), 3000);
+    }
   };
 
   // Helper to format ISO date (YYYY-MM-DD) into user's chosen display format
@@ -700,6 +676,7 @@ export function FastTrackImportModal({
 
   // 📝 Start a brand new, empty spreadsheet directly
   const handleStartNewSpreadsheet = () => {
+    setHasAttemptedEnroll(false);
     const initialRows: FastTrackParsedRow[] = [
       createBlankManualRow(0),
       createBlankManualRow(1),
@@ -871,6 +848,7 @@ export function FastTrackImportModal({
         setSavedDraft(null);
       }
 
+      setHasAttemptedEnroll(false);
       setStep("INPUT");
       setPastedText("");
       setFileName(null);
@@ -2264,94 +2242,43 @@ export function FastTrackImportModal({
                 </div>
               </div>
 
-              {/* Row 2: 1-Click Instant Bulk Fast-Fixes */}
+              {/* Row 2: Dynamic Room Sharing Rates Bar */}
               <div className="pt-2 border-t border-purple-100 flex flex-wrap items-center justify-between gap-2.5 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">⚡ 1-Click Bulk Tools:</span>
+                  <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
+                    ⚡ Sharing Rates:
+                  </span>
 
-                  {/* Bulk Rent Fill */}
-                  <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-gray-200 shadow-2xs">
-                    <span className="text-[11px] text-gray-500 font-semibold">Rent ₹</span>
-                    <input
-                      type="number"
-                      value={bulkRentInput}
-                      onChange={(e) => setBulkRentInput(e.target.value)}
-                      placeholder="e.g. 7500"
-                      className="w-16 text-xs font-bold text-gray-800 outline-hidden"
-                    />
-                    <button
-                      type="button"
-                      disabled={!bulkRentInput}
-                      onClick={() => handleApplyBulkRent(Number(bulkRentInput), false)}
-                      className="px-2 py-0.5 rounded-lg bg-orange-100 hover:bg-orange-200 text-[#c2652a] text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40"
-                      title="Fill this rent for all tenants whose rent is missing or zero"
+                  {dynamicSharingTiers.map((tier) => (
+                    <div
+                      key={tier.sharingCount}
+                      className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-gray-200 shadow-2xs hover:border-[#c2652a]/50 transition-all"
                     >
-                      Fill Missing
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!bulkRentInput}
-                      onClick={() => handleApplyBulkRent(Number(bulkRentInput), true)}
-                      className="px-1.5 py-0.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-40"
-                      title="Apply this rent to ALL tenants in this roster"
-                    >
-                      All
-                    </button>
-                  </div>
+                      <span className="text-[11px] text-gray-600 font-bold whitespace-nowrap">
+                        {tier.label} =
+                      </span>
+                      <span className="text-[11px] text-gray-400 font-semibold">₹</span>
+                      <input
+                        type="number"
+                        value={tier.amount}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? "" : Number(e.target.value);
+                          handleSharingTierAmountChange(tier.sharingCount, val);
+                        }}
+                        placeholder="Amount"
+                        className="w-18 text-xs font-bold text-gray-800 outline-hidden"
+                      />
+                    </div>
+                  ))}
 
-                  {/* Bulk Deposit Fill */}
-                  <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-gray-200 shadow-2xs">
-                    <span className="text-[11px] text-gray-500 font-semibold">Deposit ₹</span>
-                    <input
-                      type="number"
-                      value={bulkDepositInput}
-                      onChange={(e) => setBulkDepositInput(e.target.value)}
-                      placeholder="e.g. 10000"
-                      className="w-16 text-xs font-bold text-gray-800 outline-hidden"
-                    />
-                    <button
-                      type="button"
-                      disabled={!bulkDepositInput}
-                      onClick={() => handleApplyBulkDeposit(Number(bulkDepositInput), false)}
-                      className="px-2 py-0.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold transition-all cursor-pointer disabled:opacity-40"
-                      title="Fill this deposit for all tenants whose deposit is missing or zero"
-                    >
-                      Fill Missing
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!bulkDepositInput}
-                      onClick={() => handleApplyBulkDeposit(Number(bulkDepositInput), true)}
-                      className="px-1.5 py-0.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 text-[10px] font-semibold transition-all cursor-pointer disabled:opacity-40"
-                      title="Apply this deposit to ALL tenants in this roster"
-                    >
-                      All
-                    </button>
-                  </div>
-                </div>
-
-                {/* Instant Deposit Formula & Sharing Rates Chips */}
-                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => handleApplyDepositMultiple(1)}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-gray-700 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs active:scale-98"
+                    onClick={handleAddSharingTier}
+                    className="px-2.5 py-1 rounded-xl bg-purple-100/80 hover:bg-purple-200 border border-purple-200 text-purple-900 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-98 shadow-2xs"
+                    title="Add additional sharing tier (e.g. 5-Sharing, 6-Sharing)"
                   >
-                    Deposit = 1 Mo Rent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyDepositMultiple(2)}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-gray-700 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs active:scale-98"
-                  >
-                    Deposit = 2 Mo Rent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleApplySharingTiers}
-                    className="px-2.5 py-1 rounded-lg bg-purple-100/70 border border-purple-200 hover:bg-purple-200 text-purple-900 text-[11px] font-bold transition-all cursor-pointer shadow-2xs active:scale-98"
-                  >
-                    Apply PG Sharing Rates
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Sharing</span>
                   </button>
                 </div>
               </div>
@@ -2446,7 +2373,7 @@ export function FastTrackImportModal({
             </div>
 
             {/* Required Fields Incomplete Alert Banner */}
-            {hasInvalidRows && (
+            {hasAttemptedEnroll && hasInvalidRows && (
               <div className="px-4 py-3 rounded-2xl bg-rose-50 border border-rose-300 text-xs font-semibold text-rose-950 flex flex-wrap items-center justify-between gap-3 shadow-xs animate-in fade-in">
                 <div className="flex items-center gap-2.5">
                   <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
@@ -2834,13 +2761,14 @@ Anil Verma   9812345678   Room 103   12000"
                   <tbody className="divide-y divide-gray-100 bg-white">
                     {editableRows.map((row, idx) => {
                       const isDuplicateInTable = tableDuplicateIndices.has(idx);
-                      const isNameMissing = !row.fullName || !row.fullName.trim();
+                      const showRowErrors = hasAttemptedEnroll;
+                      const isNameMissing = showRowErrors && (!row.fullName || !row.fullName.trim());
                       const cleanPhoneDigits = (row.phone || "").replace(/\D/g, "");
-                      const isPhoneInvalid = !cleanPhoneDigits || cleanPhoneDigits.length !== 10 || !/^[6-9]/.test(cleanPhoneDigits);
-                      const isRoomMissing = !row.roomNumber || !row.roomNumber.trim();
-                      const isRentInvalid = !row.rentAmount || Number(row.rentAmount) <= 0;
-                      const isDepositInvalid = row.securityDeposit === undefined || row.securityDeposit === null || isNaN(row.securityDeposit) || Number(row.securityDeposit) < 0;
-                      const isDateMissing = !row.joiningDate;
+                      const isPhoneInvalid = showRowErrors && (!cleanPhoneDigits || cleanPhoneDigits.length !== 10 || !/^[6-9]/.test(cleanPhoneDigits));
+                      const isRoomMissing = showRowErrors && (!row.roomNumber || !row.roomNumber.trim());
+                      const isRentInvalid = showRowErrors && (!row.rentAmount || Number(row.rentAmount) <= 0);
+                      const isDepositInvalid = showRowErrors && (row.securityDeposit === undefined || row.securityDeposit === null || isNaN(row.securityDeposit) || Number(row.securityDeposit) < 0);
+                      const isDateMissing = showRowErrors && !row.joiningDate;
 
                       return (
                         <tr
@@ -2848,7 +2776,7 @@ Anil Verma   9812345678   Room 103   12000"
                           className={
                             isDuplicateInTable
                               ? "bg-rose-50/80 border-l-4 border-l-rose-500"
-                              : !row.isValid
+                              : (!row.isValid && hasAttemptedEnroll)
                               ? "bg-rose-50/20 border-l-3 border-l-rose-400"
                               : "hover:bg-gray-50/50"
                           }
@@ -2926,16 +2854,27 @@ Anil Verma   9812345678   Room 103   12000"
                               const count = Number(e.target.value);
                               updateRowField(idx, "sharingType", count);
                               updateRowField(idx, "sharingLabel", count === 1 ? "Single Room" : `${count}-Sharing`);
+                              const tier = dynamicSharingTiers.find((t) => t.sharingCount === count);
+                              if (tier && typeof tier.amount === "number" && tier.amount > 0) {
+                                updateRowField(idx, "rentAmount", tier.amount);
+                              }
                             }}
                             title="Room Sharing Capacity (Auto-selected or Editable)"
                             className="px-2 py-1.5 rounded-lg border border-blue-200/90 bg-blue-50/60 font-semibold text-blue-800 text-xs focus:ring-1 focus:ring-[#c2652a] focus:bg-white cursor-pointer"
                           >
-                            <option value={1}>1-Sharing</option>
+                            <option value={1}>Single</option>
                             <option value={2}>2-Sharing</option>
                             <option value={3}>3-Sharing</option>
                             <option value={4}>4-Sharing</option>
                             <option value={5}>5-Sharing</option>
                             <option value={6}>6-Sharing</option>
+                            {dynamicSharingTiers
+                              .filter((t) => t.sharingCount > 6)
+                              .map((t) => (
+                                <option key={t.sharingCount} value={t.sharingCount}>
+                                  {t.label}
+                                </option>
+                              ))}
                           </select>
                         </td>
                         <td className="py-2 px-3">
@@ -3074,7 +3013,7 @@ Anil Verma   9812345678   Room 103   12000"
                           </div>
                         </td>
                         <td className="py-2 px-3 text-center">
-                          {row.isValid ? (
+                          {(row.isValid || !hasAttemptedEnroll) ? (
                             <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap">
                               <Check className="w-3 h-3 text-emerald-600" /> Ready
                             </span>
@@ -3230,9 +3169,18 @@ Anil Verma   9812345678   Room 103   12000"
                     editableRows.length === 0 ||
                     tableDuplicateIndices.size > 0 ||
                     isOverCapacity ||
-                    hasInvalidRows
+                    (hasAttemptedEnroll && hasInvalidRows)
                   }
-                  onClick={handleCommitIngest}
+                  onClick={() => {
+                    if (hasInvalidRows) {
+                      setHasAttemptedEnroll(true);
+                      alert(
+                        `Cannot Enroll: ${invalidRows.length} resident row(s) have missing required fields.\n\nPlease ensure Tenant Name, 10-Digit Mobile, Room Number, Joining Date, Monthly Rent (> 0), and Deposit are filled for all residents marked in red before confirming.`
+                      );
+                      return;
+                    }
+                    handleCommitIngest();
+                  }}
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
@@ -3250,7 +3198,7 @@ Anil Verma   9812345678   Room 103   12000"
                       <AlertTriangle className="w-4 h-4 text-amber-200" />
                       <span>Resolve {tableDuplicateIndices.size} Duplicates to Enroll</span>
                     </>
-                  ) : hasInvalidRows ? (
+                  ) : hasAttemptedEnroll && hasInvalidRows ? (
                     <>
                       <AlertCircle className="w-4 h-4 text-amber-200" />
                       <span>Fill Required Fields ({invalidRows.length} {invalidRows.length === 1 ? "Row" : "Rows"} Need Attention)</span>

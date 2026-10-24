@@ -224,6 +224,52 @@ export default function PropertySetupPage({
     }
   };
 
+  // 1-Click Direct Bed Addition on Room Card
+  const handleAddBedDirect = (floorId: string, room: RoomConfig) => {
+    const currentBeds = room.beds || [];
+    const usedCodes = new Set(currentBeds.map((b) => b.bedCode.trim().toUpperCase()));
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let nextCode = "";
+    for (let i = 0; i < alphabet.length; i++) {
+      const candidate = `Bed ${alphabet[i]}`;
+      if (!usedCodes.has(candidate)) {
+        nextCode = candidate;
+        break;
+      }
+    }
+    if (!nextCode) {
+      nextCode = `Bed ${currentBeds.length + 1}`;
+    }
+
+    const newBed: BedSlotConfig = {
+      id: `bed-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      bedCode: nextCode,
+      status: "Available",
+    };
+
+    const newBedList = [...currentBeds, newBed];
+    const newCapacity = newBedList.length;
+
+    const updated = propertyStructure.map((fl) => {
+      if (fl.id !== floorId) return fl;
+      return {
+        ...fl,
+        totalBeds: (fl.totalBeds || 0) + 1,
+        rooms: fl.rooms.map((rm) => {
+          if (rm.id !== room.id) return rm;
+          return {
+            ...rm,
+            sharingType: newCapacity,
+            beds: newBedList,
+          };
+        }),
+      };
+    });
+
+    updateLayoutStructure(updated);
+    triggerToast(`✓ Added ${nextCode} to Room ${room.roomNumber}!`);
+  };
+
   // Handle Deletion of Bed Slot
   const handleDeleteBed = (floorId: string, roomId: string, bed: BedSlotConfig) => {
     if (bed.status !== "Available" && bed.occupant) {
@@ -245,6 +291,7 @@ export default function PropertySetupPage({
           if (fl.id !== floorId) return fl;
           return {
             ...fl,
+            totalBeds: Math.max(0, (fl.totalBeds || 0) - 1),
             rooms: fl.rooms.map((rm) => {
               if (rm.id !== roomId) return rm;
               return {
@@ -713,15 +760,23 @@ export default function PropertySetupPage({
 
                                 <div className="flex items-center gap-1">
                                   <button
+                                    type="button"
+                                    onClick={() => handleAddBedDirect(floor.id, room)}
+                                    className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-[#c2652a] transition-colors cursor-pointer"
+                                    title="Add Bed to this Room"
+                                  >
+                                    <Plus className="w-4 h-4 text-[#c2652a]" />
+                                  </button>
+                                  <button
                                     onClick={() => {
                                       setActiveEditRoom({ floorId: floor.id, room });
                                       setNewRoomNumber(room.roomNumber);
-                                      setNewSharingCapacityStr(String(room.sharingType));
+                                      setNewSharingCapacityStr(String(room.beds.length));
                                       setNewRoomSpecialTag(room.specialFeatureTag || "");
                                       setNewRoomCustomRent(room.customRentAmount ? String(room.customRentAmount) : "");
                                       setNewRoomPhotos(room.roomPhotos || []);
                                     }}
-                                    className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-[#c2652a] transition-colors"
+                                    className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-[#c2652a] transition-colors cursor-pointer"
                                     title="Edit Room Configuration, Photos & Capacity"
                                   >
                                     <Edit className="w-4 h-4" />
