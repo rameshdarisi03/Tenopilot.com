@@ -15,6 +15,8 @@ export interface PlatformConfig {
   baseAllowedBuildings: number;
   proWhatsAppCredits: number;
   trialWhatsAppCredits: number;
+  emailMultiplier: number; // e.g. 3 (range 1 to 10)
+  trialEmailCredits?: number;
 
   // Founder Support & Billing
   founderWhatsapp: string;
@@ -43,6 +45,8 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   baseAllowedBuildings: 1,
   proWhatsAppCredits: 300,
   trialWhatsAppCredits: 10,
+  emailMultiplier: 3, // Default 3X
+  trialEmailCredits: 30,
 
   // Founder Support & Billing
   founderWhatsapp: "9206651295",

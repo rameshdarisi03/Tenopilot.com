@@ -30,6 +30,8 @@ export interface ScannedAccountRecord {
   maxTenantsLimit?: number;
   tenantExtensionPacks?: number;
   whatsappCreditsLimit?: number;
+  emailCreditsLimit?: number;
+  emailMultiplier?: number;
 }
 
 export const dynamic = "force-dynamic";
@@ -232,11 +234,18 @@ export async function GET(req: NextRequest) {
 
         // Fetch live wallet balance from primary property if present
         let liveWhatsAppCredits: number | null = null;
+        let liveEmailCredits: number | null = null;
         if (propIds.length > 0) {
           try {
             const wDoc = await getDoc(doc(db, `properties/${propIds[0]}/whatsapp/wallet`));
             if (wDoc.exists() && typeof wDoc.data()?.credits === "number") {
               liveWhatsAppCredits = wDoc.data().credits;
+            }
+          } catch (e) {}
+          try {
+            const eDoc = await getDoc(doc(db, `properties/${propIds[0]}/email/wallet`));
+            if (eDoc.exists() && typeof eDoc.data()?.credits === "number") {
+              liveEmailCredits = eDoc.data().credits;
             }
           } catch (e) {}
         }
@@ -290,6 +299,10 @@ export async function GET(req: NextRequest) {
           whatsappCreditsLimit: liveWhatsAppCredits !== null
             ? liveWhatsAppCredits
             : (data.whatsappCreditsLimit ?? (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 10)),
+          emailMultiplier: data.emailMultiplier ?? founderClient?.emailMultiplier ?? 3,
+          emailCreditsLimit: liveEmailCredits !== null
+            ? liveEmailCredits
+            : (data.emailCreditsLimit ?? founderClient?.emailCreditsLimit ?? ((data.whatsappCreditsLimit ?? 300) * (data.emailMultiplier ?? 3))),
         });
       }
     } catch (e) {
@@ -318,6 +331,8 @@ export async function GET(req: NextRequest) {
           createdAt: inv.createdAt || new Date().toISOString(),
           lastActive: "Not signed in yet",
           hasStorageFootprints: false,
+          emailMultiplier: 3,
+          emailCreditsLimit: 30,
         });
       }
     });

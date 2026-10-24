@@ -26,6 +26,8 @@ export async function GET() {
         baseAllowedBuildings: Number(data.baseAllowedBuildings) || DEFAULT_PLATFORM_CONFIG.baseAllowedBuildings,
         proWhatsAppCredits: Number(data.proWhatsAppCredits) !== undefined && !isNaN(Number(data.proWhatsAppCredits)) ? Number(data.proWhatsAppCredits) : DEFAULT_PLATFORM_CONFIG.proWhatsAppCredits,
         trialWhatsAppCredits: Number(data.trialWhatsAppCredits) !== undefined && !isNaN(Number(data.trialWhatsAppCredits)) ? Number(data.trialWhatsAppCredits) : DEFAULT_PLATFORM_CONFIG.trialWhatsAppCredits,
+        emailMultiplier: Number(data.emailMultiplier) >= 1 && Number(data.emailMultiplier) <= 10 ? Number(data.emailMultiplier) : DEFAULT_PLATFORM_CONFIG.emailMultiplier,
+        trialEmailCredits: Number(data.trialEmailCredits) || DEFAULT_PLATFORM_CONFIG.trialEmailCredits,
         founderWhatsapp: String(data.founderWhatsapp || DEFAULT_PLATFORM_CONFIG.founderWhatsapp),
         founderUpiVpa: String(data.founderUpiVpa || DEFAULT_PLATFORM_CONFIG.founderUpiVpa),
         founderUpiName: String(data.founderUpiName || DEFAULT_PLATFORM_CONFIG.founderUpiName),
@@ -67,14 +69,17 @@ export async function POST(req: NextRequest) {
       baseAllowedBuildings = DEFAULT_PLATFORM_CONFIG.baseAllowedBuildings,
       proWhatsAppCredits = DEFAULT_PLATFORM_CONFIG.proWhatsAppCredits,
       trialWhatsAppCredits = DEFAULT_PLATFORM_CONFIG.trialWhatsAppCredits,
+      emailMultiplier = DEFAULT_PLATFORM_CONFIG.emailMultiplier,
       founderWhatsapp = DEFAULT_PLATFORM_CONFIG.founderWhatsapp,
       founderUpiVpa = DEFAULT_PLATFORM_CONFIG.founderUpiVpa,
       founderUpiName = DEFAULT_PLATFORM_CONFIG.founderUpiName,
       updatedBy = "Founder Console",
     } = body;
 
-    // 1. Fetch previous master settings to calculate additive delta
+    // 1. Fetch previous master settings to calculate additive deltas for both WA and Email
     let prevProCredits = DEFAULT_PLATFORM_CONFIG.proWhatsAppCredits;
+    let prevMultiplier = DEFAULT_PLATFORM_CONFIG.emailMultiplier;
+
     try {
       const prevDoc = await getDoc(
         doc(db, "platform_admin", "config", "settings", "master_controls")
@@ -84,13 +89,22 @@ export async function POST(req: NextRequest) {
         if (typeof pData.proWhatsAppCredits === "number") {
           prevProCredits = pData.proWhatsAppCredits;
         }
+        if (typeof pData.emailMultiplier === "number") {
+          prevMultiplier = pData.emailMultiplier;
+        }
       }
     } catch (e) {
       console.warn("Notice reading previous master config for delta:", e);
     }
 
     const newProCredits = Math.max(0, Number(proWhatsAppCredits));
+    const newMultiplier = Math.min(10, Math.max(1, Number(emailMultiplier || DEFAULT_PLATFORM_CONFIG.emailMultiplier)));
+
+    const prevProEmailCredits = prevProCredits * prevMultiplier;
+    const newProEmailCredits = newProCredits * newMultiplier;
+
     const deltaCredits = newProCredits - prevProCredits;
+    const deltaEmailCredits = newProEmailCredits - prevProEmailCredits;
 
     const payload: PlatformConfig = {
       proMonthlyPrice: Math.max(1, Number(proMonthlyPrice)),
@@ -104,6 +118,8 @@ export async function POST(req: NextRequest) {
       baseAllowedBuildings: Math.max(1, Number(baseAllowedBuildings)),
       proWhatsAppCredits: newProCredits,
       trialWhatsAppCredits: Math.max(0, Number(trialWhatsAppCredits)),
+      emailMultiplier: newMultiplier,
+      trialEmailCredits: Math.max(0, Number(trialWhatsAppCredits)) * newMultiplier,
       founderWhatsapp: String(founderWhatsapp).replace(/\D/g, "").slice(-10) || DEFAULT_PLATFORM_CONFIG.founderWhatsapp,
       founderUpiVpa: String(founderUpiVpa).trim() || DEFAULT_PLATFORM_CONFIG.founderUpiVpa,
       founderUpiName: String(founderUpiName).trim() || DEFAULT_PLATFORM_CONFIG.founderUpiName,
@@ -133,11 +149,9 @@ export async function POST(req: NextRequest) {
       { merge: true }
     );
 
-    // 4. 🎁 Automated Additive Delta Appender for Existing Pro Accounts
-    // If Pro credits limit was raised (e.g. 300 -> 350, delta = +50),
-    // append only the difference to their existing wallet without wiping consumed usage.
+    // 4. 🎁 Automated Additive Delta Appender for Existing Pro Accounts (WhatsApp & Email)
     let affectedAccountsCount = 0;
-    if (deltaCredits > 0) {
+    if (deltaCredits > 0 || deltaEmailCredits > 0) {
       try {
         const usersSnap = await getDocs(collection(db, "users"));
         for (const uDoc of usersSnap.docs) {
@@ -151,47 +165,95 @@ export async function POST(req: NextRequest) {
               : [uData.primaryPropertyId || uData.propertyId || "sunshine-pg"].filter(Boolean);
 
             for (const propId of propIds) {
-              const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
-              const wSnap = await getDoc(walletRef);
-              const curCredits = wSnap.exists() && typeof wSnap.data().credits === "number"
-                ? wSnap.data().credits
-                : prevProCredits;
-              const newBalance = curCredits + deltaCredits;
-              const existingTxs = wSnap.exists() && Array.isArray(wSnap.data().transactions)
-                ? wSnap.data().transactions
-                : [];
+              // A. WhatsApp additive bonus (if WA credits increased)
+              if (deltaCredits > 0) {
+                const walletRef = doc(db, `properties/${propId}/whatsapp/wallet`);
+                const wSnap = await getDoc(walletRef);
+                const curCredits = wSnap.exists() && typeof wSnap.data().credits === "number"
+                  ? wSnap.data().credits
+                  : prevProCredits;
+                const newBalance = curCredits + deltaCredits;
+                const existingTxs = wSnap.exists() && Array.isArray(wSnap.data().transactions)
+                  ? wSnap.data().transactions
+                  : [];
 
-              const bonusTx = {
-                id: `tx-delta-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                type: "PURCHASE",
-                amount: deltaCredits,
-                balanceAfter: newBalance,
-                description: `🎁 Platform Pro allocation bonus: Quota increased from ${prevProCredits} to ${newProCredits} (+${deltaCredits} credits)`,
-                timestamp: new Date().toISOString(),
-                status: "DELIVERED",
-              };
+                const bonusTx = {
+                  id: `tx-delta-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                  type: "PURCHASE",
+                  amount: deltaCredits,
+                  balanceAfter: newBalance,
+                  description: `🎁 Platform Pro allocation bonus: Quota increased from ${prevProCredits} to ${newProCredits} (+${deltaCredits} credits)`,
+                  timestamp: new Date().toISOString(),
+                  status: "DELIVERED",
+                };
 
-              await setDoc(
-                walletRef,
-                {
-                  credits: newBalance,
-                  transactions: [bonusTx, ...existingTxs].slice(0, 100),
-                  updatedAt: new Date().toISOString(),
-                },
-                { merge: true }
-              );
+                await setDoc(
+                  walletRef,
+                  {
+                    credits: newBalance,
+                    transactions: [bonusTx, ...existingTxs].slice(0, 100),
+                    updatedAt: new Date().toISOString(),
+                  },
+                  { merge: true }
+                );
+              }
+
+              // B. Email additive bonus (if Email quota increased via WA delta or multiplier delta)
+              if (deltaEmailCredits > 0) {
+                const emailWalletRef = doc(db, `properties/${propId}/email/wallet`);
+                const eSnap = await getDoc(emailWalletRef);
+                const curEmailCredits = eSnap.exists() && typeof eSnap.data().credits === "number"
+                  ? eSnap.data().credits
+                  : prevProEmailCredits;
+                const newEmailBalance = curEmailCredits + deltaEmailCredits;
+                const existingEmailTxs = eSnap.exists() && Array.isArray(eSnap.data().transactions)
+                  ? eSnap.data().transactions
+                  : [];
+
+                const emailBonusTx = {
+                  id: `tx-email-delta-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                  type: "PURCHASE",
+                  amount: deltaEmailCredits,
+                  balanceAfter: newEmailBalance,
+                  description: `🎁 Platform Pro Email allocation bonus: Quota increased from ${prevProEmailCredits} to ${newProEmailCredits} (+${deltaEmailCredits} email credits @ ${newMultiplier}X)`,
+                  timestamp: new Date().toISOString(),
+                  status: "DELIVERED",
+                };
+
+                await setDoc(
+                  emailWalletRef,
+                  {
+                    credits: newEmailBalance,
+                    transactions: [emailBonusTx, ...existingEmailTxs].slice(0, 100),
+                    updatedAt: new Date().toISOString(),
+                  },
+                  { merge: true }
+                );
+              }
             }
 
-            // Also increment custom limit on user doc
-            const curUserLimit = typeof uData.whatsappCreditsLimit === "number"
-              ? uData.whatsappCreditsLimit
-              : prevProCredits;
+            // Also increment custom limits on user doc
+            const userUpdatePayload: Record<string, any> = {
+              updatedAt: new Date().toISOString(),
+            };
+
+            if (deltaCredits > 0) {
+              const curUserLimit = typeof uData.whatsappCreditsLimit === "number"
+                ? uData.whatsappCreditsLimit
+                : prevProCredits;
+              userUpdatePayload.whatsappCreditsLimit = curUserLimit + deltaCredits;
+            }
+
+            if (deltaEmailCredits > 0) {
+              const curEmailLimit = typeof uData.emailCreditsLimit === "number"
+                ? uData.emailCreditsLimit
+                : prevProEmailCredits;
+              userUpdatePayload.emailCreditsLimit = curEmailLimit + deltaEmailCredits;
+            }
+
             await setDoc(
               doc(db, "users", uDoc.id),
-              {
-                whatsappCreditsLimit: curUserLimit + deltaCredits,
-                updatedAt: new Date().toISOString(),
-              },
+              userUpdatePayload,
               { merge: true }
             );
           }
@@ -203,11 +265,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: deltaCredits > 0
-        ? `Master controls saved! Appended +${deltaCredits} WhatsApp credits to ${affectedAccountsCount} active Pro accounts.`
+      message: deltaCredits > 0 || deltaEmailCredits > 0
+        ? `Master controls saved! Appended +${deltaCredits} WA and +${deltaEmailCredits} Email credits to ${affectedAccountsCount} active Pro accounts.`
         : "Master platform controls saved & broadcast successfully!",
       config: payload,
       deltaCredits,
+      deltaEmailCredits,
       affectedAccountsCount,
     });
   } catch (err: any) {

@@ -199,7 +199,9 @@ export default function ApexCommandClientsPage() {
   const [capacityBaseTenants, setCapacityBaseTenants] = useState<number>(300);
   const [capacityExtensionPacks, setCapacityExtensionPacks] = useState<number>(0);
   const [capacityWhatsAppCredits, setCapacityWhatsAppCredits] = useState<number>(300);
+  const [capacityEmailMultiplier, setCapacityEmailMultiplier] = useState<number>(3);
   const [liveWalletCredits, setLiveWalletCredits] = useState<number | null>(null);
+  const [liveWalletEmailCredits, setLiveWalletEmailCredits] = useState<number | null>(null);
   const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
 
   // Plan Activation Form State
@@ -420,15 +422,25 @@ export default function ApexCommandClientsPage() {
       setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
       setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : (platformConfig.trialWhatsAppCredits || 10)));
+      setCapacityEmailMultiplier(selectedCustomer360.emailMultiplier ?? (platformConfig.emailMultiplier || 3));
       setLiveWalletCredits(null);
+      setLiveWalletEmailCredits(null);
 
-      // 🛡️ Live Property Wallet Sync: Read exact current credits from primary property wallet
+      // 🛡️ Live Property Wallet Sync: Read exact current credits from primary property wallet (WA & Email)
       if (selectedCustomer360.propertyIds && selectedCustomer360.propertyIds.length > 0 && db) {
         const primPropId = selectedCustomer360.propertyIds[0];
         getDoc(doc(db, `properties/${primPropId}/whatsapp/wallet`))
           .then((wSnap) => {
             if (wSnap.exists() && typeof wSnap.data()?.credits === "number") {
               setLiveWalletCredits(wSnap.data().credits);
+            }
+          })
+          .catch(() => {});
+
+        getDoc(doc(db, `properties/${primPropId}/email/wallet`))
+          .then((eSnap) => {
+            if (eSnap.exists() && typeof eSnap.data()?.credits === "number") {
+              setLiveWalletEmailCredits(eSnap.data().credits);
             }
           })
           .catch(() => {});
@@ -443,6 +455,9 @@ export default function ApexCommandClientsPage() {
     try {
       const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
       const prevQuota = selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : 10);
+      const prevMultiplier = selectedCustomer360.emailMultiplier ?? (platformConfig.emailMultiplier || 3);
+      const prevEmailQuota = selectedCustomer360.emailCreditsLimit ?? (prevQuota * prevMultiplier);
+
       const res = await fetch("/api/apex/update-limits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -455,13 +470,15 @@ export default function ApexCommandClientsPage() {
           tenantExtensionPacks: Number(capacityExtensionPacks),
           whatsappCreditsLimit: Number(capacityWhatsAppCredits),
           previousQuotaLimit: prevQuota,
+          emailMultiplier: Number(capacityEmailMultiplier),
+          previousEmailQuotaLimit: prevEmailQuota,
           updatedBy: "Founder Apex Command",
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        triggerToast(`✓ Capacity & WhatsApp limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
+        triggerToast(`✓ Capacity & Multi-Channel limits updated for ${selectedCustomer360.displayName || selectedCustomer360.email}!`);
         setSelectedCustomer360((prev) =>
           prev
             ? {
@@ -470,6 +487,8 @@ export default function ApexCommandClientsPage() {
                 maxTenantsLimit: Number(capacityBaseTenants),
                 tenantExtensionPacks: Number(capacityExtensionPacks),
                 whatsappCreditsLimit: Number(capacityWhatsAppCredits),
+                emailMultiplier: Number(capacityEmailMultiplier),
+                emailCreditsLimit: Number(capacityWhatsAppCredits) * Number(capacityEmailMultiplier),
               }
             : null
         );
@@ -482,6 +501,8 @@ export default function ApexCommandClientsPage() {
                   maxTenantsLimit: Number(capacityBaseTenants),
                   tenantExtensionPacks: Number(capacityExtensionPacks),
                   whatsappCreditsLimit: Number(capacityWhatsAppCredits),
+                  emailMultiplier: Number(capacityEmailMultiplier),
+                  emailCreditsLimit: Number(capacityWhatsAppCredits) * Number(capacityEmailMultiplier),
                 }
               : a
           )
@@ -2210,6 +2231,93 @@ export default function ApexCommandClientsPage() {
                         +
                       </button>
                     </div>
+                  </div>
+                </div>
+
+                {/* Email Credits Multiplier Override & Quota */}
+                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-cyan-500/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-cyan-200">
+                          ✉️ Email Credits Multiplier Ratio
+                        </span>
+                        {liveWalletEmailCredits !== null && (
+                          <span className="text-[11px] font-mono text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                            Current Live Wallet: {liveWalletEmailCredits} Credits
+                          </span>
+                        )}
+                      </div>
+                      {/* Live Calculation Preview */}
+                      {(() => {
+                        const effectiveEmailQuota = capacityWhatsAppCredits * capacityEmailMultiplier;
+                        const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
+                        const prevWa = selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : 10);
+                        const prevMult = selectedCustomer360.emailMultiplier ?? (platformConfig.emailMultiplier || 3);
+                        const prevEmailQuota = selectedCustomer360.emailCreditsLimit ?? (prevWa * prevMult);
+                        const deltaE = effectiveEmailQuota - prevEmailQuota;
+
+                        if (deltaE > 0) {
+                          const previewNewEmailBal = (liveWalletEmailCredits ?? prevEmailQuota) + deltaE;
+                          return (
+                            <p className="text-[10px] text-cyan-300 font-mono mt-1 flex items-center gap-1 font-semibold">
+                              <span>⚡ Instant Grant: +{deltaE} Email credits ({capacityWhatsAppCredits} WA × {capacityEmailMultiplier}X) → New Balance: {previewNewEmailBal}</span>
+                            </p>
+                          );
+                        } else if (deltaE < 0) {
+                          return (
+                            <p className="text-[10px] text-amber-300 font-sans mt-1 flex items-center gap-1">
+                              <span>⏳ Grace Rule: {effectiveEmailQuota} Email quota takes effect next monthly renewal. Current balance preserved.</span>
+                            </p>
+                          );
+                        }
+                        return (
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            Quota: {capacityWhatsAppCredits} WA × {capacityEmailMultiplier}X = {effectiveEmailQuota} Emails
+                          </p>
+                        );
+                      })()}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCapacityEmailMultiplier((p) => Math.max(1, p - 1))}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={capacityEmailMultiplier}
+                        onChange={(e) => setCapacityEmailMultiplier(Math.min(10, Math.max(1, Number(e.target.value) || 1)))}
+                        className="w-20 px-2 py-1.5 rounded-lg bg-black/40 border border-cyan-500/30 text-center font-mono font-bold text-cyan-300 text-xs focus:ring-1 focus:ring-cyan-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCapacityEmailMultiplier((p) => Math.min(10, p + 1))}
+                        className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center cursor-pointer text-sm"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                    {[1, 2, 3, 4, 5, 6, 8, 10].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setCapacityEmailMultiplier(m)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                          capacityEmailMultiplier === m
+                            ? "bg-cyan-500/25 text-cyan-200 border-cyan-400"
+                            : "bg-black/30 text-slate-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        {m}X
+                      </button>
+                    ))}
                   </div>
                 </div>
 

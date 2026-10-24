@@ -33,6 +33,7 @@ import { FastTrackImportModal } from "@/components/dashboard/FastTrackImportModa
 import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
+import { emailCreditStore } from "@/constants/emailCreditStore";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import {
   Search,
@@ -258,10 +259,13 @@ export default function TenantsDirectoryPage({
   const [uploadedQrName, setUploadedQrName] = useState<string | null>(null);
   const [deletePastTenantTarget, setDeletePastTenantTarget] = useState<Occupant | null>(null);
 
-  // WhatsApp & Brevo Cloud Gateway & Credit Wallet States
+  // WhatsApp & Email Cloud Gateway & Credit Wallet States
   const [showWhatsAppWalletModal, setShowWhatsAppWalletModal] = useState(false);
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() =>
     whatsappCreditStore.getCredits(propertyId)
+  );
+  const [emailCredits, setEmailCredits] = useState<number>(() =>
+    emailCreditStore.getCredits(propertyId)
   );
   const [isSendingCloudWhatsApp, setIsSendingCloudWhatsApp] = useState(false);
   const [isSendingCloudEmail, setIsSendingCloudEmail] = useState(false);
@@ -455,8 +459,16 @@ export default function TenantsDirectoryPage({
       setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
     });
 
+    emailCreditStore.initFirebaseListener(propertyId);
+    emailCreditStore.fetchWalletFromFirestore(propertyId);
+    setEmailCredits(emailCreditStore.getCredits(propertyId));
+    const unsubscribeEmailWallet = emailCreditStore.subscribe(() => {
+      setEmailCredits(emailCreditStore.getCredits(propertyId));
+    });
+
     return () => {
       unsubscribeWallet();
+      unsubscribeEmailWallet();
     };
   }, [propertyId]);
 
@@ -829,6 +841,19 @@ export default function TenantsDirectoryPage({
       }
     }
 
+    // Check Email credit balance if Email is ticked
+    if (selectedReminderChannels.email) {
+      const currentEmailBal = emailCreditStore.getCredits(propertyId);
+      if (currentEmailBal <= 0) {
+        triggerToast("🔒 Email Gateway Locked: Your email credit balance is 0. Please recharge your email credits or uncheck Email.");
+        return;
+      }
+      if (currentEmailBal < selectedOccupants.length) {
+        triggerToast(`⚠️ Insufficient Email Credits! You need ${selectedOccupants.length} credits, but have ${currentEmailBal}. Please uncheck Email or recharge.`);
+        return;
+      }
+    }
+
     setIsSendingUnifiedReminders(true);
     setCloudSendProgress({ sent: 0, total: selectedOccupants.length, channel: "" });
 
@@ -873,6 +898,12 @@ export default function TenantsDirectoryPage({
           const resData = await emailRes.json().catch(() => ({}));
           if (emailRes.ok && resData?.successfulCount > 0) {
             emailSentCount++;
+            emailCreditStore.deductCredit(propertyId, {
+              recipientEmail: destEmail,
+              recipientName: occ.name,
+              messageType: "RENT_REMINDER",
+              description: `Auto-sent Rent Reminder Email to ${occ.name} (${destEmail})`,
+            });
           } else {
             lastAwsError = resData?.results?.[0]?.error || resData?.error || "";
           }
@@ -881,6 +912,7 @@ export default function TenantsDirectoryPage({
         }
         setCloudSendProgress({ sent: emailSentCount, total: selectedOccupants.length, channel: "Email" });
       }
+      setEmailCredits(emailCreditStore.getCredits(propertyId));
     }
 
     // 2. Send via WhatsApp if ticked
@@ -3496,14 +3528,21 @@ Scroll vertically to browse all residents without pagination limits
                       {/* Email Tick Button */}
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          if (emailCredits <= 0) {
+                            triggerToast("🔒 Email Gateway Locked: Your credit balance is 0. Please recharge your wallet to dispatch reminders.");
+                            setShowWhatsAppWalletModal(true);
+                            return;
+                          }
                           setSelectedReminderChannels((prev) => ({
                             ...prev,
                             email: !prev.email,
-                          }))
-                        }
+                          }));
+                        }}
                         className={`p-2.5 sm:p-3 rounded-2xl border-2 transition-all flex items-center justify-between text-left cursor-pointer active:scale-98 ${
-                          selectedReminderChannels.email
+                          emailCredits <= 0
+                            ? "border-rose-300 bg-rose-50/40 text-rose-950"
+                            : selectedReminderChannels.email
                             ? "border-blue-600 bg-blue-50/80 text-blue-950 shadow-xs"
                             : "border-gray-200 bg-white hover:bg-gray-50 text-gray-500"
                         }`}
@@ -3511,26 +3550,36 @@ Scroll vertically to browse all residents without pagination limits
                         <div className="flex items-center gap-2 min-w-0">
                           <div
                             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                              selectedReminderChannels.email
+                              emailCredits <= 0
+                                ? "bg-rose-500 text-white"
+                                : selectedReminderChannels.email
                                 ? "bg-blue-600 text-white"
                                 : "bg-gray-100 text-gray-500"
                             }`}
                           >
-                            <Mail className="w-4 h-4" />
+                            {emailCredits <= 0 ? <Lock className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
                           </div>
                           <div className="min-w-0">
                             <span className="block font-bold text-xs truncate">Email</span>
-                            <span className="block text-[10px] text-blue-700 font-semibold truncate">Free Gateway</span>
+                            <span className={`block text-[10px] font-semibold truncate ${emailCredits <= 0 ? "text-rose-600 font-bold" : "text-blue-700"}`}>
+                              {emailCredits <= 0 ? "0 Credits • Locked 🔒" : `${emailCredits} Credits`}
+                            </span>
                           </div>
                         </div>
                         <div
                           className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
-                            selectedReminderChannels.email
+                            emailCredits <= 0
+                              ? "border-rose-300 bg-rose-100 text-rose-600"
+                              : selectedReminderChannels.email
                               ? "bg-blue-600 border-blue-600 text-white"
                               : "border-gray-300 bg-white"
                           }`}
                         >
-                          {selectedReminderChannels.email && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          {emailCredits <= 0 ? (
+                            <Lock className="w-3 h-3" />
+                          ) : (
+                            selectedReminderChannels.email && <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          )}
                         </div>
                       </button>
 
@@ -3571,7 +3620,7 @@ Scroll vertically to browse all residents without pagination limits
                           <div className="min-w-0">
                             <span className="block font-bold text-xs truncate">WhatsApp</span>
                             <span className={`block text-[10px] font-semibold truncate ${whatsappCredits <= 0 ? "text-rose-600 font-bold" : "text-emerald-700"}`}>
-                              {whatsappCredits <= 0 ? "0 Credits • Locked 🔒" : `${selectedCandidateCount} ${selectedCandidateCount === 1 ? "Credit" : "Credits"}`}
+                              {whatsappCredits <= 0 ? "0 Credits • Locked 🔒" : `${whatsappCredits} Credits`}
                             </span>
                           </div>
                         </div>

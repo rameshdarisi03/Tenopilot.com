@@ -123,15 +123,58 @@ export async function GET() {
     // Update user docs for Ramesh Darisi
     await setDoc(
       doc(db, "users/uyDCqT5iQmWCMwRUK6PCrfAOJma2"),
-      { whatsappCreditsLimit: 1100, updatedAt: nowIso },
+      { whatsappCreditsLimit: 1100, emailMultiplier: 3, emailCreditsLimit: 3300, updatedAt: nowIso },
       { merge: true }
     );
     await setDoc(
       doc(db, "founder_clients/rameshdarisi03@gmail.com"),
-      { whatsappCreditsLimit: 1100, updatedAt: nowIso },
+      { whatsappCreditsLimit: 1100, emailMultiplier: 3, emailCreditsLimit: 3300, updatedAt: nowIso },
       { merge: true }
     );
-    results.push({ account: "Ramesh Residencies", credits: 1096, quotaLimit: 1100 });
+
+    // 1b. Recalibrate Ramesh Email Wallet (3X Multiplier: 1096 * 3 = 3288 Credits, Quota: 3300)
+    const rameshEmailWalletRef = doc(db, "properties/prop-1792314481132/email/wallet");
+    const rameshEmailTransactions = [
+      {
+        id: "tx-email-apex-grant-300",
+        type: "PURCHASE",
+        amount: 300,
+        balanceAfter: 3288,
+        description: "Apex Command Grant: +300 Email Credits (3X Multiplier Sync)",
+        timestamp: nowIso,
+        status: "DELIVERED",
+      },
+      {
+        id: "tx-email-pro-bonus-2970",
+        type: "PURCHASE",
+        amount: 2970,
+        balanceAfter: 2988,
+        description: "+2,970 Pro Plan Email Allocation (3X of 990 Pro WA quota)",
+        timestamp: "2026-10-23T14:02:05.134Z",
+        status: "DELIVERED",
+      },
+      {
+        id: "tx-email-starter-bonus-30",
+        type: "STARTER_BONUS",
+        amount: 30,
+        balanceAfter: 30,
+        description: "30 Free Complimentary Central Email Credits (3X of 10 WA Starter)",
+        timestamp: "2026-10-18T09:20:45.172Z",
+        status: "DELIVERED",
+      },
+    ];
+
+    await setDoc(
+      rameshEmailWalletRef,
+      {
+        credits: 3288,
+        transactions: rameshEmailTransactions,
+        updatedAt: nowIso,
+        updatedBy: "Apex Recalibration Engine",
+      },
+      { merge: true }
+    );
+    results.push({ account: "Ramesh Residencies", whatsappCredits: 1096, whatsappQuota: 1100, emailCredits: 3288, emailQuota: 3300 });
 
     // 2. Recalibrate Friendly Space PG (prop-1792504569569)
     // Starting 300 + 700 Pro adjustment = 1000 live credits (0 messages consumed)
@@ -180,15 +223,49 @@ export async function GET() {
     // Update user docs for Friendly Space PG
     await setDoc(
       doc(db, "users/1gAD4ZCt4bXXBeZHUErAKYrcfof2"),
-      { whatsappCreditsLimit: 1000, updatedAt: nowIso },
+      { whatsappCreditsLimit: 1000, emailMultiplier: 3, emailCreditsLimit: 3000, updatedAt: nowIso },
       { merge: true }
     );
     await setDoc(
       doc(db, "founder_clients/friendlyspacepg@gmail.com"),
-      { whatsappCreditsLimit: 1000, updatedAt: nowIso },
+      { whatsappCreditsLimit: 1000, emailMultiplier: 3, emailCreditsLimit: 3000, updatedAt: nowIso },
       { merge: true }
     );
-    results.push({ account: "Friendly Space PG", credits: 1000, quotaLimit: 1000 });
+
+    // 2b. Recalibrate Friendly Space PG Email Wallet (3X Multiplier: 1000 * 3 = 3000 Credits, Quota: 3000)
+    const friendlyEmailWalletRef = doc(db, "properties/prop-1792504569569/email/wallet");
+    const friendlyEmailTransactions = [
+      {
+        id: "tx-email-pro-bonus-2970-friendly",
+        type: "PURCHASE",
+        amount: 2970,
+        balanceAfter: 3000,
+        description: "+2,970 Pro Plan Email Allocation (3X of 990 Pro WA quota)",
+        timestamp: nowIso,
+        status: "DELIVERED",
+      },
+      {
+        id: "tx-email-starter-bonus-30-friendly",
+        type: "STARTER_BONUS",
+        amount: 30,
+        balanceAfter: 30,
+        description: "30 Free Complimentary Central Email Credits (3X of 10 WA Starter)",
+        timestamp: "2026-10-21T04:24:38.160Z",
+        status: "DELIVERED",
+      },
+    ];
+
+    await setDoc(
+      friendlyEmailWalletRef,
+      {
+        credits: 3000,
+        transactions: friendlyEmailTransactions,
+        updatedAt: nowIso,
+        updatedBy: "Apex Recalibration Engine",
+      },
+      { merge: true }
+    );
+    results.push({ account: "Friendly Space PG", whatsappCredits: 1000, whatsappQuota: 1000, emailCredits: 3000, emailQuota: 3000 });
 
     return NextResponse.json({
       success: true,

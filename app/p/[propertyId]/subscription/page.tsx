@@ -44,6 +44,10 @@ import {
   WhatsAppCreditPackage,
   WhatsAppCreditTransaction,
 } from "@/constants/whatsappCreditStore";
+import {
+  emailCreditStore,
+  EmailCreditTransaction,
+} from "@/constants/emailCreditStore";
 import Link from "next/link";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -92,27 +96,45 @@ export default function SubscriptionBillingPage() {
 
   const sub = evaluateSubscription(profile);
 
-  // 💬 WhatsApp Cloud Message Wallet & Credits State
+  // 💬 WhatsApp & ✉️ Email Cloud Communication Wallets State
   const [whatsappCredits, setWhatsappCredits] = useState<number>(() =>
     whatsappCreditStore.getCredits(propertyId)
   );
   const [whatsappTransactions, setWhatsappTransactions] = useState<WhatsAppCreditTransaction[]>(() => whatsappCreditStore.getTransactions(propertyId));
+
+  const [emailCredits, setEmailCredits] = useState<number>(() =>
+    emailCreditStore.getCredits(propertyId)
+  );
+  const [emailTransactions, setEmailTransactions] = useState<EmailCreditTransaction[]>(() => emailCreditStore.getTransactions(propertyId));
+  const [activeLedgerTab, setActiveLedgerTab] = useState<"WHATSAPP" | "EMAIL">("WHATSAPP");
+
   const [selectedCreditPack, setSelectedCreditPack] = useState<WhatsAppCreditPackage | null>(null);
   const [showCreditRechargeModal, setShowCreditRechargeModal] = useState(false);
   const [isPurchasingCredits, setIsPurchasingCredits] = useState(false);
 
-  // Sync WhatsApp Credits in Real-Time
+  // Sync WhatsApp & Email Credits in Real-Time
   useEffect(() => {
     whatsappCreditStore.initFirebaseListener(propertyId);
     whatsappCreditStore.fetchWalletFromFirestore(propertyId);
     setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
     setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
-    const unsub = whatsappCreditStore.subscribe(() => {
+    const unsubWa = whatsappCreditStore.subscribe(() => {
       setWhatsappCredits(whatsappCreditStore.getCredits(propertyId));
       setWhatsappTransactions(whatsappCreditStore.getTransactions(propertyId));
     });
+
+    emailCreditStore.initFirebaseListener(propertyId);
+    emailCreditStore.fetchWalletFromFirestore(propertyId);
+    setEmailCredits(emailCreditStore.getCredits(propertyId));
+    setEmailTransactions(emailCreditStore.getTransactions(propertyId));
+    const unsubEmail = emailCreditStore.subscribe(() => {
+      setEmailCredits(emailCreditStore.getCredits(propertyId));
+      setEmailTransactions(emailCreditStore.getTransactions(propertyId));
+    });
+
     return () => {
-      unsub();
+      unsubWa();
+      unsubEmail();
     };
   }, [propertyId]);
 
@@ -846,18 +868,38 @@ export default function SubscriptionBillingPage() {
                 </div>
               </div>
 
-              {/* Wallet Live Balance Pill */}
-              <div className="flex items-center gap-3 bg-[#fcf9f8] p-2.5 px-4 rounded-2xl border border-gray-200 shadow-2xs">
-                <div className="text-right">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Wallet Balance</span>
-                  <span className={`font-mono font-black text-xl tabular-nums ${whatsappCredits <= 0 ? "text-rose-600" : "text-emerald-800"}`}>
-                    {whatsappCredits} <span className="text-xs font-semibold text-gray-600">Credits</span>
-                  </span>
-                  {whatsappCredits <= 0 && (
-                    <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
-                  )}
+              {/* Dual-Channel Live Balance Cards */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* WhatsApp Wallet Pill */}
+                <div className="flex items-center gap-2.5 bg-[#fcf9f8] p-2 px-3.5 rounded-2xl border border-emerald-200 shadow-2xs">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">💬 WhatsApp Balance</span>
+                    <span className={`font-mono font-black text-lg tabular-nums ${whatsappCredits <= 0 ? "text-rose-600" : "text-emerald-800"}`}>
+                      {whatsappCredits} <span className="text-[11px] font-semibold text-gray-600">Credits</span>
+                    </span>
+                    {whatsappCredits <= 0 && (
+                      <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
+                    )}
+                  </div>
+                  <div className={`w-2.5 h-2.5 rounded-full ${whatsappCredits > 50 ? "bg-emerald-500" : whatsappCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
                 </div>
-                <div className={`w-3 h-3 rounded-full ${whatsappCredits > 50 ? "bg-emerald-500" : whatsappCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
+
+                {/* Email Wallet Pill */}
+                <div className="flex items-center gap-2.5 bg-[#fcf9f8] p-2 px-3.5 rounded-2xl border border-cyan-200 shadow-2xs">
+                  <div className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">✉️ Email Balance</span>
+                      <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-1.5 py-0.2 rounded font-mono">{profile?.emailMultiplier || platformConfig.emailMultiplier || 3}X</span>
+                    </div>
+                    <span className={`font-mono font-black text-lg tabular-nums ${emailCredits <= 0 ? "text-rose-600" : "text-cyan-800"}`}>
+                      {emailCredits} <span className="text-[11px] font-semibold text-gray-600">Credits</span>
+                    </span>
+                    {emailCredits <= 0 && (
+                      <span className="block text-[9px] font-black text-rose-600 tracking-wide uppercase">Gateway Locked 🔒</span>
+                    )}
+                  </div>
+                  <div className={`w-2.5 h-2.5 rounded-full ${emailCredits > 50 ? "bg-cyan-500" : emailCredits > 10 ? "bg-amber-500 animate-pulse" : "bg-rose-500 animate-ping"}`} />
+                </div>
               </div>
             </div>
 
@@ -865,28 +907,30 @@ export default function SubscriptionBillingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-1">
                 <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
-                  <span>Pro Plan Monthly Credit</span>
+                  <span>Pro Plan Allocation</span>
                   <span>💎 Active</span>
                 </div>
-                <p className="font-black text-xl text-emerald-950">{platformConfig.proWhatsAppCredits || 300} Messages</p>
-                <p className="text-[10px] text-emerald-700">Included complimentary in every Pro Monthly cycle</p>
+                <p className="font-black text-base text-emerald-950">
+                  {platformConfig.proWhatsAppCredits || 300} WA + {((platformConfig.proWhatsAppCredits || 300) * (profile?.emailMultiplier || platformConfig.emailMultiplier || 3)).toLocaleString()} Emails
+                </p>
+                <p className="text-[10px] text-emerald-700">Combined communications with {profile?.emailMultiplier || platformConfig.emailMultiplier || 3}X dynamic Email ratio</p>
               </div>
 
               <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200/80 space-y-1">
                 <div className="flex items-center justify-between text-[11px] font-bold text-blue-900">
-                  <span>Outbound Cost</span>
-                  <span>Meta Official</span>
+                  <span>Outbound Rate</span>
+                  <span>Metered Pool</span>
                 </div>
-                <p className="font-black text-xl text-blue-950">1 Credit / Message</p>
-                <p className="text-[10px] text-blue-700">Covers verified template dispatches & delivery confirmation</p>
+                <p className="font-black text-base text-blue-950">1 Credit / Sent Message</p>
+                <p className="text-[10px] text-blue-700">Covers verified WhatsApp and Central Amazon SES dispatches</p>
               </div>
 
               <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-1">
                 <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
-                  <span>Smart Cloud Gateway</span>
+                  <span>Multi-Channel Gateway</span>
                   <span>100% Automated</span>
                 </div>
-                <p className="font-black text-xl text-amber-950">Included</p>
+                <p className="font-black text-base text-amber-950">Included</p>
                 <p className="text-[10px] text-amber-700">Instant digital rent receipts & reminders dispatch</p>
               </div>
             </div>
@@ -948,15 +992,36 @@ export default function SubscriptionBillingPage() {
               </div>
             </div>
 
-            {/* Recent WhatsApp Dispatch Logs Table */}
-            {whatsappTransactions.length > 0 && (
+            {/* Multi-Channel Activity & Audit Ledger */}
+            {(whatsappTransactions.length > 0 || emailTransactions.length > 0) && (
               <div className="pt-4 border-t border-gray-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-gray-800 uppercase tracking-wider">
-                    Recent WhatsApp Activity & Dispatches
-                  </h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setActiveLedgerTab("WHATSAPP")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeLedgerTab === "WHATSAPP"
+                          ? "bg-white text-emerald-800 shadow-2xs border border-emerald-200"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      💬 WhatsApp Ledger ({whatsappTransactions.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveLedgerTab("EMAIL")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeLedgerTab === "EMAIL"
+                          ? "bg-white text-cyan-800 shadow-2xs border border-cyan-200"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      ✉️ Email Ledger ({emailTransactions.length})
+                    </button>
+                  </div>
                   <span className="text-[10px] font-mono text-gray-400">
-                    {whatsappTransactions.length} events logged
+                    {activeLedgerTab === "WHATSAPP" ? whatsappTransactions.length : emailTransactions.length} events logged
                   </span>
                 </div>
 
@@ -972,7 +1037,7 @@ export default function SubscriptionBillingPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {whatsappTransactions.slice(0, 5).map((tx) => (
+                      {(activeLedgerTab === "WHATSAPP" ? whatsappTransactions : emailTransactions).slice(0, 5).map((tx: any) => (
                         <tr key={tx.id} className="hover:bg-gray-50/60">
                           <td className="py-2.5 px-2.5 text-gray-500 font-mono text-[11px] whitespace-nowrap">
                             {new Date(tx.timestamp).toLocaleString("en-IN", {
@@ -984,9 +1049,9 @@ export default function SubscriptionBillingPage() {
                           </td>
                           <td className="py-2.5 px-2.5 font-bold text-gray-900 whitespace-nowrap">
                             {tx.recipientName || "System / Wallet"}
-                            {tx.recipientPhone && (
+                            {(tx.recipientPhone || tx.recipientEmail) && (
                               <span className="block text-[10px] font-mono text-gray-400 font-normal">
-                                {tx.recipientPhone}
+                                {tx.recipientPhone || tx.recipientEmail}
                               </span>
                             )}
                           </td>
@@ -994,6 +1059,8 @@ export default function SubscriptionBillingPage() {
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
                               tx.type === "PURCHASE" || tx.type === "STARTER_BONUS"
                                 ? "bg-emerald-100 text-emerald-800"
+                                : activeLedgerTab === "EMAIL"
+                                ? "bg-cyan-100 text-cyan-800"
                                 : "bg-blue-100 text-blue-800"
                             }`}>
                               {tx.type === "PURCHASE" ? "TOP-UP" : tx.type === "STARTER_BONUS" ? "STARTER BONUS" : tx.messageType || "OUTBOUND"}

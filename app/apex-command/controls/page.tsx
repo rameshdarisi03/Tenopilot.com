@@ -664,6 +664,76 @@ export default function MasterControlsPage() {
                   </p>
                 </div>
 
+                {/* Pro Plan Dynamic Email Multiplier (1X to 10X) */}
+                <div className="p-4 rounded-xl bg-[#16191f] border border-cyan-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                      ✉️ Pro Plan Email Credits Multiplier
+                    </span>
+                    <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-500/30">
+                      {config.emailMultiplier || 3}X Ratio ({((config.proWhatsAppCredits || 300) * (config.emailMultiplier || 3)).toLocaleString()} Emails)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          emailMultiplier: Math.max(1, (config.emailMultiplier || 3) - 1),
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={config.emailMultiplier ?? 3}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          emailMultiplier: Math.min(10, Math.max(1, Number(e.target.value) || 1)),
+                        })
+                      }
+                      className="flex-1 bg-[#0d0f12] border border-white/10 rounded-lg px-3 py-2 text-center text-cyan-300 font-mono font-bold text-base focus:outline-none focus:border-cyan-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          emailMultiplier: Math.min(10, (config.emailMultiplier || 3) + 1),
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-[#0d0f12] border border-white/10 text-white font-bold hover:bg-white/5 cursor-pointer text-base"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                    {[1, 2, 3, 4, 5, 6, 8, 10].map((mult) => (
+                      <button
+                        key={mult}
+                        type="button"
+                        onClick={() => setConfig({ ...config, emailMultiplier: mult })}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                          (config.emailMultiplier ?? 3) === mult
+                            ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50"
+                            : "bg-[#0d0f12] text-slate-400 border-white/6 hover:text-white"
+                        }`}
+                      >
+                        {mult}X
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Emails scale dynamically based on WhatsApp credits: <strong className="text-white">{config.proWhatsAppCredits || 300} WA Credits × {config.emailMultiplier || 3}X = {((config.proWhatsAppCredits || 300) * (config.emailMultiplier || 3)).toLocaleString()} Email Credits</strong>. Quota increases append additive deltas; quota reductions apply safe grace rules next cycle.
+                  </p>
+                </div>
+
                 {/* Free Trial WhatsApp Credits */}
                 <div className="p-4 rounded-xl bg-[#16191f] border border-white/6 space-y-2">
                   <div className="flex items-center justify-between">

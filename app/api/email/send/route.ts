@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 🔍 2. Resolve Custom Email Gateway Configuration
+    // 🔍 2. Resolve Custom Email Gateway Configuration & Authoritative Firestore Email Wallet Check
     let customGatewayConfig: {
       apiKey?: string;
       accessKeyId?: string;
@@ -107,6 +107,39 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.warn("Notice reading property email gateway settings:", err);
+    }
+
+    // 🔒 2b. STRICT BACKEND ZERO-CREDIT LOCK (SSOT)
+    // If not using client's private BYO Brevo/SMTP gateway, check authoritative Firestore email wallet
+    const emailWalletRef = doc(db, `properties/${propertyId}/email/wallet`);
+    const emailWalletSnap = await getDoc(emailWalletRef);
+    const currentEmailCredits = emailWalletSnap.exists() && typeof emailWalletSnap.data()?.credits === "number"
+      ? emailWalletSnap.data().credits
+      : 0;
+
+    if (!customGatewayConfig) {
+      if (currentEmailCredits <= 0) {
+        return NextResponse.json(
+          {
+            error: "🔒 Email Gateway Locked: Your email credit balance is 0. Dispatches have been halted. Please recharge your email credit pack to resume messaging.",
+            zeroCredits: true,
+            remainingCredits: 0,
+          },
+          { status: 402 } // 402 Payment Required
+        );
+      }
+
+      if (currentEmailCredits < messages.length) {
+        return NextResponse.json(
+          {
+            error: `🔒 Insufficient Email Credits: You attempted to dispatch ${messages.length} emails, but your wallet only has ${currentEmailCredits} credits remaining. Please recharge your wallet.`,
+            insufficientCredits: true,
+            requiredCredits: messages.length,
+            remainingCredits: currentEmailCredits,
+          },
+          { status: 402 } // 402 Payment Required
+        );
+      }
     }
 
     // 🚀 3. Execute Dispatches with Graceful Hot-Failover & Sandbox Detection
@@ -180,12 +213,55 @@ export async function POST(req: NextRequest) {
     const successfulCount = results.filter((r) => r.success).length;
     const failedCount = results.filter((r) => !r.success).length;
 
+    // 🔒 5. Server-Authoritative Email Credit Deduction & USAGE Ledger
+    // Deduct 1 credit for each message dispatched through TenoPilot Central SES (or fallback from client gateway)
+    let finalEmailCredits = currentEmailCredits;
+    const centralDispatchesCount = results.filter((r) => r.success && (!customGatewayConfig || r.fallbackUsed)).length;
+
+    if (centralDispatchesCount > 0) {
+      try {
+        const freshSnap = await getDoc(emailWalletRef);
+        const freshData = freshSnap.data();
+        const baseCredits = typeof freshData?.credits === "number" ? freshData.credits : currentEmailCredits;
+        const existingTxs = Array.isArray(freshData?.transactions) ? freshData.transactions : [];
+        finalEmailCredits = Math.max(0, baseCredits - centralDispatchesCount);
+
+        const newUsageTxs = messages
+          .filter((_, idx) => results[idx]?.success && (!customGatewayConfig || results[idx]?.fallbackUsed))
+          .map((m) => ({
+            id: `tx-email-srv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            type: "USAGE" as const,
+            amount: -1,
+            balanceAfter: finalEmailCredits,
+            description: `Sent automated ${m.type?.replace(/_/g, " ").toLowerCase() || "email"} to ${m.recipientName || m.toEmail}`,
+            recipientEmail: m.toEmail,
+            recipientName: m.recipientName,
+            messageType: m.type || "RENT_REMINDER",
+            timestamp: new Date().toISOString(),
+            status: "DELIVERED" as const,
+          }));
+
+        await setDoc(
+          emailWalletRef,
+          {
+            credits: finalEmailCredits,
+            transactions: [...newUsageTxs, ...existingTxs].slice(0, 100),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (txErr) {
+        console.warn("Notice updating Firestore Email wallet on server dispatch:", txErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       totalSent: messages.length,
       successfulCount,
       failedCount,
       quotaFailoverOccurred,
+      remainingCredits: finalEmailCredits,
       results,
     });
   } catch (error: any) {

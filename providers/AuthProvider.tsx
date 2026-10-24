@@ -36,6 +36,9 @@ export interface UserProfile {
   isStaff?: boolean;
   subscriptionPlan?: string;
   trialEndsAtMs?: number | string;
+  whatsappCreditsLimit?: number;
+  emailCreditsLimit?: number;
+  emailMultiplier?: number;
 }
 
 interface AuthContextType {

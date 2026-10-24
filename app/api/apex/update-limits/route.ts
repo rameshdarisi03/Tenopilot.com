@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
       tenantExtensionPacks,
       whatsappCreditsLimit,
       previousQuotaLimit,
+      emailMultiplier,
+      emailCreditsLimit,
+      previousEmailQuotaLimit,
       updatedBy = "Founder Console",
     } = body;
 
@@ -42,6 +45,15 @@ export async function POST(req: NextRequest) {
     }
     if (whatsappCreditsLimit !== undefined) {
       updatePayload.whatsappCreditsLimit = Number(whatsappCreditsLimit);
+    }
+    if (emailMultiplier !== undefined) {
+      updatePayload.emailMultiplier = Number(emailMultiplier);
+    }
+    if (emailCreditsLimit !== undefined) {
+      updatePayload.emailCreditsLimit = Number(emailCreditsLimit);
+    } else if (whatsappCreditsLimit !== undefined) {
+      const mult = emailMultiplier !== undefined ? Number(emailMultiplier) : 3;
+      updatePayload.emailCreditsLimit = Number(whatsappCreditsLimit) * mult;
     }
 
     // 1. Update users collection by userId
@@ -197,6 +209,70 @@ export async function POST(req: NextRequest) {
           }
         } catch (wErr) {
           console.warn(`Notice updating property ${propId} WhatsApp wallet:`, wErr);
+        }
+      }
+    }
+
+    // 5. Update Email Wallet with the protective SSOT formula & Multiplier
+    const effectiveEmailQuota = updatePayload.emailCreditsLimit;
+    if (effectiveEmailQuota !== undefined) {
+      const newEmailQuota = Number(effectiveEmailQuota);
+      const prevEmailQuota = typeof previousEmailQuotaLimit === "number" ? previousEmailQuotaLimit : newEmailQuota;
+      const emailQuotaDelta = newEmailQuota - prevEmailQuota;
+
+      for (const propId of Array.from(targetPropertyIds)) {
+        try {
+          const emailWalletRef = doc(db, `properties/${propId}/email/wallet`);
+          const eSnap = await getDoc(emailWalletRef);
+          const currentEmailCredits = eSnap.exists() && typeof eSnap.data()?.credits === "number" ? eSnap.data().credits : 0;
+          const currentEmailTxs = eSnap.exists() && Array.isArray(eSnap.data()?.transactions) ? eSnap.data().transactions : [];
+
+          // 🛡️ PROTECTIVE GRACE RULE FOR EMAILS:
+          // A. If quota increased (emailQuotaDelta > 0): add the incremental delta to the current live balance!
+          // B. If quota decreased (emailQuotaDelta < 0): DO NOT deduct credits mid-month! Preserve live balance for current cycle.
+          // C. If first-time initialization (no wallet existed): grant full newEmailQuota.
+
+          let newEmailBalance = currentEmailCredits;
+          let shouldUpdateEmailWallet = false;
+          let amountEmailDelta = 0;
+
+          if (!eSnap.exists() || currentEmailTxs.length === 0) {
+            newEmailBalance = newEmailQuota;
+            amountEmailDelta = newEmailQuota;
+            shouldUpdateEmailWallet = true;
+          } else if (emailQuotaDelta > 0) {
+            amountEmailDelta = emailQuotaDelta;
+            newEmailBalance = currentEmailCredits + emailQuotaDelta;
+            shouldUpdateEmailWallet = true;
+          } else {
+            // Quota reduced or identical: Do NOT deduct mid-month
+            shouldUpdateEmailWallet = false;
+          }
+
+          if (shouldUpdateEmailWallet) {
+            const newEmailTx = {
+              id: `tx-email-apex-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              type: "PURCHASE" as const,
+              amount: amountEmailDelta,
+              balanceAfter: newEmailBalance,
+              description: `Apex Command Grant: +${amountEmailDelta} Email Credits (${updatedBy})`,
+              timestamp: nowIso,
+              status: "DELIVERED" as const,
+            };
+
+            await setDoc(
+              emailWalletRef,
+              {
+                credits: newEmailBalance,
+                transactions: [newEmailTx, ...currentEmailTxs].slice(0, 100),
+                updatedAt: nowIso,
+                updatedBy: updatedBy,
+              },
+              { merge: true }
+            );
+          }
+        } catch (eErr) {
+          console.warn(`Notice updating property ${propId} Email wallet:`, eErr);
         }
       }
     }
