@@ -3460,7 +3460,12 @@ export default function IndividualTenantProfilePage({
                   {(() => {
                     const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
                     const isTenant = occupantState.stayType === "Tenant";
-                    const proRataInfo = calculateProRataRent(occupantState.rentAmount, occupantState.joiningDate);
+                    const isAnniversary = propertySettings?.billingCycleDates === "Anniversary Date";
+                    const proRataInfo = calculateProRataRent(
+                      occupantState.rentAmount,
+                      occupantState.joiningDate,
+                      propertySettings?.billingCycleDates
+                    );
                     const targetAutoFill = stmt.netOutstandingBalance;
 
                     return (
@@ -3489,7 +3494,7 @@ export default function IndividualTenantProfilePage({
                             {isTenant ? (
                               <>
                                 <div className="flex justify-between items-center">
-                                  <span>▫️ Rent ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`}):</span>
+                                  <span>▫️ Rent{isAnniversary || proRataInfo.isFullMonth ? "" : ` (${proRataInfo.remainingDays}d Pro-Rata)`}:</span>
                                   <span className="font-mono font-bold">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
                                 </div>
                                 <div className="flex justify-between items-center">

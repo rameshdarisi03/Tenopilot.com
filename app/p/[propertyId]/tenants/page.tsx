@@ -3017,7 +3017,12 @@ Scroll vertically to browse all residents without pagination limits
                 {(() => {
                   const stmt = calculateOccupantFinancialStatement(collectRentOccupant, currentSettings);
                   const isTenant = collectRentOccupant.stayType === "Tenant";
-                  const proRataInfo = calculateProRataRent(collectRentOccupant.rentAmount, collectRentOccupant.joiningDate);
+                  const isAnniversary = currentSettings?.billingCycleDates === "Anniversary Date";
+                  const proRataInfo = calculateProRataRent(
+                    collectRentOccupant.rentAmount,
+                    collectRentOccupant.joiningDate,
+                    currentSettings?.billingCycleDates
+                  );
                   const targetAutoFill = stmt.netOutstandingBalance;
 
                   return (
@@ -3046,7 +3051,7 @@ Scroll vertically to browse all residents without pagination limits
                           {isTenant ? (
                             <>
                               <div className="flex justify-between items-center">
-                                <span>▫️ Rent ({proRataInfo.isFullMonth ? "Full Month" : `${proRataInfo.remainingDays}d Pro-Rata`}):</span>
+                                <span>▫️ Rent{isAnniversary || proRataInfo.isFullMonth ? "" : ` (${proRataInfo.remainingDays}d Pro-Rata)`}:</span>
                                 <span className="font-mono font-bold">₹{stmt.proRataRent.toLocaleString("en-IN")}</span>
                               </div>
                               <div className="flex justify-between items-center">
