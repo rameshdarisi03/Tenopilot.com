@@ -37,6 +37,8 @@ import {
   MessageSquare,
   RefreshCw,
   Search,
+  Loader2,
+  Link2,
 } from "lucide-react";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
@@ -183,7 +185,7 @@ export default function SelfKycDeskPage({
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectionInput, setShowRejectionInput] = useState(false);
   const [zoomDocUrl, setZoomDocUrl] = useState<string | null>(null);
-  const [reviewActionLoading, setReviewActionLoading] = useState(false);
+  const [reviewActionState, setReviewActionState] = useState<"approving" | "rejecting" | null>(null);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<{
@@ -567,7 +569,7 @@ export default function SelfKycDeskPage({
   // Approve Submission
   const handleApproveSubmission = async () => {
     if (!activeReviewSubmission) return;
-    setReviewActionLoading(true);
+    setReviewActionState("approving");
 
     try {
       const createdResident = await selfKycStore.approveSubmission(
@@ -684,7 +686,7 @@ export default function SelfKycDeskPage({
       console.error(e);
       triggerToast("Error approving KYC submission. Please try again.", "error");
     } finally {
-      setReviewActionLoading(false);
+      setReviewActionState(null);
     }
   };
 
@@ -696,7 +698,7 @@ export default function SelfKycDeskPage({
       return;
     }
 
-    setReviewActionLoading(true);
+    setReviewActionState("rejecting");
     const subToReject = activeReviewSubmission;
     const currentReason = rejectionReason.trim();
 
@@ -715,46 +717,33 @@ export default function SelfKycDeskPage({
         ? `${origin}/self-onboard/${subToReject.inviteId}?p=${propertyId}${reuploadNameParam}`
         : `${origin}/p/${propertyId}/self-kyc-checkin`;
 
-      // 1. Dispatch Instant WhatsApp Notification
-      try {
-        await fetch("/api/whatsapp/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            propertyId,
-            messages: [
-              {
-                toPhone: subToReject.phone,
-                recipientName: subToReject.name,
-                propertyId,
-                propertyName: propName,
-                type: "KYC_CORRECTION_REQUEST",
-                params: {
-                  roomNumber: subToReject.roomNumber,
-                  bedCode: subToReject.bedCode,
-                  rejectionReason: currentReason,
-                  onboardUrl: reuploadUrl,
-                },
-              },
-            ],
-          }),
-        });
-      } catch (err) {
-        console.warn("WhatsApp rejection notification failed:", err);
+      // 🔍 Identify all target recipients (Original invite phone/email + submitted phone/email)
+      const matchingInv = subToReject.inviteId
+        ? invites.find((i) => i.id === subToReject.inviteId) ||
+          selfKycStore.getInviteByToken(subToReject.inviteId)?.invite
+        : null;
+
+      // Collect unique valid mobile numbers to notify
+      const phonesToNotify = new Set<string>();
+      if (matchingInv?.candidatePhone && matchingInv.candidatePhone.trim()) {
+        phonesToNotify.add(matchingInv.candidatePhone.trim());
+      }
+      if (subToReject.phone && subToReject.phone.trim()) {
+        phonesToNotify.add(subToReject.phone.trim());
       }
 
-      // 2. Dispatch Email Notification if candidate email is available
-      if (subToReject.email) {
+      // 1. Dispatch Instant WhatsApp Notification to all relevant channels
+      for (const phoneTarget of phonesToNotify) {
         try {
-          await fetch("/api/email/send", {
+          await fetch("/api/whatsapp/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               propertyId,
               messages: [
                 {
-                  toEmail: subToReject.email,
-                  recipientName: subToReject.name,
+                  toPhone: phoneTarget,
+                  recipientName: matchingInv?.candidateName || subToReject.name,
                   propertyId,
                   propertyName: propName,
                   type: "KYC_CORRECTION_REQUEST",
@@ -769,12 +758,54 @@ export default function SelfKycDeskPage({
             }),
           });
         } catch (err) {
-          console.warn("Email rejection notification failed:", err);
+          console.warn(`WhatsApp rejection notification failed for ${phoneTarget}:`, err);
         }
       }
 
+      // Collect unique valid emails to notify
+      const emailsToNotify = new Set<string>();
+      if (matchingInv?.candidateEmail && matchingInv.candidateEmail.trim()) {
+        emailsToNotify.add(matchingInv.candidateEmail.trim().toLowerCase());
+      }
+      if (subToReject.email && subToReject.email.trim()) {
+        emailsToNotify.add(subToReject.email.trim().toLowerCase());
+      }
+
+      // 2. Dispatch Email Notification if candidate email is available
+      for (const emailTarget of emailsToNotify) {
+        if (!emailTarget.includes("@") || emailTarget.includes("resident.tenopilot.com")) continue;
+        try {
+          await fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              messages: [
+                {
+                  toEmail: emailTarget,
+                  recipientName: matchingInv?.candidateName || subToReject.name,
+                  propertyId,
+                  propertyName: propName,
+                  type: "KYC_CORRECTION_REQUEST",
+                  params: {
+                    roomNumber: subToReject.roomNumber,
+                    bedCode: subToReject.bedCode,
+                    rejectionReason: currentReason,
+                    onboardUrl: reuploadUrl,
+                  },
+                },
+              ],
+            }),
+          });
+        } catch (err) {
+          console.warn(`Email rejection notification failed for ${emailTarget}:`, err);
+        }
+      }
+
+      const targetPhonesList = Array.from(phonesToNotify).join(", ");
       triggerToast(
-        `Correction requested for ${subToReject.name}. Application moved back to Sent Invites Log. Candidate notified via WhatsApp${subToReject.email ? " & Email" : ""}!`
+        `Correction requested for ${subToReject.name}. Application moved back to Sent Invites Log. Candidate notified on WhatsApp (${targetPhonesList || "Candidate Phone"})!`,
+        "success"
       );
       setActiveReviewSubmission(null);
       setShowRejectionInput(false);
@@ -784,7 +815,7 @@ export default function SelfKycDeskPage({
       console.error(e);
       triggerToast("Error rejecting submission.", "error");
     } finally {
-      setReviewActionLoading(false);
+      setReviewActionState(null);
     }
   };
 
@@ -1826,111 +1857,178 @@ export default function SelfKycDeskPage({
               </div>
 
               {/* Right Column: Demographics & Allocation */}
-              <div className="space-y-4">
-                <h4 className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
-                  <UserCheck2 className="w-4 h-4 text-[#c2652a]" />
-                  <span>Applicant Information</span>
-                </h4>
+              {(() => {
+                const matchingInvite = activeReviewSubmission.inviteId
+                  ? invites.find((i) => i.id === activeReviewSubmission.inviteId) ||
+                    selfKycStore.getInviteByToken(activeReviewSubmission.inviteId)?.invite
+                  : null;
+                const cleanInvPhone = (matchingInvite?.candidatePhone || "").replace(/\D/g, "").slice(-10);
+                const cleanSubPhone = (activeReviewSubmission.phone || "").replace(/\D/g, "").slice(-10);
+                const isPhoneDifferent = Boolean(cleanInvPhone && cleanSubPhone && cleanInvPhone !== cleanSubPhone);
+                const cleanInvEmail = (matchingInvite?.candidateEmail || "").trim().toLowerCase();
+                const cleanSubEmail = (activeReviewSubmission.email || "").trim().toLowerCase();
+                const isEmailDifferent = Boolean(cleanInvEmail && cleanSubEmail && cleanInvEmail !== cleanSubEmail);
 
-                {/* Personal Info Box */}
-                <div className="p-3.5 rounded-2xl bg-white border border-gray-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 font-medium">Full Name:</span>
-                    <span className="font-bold text-gray-900">{activeReviewSubmission.name}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 font-medium">Primary Mobile:</span>
-                    <span className="font-mono font-bold text-gray-900">{activeReviewSubmission.phone}</span>
-                  </div>
-                  {activeReviewSubmission.email && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Email Address:</span>
-                      <span className="font-semibold text-gray-800">{activeReviewSubmission.email}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center pt-1 border-t border-gray-100">
-                    <span className="text-gray-500 font-medium">Emergency Contact:</span>
-                    <span className="font-mono font-bold text-rose-700">
-                      {activeReviewSubmission.emergencyContact?.phone || "Not Provided"}
-                    </span>
-                  </div>
-                  {activeReviewSubmission.workplace && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Workplace / College:</span>
-                      <span className="font-semibold text-amber-950">{activeReviewSubmission.workplace}</span>
-                    </div>
-                  )}
-                  {activeReviewSubmission.vehicleNumbers && activeReviewSubmission.vehicleNumbers.length > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Registered Vehicles:</span>
-                      <span className="font-mono font-bold text-gray-900">
-                        {activeReviewSubmission.vehicleNumbers.join(", ")}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                return (
+                  <div className="space-y-4">
+                    <h4 className="font-serif font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                      <UserCheck2 className="w-4 h-4 text-[#c2652a]" />
+                      <span>Applicant Information</span>
+                    </h4>
 
-                {/* Allocation & Pricing Confirmation */}
-                <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-orange-950">Target Room & Bed:</span>
-                    <span className="font-mono font-black text-orange-900 text-sm">
-                      Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)})
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600 font-medium">Monthly Rent:</span>
-                    <span className="font-mono font-bold text-[#c2652a]">
-                      ₹{(activeReviewSubmission.rentAmount ?? 0).toLocaleString("en-IN")} / mo
-                    </span>
-                  </div>
-                  {activeReviewSubmission.securityDeposit != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 font-medium">Security Deposit:</span>
-                      <span className="font-mono font-bold text-gray-900">
-                        ₹{Number(activeReviewSubmission.securityDeposit).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between pt-1 border-t border-orange-200">
-                    <span className="text-gray-600 font-medium">Agreed Joining Date:</span>
-                    <span className="font-bold text-gray-900">
-                      {activeReviewSubmission.joiningDate}
-                    </span>
-                  </div>
-                </div>
+                    {/* Personal Info Box */}
+                    <div className="p-3.5 rounded-2xl bg-white border border-gray-200 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 font-medium">Full Name:</span>
+                        <span className="font-bold text-gray-900">{activeReviewSubmission.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 font-medium">Primary Mobile:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-gray-900">{activeReviewSubmission.phone}</span>
+                          {isPhoneDifferent && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                              ⚠️ Form mismatch
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                {/* Rejection Input Box (if toggled) */}
-                {showRejectionInput && (
-                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 space-y-2 animate-in fade-in">
-                    <label className="font-bold text-red-950 block">Reason for Rejection / Re-upload Request *</label>
-                    <textarea
-                      rows={2}
-                      placeholder="e.g. Aadhaar back photo is blurry. Please retake and re-upload."
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-red-300 text-xs text-red-950 bg-white focus:ring-1 focus:ring-red-600"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowRejectionInput(false)}
-                        className="px-3 py-1.5 rounded-xl border border-gray-300 text-gray-600 text-xs font-bold hover:bg-gray-50"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRejectSubmission}
-                        disabled={reviewActionLoading}
-                        className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
-                      >
-                        Confirm Rejection
-                      </button>
+                      {/* Original Invited Phone (SSOT Verification) */}
+                      {matchingInvite?.candidatePhone && (
+                        <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200/80 space-y-1">
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-blue-900 font-bold flex items-center gap-1">
+                              <Link2 className="w-3.5 h-3.5 text-blue-600" />
+                              Original Invite Mobile:
+                            </span>
+                            <span className="font-mono font-black text-blue-950">
+                              {matchingInvite.candidatePhone}
+                            </span>
+                          </div>
+                          {isPhoneDifferent && (
+                            <p className="text-[10px] text-amber-900 font-medium leading-relaxed">
+                              Note: The applicant typed a different number in the form ({activeReviewSubmission.phone}). When rejected, notification is automatically dispatched to the original invited WhatsApp ({matchingInvite.candidatePhone}) to ensure delivery!
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {activeReviewSubmission.email && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">Email Address:</span>
+                          <span className="font-semibold text-gray-800">{activeReviewSubmission.email}</span>
+                        </div>
+                      )}
+
+                      {matchingInvite?.candidateEmail && isEmailDifferent && (
+                        <div className="flex justify-between items-center text-[11px] bg-blue-50/50 p-1.5 rounded-lg border border-blue-200">
+                          <span className="text-blue-800 font-medium flex items-center gap-1">
+                            <Link2 className="w-3 h-3 text-blue-600" /> Original Invite Email:
+                          </span>
+                          <span className="font-semibold text-blue-950">{matchingInvite.candidateEmail}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                        <span className="text-gray-500 font-medium">Emergency Contact:</span>
+                        <span className="font-mono font-bold text-rose-700">
+                          {activeReviewSubmission.emergencyContact?.phone || "Not Provided"}
+                        </span>
+                      </div>
+                      {activeReviewSubmission.workplace && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">Workplace / College:</span>
+                          <span className="font-semibold text-amber-950">{activeReviewSubmission.workplace}</span>
+                        </div>
+                      )}
+                      {activeReviewSubmission.vehicleNumbers && activeReviewSubmission.vehicleNumbers.length > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">Registered Vehicles:</span>
+                          <span className="font-mono font-bold text-gray-900">
+                            {activeReviewSubmission.vehicleNumbers.join(", ")}
+                          </span>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Allocation & Pricing Confirmation */}
+                    <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-orange-950">Target Room & Bed:</span>
+                        <span className="font-mono font-black text-orange-900 text-sm">
+                          Room {activeReviewSubmission.roomNumber} ({formatBedLabel(activeReviewSubmission.bedCode)})
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 font-medium">Monthly Rent:</span>
+                        <span className="font-mono font-bold text-[#c2652a]">
+                          ₹{(activeReviewSubmission.rentAmount ?? 0).toLocaleString("en-IN")} / mo
+                        </span>
+                      </div>
+                      {activeReviewSubmission.securityDeposit != null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600 font-medium">Security Deposit:</span>
+                          <span className="font-mono font-bold text-gray-900">
+                            ₹{Number(activeReviewSubmission.securityDeposit).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1 border-t border-orange-200">
+                        <span className="text-gray-600 font-medium">Agreed Joining Date:</span>
+                        <span className="font-bold text-gray-900">
+                          {activeReviewSubmission.joiningDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Rejection Input Box (if toggled) */}
+                    {showRejectionInput && (
+                      <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 space-y-2 animate-in fade-in">
+                        <label className="font-bold text-red-950 block">Reason for Rejection / Re-upload Request *</label>
+                        <textarea
+                          rows={2}
+                          placeholder="e.g. Fake contact details or blurry Aadhaar back photo. Please enter real details and re-upload."
+                          value={rejectionReason}
+                          onChange={(e) => setRejectionReason(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-red-300 text-xs text-red-950 bg-white focus:ring-1 focus:ring-red-600"
+                        />
+                        {matchingInvite?.candidatePhone && (
+                          <p className="text-[10px] text-red-800 font-medium leading-relaxed">
+                            📨 Cancellation notice will reach original invited mobile (<span className="font-mono font-bold">{matchingInvite.candidatePhone}</span>)
+                            {isPhoneDifferent ? ` and form mobile (${activeReviewSubmission.phone})` : ""}!
+                          </p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowRejectionInput(false)}
+                            disabled={reviewActionState !== null}
+                            className="px-3 py-1.5 rounded-xl border border-gray-300 text-gray-600 text-xs font-bold hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRejectSubmission}
+                            disabled={reviewActionState !== null}
+                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                          >
+                            {reviewActionState === "rejecting" ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Rejecting & Notifying...</span>
+                              </>
+                            ) : (
+                              <span>Confirm Rejection</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
 
             {/* Modal Footer Actions: Simple names right-aligned */}
@@ -1941,7 +2039,8 @@ export default function SelfKycDeskPage({
                   setActiveReviewSubmission(null);
                   setShowRejectionInput(false);
                 }}
-                className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50 cursor-pointer transition-colors"
+                disabled={reviewActionState !== null}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50 cursor-pointer transition-colors disabled:opacity-50"
               >
                 Close
               </button>
@@ -1949,7 +2048,8 @@ export default function SelfKycDeskPage({
                 <button
                   type="button"
                   onClick={() => setShowRejectionInput(true)}
-                  className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-colors cursor-pointer"
+                  disabled={reviewActionState !== null}
+                  className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Reject
                 </button>
@@ -1957,10 +2057,17 @@ export default function SelfKycDeskPage({
               <button
                 type="button"
                 onClick={handleApproveSubmission}
-                disabled={reviewActionLoading}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                disabled={reviewActionState !== null}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
               >
-                {reviewActionLoading ? "Approving..." : "Approve"}
+                {reviewActionState === "approving" ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Approving...</span>
+                  </>
+                ) : (
+                  <span>Approve</span>
+                )}
               </button>
             </div>
           </div>
