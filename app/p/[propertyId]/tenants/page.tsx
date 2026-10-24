@@ -499,20 +499,23 @@ export default function TenantsDirectoryPage({
     const reminderCards = getReminderPaymentCards();
     const activeCard = reminderCards[activeQrIndex] || reminderCards[0];
     const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
+    const pName = currentSettings.propertyName || "TenoPilot PG";
 
-    const paymentDetailsText = isCashReq
-      ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
-      : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
+    const payHeader = isCashReq ? "Pay via Cash" : "Pay to UPI";
+    const payDest = isCashReq
+      ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
+      : (activeCard?.upiId || "PG Reception / Manager UPI");
 
     const message =
+      `"**${pName}**"\n\n` +
       `Hello ${occ.name},\n\n` +
-      `Friendly rent payment reminder for *${currentSettings.propertyName || "TenoPilot PG"}*:\n` +
-      `🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n` +
-      `💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n` +
-      `📅 *Due Date*: ${occ.dueDate}\n\n` +
-      `${paymentDetailsText}\n\n` +
-      `Thank you,\n` +
-      `*${currentSettings.propertyName || "TenoPilot PG"}* Management Desk`;
+      `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
+      `💰 Amount Due: INR ${Number(occ.rentAmount || 0).toLocaleString("en-IN")}\n` +
+      `📅 Due Date: ${occ.dueDate || "5th of this month"}\n` +
+      `💳 ${payHeader}: ${payDest}\n\n` +
+      `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
+      `Thank you for being a valued resident!\n\n` +
+      `*- ${pName}*`;
 
     return buildWhatsAppUrl(occ.phone, message);
   };
@@ -3389,20 +3392,23 @@ Scroll vertically to browse all residents without pagination limits
 
                       return reminderCandidateOccupants.map((occ) => {
                         const isSelected = selectedIds.includes(occ.id);
+                        const pName = currentSettings.propertyName || "TenoPilot PG";
 
-                        const paymentDetailsText = isCashReq
-                          ? `💵 *Payment Mode: CASH IN HAND*\n🏢 *Payment Counter*: ${activeCard?.bankLabel || "PG Reception / Front Desk"}\n👉 *Instructions*: Please visit the property reception desk to pay your rent in cash to the manager and collect your official receipt.`
-                          : `💳 *Pay to UPI ID*: ${activeCard?.upiId || "Contact Management"}\n🏦 *Bank / Account*: ${activeCard?.bankLabel || "PG Account"}\n📲 *Direct UPI Pay Link*: upi://pay?pa=${activeCard?.upiId}&pn=${encodeURIComponent(currentSettings.propertyName || "TenoPilot PG")}&am=${occ.rentAmount}&cu=INR\n👉 *Instructions*: Please pay to the above UPI ID via PhonePe, Google Pay, or Paytm and share the payment confirmation screenshot.`;
+                        const payHeader = isCashReq ? "Pay via Cash" : "Pay to UPI";
+                        const payDest = isCashReq
+                          ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
+                          : (activeCard?.upiId || "PG Reception / Manager UPI");
 
                         const message =
+                          `"**${pName}**"\n\n` +
                           `Hello ${occ.name},\n\n` +
-                          `Friendly rent payment reminder for *${currentSettings.propertyName || "TenoPilot PG"}*:\n` +
-                          `🏠 *Room Location*: ${occ.roomNumber} (${occ.bedCode})\n` +
-                          `💰 *Rent Amount Due*: ₹${occ.rentAmount.toLocaleString("en-IN")}\n` +
-                          `📅 *Due Date*: ${occ.dueDate}\n\n` +
-                          `${paymentDetailsText}\n\n` +
-                          `Thank you,\n` +
-                          `*${currentSettings.propertyName || "TenoPilot PG"}* Management Desk`;
+                          `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
+                          `💰 Amount Due: INR ${Number(occ.rentAmount || 0).toLocaleString("en-IN")}\n` +
+                          `📅 Due Date: ${occ.dueDate || "5th of this month"}\n` +
+                          `💳 ${payHeader}: ${payDest}\n\n` +
+                          `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
+                          `Thank you for being a valued resident!\n\n` +
+                          `*- ${pName}*`;
                         const waUrl = buildWhatsAppUrl(occ.phone, message);
 
                         return (

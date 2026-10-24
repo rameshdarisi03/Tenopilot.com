@@ -95,32 +95,24 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
 
   switch (payload.type) {
     case "RENT_REMINDER": {
-      const isCash = p.upiId === "CASH_PAYMENT" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
-      const paymentInstr = isCash
-        ? `💵 *Payment Mode: CASH IN HAND*\n` +
-          `🏢 *Payment Counter*: ${p.bankLabel || "PG Reception / Front Desk"}\n` +
-          `👉 _Please visit the property desk to pay your rent in cash to the manager and collect your signed physical or digital receipt._`
-        : `💳 *Pay to UPI ID*: \`${p.upiId || "Contact Management"}\`${p.bankLabel ? ` (${p.bankLabel})` : ""}\n` +
-          `📲 _Please make payment to this UPI ID using PhonePe, Google Pay, Paytm, or BHIM._\n` +
-          (p.upiId && p.upiId !== "CASH_PAYMENT" ? `🔗 _Direct UPI Pay Link:_ upi://pay?pa=${p.upiId}&pn=${encodeURIComponent(pName)}&am=${Number(p.amount || 0)}&cu=INR` : "");
+      const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
+      const isBank = p.accountType === "BANK_TRANSFER" || (!isCash && !p.upiId?.includes("@") && Boolean(p.bankLabel));
+
+      const payHeader = isCash ? "Pay via Cash" : isBank ? "Pay to Bank" : "Pay to UPI";
+      const payDest = isCash
+        ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception")
+        : (p.upiId || "PG Reception / Manager UPI");
 
       return (
-        `*${pName}*\n` +
-        `Greetings from ${pName} Management! ✨\n\n` +
-        `Hello *${payload.recipientName}*,\n\n` +
-        `Hope you're having a comfortable and peaceful stay with us!\n\n` +
-        `This is a friendly reminder regarding your monthly accommodation dues for Room *${p.roomNumber || "N/A"}* (${p.bedCode || "Standard Bed"}):\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `💰 *Amount Due*: ₹${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
-        `📅 *Due Date*: ${p.dueDate || "5th of this month"}\n` +
-        `🏠 *Stay*: Room ${p.roomNumber || "N/A"} • ${p.bedCode || "Standard Bed"}\n` +
-        `🏢 *Property*: ${pName}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `${paymentInstr}\n\n` +
-        `💡 _Once paid, kindly share the screenshot or transaction reference so we can issue your official digital receipt immediately._\n\n` +
+        `"**${pName}**"\n\n` +
+        `Hello ${payload.recipientName},\n\n` +
+        `This is a friendly reminder regarding your monthly accommodation rent for ${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}:\n\n` +
+        `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
+        `📅 Due Date: ${p.dueDate || "5th of this month"}\n` +
+        `💳 ${payHeader}: ${payDest}\n\n` +
+        `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
         `Thank you for being a valued resident!\n\n` +
-        `Warm regards,\n` +
-        `*${pName} Management Desk*`
+        `*- ${pName}*`
       );
     }
 
@@ -312,7 +304,14 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
         const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
         const dueDateStr = p.dueDate || "5th of this month";
-        const upiStr = p.upiId || "PG Reception / Manager UPI";
+
+        const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
+        const isBank = p.accountType === "BANK_TRANSFER" || (!isCash && !p.upiId?.includes("@") && Boolean(p.bankLabel));
+
+        const payHeader = isCash ? "Pay via Cash" : isBank ? "Pay to Bank" : "Pay to UPI";
+        const payDest = isCash
+          ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception")
+          : (p.upiId || "PG Reception / Manager UPI");
 
         requestBody = {
           messaging_product: "whatsapp",
@@ -320,7 +319,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_rent_due_friendly",
+            name: "pg_rent_due_v2",
             language: { code: "en_US" },
             components: [
               {
@@ -331,7 +330,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
                   { type: "text", text: roomStay },
                   { type: "text", text: amountStr },
                   { type: "text", text: dueDateStr },
-                  { type: "text", text: upiStr },
+                  { type: "text", text: payHeader },
+                  { type: "text", text: payDest },
                 ],
               },
             ],
@@ -676,6 +676,52 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackBody),
+        });
+        resData = await response.json();
+      }
+
+      // Automatic Graceful Fallback for RENT_REMINDER if pg_rent_due_v2 is pending review or unavailable
+      if (!response.ok && payload.type === "RENT_REMINDER" && requestBody?.template?.name === "pg_rent_due_v2") {
+        console.warn("Retrying RENT_REMINDER with pg_rent_due_friendly fallback...");
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG & Living";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
+        const amountStr = Number(p.amount || 0).toLocaleString("en-IN");
+        const dueDateStr = p.dueDate || "5th of this month";
+        const isCash = p.upiId === "CASH_PAYMENT" || p.upiId === "CASH" || p.upiId?.toLowerCase().includes("cash") || p.accountType === "CASH_DESK";
+        const upiStr = isCash ? (p.bankLabel ? `Cash at Desk (${p.bankLabel})` : "Cash at Front Desk / Reception") : (p.upiId || "PG Reception / Manager UPI");
+
+        const fallbackBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_rent_due_friendly",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: pName },
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: amountStr },
+                  { type: "text", text: dueDateStr },
+                  { type: "text", text: upiStr },
+                ],
+              },
+            ],
+          },
+        };
+
         response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
           method: "POST",
           headers: {
