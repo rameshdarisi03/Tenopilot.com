@@ -35,6 +35,8 @@ import {
   Lock,
   FileText,
   FileCheck,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   propertySettingsStore,
@@ -55,6 +57,20 @@ import { WhatsAppWalletModal } from "@/components/dashboard/WhatsAppWalletModal"
 import { whatsappCreditStore, WhatsAppCreditTransaction } from "@/constants/whatsappCreditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import { PoliceVerificationRegister } from "@/components/dashboard/PoliceVerificationRegister";
+
+const SETTINGS_TABS: {
+  id: "FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG";
+  label: string;
+  icon: any;
+  activeColor?: string;
+}[] = [
+  { id: "FINANCIAL", label: "Billing & Due Date Rules", icon: CreditCard },
+  { id: "PROPERTY", label: "Property Profile & Rent Tiers", icon: Building },
+  { id: "PARTNERS", label: "Partner Ownership & Equity", icon: Users },
+  { id: "QR_PROFILES", label: "Payment Profiles & Accounts", icon: CreditCard },
+  { id: "POLICE_REGISTER", label: "Police & Legal Register 📜", icon: ShieldCheck, activeColor: "bg-blue-600 text-white border-blue-600" },
+  { id: "CONFIG", label: "Config ⚙️", icon: Sliders },
+];
 
 export default function PropertySettingsPage({
   params,
@@ -81,6 +97,19 @@ export default function PropertySettingsPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"FINANCIAL" | "PROPERTY" | "PARTNERS" | "QR_PROFILES" | "POLICE_REGISTER" | "CONFIG">("FINANCIAL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const currentTabIndex = Math.max(0, SETTINGS_TABS.findIndex((t) => t.id === activeTab));
+  const currentTab = SETTINGS_TABS[currentTabIndex];
+
+  const handlePrevTab = () => {
+    const prevIdx = (currentTabIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length;
+    setActiveTab(SETTINGS_TABS[prevIdx].id);
+  };
+
+  const handleNextTab = () => {
+    const nextIdx = (currentTabIndex + 1) % SETTINGS_TABS.length;
+    setActiveTab(SETTINGS_TABS[nextIdx].id);
+  };
 
   // Mobile UX states for minimal, one-handed navigation
   const [showAddQrMobile, setShowAddQrMobile] = useState(false);
@@ -418,86 +447,72 @@ export default function PropertySettingsPage({
             </div>
           </div>
 
-          {/* Navigation Category Tabs (Fully Accessible & Visible on Desktop & Mobile Without Swiping) */}
-          <div className="border-b border-gray-200 -mx-3.5 sm:mx-0 px-3.5 sm:px-0 pb-3">
+          {/* 📱 SMARTPHONE SCREEN: SINGLE MENU SCRUBBER WITH NOTICEABLE ARROWS */}
+          <div className="sm:hidden border-b border-gray-200 -mx-3.5 px-3.5 pb-3">
+            <div className="flex items-center gap-2">
+              {/* Previous Tab Arrow Button */}
+              <button
+                type="button"
+                onClick={handlePrevTab}
+                aria-label="Previous Menu"
+                className="w-10 h-10 rounded-xl bg-orange-50/60 hover:bg-orange-100 active:scale-90 border-2 border-[#c2652a]/40 hover:border-[#c2652a] text-[#c2652a] flex items-center justify-center shrink-0 shadow-xs transition-all cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5 stroke-[2.75]" />
+              </button>
+
+              {/* Single Active Menu Pill */}
+              <div
+                className={`flex-1 min-w-0 py-2.5 px-3 rounded-xl border flex items-center justify-center gap-2 shadow-sm font-extrabold text-xs transition-all select-none ${
+                  currentTab.id === "POLICE_REGISTER"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-[#c2652a] text-white border-[#c2652a]"
+                }`}
+              >
+                <currentTab.icon className="w-4 h-4 shrink-0 text-white" />
+                <span className="truncate">{currentTab.label}</span>
+                <span className="text-[10px] font-semibold opacity-85 shrink-0 ml-0.5">
+                  ({currentTabIndex + 1}/{SETTINGS_TABS.length})
+                </span>
+              </div>
+
+              {/* Next Tab Arrow Button */}
+              <button
+                type="button"
+                onClick={handleNextTab}
+                aria-label="Next Menu"
+                className="w-10 h-10 rounded-xl bg-orange-50/60 hover:bg-orange-100 active:scale-90 border-2 border-[#c2652a]/40 hover:border-[#c2652a] text-[#c2652a] flex items-center justify-center shrink-0 shadow-xs transition-all cursor-pointer"
+              >
+                <ChevronRight className="w-5 h-5 stroke-[2.75]" />
+              </button>
+            </div>
+          </div>
+
+          {/* 💻 DESKTOP & TABLET SCREEN: FULL TABS BAR */}
+          <div className="hidden sm:block border-b border-gray-200 pb-3">
             <div className="flex flex-wrap gap-2 text-xs font-bold w-full">
-              <button
-                type="button"
-                onClick={() => setActiveTab("FINANCIAL")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "FINANCIAL"
-                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <CreditCard className={`w-4 h-4 shrink-0 ${activeTab === "FINANCIAL" ? "text-white" : "text-[#c2652a]"}`} />
-                <span>Billing & Due Date Rules</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("PROPERTY")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "PROPERTY"
-                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <Building className={`w-4 h-4 shrink-0 ${activeTab === "PROPERTY" ? "text-white" : "text-[#c2652a]"}`} />
-                <span>Property Profile & Rent Tiers</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("PARTNERS")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "PARTNERS"
-                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <Users className={`w-4 h-4 shrink-0 ${activeTab === "PARTNERS" ? "text-white" : "text-[#c2652a]"}`} />
-                <span>Partner Ownership & Equity</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("QR_PROFILES")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "QR_PROFILES"
-                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <CreditCard className={`w-4 h-4 shrink-0 ${activeTab === "QR_PROFILES" ? "text-white" : "text-[#c2652a]"}`} />
-                <span>Payment Profiles & Accounts</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("POLICE_REGISTER")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "POLICE_REGISTER"
-                    ? "bg-blue-600 text-white border-blue-600 shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <ShieldCheck className={`w-4 h-4 shrink-0 ${activeTab === "POLICE_REGISTER" ? "text-white" : "text-blue-600"}`} />
-                <span>Police & Legal Register 📜</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("CONFIG")}
-                className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeTab === "CONFIG"
-                    ? "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
-                    : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
-                }`}
-              >
-                <Sliders className={`w-4 h-4 shrink-0 ${activeTab === "CONFIG" ? "text-white" : "text-[#c2652a]"}`} />
-                <span>Config ⚙️</span>
-              </button>
+              {SETTINGS_TABS.map((tab) => {
+                const IconComponent = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`py-2 px-3.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
+                      isActive
+                        ? tab.activeColor || "bg-[#c2652a] text-white border-[#c2652a] shadow-xs font-extrabold"
+                        : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 shadow-2xs"
+                    }`}
+                  >
+                    <IconComponent
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive ? "text-white" : tab.id === "POLICE_REGISTER" ? "text-blue-600" : "text-[#c2652a]"
+                      }`}
+                    />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
