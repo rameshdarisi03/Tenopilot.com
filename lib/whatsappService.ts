@@ -112,7 +112,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `💳 ${payHeader}: ${payDest}\n\n` +
         `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
         `Thank you for being a valued resident!\n\n` +
-        `*- ${pName}*`
+        `- ${pName}`
       );
     }
 
@@ -319,7 +319,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_rent_due_v3",
+            name: "pg_rent_due_v4",
             language: { code: "en_US" },
             components: [
               {
@@ -687,8 +687,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         resData = await response.json();
       }
 
-      // Automatic Graceful Fallback for RENT_REMINDER if pg_rent_due_v3 is pending review or unavailable
-      if (!response.ok && payload.type === "RENT_REMINDER" && (requestBody?.template?.name === "pg_rent_due_v3" || requestBody?.template?.name === "pg_rent_due_v2")) {
+      // Automatic Graceful Fallback for RENT_REMINDER if pg_rent_due_v4 is pending review or unavailable
+      if (!response.ok && payload.type === "RENT_REMINDER" && (requestBody?.template?.name === "pg_rent_due_v4" || requestBody?.template?.name === "pg_rent_due_v3" || requestBody?.template?.name === "pg_rent_due_v2")) {
         console.warn("Retrying RENT_REMINDER with pg_rent_due_friendly fallback...");
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";

@@ -407,7 +407,7 @@ export default function IndividualTenantProfilePage({
       `💳 ${payHeader}: ${payDest}\n\n` +
       `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
       `Thank you for being a valued resident!\n\n` +
-      `*- ${pName}*`;
+      `- ${pName}`;
 
     return buildWhatsAppUrl(occ.phone, message);
   };

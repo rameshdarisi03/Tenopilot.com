@@ -515,7 +515,7 @@ export default function TenantsDirectoryPage({
       `💳 ${payHeader}: ${payDest}\n\n` +
       `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
       `Thank you for being a valued resident!\n\n` +
-      `*- ${pName}*`;
+      `- ${pName}`;
 
     return buildWhatsAppUrl(occ.phone, message);
   };
@@ -3408,7 +3408,7 @@ Scroll vertically to browse all residents without pagination limits
                           `💳 ${payHeader}: ${payDest}\n\n` +
                           `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
                           `Thank you for being a valued resident!\n\n` +
-                          `*- ${pName}*`;
+                          `- ${pName}`;
                         const waUrl = buildWhatsAppUrl(occ.phone, message);
 
                         return (
