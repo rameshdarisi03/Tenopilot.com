@@ -14,6 +14,9 @@ import {
   exportComplaintsCSV,
   buildComplaintWhatsAppUrl,
 } from "@/lib/complaintStore";
+import { occupantStore, Occupant } from "@/constants/mockOccupants";
+import { verifyResidentForComplaint } from "@/utils/domainSSOT";
+import { subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
 import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { PublicComplaintQrModal } from "@/components/PublicComplaintQrModal";
 import { propertySettingsStore } from "@/constants/propertySettings";
@@ -93,9 +96,14 @@ export default function AdminComplaintsPage({
   const [toastMessage, setToastMessage] = useState("");
 
   // Log Walk-in Ticket Form Inputs
+  const [occupants, setOccupants] = useState<Occupant[]>(() =>
+    typeof window !== "undefined" ? occupantStore.getOccupants(propertyId) : []
+  );
   const [logTenantName, setLogTenantName] = useState("");
   const [logTenantPhone, setLogTenantPhone] = useState("");
   const [logRoomNumber, setLogRoomNumber] = useState("");
+  const [logVerifiedOccupant, setLogVerifiedOccupant] = useState<Occupant | null>(null);
+  const [logPhoneError, setLogPhoneError] = useState<string | null>(null);
   const [logCategory, setLogCategory] = useState("Plumbing");
   const [logTitle, setLogTitle] = useState("");
   const [logDescription, setLogDescription] = useState("");
@@ -140,7 +148,23 @@ export default function AdminComplaintsPage({
       setComplaints(list || []);
     });
 
-    return () => unsubscribe();
+    // Real-time occupants sync for phone auto-detection
+    setOccupants(occupantStore.getOccupants(propertyId));
+    const unsubLocalOccupants = propertyStore.subscribe(() => {
+      setOccupants(occupantStore.getOccupants(propertyId));
+    });
+    const unsubFSOccupants = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
+      if (fsOccupants) {
+        occupantStore.setOccupantsFromFirestore(fsOccupants);
+        setOccupants(fsOccupants);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubLocalOccupants();
+      unsubFSOccupants();
+    };
   }, [propertyId]);
 
   // Extract rooms for walk-in ticket modal
@@ -234,6 +258,36 @@ export default function AdminComplaintsPage({
     }
   };
 
+  const handleWalkInPhoneChange = (inputPhone: string) => {
+    const cleanDigits = inputPhone.replace(/\D/g, "").slice(0, 10);
+    setLogTenantPhone(cleanDigits);
+
+    if (cleanDigits.length === 10) {
+      const res = verifyResidentForComplaint(cleanDigits, occupants);
+      if (res.isValid && res.occupant) {
+        setLogVerifiedOccupant(res.occupant);
+        setLogTenantName(res.occupant.name);
+        const matchRoom = allRoomsList.find((r) =>
+          r.toLowerCase().includes(res.occupant!.roomNumber.toLowerCase())
+        );
+        if (matchRoom) {
+          setLogRoomNumber(matchRoom);
+        } else {
+          setLogRoomNumber(`Room ${res.occupant.roomNumber}`);
+        }
+        setLogPhoneError(null);
+      } else {
+        setLogVerifiedOccupant(null);
+        setLogPhoneError(
+          res.errorMessage || "Mobile number not found in active resident directory. You can enter the name manually below."
+        );
+      }
+    } else {
+      setLogVerifiedOccupant(null);
+      setLogPhoneError(null);
+    }
+  };
+
   const handleSaveWalkInTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!logTenantName || !logTenantPhone || !logRoomNumber || !logTitle || !logDescription) return;
@@ -252,6 +306,9 @@ export default function AdminComplaintsPage({
     setShowLogModal(false);
     setLogTenantName("");
     setLogTenantPhone("");
+    setLogRoomNumber("");
+    setLogVerifiedOccupant(null);
+    setLogPhoneError(null);
     setLogTitle("");
     setLogDescription("");
   };
@@ -923,35 +980,66 @@ export default function AdminComplaintsPage({
             </div>
 
             <form onSubmit={handleSaveWalkInTicket} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-gray-900 mb-1">
-                    Resident Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={logTenantName}
-                    onChange={(e) => setLogTenantName(e.target.value)}
-                    placeholder="e.g. Vikram Malhotra"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-900 mb-1">
-                    Mobile Number *
-                  </label>
+              <div>
+                <label className="block font-bold text-gray-900 mb-1">
+                  Resident Mobile Number *
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3 pointer-events-none" />
                   <input
                     type="tel"
                     required
+                    maxLength={10}
                     value={logTenantPhone}
-                    onChange={(e) => setLogTenantPhone(e.target.value)}
-                    placeholder="10-digit mobile"
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
+                    onChange={(e) => handleWalkInPhoneChange(e.target.value)}
+                    placeholder="Enter 10-digit mobile number..."
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a] tabular-nums"
                   />
                 </div>
               </div>
+
+              {/* Auto-detected Resident Card */}
+              {logVerifiedOccupant && (
+                <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
+                        <span>{logVerifiedOccupant.name}</span>
+                        <span className="text-[10px] bg-emerald-200/80 text-emerald-900 font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                          Active Resident
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Room {logVerifiedOccupant.roomNumber} ({logVerifiedOccupant.bedCode || "Bed A"}) • {logVerifiedOccupant.stayType || "Resident"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback if mobile number is not in resident directory */}
+              {logPhoneError && (
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 space-y-2 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-amber-800 text-[11px] font-semibold">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>{logPhoneError}</span>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-950 text-[11px] mb-1">
+                      Enter Resident Name Manually *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={logTenantName}
+                      onChange={(e) => setLogTenantName(e.target.value)}
+                      placeholder="e.g. Vikram Malhotra"
+                      className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white font-bold text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
