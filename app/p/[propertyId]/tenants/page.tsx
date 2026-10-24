@@ -285,6 +285,7 @@ export default function TenantsDirectoryPage({
     count: number;
     total: number;
     creditsRemaining?: number;
+    emailCreditsRemaining?: number;
   } | null>(null);
 
   // Single-Tenant WhatsApp Dropdown & Custom Message States
@@ -595,6 +596,13 @@ export default function TenantsDirectoryPage({
       return;
     }
 
+    const currentEmailBal = emailCreditStore.getCredits(propertyId);
+    if (currentEmailBal <= 0) {
+      triggerToast("🔒 Email Gateway Locked: Your credit balance is 0. Please recharge your wallet to dispatch reminders.");
+      setShowWhatsAppWalletModal(true);
+      return;
+    }
+
     setIsSendingCloudEmail(true);
     setCloudSendProgress({ sent: 0, total: selectedOccupants.length });
 
@@ -636,6 +644,12 @@ export default function TenantsDirectoryPage({
         const resData = await emailRes.json().catch(() => ({}));
         if (emailRes.ok && resData?.successfulCount > 0) {
           emailSentCount++;
+          emailCreditStore.deductCredit(propertyId, {
+            description: `Auto-sent Rent Reminder to ${occ.name} (${occ.roomNumber ? `Room ${occ.roomNumber}` : "Bed Assigned"})`,
+            recipientName: occ.name,
+            recipientEmail: occ.email || "",
+            messageType: "RENT_REMINDER",
+          });
         } else {
           const errDetail =
             resData?.results?.[0]?.error ||
@@ -675,7 +689,7 @@ export default function TenantsDirectoryPage({
     activityAuditStore.logActivity(propertyId, {
       type: "PAYMENT",
       title: `Email Rent Reminders Sent: ${emailSentCount} tenants`,
-      subtitle: `Dispatched via Official Email Gateway (Free)`,
+      subtitle: `Dispatched via Central Email Gateway (${emailSentCount} Credits)`,
       staffName: profile?.displayName || "Manager",
       staffRole: "Property Admin",
     });
@@ -684,6 +698,7 @@ export default function TenantsDirectoryPage({
       type: "EMAIL",
       count: emailSentCount,
       total: selectedOccupants.length,
+      emailCreditsRemaining: emailCreditStore.getCredits(propertyId),
     });
   };
 
@@ -998,6 +1013,7 @@ export default function TenantsDirectoryPage({
       count: Math.max(emailSentCount, waSentCount),
       total: selectedOccupants.length,
       creditsRemaining: whatsappCreditStore.getCredits(propertyId),
+      emailCreditsRemaining: emailCreditStore.getCredits(propertyId),
     });
   };
 
@@ -3704,9 +3720,19 @@ Scroll vertically to browse all residents without pagination limits
                       Rent reminders delivered via <strong>Official Email Gateway</strong> and <strong>WhatsApp Cloud API</strong> to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
                     </p>
                   </div>
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs flex items-center justify-between text-emerald-950 font-medium">
-                    <span>Wallet Balance:</span>
-                    <span className="font-mono font-bold text-emerald-800">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
+                  <div className="space-y-2 text-left">
+                    <div className="p-2.5 px-3.5 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl text-xs flex items-center justify-between text-emerald-950">
+                      <span className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                        <span>💬</span> WhatsApp Balance:
+                      </span>
+                      <span className="font-mono font-bold text-emerald-800">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
+                    </div>
+                    <div className="p-2.5 px-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl text-xs flex items-center justify-between text-blue-950">
+                      <span className="flex items-center gap-1.5 font-semibold text-blue-900">
+                        <span>✉️</span> Email Balance:
+                      </span>
+                      <span className="font-mono font-bold text-blue-800">{grandSuccessData.emailCreditsRemaining ?? 0} Credits</span>
+                    </div>
                   </div>
                 </>
               ) : grandSuccessData.type === "EMAIL" ? (
@@ -3716,7 +3742,7 @@ Scroll vertically to browse all residents without pagination limits
                   </div>
                   <div className="space-y-1.5">
                     <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider inline-block border border-blue-200">
-                      100% Free • Official Gateway
+                      Official Email Gateway • Metered
                     </span>
                     <h3 className="text-xl font-black text-gray-900 tracking-tight font-serif pt-1">
                       Email Reminders Sent! 🎉
@@ -3724,6 +3750,13 @@ Scroll vertically to browse all residents without pagination limits
                     <p className="text-xs text-gray-600 leading-relaxed px-1">
                       Rent reminder emails have been successfully sent to <strong>{grandSuccessData.count}</strong> resident{grandSuccessData.count === 1 ? "" : "s"}.
                     </p>
+                  </div>
+
+                  <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl text-xs flex items-center justify-between text-blue-950">
+                    <span className="flex items-center gap-1.5 font-semibold text-blue-900">
+                      <span>✉️</span> Email Balance:
+                    </span>
+                    <span className="font-mono font-bold text-blue-800">{grandSuccessData.emailCreditsRemaining ?? 0} Credits</span>
                   </div>
                 </>
               ) : (
@@ -3743,8 +3776,10 @@ Scroll vertically to browse all residents without pagination limits
                     </p>
                   </div>
 
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs flex items-center justify-between text-emerald-950 font-medium">
-                    <span>Wallet Balance:</span>
+                  <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl text-xs flex items-center justify-between text-emerald-950">
+                    <span className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                      <span>💬</span> WhatsApp Balance:
+                    </span>
                     <span className="font-mono font-bold text-emerald-800">{grandSuccessData.creditsRemaining ?? 0} Credits</span>
                   </div>
                 </>
