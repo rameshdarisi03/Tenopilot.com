@@ -507,7 +507,7 @@ export default function TenantsDirectoryPage({
       : (activeCard?.upiId || "PG Reception / Manager UPI");
 
     const message =
-      `"**${pName}**"\n\n` +
+      `**${pName}**\n\n` +
       `Hello ${occ.name},\n\n` +
       `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
       `💰 Amount Due: INR ${Number(occ.rentAmount || 0).toLocaleString("en-IN")}\n` +
@@ -3400,7 +3400,7 @@ Scroll vertically to browse all residents without pagination limits
                           : (activeCard?.upiId || "PG Reception / Manager UPI");
 
                         const message =
-                          `"**${pName}**"\n\n` +
+                          `**${pName}**\n\n` +
                           `Hello ${occ.name},\n\n` +
                           `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
                           `💰 Amount Due: INR ${Number(occ.rentAmount || 0).toLocaleString("en-IN")}\n` +

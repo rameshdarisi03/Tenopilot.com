@@ -104,7 +104,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         : (p.upiId || "PG Reception / Manager UPI");
 
       return (
-        `"**${pName}**"\n\n` +
+        `**${pName}**\n\n` +
         `Hello ${payload.recipientName},\n\n` +
         `This is a friendly reminder regarding your monthly accommodation rent for ${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}:\n\n` +
         `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}\n` +
@@ -319,7 +319,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
           to: formattedPhone,
           type: "template",
           template: {
-            name: "pg_rent_due_v2",
+            name: "pg_rent_due_v3",
             language: { code: "en_US" },
             components: [
               {
@@ -687,8 +687,8 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         resData = await response.json();
       }
 
-      // Automatic Graceful Fallback for RENT_REMINDER if pg_rent_due_v2 is pending review or unavailable
-      if (!response.ok && payload.type === "RENT_REMINDER" && requestBody?.template?.name === "pg_rent_due_v2") {
+      // Automatic Graceful Fallback for RENT_REMINDER if pg_rent_due_v3 is pending review or unavailable
+      if (!response.ok && payload.type === "RENT_REMINDER" && (requestBody?.template?.name === "pg_rent_due_v3" || requestBody?.template?.name === "pg_rent_due_v2")) {
         console.warn("Retrying RENT_REMINDER with pg_rent_due_friendly fallback...");
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
