@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
-import { getGuestStayTimeline, getOccupantStatusBadge, calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
+import { getGuestStayTimeline, getOccupantStatusBadge, calculateOccupantFinancialStatement, parseOccupantDate } from "@/utils/domainSSOT";
 import {
   ChevronLeft,
   Edit,
@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
-import { saveOccupantToFirestore } from "@/lib/firestoreService";
+import { saveOccupantToFirestore, updateOccupantInFirestore } from "@/lib/firestoreService";
 
 interface GuestProfileViewProps {
   occupantState: Occupant;
@@ -91,6 +91,26 @@ export function GuestProfileView({
   // Calculate stay duration & days remaining dynamically via SSOT Domain Engine
   const checkInDateStr = occupantState.joiningDate || occupantState.lastPaidDate || "02 Aug 2026";
   const checkOutDateStr = occupantState.vacatingDate || occupantState.dueDate || "09 Aug 2026";
+
+  // Auto-sync guest status: There is no manual check-in for guests. When the check-in day arrives,
+  // status automatically transitions from BOOKED GUEST to GUEST.
+  useEffect(() => {
+    if (occupantState.stayType === "Guest" && occupantState.lifecycleStatus === "Booked") {
+      const parsedCheckIn = parseOccupantDate(checkInDateStr);
+      if (parsedCheckIn) {
+        const now = new Date();
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const checkInMidnight = new Date(parsedCheckIn.getFullYear(), parsedCheckIn.getMonth(), parsedCheckIn.getDate()).getTime();
+        if (todayMidnight >= checkInMidnight) {
+          const updatedOcc = { ...occupantState, lifecycleStatus: "Active" as const };
+          updateOccupantInFirestore(propertyId, occupantState.id, {
+            lifecycleStatus: "Active",
+          }).catch(() => {});
+          occupantStore.updateOccupant(updatedOcc, propertyId);
+        }
+      }
+    }
+  }, [occupantState.id, occupantState.stayType, occupantState.lifecycleStatus, checkInDateStr, propertyId]);
 
   const timeline = getGuestStayTimeline(
     checkInDateStr,
@@ -225,9 +245,9 @@ export function GuestProfileView({
             {timeline.isBooked ? (
               <span>🟦 BOOKED GUEST — {timeline.statusText}</span>
             ) : timeline.daysRemaining > 0 ? (
-              <span>⏳ {timeline.statusText}</span>
+              <span>🟣 GUEST — {timeline.statusText}</span>
             ) : (
-              <span className="text-red-700">⚠️ Checkout Date Reached Today!</span>
+              <span className="text-red-700">⚠️ {timeline.statusText}</span>
             )}
           </div>
         </div>
@@ -248,8 +268,8 @@ export function GuestProfileView({
           <div className="flex justify-between text-[10px] text-gray-500 font-bold">
             <span>
               {timeline.isBooked
-                ? `Check-In Date: ${checkInDateStr} (Check-in pending)`
-                : `Check-In: ${checkInDateStr} (${timeline.daysElapsed} days elapsed)`}
+                ? `Check-In Date: ${checkInDateStr} (Upcoming)`
+                : `Check-In: ${checkInDateStr} (${timeline.daysElapsed} ${timeline.daysElapsed === 1 ? "day" : "days"} elapsed)`}
             </span>
             <span>Checkout: {checkOutDateStr}</span>
           </div>

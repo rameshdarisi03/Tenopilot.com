@@ -7,7 +7,7 @@ import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
 import { GuestProfileView } from "@/components/dashboard/GuestProfileView";
 import { MOCK_OCCUPANTS_200, occupantStore, Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
-import { subscribeOccupantsFromFirestore, saveOccupantToFirestore } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore } from "@/lib/firestoreService";
 import { useAuth } from "@/providers/AuthProvider";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { CheckOutSettlementModal } from "@/components/dashboard/CheckOutSettlementModal";
@@ -306,8 +306,29 @@ export default function IndividualTenantProfilePage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants && fsOccupants.length > 0) {
-        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
-        const updated = fsOccupants.find((o) => o.id === tenantId);
+        // 🏨 Auto-sync guests: There is no manual check-in for guests.
+        // When scheduled check-in day arrives or passes (today >= check-in date),
+        // automatically transition status from BOOKED GUEST to GUEST.
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayMidnight = today.getTime();
+
+        const syncedOccupants = fsOccupants.map((occ) => {
+          if (occ.stayType === "Guest" && occ.lifecycleStatus === "Booked") {
+            const checkIn = parseOccupantDate(occ.joiningDate || occ.lastPaidDate || "");
+            if (checkIn) {
+              const checkInMidnight = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate()).getTime();
+              if (todayMidnight >= checkInMidnight) {
+                updateOccupantInFirestore(propertyId, occ.id, { lifecycleStatus: "Active" }).catch(() => {});
+                return { ...occ, lifecycleStatus: "Active" as const };
+              }
+            }
+          }
+          return occ;
+        });
+
+        occupantStore.setOccupantsFromFirestore(syncedOccupants, propertyId);
+        const updated = syncedOccupants.find((o) => o.id === tenantId);
         if (updated) {
           setOccupantState(updated);
           setEditName(updated.name);

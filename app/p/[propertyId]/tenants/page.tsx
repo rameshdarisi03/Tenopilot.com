@@ -12,9 +12,9 @@ import { propertyStore } from "@/constants/propertyLayoutStore";
 import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
-import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
+import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
 import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl } from "@/utils/security";
-import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate } from "@/utils/domainSSOT";
+import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
 import {
@@ -104,7 +104,28 @@ export default function TenantsDirectoryPage({
 
     const unsubscribeFirestore = subscribeOccupantsFromFirestore(propertyId, (fsOccupants) => {
       if (fsOccupants && fsOccupants.length > 0) {
-        occupantStore.setOccupantsFromFirestore(fsOccupants, propertyId);
+        // 🏨 Auto-sync guests: There is no manual check-in for guests.
+        // When scheduled check-in day arrives or passes (today >= check-in date),
+        // automatically transition status from BOOKED GUEST to GUEST.
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayMidnight = today.getTime();
+
+        const syncedOccupants = fsOccupants.map((occ) => {
+          if (occ.stayType === "Guest" && occ.lifecycleStatus === "Booked") {
+            const checkIn = parseOccupantDate(occ.joiningDate || occ.lastPaidDate || "");
+            if (checkIn) {
+              const checkInMidnight = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate()).getTime();
+              if (todayMidnight >= checkInMidnight) {
+                updateOccupantInFirestore(propertyId, occ.id, { lifecycleStatus: "Active" }).catch(() => {});
+                return { ...occ, lifecycleStatus: "Active" as const };
+              }
+            }
+          }
+          return occ;
+        });
+
+        occupantStore.setOccupantsFromFirestore(syncedOccupants, propertyId);
         setOccupantsList(occupantStore.getOccupants(propertyId));
       } else {
         occupantStore.setOccupantsFromFirestore([], propertyId);

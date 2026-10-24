@@ -5,6 +5,7 @@ import { Occupant, occupantStore, MOCK_OCCUPANTS_200, PaymentHistoryItem } from 
 import { BedSlotConfig, RoomConfig } from "@/constants/propertyLayoutStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { parseOccupantDate } from "./autoCheckInEngine";
+export { parseOccupantDate } from "./autoCheckInEngine";
 
 /**
  * 1. SSOT Occupant Vacating / Checkout Date Resolver
@@ -71,7 +72,24 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
   const isActive = occupant.lifecycleStatus === "Active";
 
   if (isGuest) {
-    if (isBooked) {
+    // 🏨 Guest Auto-Transition Rule:
+    // There is no manual check-in process designed for guests.
+    // When the scheduled check-in day arrives or passes (today >= check-in date),
+    // the status automatically transitions from BOOKED GUEST to active GUEST!
+    let isUpcomingGuest = isBooked;
+    const checkInDate = parseOccupantDate(occupant.joiningDate || occupant.lastPaidDate || "");
+    if (checkInDate) {
+      const now = new Date();
+      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const checkInMidnight = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate()).getTime();
+      if (todayMidnight >= checkInMidnight) {
+        isUpcomingGuest = false;
+      } else {
+        isUpcomingGuest = true;
+      }
+    }
+
+    if (isUpcomingGuest) {
       return {
         label: "BOOKED GUEST 🟦",
         shortLabel: "Booked Guest",
@@ -164,7 +182,11 @@ export function getGuestStayTimeline(
     Math.round((checkoutMidnight.getTime() - joiningMidnight.getTime()) / (1000 * 60 * 60 * 24))
   );
 
-  if (isBooked || todayMidnight.getTime() < joiningMidnight.getTime()) {
+  // 🏨 Guest Auto-Transition: Only considered Booked if check-in date is strictly in the FUTURE.
+  // Once the day arrives (today >= check-in date), status transitions to GUEST!
+  const isActuallyBooked = todayMidnight.getTime() < joiningMidnight.getTime();
+
+  if (isActuallyBooked) {
     const daysUntilCheckIn = Math.max(
       1,
       Math.round((joiningMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24))
@@ -183,8 +205,21 @@ export function getGuestStayTimeline(
     totalDays,
     Math.max(0, Math.round((todayMidnight.getTime() - joiningMidnight.getTime()) / (1000 * 60 * 60 * 24)))
   );
-  const daysRemaining = Math.max(0, totalDays - daysElapsed);
+  const daysRemaining = Math.max(
+    0,
+    Math.round((checkoutMidnight.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24))
+  );
   const progressPercent = Math.min(100, Math.max(0, Math.round((daysElapsed / totalDays) * 100)));
+
+  const isCheckoutPassed = todayMidnight.getTime() > checkoutMidnight.getTime();
+  const isCheckoutToday = todayMidnight.getTime() === checkoutMidnight.getTime();
+
+  let statusText = `${daysRemaining} Day(s) Remaining (Checkout: ${checkoutDateStr || "—"})`;
+  if (isCheckoutPassed) {
+    statusText = `Checkout Overdue (${checkoutDateStr || "—"})`;
+  } else if (isCheckoutToday || daysRemaining === 0) {
+    statusText = "Checkout Due Today";
+  }
 
   return {
     totalDays,
@@ -192,7 +227,7 @@ export function getGuestStayTimeline(
     daysRemaining,
     progressPercent,
     isBooked: false,
-    statusText: daysRemaining === 0 ? "Checkout Due Today" : `${daysRemaining} Day(s) Remaining (Checkout: ${checkoutDateStr || "—"})`,
+    statusText,
   };
 }
 

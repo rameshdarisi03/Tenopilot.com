@@ -58,7 +58,7 @@ export function runAutoCheckInEngine(): number {
 
   const updatedOccupants = currentOccupants.map((occ) => {
     if (occ.lifecycleStatus === "Booked") {
-      const joiningDateObj = parseOccupantDate(occ.joiningDate);
+      const joiningDateObj = parseOccupantDate(occ.joiningDate || occ.lastPaidDate || "");
 
       if (joiningDateObj) {
         joiningDateObj.setHours(0, 0, 0, 0);
@@ -67,6 +67,15 @@ export function runAutoCheckInEngine(): number {
         if (today >= joiningDateObj) {
           transitionedCount++;
           hasChanges = true;
+
+          // 🏨 Guests do not have a manual check-in flow or recurring monthly due cycles.
+          // When scheduled check-in day arrives, status transitions from BOOKED GUEST to GUEST.
+          if (occ.stayType === "Guest") {
+            return {
+              ...occ,
+              lifecycleStatus: "Active" as const,
+            };
+          }
 
           return {
             ...occ,
