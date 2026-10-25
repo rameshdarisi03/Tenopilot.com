@@ -2469,23 +2469,34 @@ Scroll vertically to browse all residents without pagination limits
                               </span>
                             )}
                           </h3>
-                          {occ.stayType === "Guest" && (occ.purposeOfVisit || occ.workplace) ? (
-                            <p className="text-[11px] text-purple-700 font-semibold truncate select-none">
-                              🎯 {occ.purposeOfVisit || occ.workplace}
-                            </p>
-                          ) : (occ.occupation || occ.workplace) ? (
-                            <p className="text-[11px] text-gray-600 font-medium truncate select-none">
-                              {occ.occupation ? `${occ.occupation}${occ.workplace ? ` @ ${occ.workplace}` : ""}` : `🏢 ${occ.workplace}`}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-gray-500 font-mono truncate select-none">{occ.phone}</p>
-                          )}
-                          {((occ.vehicleNumbers && occ.vehicleNumbers.length > 0) || occ.vehicleNumber) && (
-                            <p className="text-[10px] text-slate-700 font-mono font-bold flex items-center gap-1 select-none mt-0.5">
-                              <Car className="w-3 h-3 text-[#c2652a] shrink-0" />
-                              <span className="truncate">{(occ.vehicleNumbers || [occ.vehicleNumber]).filter(Boolean).join(", ")}</span>
-                            </p>
-                          )}
+                          {(() => {
+                            const vehicles = (
+                              occ.vehicleNumbers && occ.vehicleNumbers.length > 0
+                                ? occ.vehicleNumbers
+                                : (occ.vehicleNumber ? [occ.vehicleNumber] : [])
+                            ).filter(Boolean);
+
+                            if (vehicles.length === 0) return null;
+
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1 select-none">
+                                {vehicles.map((vNum, vIdx) => (
+                                  <div
+                                    key={vIdx}
+                                    className="inline-flex items-center rounded-[5px] border-2 border-gray-800 bg-white shadow-2xs overflow-hidden h-[22px] px-0"
+                                    title={`Vehicle Number Plate: ${vNum}`}
+                                  >
+                                    <div className="bg-[#003399] text-white font-black text-[7px] px-1 h-full flex flex-col items-center justify-center leading-none tracking-tighter shrink-0">
+                                      <span>IND</span>
+                                    </div>
+                                    <span className="font-mono font-extrabold text-[11px] text-gray-900 px-1.5 tracking-wider uppercase leading-none whitespace-nowrap">
+                                      {vNum}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </Link>
                       </div>
 
@@ -2641,7 +2652,7 @@ Scroll vertically to browse all residents without pagination limits
                     <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-gray-100 py-2.5 my-1">
                       <div>
                         <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                          Room & Bed Allocation
+                          Room
                         </span>
                         <span className="font-bold text-gray-900">
                           Room {occ.roomNumber} ({occ.bedCode})
