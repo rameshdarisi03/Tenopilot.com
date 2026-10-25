@@ -358,80 +358,69 @@ export function ThemedAccountSelect({
                 No matching accounts found
               </div>
             ) : (
-              filteredGroups.map((group) => (
-                <div key={group.id} className="py-1">
-                  {/* Sticky Category Header */}
-                  <div className="sticky top-0 z-10 px-3 py-1 bg-gray-50/95 backdrop-blur-xs border-y border-gray-100 text-[10px] font-bold text-gray-600 uppercase tracking-wider flex items-center justify-between">
-                    <span>{group.label}</span>
-                    <span className="text-[9px] font-medium text-gray-400">
-                      {group.items.length} {group.items.length === 1 ? "acc" : "accs"}
-                    </span>
-                  </div>
+              <div className="p-1 space-y-0.5">
+                {filteredGroups.flatMap((group) =>
+                  group.items.map((acc) => {
+                    const isSelected =
+                      value &&
+                      (acc.name.toLowerCase() === value.toLowerCase() ||
+                        (selectedAccount && selectedAccount.item.id === acc.id));
 
-                  {/* Account Items */}
-                  <div className="px-1 py-0.5 space-y-0.5">
-                    {group.items.map((acc) => {
-                      const isSelected =
-                        value &&
-                        (acc.name.toLowerCase() === value.toLowerCase() ||
-                          (selectedAccount && selectedAccount.item.id === acc.id));
-
-                      return (
-                        <button
-                          key={acc.id}
-                          type="button"
-                          onClick={() => {
-                            onChange(acc.name);
-                            setIsOpen(false);
-                            setSearchQuery("");
-                          }}
-                          className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-orange-100/70 text-[#c2652a] font-bold border border-orange-200/80 shadow-xs"
-                              : "hover:bg-orange-50/50 text-gray-800 border border-transparent"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => {
+                          onChange(acc.name);
+                          setIsOpen(false);
+                          setSearchQuery("");
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-orange-100/70 text-[#c2652a] font-bold border border-orange-200/80 shadow-xs"
+                            : "hover:bg-orange-50/50 text-gray-800 border border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div
+                            className={`p-1.5 rounded-lg shrink-0 ${
+                              group.icon === "business"
+                                ? "bg-amber-100/80"
+                                : group.icon === "cash"
+                                ? "bg-emerald-100/80"
+                                : group.icon === "partner"
+                                ? "bg-orange-100/80"
+                                : "bg-blue-100/80"
+                            }`}
+                          >
+                            {renderIcon(group.icon, "w-3.5 h-3.5")}
+                          </div>
+                          <div className="min-w-0 flex-1">
                             <div
-                              className={`p-1.5 rounded-lg shrink-0 ${
-                                group.icon === "business"
-                                  ? "bg-amber-100/80"
-                                  : group.icon === "cash"
-                                  ? "bg-emerald-100/80"
-                                  : group.icon === "partner"
-                                  ? "bg-orange-100/80"
-                                  : "bg-blue-100/80"
+                              className={`text-xs truncate ${
+                                isSelected ? "font-bold text-[#c2652a]" : "font-semibold text-gray-900"
                               }`}
                             >
-                              {renderIcon(group.icon, "w-3.5 h-3.5")}
+                              {acc.name}
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <div
-                                className={`text-xs truncate ${
-                                  isSelected ? "font-bold text-[#c2652a]" : "font-semibold text-gray-900"
-                                }`}
-                              >
-                                {acc.name}
+                            {(acc.bankLabel || acc.upiId) && (
+                              <div className="text-[10px] text-gray-500 truncate leading-tight mt-0.5">
+                                {acc.bankLabel || ""}
+                                {acc.bankLabel && acc.upiId ? " • " : ""}
+                                {acc.upiId ? `UPI: ${acc.upiId}` : ""}
                               </div>
-                              {(acc.bankLabel || acc.upiId) && (
-                                <div className="text-[10px] text-gray-500 truncate leading-tight mt-0.5">
-                                  {acc.bankLabel || ""}
-                                  {acc.bankLabel && acc.upiId ? " • " : ""}
-                                  {acc.upiId ? `UPI: ${acc.upiId}` : ""}
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
+                        </div>
 
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-[#c2652a] shrink-0 stroke-[2.5]" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-[#c2652a] shrink-0 stroke-[2.5]" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             )}
           </div>
         </div>

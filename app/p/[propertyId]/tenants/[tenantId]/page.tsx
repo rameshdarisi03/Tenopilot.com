@@ -3587,30 +3587,6 @@ export default function IndividualTenantProfilePage({
                         </div>
                       )}
 
-                        <div className="pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (paymentPurpose === "RENT") {
-                                setRentPaymentPortion(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount);
-                                setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
-                              } else if (paymentPurpose === "DEPOSIT") {
-                                setDepositPaymentPortion(stmt.remainingDepositDue);
-                              } else {
-                                setRentPaymentPortion(stmt.remainingRentDue);
-                                setDepositPaymentPortion(stmt.remainingDepositDue);
-                                setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
-                              }
-                            }}
-                            className="w-full py-2 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-98"
-                          >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>
-                              ⚡ Auto-Fill Pending Dues ({paymentPurpose === "RENT" ? `₹${(stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount).toLocaleString("en-IN")}` : paymentPurpose === "DEPOSIT" ? `₹${stmt.remainingDepositDue.toLocaleString("en-IN")}` : `₹${stmt.netOutstandingBalance.toLocaleString("en-IN")}`})
-                            </span>
-                          </button>
-                        </div>
-
                         {/* Auto-Dispatch E-Receipt Channel Selector */}
                         <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/80 space-y-2">
                           <div className="flex items-center justify-between">
