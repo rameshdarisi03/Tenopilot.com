@@ -63,6 +63,7 @@ import {
 } from "@/utils/documentSecurity";
 import { uploadKycDocumentToFirebase } from "@/utils/uploadDocument";
 import { downloadRentalAgreementPdf } from "@/utils/pdfGenerator";
+import { sanitizeVehicleNumber } from "@/utils/security";
 import { lookupExistingOccupant, lookupExistingOccupantByEmail, formatBedLabel } from "@/utils/phoneLookup";
 import { UnifiedPhotoUploadSlot } from "@/components/dashboard/UnifiedPhotoUploadSlot";
 import { saveOccupantToFirestore, subscribeOccupantsFromFirestore } from "@/lib/firestoreService";
@@ -566,7 +567,7 @@ export default function OnboardTenantPage({
     const initialLifecycleStatus: "Active" | "Booked" = isFutureMoveIn ? "Booked" : "Active";
     const initialPaymentStatus: "Due" = "Due";
 
-    const cleanVehicles = vehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
+    const cleanVehicles = vehicleNumbers.map((v) => sanitizeVehicleNumber(v)).filter(Boolean);
 
     const newTenant: Occupant = {
       id: newId,
@@ -1177,11 +1178,16 @@ export default function OnboardTenantPage({
                         <div className="relative flex-1">
                           <input
                             type="text"
-                            placeholder="e.g. KA 03 HK 4772"
+                            placeholder="e.g. KA04 HG 1234"
                             value={veh}
                             onChange={(e) => {
                               const updated = [...vehicleNumbers];
                               updated[idx] = e.target.value.toUpperCase();
+                              setVehicleNumbers(updated);
+                            }}
+                            onBlur={(e) => {
+                              const updated = [...vehicleNumbers];
+                              updated[idx] = sanitizeVehicleNumber(e.target.value);
                               setVehicleNumbers(updated);
                             }}
                             className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-[#c2652a] bg-gray-50/50"

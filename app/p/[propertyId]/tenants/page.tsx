@@ -13,7 +13,7 @@ import { runAutoCheckInEngine } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, DEFAULT_QR_PROFILES, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { subscribeOccupantsFromFirestore, saveOccupantToFirestore, updateOccupantInFirestore, deleteOccupantFromFirestore, purgeAllMockOccupantsFromFirestore, isGenuineOccupantId } from "@/lib/firestoreService";
-import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl } from "@/utils/security";
+import { sanitizeSearchInput, normalizePhoneNumber, formatWhatsAppPhone, buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
 import { calculateOccupantFinancialStatement, calculateProRataRent, resolveOccupantLastPaidInfo, resolveOccupantPaymentDueDate, parseOccupantDate } from "@/utils/domainSSOT";
 import { activityAuditStore } from "@/utils/activityAuditStore";
 import { useAuth } from "@/providers/AuthProvider";
@@ -1481,24 +1481,86 @@ export default function TenantsDirectoryPage({
 
     // 2. Priority Relevance Ranking + Interactive Column Sorting
     return matched.sort((a, b) => {
-      // Relevance Ranking: If user is typing a query, prioritize names whose FIRST NAME starts with search token
+      // Relevance Ranking: If user is typing a query, apply intelligent multi-tier ranking
       if (searchTokens.length > 0) {
         const token = searchTokens[0];
-        const getScore = (occName: string) => {
-          const nameLower = occName.toLowerCase().trim();
+        const tokenDigits = token.replace(/\D/g, "");
+        const isExact4Digits = tokenDigits.length === 4 && token === tokenDigits;
+        const isExact3Digits = tokenDigits.length === 3 && token === tokenDigits;
+
+        const getRelevanceScore = (occ: Occupant): number => {
+          // Collect occupant's vehicle numbers
+          const occVehicles: string[] = [];
+          if (occ.vehicleNumber) occVehicles.push(occ.vehicleNumber);
+          if (Array.isArray(occ.vehicleNumbers)) {
+            for (const v of occ.vehicleNumbers) {
+              if (v && !occVehicles.includes(v)) occVehicles.push(v);
+            }
+          }
+          const cleanVehicles = occVehicles.map((v) => v.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+
+          // Normalized phone digits
+          const phoneDigits = normalizePhoneNumber(occ.phone);
+          const localPhone =
+            phoneDigits.length === 12 && phoneDigits.startsWith("91")
+              ? phoneDigits.slice(2)
+              : phoneDigits;
+
+          const roomClean = (occ.roomNumber || "").trim().toLowerCase();
+
+          // RULE 1: EXACT 4 DIGITS TYPED (e.g. "1234", "1111")
+          // 1st Preference: Bike numbers when last 4 digits are typed
+          // 2nd Preference: Mobile numbers starting with those numbers
+          if (isExact4Digits) {
+            // Priority 1: Bike number ends with the 4 digits
+            if (cleanVehicles.some((cv) => cv.endsWith(tokenDigits))) return 1;
+            // Priority 2: Bike number contains the 4 digits
+            if (cleanVehicles.some((cv) => cv.includes(tokenDigits))) return 2;
+            // Priority 3: Mobile number STARTS with the 4 digits
+            if (localPhone.startsWith(tokenDigits) || phoneDigits.startsWith(tokenDigits)) return 3;
+            // Priority 4: Room number matches
+            if (roomClean === tokenDigits || roomClean.startsWith(tokenDigits)) return 4;
+            // Priority 5: Mobile number contains the 4 digits
+            if (phoneDigits.includes(tokenDigits)) return 5;
+            return 6;
+          }
+
+          // RULE 2: EXACT 3 DIGITS TYPED (e.g. "101", "203")
+          // 1st Preference: Room numbers
+          // 2nd Preference: Mobile numbers starting with those numbers
+          if (isExact3Digits) {
+            // Priority 1: Room number exact match
+            if (roomClean === tokenDigits) return 1;
+            // Priority 2: Room number starts with the 3 digits
+            if (roomClean.startsWith(tokenDigits)) return 2;
+            // Priority 3: Mobile number STARTS with the 3 digits
+            if (localPhone.startsWith(tokenDigits) || phoneDigits.startsWith(tokenDigits)) return 3;
+            // Priority 4: Bike number ends with or contains 3 digits
+            if (cleanVehicles.some((cv) => cv.endsWith(tokenDigits) || cv.includes(tokenDigits))) return 4;
+            // Priority 5: Mobile number contains 3 digits
+            if (phoneDigits.includes(tokenDigits)) return 5;
+            return 6;
+          }
+
+          // RULE 3: GENERAL QUERY (Names, mixed text, full plate, etc.)
+          const nameLower = occ.name.toLowerCase().trim();
           const cleanName = nameLower.replace(/[^a-z0-9\s]/g, "");
           const words = cleanName.split(/\s+/).filter(Boolean);
-          // Score 1: First name / full name starts directly with token (e.g. Ramesh, Ranbir, Ravindra)
-          if (nameLower.startsWith(token) || (words[0] && words[0].startsWith(token))) return 1;
-          // Score 2: Last name starts with token (e.g. KL Rahul)
-          if (words.some((w) => w.startsWith(token))) return 2;
-          return 3;
+
+          const tokenAlpha = token.replace(/[^a-z0-9]/g, "").toUpperCase();
+          if (tokenAlpha && cleanVehicles.some((cv) => cv.includes(tokenAlpha))) return 1;
+          if (nameLower.startsWith(token) || (words[0] && words[0].startsWith(token))) return 2;
+          if (words.some((w) => w.startsWith(token))) return 3;
+          if (roomClean.startsWith(token)) return 4;
+          if (tokenDigits && localPhone.startsWith(tokenDigits)) return 5;
+
+          return 6;
         };
 
-        const scoreA = getScore(a.name);
-        const scoreB = getScore(b.name);
+        const scoreA = getRelevanceScore(a);
+        const scoreB = getRelevanceScore(b);
         if (scoreA !== scoreB) {
-          return scoreA - scoreB; // Priority 1 (First Name startsWith) ranks first!
+          return scoreA - scoreB;
         }
       }
 
@@ -2479,21 +2541,21 @@ Scroll vertically to browse all residents without pagination limits
                             if (vehicles.length === 0) return null;
 
                             return (
-                              <div className="flex flex-wrap items-center gap-1.5 mt-1 select-none">
-                                {vehicles.map((vNum, vIdx) => (
-                                  <div
-                                    key={vIdx}
-                                    className="inline-flex items-center rounded-[5px] border-2 border-gray-800 bg-white shadow-2xs overflow-hidden h-[22px] px-0"
-                                    title={`Vehicle Number Plate: ${vNum}`}
-                                  >
-                                    <div className="bg-[#003399] text-white font-black text-[7px] px-1 h-full flex flex-col items-center justify-center leading-none tracking-tighter shrink-0">
-                                      <span>IND</span>
+                              <div className="flex flex-wrap items-center gap-1 mt-1 select-none">
+                                {vehicles.map((vNum, vIdx) => {
+                                  const plateFormatted = sanitizeVehicleNumber(vNum);
+                                  return (
+                                    <div
+                                      key={vIdx}
+                                      className="inline-flex items-center rounded border border-gray-700/80 bg-white shadow-2xs px-1.5 py-0.5"
+                                      title={`Vehicle Plate: ${plateFormatted}`}
+                                    >
+                                      <span className="font-mono font-black text-[10px] tracking-wider text-gray-900 uppercase leading-none whitespace-nowrap">
+                                        {plateFormatted}
+                                      </span>
                                     </div>
-                                    <span className="font-mono font-extrabold text-[11px] text-gray-900 px-1.5 tracking-wider uppercase leading-none whitespace-nowrap">
-                                      {vNum}
-                                    </span>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             );
                           })()}

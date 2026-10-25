@@ -88,11 +88,45 @@ export function sanitizeEmailAddress(input: unknown): string {
 }
 
 /**
- * Sanitizes vehicle registration numbers (e.g. KA-01-AB-1234 -> KA01AB1234 or KA-01-AB-1234).
+ * Sanitizes and formats vehicle registration numbers into standardized Indian format (e.g. KA04 HG 1234).
+ * Handles all combinations of spaces, dashes, uppercase/lowercase (e.g. "ka04hg1234", "KA 04 HG 1234", "ka-04-hg-1234").
  */
 export function sanitizeVehicleNumber(input: unknown): string {
   if (typeof input !== "string") return "";
-  return input.toUpperCase().replace(/[^A-Z0-9\-]/g, "").slice(0, 15);
+  const raw = input.trim();
+  if (!raw) return "";
+
+  // Strip all non-alphanumeric chars, hyphens, and whitespace, then uppercase
+  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15);
+  if (!clean) return "";
+
+  // 1. BH Series: e.g. 22BH1234AA -> 22 BH 1234 AA
+  const bhMatch = clean.match(/^(\d{2})(BH)(\d{4})([A-Z]{1,2})$/);
+  if (bhMatch) {
+    return `${bhMatch[1]} ${bhMatch[2]} ${bhMatch[3]} ${bhMatch[4]}`;
+  }
+
+  // 2. Standard Indian Plate: [State: 2 letters][RTO: 1-2 digits][Series: 0-3 letters][Number: 1-4 digits]
+  // e.g. KA04HG1234 -> KA04 HG 1234, KA04KH1111 -> KA04 KH 1111, KA4A1 -> KA04 A 1
+  const stdMatch = clean.match(/^([A-Z]{2})(\d{1,2})([A-Z]{0,3})(\d{1,4})$/);
+  if (stdMatch) {
+    const state = stdMatch[1];
+    const rto = stdMatch[2].padStart(2, "0");
+    const series = stdMatch[3];
+    const num = stdMatch[4];
+
+    if (series && num) {
+      return `${state}${rto} ${series} ${num}`;
+    } else if (series) {
+      return `${state}${rto} ${series}`;
+    } else if (num) {
+      return `${state}${rto} ${num}`;
+    }
+    return `${state}${rto}`;
+  }
+
+  // 3. Fallback: normalize uppercase with clean single spaces
+  return raw.toUpperCase().replace(/[^A-Z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
 /**

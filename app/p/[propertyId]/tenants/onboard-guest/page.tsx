@@ -62,6 +62,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { getEffectiveTenantLimit, evaluateTenantCapacity, evaluateSubscription } from "@/lib/subscriptionEngine";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { sanitizeVehicleNumber } from "@/utils/security";
 
 export default function OnboardGuestPage({
   params,
@@ -465,7 +466,7 @@ export default function OnboardGuestPage({
     const isVerified = isIdProvided;
     const finalAadhaarNumber = isIdProvided ? "XXXX-XXXX-8811" : "Skipped";
 
-    const cleanVehicles = vehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
+    const cleanVehicles = vehicleNumbers.map((v) => sanitizeVehicleNumber(v)).filter(Boolean);
 
     const newGuest: Occupant = {
       id: newId,
@@ -968,11 +969,16 @@ export default function OnboardGuestPage({
                         <div className="relative flex-1">
                           <input
                             type="text"
-                            placeholder="e.g. KA 03 HK 4772"
+                            placeholder="e.g. KA04 HG 1234"
                             value={veh}
                             onChange={(e) => {
                               const updated = [...vehicleNumbers];
                               updated[idx] = e.target.value.toUpperCase();
+                              setVehicleNumbers(updated);
+                            }}
+                            onBlur={(e) => {
+                              const updated = [...vehicleNumbers];
+                              updated[idx] = sanitizeVehicleNumber(e.target.value);
                               setVehicleNumbers(updated);
                             }}
                             className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-purple-700 bg-gray-50/50"

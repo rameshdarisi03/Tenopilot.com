@@ -30,7 +30,7 @@ import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
-import { buildWhatsAppUrl } from "@/utils/security";
+import { buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
 import {
   ChevronLeft,
@@ -1658,7 +1658,7 @@ export default function IndividualTenantProfilePage({
       : `+${editCountryCode.trim() || "91"}`;
     const cleanNationalPhone = editPhone.trim().replace(/\D/g, "");
     const fullPhoneNumber = `${cleanCc} ${cleanNationalPhone}`;
-    const cleanVehicles = editVehicleNumbers.map((v) => v.trim().toUpperCase()).filter(Boolean);
+    const cleanVehicles = editVehicleNumbers.map((v) => sanitizeVehicleNumber(v)).filter(Boolean);
 
     const cleanEmergencyDigits = editEmergencyPhone.trim().replace(/\D/g, "");
     if (cleanEmergencyDigits && cleanNationalPhone === cleanEmergencyDigits) {
@@ -4844,11 +4844,16 @@ export default function IndividualTenantProfilePage({
                           <div className="relative flex-1">
                             <input
                               type="text"
-                              placeholder="e.g. KA 03 HK 4772"
+                              placeholder="e.g. KA04 HG 1234"
                               value={veh}
                               onChange={(e) => {
                                 const updated = [...editVehicleNumbers];
                                 updated[vIdx] = e.target.value.toUpperCase();
+                                setEditVehicleNumbers(updated);
+                              }}
+                              onBlur={(e) => {
+                                const updated = [...editVehicleNumbers];
+                                updated[vIdx] = sanitizeVehicleNumber(e.target.value);
                                 setEditVehicleNumbers(updated);
                               }}
                               className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-gray-300 font-mono font-bold text-gray-900 text-xs uppercase tracking-wider focus:ring-1 focus:ring-[#c2652a] bg-gray-50/50"
