@@ -52,6 +52,7 @@ import {
   MessageSquare,
   Copy,
   Check,
+  ChevronDown,
 } from "lucide-react";
 
 
@@ -88,6 +89,11 @@ const STATUS_OPTIONS: Array<{
     radioDot: "bg-gray-600",
   },
 ];
+
+const formatRoomDisplay = (roomStr: string) => {
+  if (!roomStr) return "";
+  return roomStr.replace(/Bed\s+Bed/gi, "Bed");
+};
 
 export default function AdminComplaintsPage({
   params,
@@ -525,9 +531,49 @@ export default function AdminComplaintsPage({
           onMobileMenuToggle={() => setMobileMenuOpen(true)}
         />
 
-        <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto w-full pb-16">
-          {/* Header Title Section */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto w-full pb-20">
+          {/* Mobile Header Bar (< md) */}
+          <div className="flex md:hidden flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                  Live Maintenance 🟢
+                </span>
+                <h1 className="font-serif font-bold text-xl text-gray-900 mt-0.5">
+                  Complaints Desk
+                </h1>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setQrModalOpen(true)}
+                  className="p-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:border-[#c2652a] shadow-2xs cursor-pointer active:scale-95"
+                  title="Complaints QR Portal"
+                >
+                  <QrCode className="w-4 h-4 text-[#c2652a]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportComplaintsCSV(complaints)}
+                  className="p-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 shadow-2xs cursor-pointer active:scale-95"
+                  title="Export CSV"
+                >
+                  <Download className="w-4 h-4 text-emerald-700" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLogModal(true)}
+                  className="px-3 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Walk-in</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop Header Title Section (>= md) */}
+          <div className="hidden md:flex flex-row items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
@@ -582,105 +628,105 @@ export default function AdminComplaintsPage({
             </div>
           )}
 
-          {/* Top Bento Summary Cards (4 Cards) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Top Bento Summary Cards (Compact 2x2 on Mobile, 4 Cols on Desktop) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {/* Card 1: Urgent / New Queue */}
             <div
               onClick={() => setStatusFilter("OPEN")}
-              className={`p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
+              className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
                 statusFilter === "OPEN"
                   ? "bg-red-50/50 border-red-300 shadow-sm"
                   : "bg-white border-gray-200 shadow-2xs hover:border-red-300"
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-600 animate-ping"></span> New / Unresolved
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-red-700 flex items-center gap-1.5 truncate">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-600 animate-ping shrink-0"></span> New / Open
                 </span>
-                <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center">
-                  <AlertCircle className="w-4 h-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <p className="font-sans font-bold text-3xl text-red-700 tracking-tight tabular-nums">
+              <p className="font-sans font-bold text-xl sm:text-3xl text-red-700 tracking-tight tabular-nums leading-tight">
                 {openCount < 10 ? `0${openCount}` : openCount}
               </p>
-              <p className="text-[11px] text-gray-500 font-medium mt-1">
-                Open tickets awaiting review & action
+              <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate">
+                Awaiting review & action
               </p>
             </div>
 
             {/* Card 2: In Progress */}
             <div
               onClick={() => setStatusFilter("IN_PROGRESS")}
-              className={`p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
+              className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
                 statusFilter === "IN_PROGRESS"
                   ? "bg-amber-50/50 border-amber-300 shadow-sm"
                   : "bg-white border-gray-200 shadow-2xs hover:border-amber-300"
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-600"></span> In Progress
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5 truncate">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-600 shrink-0"></span> In Progress
                 </span>
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
-                  <Wrench className="w-4 h-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <Wrench className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight tabular-nums">
+              <p className="font-sans font-bold text-xl sm:text-3xl text-gray-900 tracking-tight tabular-nums leading-tight">
                 {inProgressCount < 10 ? `0${inProgressCount}` : inProgressCount}
               </p>
-              <p className="text-[11px] text-gray-500 font-medium mt-1">
-                Active worklogs currently being serviced
+              <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate">
+                Currently being serviced
               </p>
             </div>
 
             {/* Card 3: Resolved */}
             <div
               onClick={() => setStatusFilter("RESOLVED")}
-              className={`p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
+              className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
                 statusFilter === "RESOLVED"
                   ? "bg-emerald-50/50 border-emerald-300 shadow-sm"
                   : "bg-white border-gray-200 shadow-2xs hover:border-emerald-300"
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-700" /> Resolved Tickets
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 truncate">
+                  <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-700 shrink-0" /> Resolved
                 </span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight tabular-nums">
+              <p className="font-sans font-bold text-xl sm:text-3xl text-gray-900 tracking-tight tabular-nums leading-tight">
                 {resolvedCount < 10 ? `0${resolvedCount}` : resolvedCount}
               </p>
-              <p className="text-[11px] text-emerald-700 font-bold mt-1">
-                {resolutionRate}% Resolution Efficiency Rate
+              <p className="text-[10px] sm:text-[11px] text-emerald-700 font-bold mt-0.5 truncate">
+                {resolutionRate}% Efficiency Rate
               </p>
             </div>
 
             {/* Card 4: SLA Turnaround */}
-            <div className="p-5 rounded-3xl bg-white border border-gray-200 shadow-2xs relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  AVG TURNAROUND SLA
+            <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-gray-200 shadow-2xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-1 sm:mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-gray-500 truncate">
+                  AVG SLA
                 </span>
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
-                  <Clock className="w-4 h-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <p className="font-sans font-bold text-3xl text-gray-900 tracking-tight tabular-nums">
-                {resolvedCount > 0 ? "1.8" : "0.0"} <span className="text-sm font-semibold text-gray-500">Hours</span>
+              <p className="font-sans font-bold text-xl sm:text-3xl text-gray-900 tracking-tight tabular-nums leading-tight">
+                {resolvedCount > 0 ? "1.8" : "0.0"} <span className="text-xs sm:text-sm font-semibold text-gray-500">Hours</span>
               </p>
-              <p className="text-[11px] text-gray-500 font-medium mt-1">
-                Fast resolution turnaround target
+              <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate">
+                Fast turnaround target
               </p>
             </div>
           </div>
 
-          {/* Search, Filter Tabs & Category Bar */}
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          {/* Search, Status Tabs & Category Bar (Tenants-Page Style) */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-200 p-3.5 sm:p-5 md:p-6 shadow-xs space-y-3 sm:space-y-4">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
               {/* Search Bar */}
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -688,80 +734,113 @@ export default function AdminComplaintsPage({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by resident name, room, ticket code..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-gray-200 bg-gray-50 text-xs font-medium text-gray-900 focus:bg-white focus:border-[#c2652a] focus:ring-1 focus:ring-[#c2652a] transition-all"
+                  placeholder="Search by resident, room, ticket code..."
+                  className="w-full pl-10 pr-9 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border border-gray-200 bg-gray-50 text-xs font-medium text-gray-900 focus:bg-white focus:border-[#c2652a] focus:ring-1 focus:ring-[#c2652a] transition-all"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="p-1 rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              {/* Status Filter Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-gray-100 rounded-2xl text-xs font-bold">
-                {["ALL", "OPEN", "IN_PROGRESS", "RESOLVED"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      statusFilter === st
-                        ? "bg-[#c2652a] text-white shadow-2xs"
-                        : "text-gray-600 hover:text-gray-900"
+              {/* Status Segment Tabs & Category Dropdown (Beside Resolved tab) */}
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                {/* Status Segment Pills */}
+                <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl sm:rounded-2xl text-xs font-bold shrink-0">
+                  {(["ALL", "OPEN", "IN_PROGRESS", "RESOLVED"] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setStatusFilter(st)}
+                      className={`px-3 py-1.5 rounded-lg sm:rounded-xl transition-all cursor-pointer whitespace-nowrap text-xs ${
+                        statusFilter === st
+                          ? "bg-[#c2652a] text-white shadow-2xs font-bold"
+                          : "text-gray-600 hover:text-gray-900 font-semibold"
+                      }`}
+                    >
+                      {st === "ALL"
+                        ? `All (${complaints.length})`
+                        : st === "OPEN"
+                        ? `Open (${openCount})`
+                        : st === "IN_PROGRESS"
+                        ? `In Progress (${inProgressCount})`
+                        : `Resolved (${resolvedCount})`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Category Dropdown sitting right beside Resolved tab */}
+                <div className="relative shrink-0">
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className={`appearance-none pl-3 pr-8 py-2 rounded-xl sm:rounded-2xl text-xs font-bold transition-all cursor-pointer border ${
+                      categoryFilter !== "ALL"
+                        ? "bg-orange-50 border-orange-300 text-[#c2652a] ring-1 ring-[#c2652a]/20"
+                        : "bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    {st === "ALL"
-                      ? `ALL (${complaints.length})`
-                      : st === "OPEN"
-                      ? `OPEN (${openCount})`
-                      : st === "IN_PROGRESS"
-                      ? `IN PROGRESS (${inProgressCount})`
-                      : `RESOLVED (${resolvedCount})`}
-                  </button>
-                ))}
+                    <option value="ALL">📂 All Categories</option>
+                    <option value="Plumbing">🔧 Plumbing</option>
+                    <option value="Electrical">⚡ Electrical</option>
+                    <option value="Wi-Fi & Net">📶 Wi-Fi & Net</option>
+                    <option value="Housekeeping">🧹 Housekeeping</option>
+                    <option value="Appliance / AC">❄️ Appliance / AC</option>
+                    <option value="Pest Control">🐛 Pest Control</option>
+                    <option value="Security & Locks">🛡️ Security & Locks</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100 text-xs">
-              <span className="text-gray-500 font-bold text-[11px] uppercase tracking-wider mr-1">
-                Category:
-              </span>
-              <button
-                onClick={() => setCategoryFilter("ALL")}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  categoryFilter === "ALL"
-                    ? "bg-[#c2652a] text-white shadow-2xs"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                ALL
-              </button>
-              {[
-                "Plumbing",
-                "Electrical",
-                "Wi-Fi & Net",
-                "Housekeeping",
-                "Appliance / AC",
-                "Pest Control",
-                "Security & Locks",
-              ].map((cat) => (
+            {/* Active Filters Pill Bar (If Category or Search is Active) */}
+            {(categoryFilter !== "ALL" || searchQuery) && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-400 font-medium text-[11px]">Active Filters:</span>
+                {categoryFilter !== "ALL" && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 text-[#c2652a] border border-orange-200 font-bold text-xs">
+                    <span>Category: {categoryFilter}</span>
+                    <X
+                      className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                      onClick={() => setCategoryFilter("ALL")}
+                    />
+                  </div>
+                )}
+                {searchQuery && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-800 border border-gray-200 font-bold text-xs">
+                    <span>Search: "{searchQuery}"</span>
+                    <X
+                      className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                      onClick={() => setSearchQuery("")}
+                    />
+                  </div>
+                )}
                 <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                    categoryFilter === cat
-                      ? "bg-[#c2652a] text-white shadow-2xs"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter("ALL");
+                    setSearchQuery("");
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-600 font-medium underline cursor-pointer ml-1"
                 >
-                  {cat}
+                  Reset all
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Complaint Cards Work List */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {filteredComplaints.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center space-y-3">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
-                <h3 className="font-serif font-bold text-lg text-gray-900">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-200 p-8 sm:p-12 text-center space-y-3">
+                <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-500 mx-auto" />
+                <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
                   No Complaints Found
                 </h3>
                 <p className="text-xs text-gray-500 max-w-sm mx-auto">
@@ -773,30 +852,35 @@ export default function AdminComplaintsPage({
                 return (
                   <div
                     key={c.id}
-                    className={`bg-white rounded-3xl border p-5 sm:p-6 transition-all shadow-2xs hover:shadow-xs space-y-4 ${
+                    className={`bg-white rounded-2xl sm:rounded-3xl border p-4 sm:p-6 transition-all shadow-2xs hover:shadow-xs space-y-3.5 sm:space-y-4 ${
                       !c.isRead ? "border-l-4 border-l-[#c2652a] border-gray-200" : "border-gray-200"
                     }`}
                   >
                     {/* Header Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-2xl bg-orange-50 border border-orange-200">
+                    <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-orange-50 border border-orange-200 shrink-0 mt-0.5">
                           {renderCategoryIcon(c.category)}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                             <span className="font-mono font-bold text-xs text-[#c2652a]">
                               {c.complaintNumber}
                             </span>
+                            <span className="text-[10px] sm:text-xs text-gray-300">•</span>
+                            <span className="text-[11px] sm:text-xs font-semibold text-gray-600 truncate">
+                              {c.category}
+                            </span>
                             {getStatusBadge(c.status)}
                           </div>
-                          <h3 className="font-serif font-bold text-base text-gray-900 mt-0.5">
+                          <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 mt-1 leading-snug">
                             {c.title}
                           </h3>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                      {/* Desktop Action Buttons (Right-aligned in header) */}
+                      <div className="hidden sm:flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleOpenStatusModal(c)}
@@ -817,28 +901,34 @@ export default function AdminComplaintsPage({
                     </div>
 
                     {/* Middle Details Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-gray-50/70 p-3.5 rounded-2xl border border-gray-100">
-                      <div>
-                        <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px] block">
-                          Resident & Contact
-                        </span>
-                        <span className="font-bold text-gray-900 block mt-0.5 flex items-center gap-1">
-                          <User className="w-3.5 h-3.5 text-[#c2652a]" /> {c.tenantName}
-                        </span>
-                        <span className="text-gray-500 text-[11px] font-mono block">
-                          📞 {c.tenantPhone}
-                        </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 text-xs bg-gray-50/70 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border border-gray-100">
+                      <div className="flex items-center justify-between sm:block">
+                        <div>
+                          <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px] block">
+                            Resident & Contact
+                          </span>
+                          <span className="font-bold text-gray-900 block mt-0.5 flex items-center gap-1">
+                            <User className="w-3.5 h-3.5 text-[#c2652a]" /> {c.tenantName}
+                          </span>
+                        </div>
+                        <div className="mt-1">
+                          <a
+                            href={`tel:${c.tenantPhone}`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-gray-700 hover:text-emerald-700 hover:border-emerald-300 text-[11px] font-bold shadow-2xs transition-colors"
+                            title="Call Resident"
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600" />
+                            <span>{c.tenantPhone}</span>
+                          </a>
+                        </div>
                       </div>
 
                       <div>
                         <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px] block">
-                          Synced Room Location
+                          Location
                         </span>
                         <span className="font-bold text-[#c2652a] block mt-0.5 flex items-center gap-1">
-                          <Home className="w-3.5 h-3.5" /> {c.roomNumber}
-                        </span>
-                        <span className="text-gray-500 text-[11px] block">
-                          Category: {c.category}
+                          <Home className="w-3.5 h-3.5" /> {formatRoomDisplay(c.roomNumber)}
                         </span>
                       </div>
 
@@ -846,7 +936,8 @@ export default function AdminComplaintsPage({
                         <span className="text-gray-500 font-bold uppercase tracking-wider text-[10px] block">
                           Logged Time & Date
                         </span>
-                        <span className="font-bold text-gray-900 block mt-0.5">
+                        <span className="font-bold text-gray-700 block mt-0.5 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-gray-400" />
                           {new Date(c.createdAt).toLocaleTimeString("en-IN", {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -858,8 +949,8 @@ export default function AdminComplaintsPage({
 
                     {/* Description Text */}
                     <div className="text-xs space-y-1">
-                      <span className="font-bold text-gray-900 block">Issue Description:</span>
-                      <p className="text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100 leading-relaxed">
+                      <span className="font-bold text-gray-900 block text-[11px]">Issue Description:</span>
+                      <p className="text-gray-700 bg-gray-50 p-2.5 sm:p-3 rounded-xl border border-gray-100 leading-relaxed text-xs">
                         {c.description}
                       </p>
                     </div>
@@ -876,7 +967,7 @@ export default function AdminComplaintsPage({
                               key={pIdx}
                               type="button"
                               onClick={() => setPreviewModalImg(pUrl)}
-                              className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shadow-2xs hover:scale-105 transition-transform cursor-pointer relative group"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border border-gray-200 shadow-2xs hover:scale-105 transition-transform cursor-pointer relative group"
                             >
                               <img
                                 src={pUrl}
@@ -894,13 +985,33 @@ export default function AdminComplaintsPage({
 
                     {/* Resolution Notes if resolved */}
                     {c.resolutionNotes && (
-                      <div className="text-xs bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 space-y-1 text-emerald-900">
+                      <div className="text-xs bg-emerald-50/60 p-2.5 sm:p-3 rounded-xl border border-emerald-200 space-y-1 text-emerald-900">
                         <span className="font-bold block flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> Resolution Action Notes:
                         </span>
                         <p className="text-emerald-800 italic">{c.resolutionNotes}</p>
                       </div>
                     )}
+
+                    {/* Mobile Action Footer (Bottom Bar on Phone screens) */}
+                    <div className="pt-2 sm:hidden flex items-center gap-2 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenStatusModal(c)}
+                        className="flex-1 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] active:scale-98 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Update Status</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(c.id)}
+                        className="p-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
+                        title="Delete Ticket"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 );
               })

@@ -230,7 +230,12 @@ export default function PublicTenantComplaintPage({
       if (res.isValid && res.occupant) {
         setVerifiedOccupant(res.occupant);
         setTenantName(res.occupant.name);
-        setRoomNumber(`${res.occupant.roomNumber} (Bed ${res.occupant.bedCode})`);
+        const bedLabel = res.occupant.bedCode
+          ? res.occupant.bedCode.toLowerCase().startsWith("bed")
+            ? res.occupant.bedCode
+            : `Bed ${res.occupant.bedCode}`
+          : "Bed A";
+        setRoomNumber(`${res.occupant.roomNumber} (${bedLabel})`);
         setVerificationError(null);
       } else {
         setVerifiedOccupant(null);
