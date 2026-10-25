@@ -151,7 +151,8 @@ export default function PublicTenantComplaintPage({
   const [compressing, setCompressing] = useState(false);
 
   // File Input Ref for native file/camera dialog
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // Fullscreen Photo Modal State
   const [previewModalImg, setPreviewModalImg] = useState<string | null>(null);
@@ -638,36 +639,68 @@ export default function PublicTenantComplaintPage({
                       </span>
                     </div>
 
-                    {/* Hidden Native File Input (Triggers Camera / Gallery sheet) */}
+                    {/* Native Camera Direct Input */}
                     <input
-                      ref={fileInputRef}
+                      ref={cameraInputRef}
                       type="file"
                       accept="image/*"
-                      multiple={photos.length === 0}
+                      capture="environment"
                       onChange={handlePhotoSelect}
                       className="hidden"
                     />
 
-                    {/* Uploader Trigger Button (Visible when under 2 photos) */}
+                    {/* Native Gallery Direct Input */}
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoSelect}
+                      className="hidden"
+                    />
+
+                    {/* Dedicated Camera & Gallery Uploader Buttons (Visible when under 2 photos) */}
                     {photos.length < 2 && (
-                      <button
-                        type="button"
-                        disabled={compressing}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full py-4 px-4 rounded-2xl border-2 border-dashed border-[#d7c2b9] bg-white hover:bg-orange-50/50 hover:border-[#964407] transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-orange-100/80 text-[#964407] flex items-center justify-center group-hover:scale-105 transition-transform">
-                          <Camera className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-xs text-gray-900">
-                            {compressing ? "Compressing Image..." : "📸 Take Photo / Upload from Gallery"}
-                          </p>
-                          <p className="text-[10px] text-gray-500 mt-0.5">
-                            Tap to snap photo with camera or pick from photo library (JPEG, PNG)
-                          </p>
-                        </div>
-                      </button>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {/* Option 1: Direct Smartphone Camera */}
+                        <button
+                          type="button"
+                          disabled={compressing}
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="py-3 px-3 rounded-2xl border-2 border-dashed border-[#d7c2b9] bg-white hover:bg-orange-50/60 hover:border-[#964407] transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group active:scale-95 shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#964407] flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Camera className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-xs text-gray-900">
+                              📸 Take Photo
+                            </p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              Open phone camera
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Option 2: Choose from Gallery */}
+                        <button
+                          type="button"
+                          disabled={compressing}
+                          onClick={() => galleryInputRef.current?.click()}
+                          className="py-3 px-3 rounded-2xl border-2 border-dashed border-[#d7c2b9] bg-white hover:bg-amber-50/60 hover:border-amber-600 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group active:scale-95 shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <ImageIcon className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-xs text-gray-900">
+                              🖼️ Gallery
+                            </p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              Upload saved photo
+                            </p>
+                          </div>
+                        </button>
+                      </div>
                     )}
 
                     {/* Attached Photos Grid */}
