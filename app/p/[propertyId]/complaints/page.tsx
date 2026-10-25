@@ -770,16 +770,11 @@ export default function AdminComplaintsPage({
               </div>
             ) : (
               filteredComplaints.map((c) => {
-                const isResolved = c.status === "RESOLVED";
                 return (
                   <div
                     key={c.id}
-                    className={`rounded-3xl border p-5 sm:p-6 transition-all shadow-2xs hover:shadow-xs space-y-4 ${
-                      isResolved
-                        ? "bg-slate-50/80 border-slate-200/90 opacity-70 hover:opacity-100"
-                        : !c.isRead
-                        ? "bg-white border-l-4 border-l-[#c2652a] border-gray-200"
-                        : "bg-white border-gray-200"
+                    className={`bg-white rounded-3xl border p-5 sm:p-6 transition-all shadow-2xs hover:shadow-xs space-y-4 ${
+                      !c.isRead ? "border-l-4 border-l-[#c2652a] border-gray-200" : "border-gray-200"
                     }`}
                   >
                     {/* Header Row */}
