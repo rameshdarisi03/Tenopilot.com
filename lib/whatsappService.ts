@@ -595,6 +595,45 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             ],
           },
         };
+      } else if (payload.type === "COMPLAINT_UPDATE") {
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot Living";
+        const statusEmoji = p.complaintStatus === "RESOLVED" ? "🟢" : p.complaintStatus === "IN_PROGRESS" ? "🟡" : p.complaintStatus === "REJECTED" ? "⚪" : "🔴";
+        const statusStr = `${statusEmoji} ${(p.complaintStatus || "IN_PROGRESS").replace(/_/g, " ")}`;
+
+        requestBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_complaint_status_update",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName || "Resident" },
+                  { type: "text", text: pName },
+                  { type: "text", text: p.complaintId || "CARE" },
+                  { type: "text", text: p.roomNumber || "N/A" },
+                  { type: "text", text: p.category || "General Maintenance" },
+                  { type: "text", text: p.complaintTitle || "Maintenance request" },
+                  { type: "text", text: statusStr },
+                  { type: "text", text: p.customMessage || "Status updated by property manager." },
+                ],
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: payload.propertyId || "default" },
+                ],
+              },
+            ],
+          },
+        };
       } else {
         requestBody = {
           messaging_product: "whatsapp",

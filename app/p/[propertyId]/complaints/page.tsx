@@ -308,10 +308,16 @@ export default function AdminComplaintsPage({
               userEmail: user?.email || profile?.email,
             }),
           });
-          if (waRes.ok) {
+          const waData = await waRes.json().catch(() => ({}));
+          if (waRes.ok && waData.successfulCount > 0) {
             deliveryChannels.push("WhatsApp");
           } else {
-            console.warn("WhatsApp background dispatch notice:", await waRes.text());
+            console.warn("WhatsApp background dispatch notice (falling back to direct chat):", waData);
+            const waUrl = buildComplaintWhatsAppUrl(statusModalTicket, selectedStatus, finalNotes);
+            if (typeof window !== "undefined") {
+              window.open(waUrl, "_blank");
+            }
+            deliveryChannels.push("WhatsApp (via App)");
           }
         } catch (waErr) {
           console.warn("WhatsApp background dispatch error:", waErr);
