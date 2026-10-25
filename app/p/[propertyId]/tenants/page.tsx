@@ -202,28 +202,12 @@ export default function TenantsDirectoryPage({
   const [showFastTrackModal, setShowFastTrackModal] = useState(false);
   const [activeActionDropdownId, setActiveActionDropdownId] = useState<string | null>(null);
 
-  // Auto-exit mobile selection mode if 0 tenants are selected and the user clicks/taps anywhere else
+  // Auto-exit mobile selection mode whenever selected count drops to zero
   useEffect(() => {
-    if (!isMobileMultiSelectMode || selectedIds.length > 0) return;
-
-    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-      if (mobileBannerRef.current && mobileBannerRef.current.contains(e.target as Node)) {
-        return;
-      }
+    if (selectedIds.length === 0 && isMobileMultiSelectMode) {
       setIsMobileMultiSelectMode(false);
-    };
-
-    const timer = setTimeout(() => {
-      document.addEventListener("click", handleOutsideClick, true);
-      document.addEventListener("touchend", handleOutsideClick, true);
-    }, 50);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("click", handleOutsideClick, true);
-      document.removeEventListener("touchend", handleOutsideClick, true);
-    };
-  }, [isMobileMultiSelectMode, selectedIds.length]);
+    }
+  }, [selectedIds.length, isMobileMultiSelectMode]);
 
   // Collect Rent Modal State (Defaults dynamically to today's running calendar date)
   const [collectRentOccupant, setCollectRentOccupant] = useState<Occupant | null>(null);
@@ -1651,7 +1635,11 @@ export default function TenantsDirectoryPage({
 
   const handleSelectOne = (id: string) => {
     if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((item) => item !== id));
+      const next = selectedIds.filter((item) => item !== id);
+      setSelectedIds(next);
+      if (next.length === 0) {
+        setIsMobileMultiSelectMode(false);
+      }
     } else {
       setSelectedIds([...selectedIds, id]);
     }
@@ -2418,7 +2406,7 @@ Scroll vertically to browse all residents without pagination limits
           {/* Mobile Card List View (Samsung One UI 1.0s Long-Press Multi-Select Pattern) */}
           <div className="md:hidden space-y-4">
             {/* 📱 Samsung One UI Style Top Header Bar in Selection Mode */}
-            {isMobileMultiSelectMode || selectedIds.length > 0 ? (
+            {selectedIds.length > 0 ? (
               <div ref={mobileBannerRef} className="bg-slate-900 text-white rounded-2xl p-3 px-4 shadow-xl flex items-center justify-between animate-in slide-in-from-top-3">
                 <div className="flex items-center gap-3">
                   <button
@@ -2428,6 +2416,7 @@ Scroll vertically to browse all residents without pagination limits
                       const areAllSelected = allIds.every((id) => selectedIds.includes(id));
                       if (areAllSelected) {
                         setSelectedIds([]);
+                        setIsMobileMultiSelectMode(false);
                       } else {
                         setSelectedIds(allIds);
                         setIsMobileMultiSelectMode(true);
@@ -2498,10 +2487,6 @@ Scroll vertically to browse all residents without pagination limits
                     onClick={(e) => {
                       if (isMobileMultiSelectMode) {
                         e.preventDefault();
-                        if (selectedIds.length === 0) {
-                          setIsMobileMultiSelectMode(false);
-                          return;
-                        }
                         handleSelectOne(occ.id);
                       }
                     }}
@@ -2546,10 +2531,6 @@ Scroll vertically to browse all residents without pagination limits
                           onClick={(e) => {
                             if (isMobileMultiSelectMode) {
                               e.preventDefault();
-                              if (selectedIds.length === 0) {
-                                setIsMobileMultiSelectMode(false);
-                                return;
-                              }
                               handleSelectOne(occ.id);
                             }
                           }}
