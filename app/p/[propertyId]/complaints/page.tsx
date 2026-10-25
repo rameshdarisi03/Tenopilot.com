@@ -149,7 +149,7 @@ export default function AdminComplaintsPage({
     setSendViaEmail(true);
     setIsSubmittingStatus(false);
   };
-  const [resolveModalTicket, setResolveModalTicket] = useState<Complaint | null>(null);
+
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -168,8 +168,7 @@ export default function AdminComplaintsPage({
   const [logDescription, setLogDescription] = useState("");
   const [logPreferredTime, setLogPreferredTime] = useState("Morning • 9:00 AM - 12:00 PM");
 
-  // Resolution Note State for Modal
-  const [resolutionInput, setResolutionInput] = useState("");
+
 
   // Fullscreen Photo Modal State
   const [previewModalImg, setPreviewModalImg] = useState<string | null>(null);
@@ -312,12 +311,7 @@ export default function AdminComplaintsPage({
           if (waRes.ok && waData.successfulCount > 0) {
             deliveryChannels.push("WhatsApp");
           } else {
-            console.warn("WhatsApp background dispatch notice (falling back to direct chat):", waData);
-            const waUrl = buildComplaintWhatsAppUrl(statusModalTicket, selectedStatus, finalNotes);
-            if (typeof window !== "undefined") {
-              window.open(waUrl, "_blank");
-            }
-            deliveryChannels.push("WhatsApp (via App)");
+            console.warn("WhatsApp background dispatch notice:", waData);
           }
         } catch (waErr) {
           console.warn("WhatsApp background dispatch error:", waErr);
@@ -385,26 +379,7 @@ export default function AdminComplaintsPage({
     }
   };
 
-  const handleConfirmResolve = async () => {
-    if (!resolveModalTicket) return;
-    const finalNotes = resolutionInput || "Resolved by property manager.";
-    await updateComplaintStatusInFirestore(
-      propertyId,
-      resolveModalTicket.id,
-      "RESOLVED",
-      finalNotes
-    );
 
-    // Auto-open WhatsApp wa.me pre-filled redirect link for resident
-    const waUrl = buildComplaintWhatsAppUrl(resolveModalTicket, "RESOLVED", finalNotes);
-    if (typeof window !== "undefined") {
-      window.open(waUrl, "_blank");
-    }
-
-    triggerToast(`Ticket ${resolveModalTicket.complaintNumber} marked as RESOLVED & WhatsApp alert prepared!`);
-    setResolveModalTicket(null);
-    setResolutionInput("");
-  };
 
   const handleToggleRead = async (c: Complaint) => {
     await markComplaintAsReadInFirestore(propertyId, c.id, !c.isRead);
@@ -829,17 +804,6 @@ export default function AdminComplaintsPage({
                       </div>
 
                       <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <a
-                          href={buildComplaintWhatsAppUrl(c)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
-                          title="Send status notification via WhatsApp"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>WhatsApp</span>
-                        </a>
-
                         <button
                           type="button"
                           onClick={() => handleOpenStatusModal(c)}
@@ -847,16 +811,6 @@ export default function AdminComplaintsPage({
                         >
                           Update Status
                         </button>
-
-                        {c.status !== "RESOLVED" && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenStatusModal(c, "RESOLVED")}
-                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer"
-                          >
-                            Mark Resolved
-                          </button>
-                        )}
 
                         <button
                           type="button"
@@ -1101,65 +1055,7 @@ export default function AdminComplaintsPage({
         </div>
       )}
 
-      {/* MARK RESOLVED WITH NOTES MODAL */}
-      {resolveModalTicket && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setResolveModalTicket(null)}
-        >
-          <div
-            className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="font-serif font-bold text-lg text-gray-900 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Confirm Resolution
-                </h3>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Ticket {resolveModalTicket.complaintNumber} • {resolveModalTicket.roomNumber}
-                </p>
-              </div>
-              <button
-                onClick={() => setResolveModalTicket(null)}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div>
-              <label className="block font-bold text-gray-900 mb-1">
-                Resolution Action Notes (Optional)
-              </label>
-              <textarea
-                rows={3}
-                value={resolutionInput}
-                onChange={(e) => setResolutionInput(e.target.value)}
-                placeholder="e.g. Replaced leaking tap washer; tested water flow normal."
-                className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
-              ></textarea>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setResolveModalTicket(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmResolve}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
-              >
-                Confirm & Mark Resolved
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* LOG WALK-IN TICKET MODAL */}
       {showLogModal && (
