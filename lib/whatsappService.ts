@@ -41,6 +41,7 @@ export interface WhatsAppSendParams {
     houseRules?: string;
     billingCycle?: string;
     ownerName?: string;
+    category?: string;
   };
 }
 
@@ -178,14 +179,23 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
     }
 
     case "COMPLAINT_UPDATE": {
+      const statusEmoji = p.complaintStatus === "RESOLVED" ? "🟢" : p.complaintStatus === "IN_PROGRESS" ? "🟡" : p.complaintStatus === "REJECTED" ? "⚪" : "🔴";
+      const statusLabel = (p.complaintStatus || "IN_PROGRESS").replace("_", " ");
+      const notes = p.customMessage ? `\n💬 *Manager Note*: ${p.customMessage}` : "";
+      const roomStr = p.roomNumber ? `\n🏠 *Location*: ${p.roomNumber}` : "";
+      const catStr = p.category ? `\n🔧 *Category*: ${p.category}` : "";
+      const trackUrl = `https://www.tenopilot.com/p/${payload.propertyId}/public-complaint`;
+
       return (
-        `*${pName}*\n` +
-        `Greetings from ${pName} Support Desk!\n\n` +
-        `Dear *${payload.recipientName}*,\n\n` +
-        `Your maintenance ticket *#${p.complaintId || "CARE"}* (${p.complaintTitle || "Maintenance issue"}) has been updated to: *${p.complaintStatus || "In Progress"}*.\n\n` +
-        `Our team is addressing this promptly.\n\n` +
-        `Warm regards,\n` +
-        `*${pName} Support Desk*`
+        `🏢 *${pName} Maintenance Desk*\n\n` +
+        `Hello *${payload.recipientName}*,\n\n` +
+        `Your maintenance request has been updated:\n\n` +
+        `🎫 *Ticket ID*: #${p.complaintId || "CARE"}${roomStr}${catStr}\n` +
+        `📝 *Issue*: ${p.complaintTitle || "Maintenance request"}\n\n` +
+        `📌 *Current Status*: ${statusEmoji} *${statusLabel}*${notes}\n\n` +
+        `🔍 *Track Live Status*:\n${trackUrl}\n\n` +
+        `Thank you,\n` +
+        `*${pName} Operations*`
       );
     }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useMemo } from "react";
+import { useAuth } from "@/providers/AuthProvider";
 import Link from "next/link";
 import { PropertySidebar } from "@/components/dashboard/PropertySidebar";
 import { PropertyHeader } from "@/components/dashboard/PropertyHeader";
@@ -53,6 +54,49 @@ import {
   Check,
 } from "lucide-react";
 
+
+const STATUS_OPTIONS: Array<{
+  key: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "REJECTED";
+  label: string;
+  emoji: string;
+  selectedStyle: string;
+  radioBorder: string;
+  radioDot: string;
+}> = [
+  {
+    key: "OPEN",
+    label: "OPEN / NEW (Awaiting Action)",
+    emoji: "🔴",
+    selectedStyle: "border-red-500 bg-red-50 text-red-900",
+    radioBorder: "border-red-500 bg-red-50",
+    radioDot: "bg-red-500",
+  },
+  {
+    key: "IN_PROGRESS",
+    label: "IN PROGRESS (Under Servicing / Caretaker Dispatched)",
+    emoji: "🟡",
+    selectedStyle: "border-amber-500 bg-amber-50 text-amber-900",
+    radioBorder: "border-amber-500 bg-amber-50",
+    radioDot: "bg-amber-500",
+  },
+  {
+    key: "RESOLVED",
+    label: "RESOLVED (Issue Fixed & Closed)",
+    emoji: "🟢",
+    selectedStyle: "border-emerald-500 bg-emerald-50 text-emerald-900",
+    radioBorder: "border-emerald-500 bg-emerald-50",
+    radioDot: "bg-emerald-600",
+  },
+  {
+    key: "REJECTED",
+    label: "REJECTED / DUPLICATE",
+    emoji: "⚪",
+    selectedStyle: "border-gray-500 bg-gray-100 text-gray-900",
+    radioBorder: "border-gray-500 bg-gray-100",
+    radioDot: "bg-gray-600",
+  },
+];
+
 export default function AdminComplaintsPage({
   params,
 }: {
@@ -60,6 +104,7 @@ export default function AdminComplaintsPage({
 }) {
   const resolvedParams = use(params);
   const propertyId = resolvedParams?.propertyId || "";
+  const { user, profile } = useAuth();
 
   // Navigation & Layout State
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -90,6 +135,20 @@ export default function AdminComplaintsPage({
   // Modals & Drawers State
   const [showLogModal, setShowLogModal] = useState(false);
   const [statusModalTicket, setStatusModalTicket] = useState<Complaint | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<Complaint["status"]>("OPEN");
+  const [statusNotes, setStatusNotes] = useState("");
+  const [sendViaWhatsApp, setSendViaWhatsApp] = useState(true);
+  const [sendViaEmail, setSendViaEmail] = useState(true);
+  const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
+
+  const handleOpenStatusModal = (c: Complaint, forceStatus?: Complaint["status"]) => {
+    setStatusModalTicket(c);
+    setSelectedStatus(forceStatus || c.status);
+    setStatusNotes(c.resolutionNotes || "");
+    setSendViaWhatsApp(true);
+    setSendViaEmail(true);
+    setIsSubmittingStatus(false);
+  };
   const [resolveModalTicket, setResolveModalTicket] = useState<Complaint | null>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -204,26 +263,120 @@ export default function AdminComplaintsPage({
     setTimeout(() => setShowToast(false), 4000);
   };
 
-  const handleUpdateStatus = async (
-    newStatus: Complaint["status"],
-    notes?: string
-  ) => {
-    if (!statusModalTicket) return;
-    await updateComplaintStatusInFirestore(
-      propertyId,
-      statusModalTicket.id,
-      newStatus,
-      notes
-    );
+  const handleConfirmStatusUpdate = async () => {
+    if (!statusModalTicket || isSubmittingStatus) return;
+    setIsSubmittingStatus(true);
 
-    // Auto-open WhatsApp wa.me pre-filled redirect link for resident
-    const waUrl = buildComplaintWhatsAppUrl(statusModalTicket, newStatus, notes);
-    if (typeof window !== "undefined") {
-      window.open(waUrl, "_blank");
+    try {
+      const finalNotes = statusNotes.trim();
+      // 1. Update in Firestore
+      await updateComplaintStatusInFirestore(
+        propertyId,
+        statusModalTicket.id,
+        selectedStatus,
+        finalNotes
+      );
+
+      const deliveryChannels: string[] = [];
+
+      // 2. Background WhatsApp dispatch if checked
+      if (sendViaWhatsApp && statusModalTicket.tenantPhone) {
+        try {
+          const waRes = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyId,
+              messages: [
+                {
+                  toPhone: statusModalTicket.tenantPhone,
+                  recipientName: statusModalTicket.tenantName,
+                  propertyId,
+                  propertyName: propertySettings?.propertyName || "TenoPilot PG",
+                  type: "COMPLAINT_UPDATE",
+                  params: {
+                    roomNumber: statusModalTicket.roomNumber,
+                    complaintId: statusModalTicket.complaintNumber,
+                    complaintTitle: statusModalTicket.title,
+                    complaintStatus: selectedStatus,
+                    customMessage: finalNotes || undefined,
+                    category: statusModalTicket.category,
+                  },
+                },
+              ],
+              userId: user?.uid,
+              userEmail: user?.email || profile?.email,
+            }),
+          });
+          if (waRes.ok) {
+            deliveryChannels.push("WhatsApp");
+          } else {
+            console.warn("WhatsApp background dispatch notice:", await waRes.text());
+          }
+        } catch (waErr) {
+          console.warn("WhatsApp background dispatch error:", waErr);
+        }
+      }
+
+      // 3. Background Email dispatch if checked
+      if (sendViaEmail) {
+        const cleanPhone = statusModalTicket.tenantPhone.replace(/\D/g, "");
+        const targetPhoneLast10 = cleanPhone.length >= 10 ? cleanPhone.slice(-10) : "";
+        const targetOccupant = occupants.find(
+          (o) =>
+            (targetPhoneLast10 && o.phone && o.phone.replace(/\D/g, "").slice(-10) === targetPhoneLast10) ||
+            (o.name && o.name.toLowerCase().trim() === statusModalTicket.tenantName.toLowerCase().trim())
+        );
+        const recipientEmail = (statusModalTicket as any).tenantEmail || targetOccupant?.email;
+
+        if (recipientEmail && recipientEmail.includes("@")) {
+          try {
+            const emailRes = await fetch("/api/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                propertyId,
+                messages: [
+                  {
+                    toEmail: recipientEmail,
+                    recipientName: statusModalTicket.tenantName,
+                    propertyId,
+                    propertyName: propertySettings?.propertyName || "TenoPilot PG",
+                    type: "COMPLAINT_UPDATE",
+                    params: {
+                      roomNumber: statusModalTicket.roomNumber,
+                      complaintId: statusModalTicket.complaintNumber,
+                      complaintTitle: statusModalTicket.title,
+                      complaintStatus: selectedStatus,
+                      customMessage: finalNotes || undefined,
+                      category: statusModalTicket.category,
+                    },
+                  },
+                ],
+                userId: user?.uid,
+                userEmail: user?.email || profile?.email,
+              }),
+            });
+            if (emailRes.ok) {
+              deliveryChannels.push("Email");
+            } else {
+              console.warn("Email background dispatch notice:", await emailRes.text());
+            }
+          } catch (emailErr) {
+            console.warn("Email background dispatch error:", emailErr);
+          }
+        }
+      }
+
+      const deliveryMsg = deliveryChannels.length > 0 ? ` • ${deliveryChannels.join(" & ")} delivered!` : "";
+      triggerToast(`Ticket ${statusModalTicket.complaintNumber} updated to ${selectedStatus.replace("_", " ")}${deliveryMsg}`);
+      setStatusModalTicket(null);
+    } catch (err: any) {
+      console.error("Error updating complaint status:", err);
+      triggerToast(err?.message || "Failed to update complaint status");
+    } finally {
+      setIsSubmittingStatus(false);
     }
-
-    triggerToast(`Ticket ${statusModalTicket.complaintNumber} updated to ${newStatus} & WhatsApp alert prepared!`);
-    setStatusModalTicket(null);
   };
 
   const handleConfirmResolve = async () => {
@@ -683,7 +836,7 @@ export default function AdminComplaintsPage({
 
                         <button
                           type="button"
-                          onClick={() => setStatusModalTicket(c)}
+                          onClick={() => handleOpenStatusModal(c)}
                           className="px-3.5 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer"
                         >
                           Update Status
@@ -692,10 +845,7 @@ export default function AdminComplaintsPage({
                         {c.status !== "RESOLVED" && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setResolveModalTicket(c);
-                              setResolutionInput("");
-                            }}
+                            onClick={() => handleOpenStatusModal(c, "RESOLVED")}
                             className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer"
                           >
                             Mark Resolved
@@ -810,12 +960,13 @@ export default function AdminComplaintsPage({
       {statusModalTicket && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setStatusModalTicket(null)}
+          onClick={() => !isSubmittingStatus && setStatusModalTicket(null)}
         >
           <div
-            className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 text-xs"
+            className="bg-white rounded-3xl border border-gray-100 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 text-xs"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="font-serif font-bold text-lg text-gray-900">
@@ -826,67 +977,119 @@ export default function AdminComplaintsPage({
                 </p>
               </div>
               <button
+                type="button"
+                disabled={isSubmittingStatus}
                 onClick={() => setStatusModalTicket(null)}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer"
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-400 cursor-pointer disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <label className="block font-bold text-gray-900">
-                Select New Status:
+            {/* 1. Status Selection with Radio Tickers */}
+            <div className="space-y-2">
+              <label className="block font-bold text-gray-900 text-xs">
+                Select Status:
               </label>
 
               <div className="grid grid-cols-1 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("OPEN")}
-                  className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${
-                    statusModalTicket.status === "OPEN"
-                      ? "border-red-500 bg-red-50 text-red-900"
-                      : "border-gray-200 hover:border-gray-300 text-gray-700"
-                  }`}
-                >
-                  🔴 OPEN / NEW (Awaiting Action)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("IN_PROGRESS")}
-                  className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${
-                    statusModalTicket.status === "IN_PROGRESS"
-                      ? "border-amber-500 bg-amber-50 text-amber-900"
-                      : "border-gray-200 hover:border-gray-300 text-gray-700"
-                  }`}
-                >
-                  🟡 IN PROGRESS (Under Servicing / Caretaker Dispatched)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("RESOLVED")}
-                  className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${
-                    statusModalTicket.status === "RESOLVED"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-900"
-                      : "border-gray-200 hover:border-gray-300 text-gray-700"
-                  }`}
-                >
-                  🟢 RESOLVED (Issue Fixed & Closed)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("REJECTED")}
-                  className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${
-                    statusModalTicket.status === "REJECTED"
-                      ? "border-gray-400 bg-gray-100 text-gray-900"
-                      : "border-gray-200 hover:border-gray-300 text-gray-700"
-                  }`}
-                >
-                  ⚪ REJECTED / DUPLICATE
-                </button>
+                {STATUS_OPTIONS.map((opt) => {
+                  const isSelected = selectedStatus === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setSelectedStatus(opt.key)}
+                      className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer flex items-center justify-between ${
+                        isSelected
+                          ? opt.selectedStyle
+                          : "border-gray-200 hover:border-gray-300 text-gray-700 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm">{opt.emoji}</span>
+                        <span className="text-xs">{opt.label}</span>
+                      </div>
+                      {/* Radio Ticker */}
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                          isSelected ? opt.radioBorder : "border-gray-300 bg-white"
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className={`w-2 h-2 rounded-full ${opt.radioDot}`} />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* 2. Management / Resolution Note (Optional) */}
+            <div className="space-y-1.5">
+              <label className="block font-bold text-gray-800 text-xs">
+                Management / Resolution Note <span className="text-gray-400 font-normal">(Optional)</span>:
+              </label>
+              <textarea
+                rows={2}
+                value={statusNotes}
+                onChange={(e) => setStatusNotes(e.target.value)}
+                placeholder="e.g., Plumber fixed mixer tap and verified water flow."
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-[#c2652a] focus:ring-1 focus:ring-[#c2652a] outline-none text-xs text-gray-800 placeholder:text-gray-400 resize-none transition-all"
+              />
+            </div>
+
+            {/* 3. Deliverability Options (Side by side in single line as requested) */}
+            <div className="pt-1 border-t border-gray-100">
+              <div className="flex items-center gap-6 py-1">
+                <label className="flex items-center gap-2 font-bold text-gray-800 text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendViaWhatsApp}
+                    onChange={(e) => setSendViaWhatsApp(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span>💬 Deliver via WhatsApp</span>
+                </label>
+
+                <label className="flex items-center gap-2 font-bold text-gray-800 text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendViaEmail}
+                    onChange={(e) => setSendViaEmail(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#c2652a] accent-[#c2652a] focus:ring-[#c2652a] cursor-pointer"
+                  />
+                  <span>✉️ Deliver via Email</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isSubmittingStatus}
+                onClick={() => setStatusModalTicket(null)}
+                className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingStatus}
+                onClick={handleConfirmStatusUpdate}
+                className="px-5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmittingStatus ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <span>Confirm & Update Status</span>
+                )}
+              </button>
             </div>
           </div>
         </div>

@@ -12,7 +12,7 @@ export interface SESSendParams {
   propertyId: string;
   propertyName?: string;
   replyToEmail?: string;
-  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "CUSTOM";
+  type: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "TENANT_WELCOME" | "TEST_PING" | "CHECKOUT_THANK_YOU" | "AUTH_OTP" | "OWNER_WELCOME" | "SUBSCRIPTION_INVOICE" | "KYC_CORRECTION_REQUEST" | "COMPLAINT_UPDATE" | "CUSTOM";
   params?: {
     otpCode?: string;
     roomNumber?: string;
@@ -50,6 +50,11 @@ export interface SESSendParams {
     houseRules?: string;
     billingCycle?: string;
     ownerName?: string;
+    complaintId?: string;
+    complaintTitle?: string;
+    complaintStatus?: string;
+    customMessage?: string;
+    category?: string;
   };
   attachments?: {
     name: string;
@@ -927,6 +932,104 @@ export function generateEmailContent(payload: SESSendParams): { subject: string;
 </html>`;
 
       const text = `Action Required: Resident Verification Update for ${pName}\n\nHello ${candidateName},\nYour pre-joining KYC submission for ${roomStay} requires an update.\n\nManager's Note: "${reason}"\n\nPlease re-upload or correct your details at:\n${reuploadUrl}\n\n— ${pName} Management Desk`;
+      return { subject, html, text };
+    }
+
+    case "COMPLAINT_UPDATE": {
+      const ticketId = p.complaintId || "CARE";
+      const status = p.complaintStatus || "IN_PROGRESS";
+      const statusLabel = status.replace("_", " ");
+      const subject = `🔧 Maintenance Update: Ticket #${ticketId} is now ${statusLabel} — ${pName}`;
+      const residentName = payload.recipientName || "Resident";
+      const notes = p.customMessage || p.notes || "";
+      const roomStay = p.roomNumber ? `Room ${p.roomNumber}${p.bedCode ? ` (${p.bedCode})` : ""}` : "Accommodation";
+      const trackUrl = p.onboardUrl || `https://www.tenopilot.com/p/${payload.propertyId}/public-complaint`;
+
+      const statusBadgeBg = status === "RESOLVED" ? "#ecfdf5" : status === "IN_PROGRESS" ? "#fef3c7" : status === "REJECTED" ? "#f1f5f9" : "#fef2f2";
+      const statusBadgeBorder = status === "RESOLVED" ? "#a7f3d0" : status === "IN_PROGRESS" ? "#fde68a" : status === "REJECTED" ? "#cbd5e1" : "#fecaca";
+      const statusBadgeColor = status === "RESOLVED" ? "#065f46" : status === "IN_PROGRESS" ? "#92400e" : status === "REJECTED" ? "#475569" : "#991b1b";
+      const statusEmoji = status === "RESOLVED" ? "🟢" : status === "IN_PROGRESS" ? "🟡" : status === "REJECTED" ? "⚪" : "🔴";
+
+      const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:28px 12px;background-color:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c140e;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e8dfd8;box-shadow:0 12px 36px rgba(28,20,14,0.08);">
+    
+    <!-- Top Header Banner -->
+    <div style="background:linear-gradient(135deg,#c2652a 0%,#a8521d 100%);padding:32px 24px;text-align:center;color:#ffffff;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.2);padding:5px 14px;border-radius:24px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;border:1px solid rgba(255,255,255,0.3);">
+        🏢 24/7 MAINTENANCE DESK
+      </div>
+      <h1 style="margin:0 0 6px 0;font-size:22px;font-weight:800;">Ticket Status Update</h1>
+      <p style="margin:0;color:#fde8db;font-size:13px;">${pName} • Operations</p>
+    </div>
+
+    <!-- Main Body -->
+    <div style="padding:32px 28px;">
+      <p style="font-size:16px;margin:0 0 16px 0;color:#1c140e;">Dear <strong>${residentName}</strong>,</p>
+      
+      <p style="font-size:14px;color:#475569;margin:0 0 20px 0;line-height:1.65;">
+        Your maintenance ticket <strong>#${ticketId}</strong> for <strong>${roomStay}</strong> has been updated by the property management team.
+      </p>
+
+      <!-- Status Card -->
+      <div style="background:${statusBadgeBg};border-radius:18px;padding:20px;margin-bottom:24px;border:1.5px solid ${statusBadgeBorder};text-align:center;">
+        <p style="margin:0 0 6px 0;font-size:11px;font-weight:800;color:${statusBadgeColor};text-transform:uppercase;letter-spacing:1px;">Current Ticket Status</p>
+        <p style="margin:0;font-size:20px;font-weight:900;color:${statusBadgeColor};">
+          ${statusEmoji} ${statusLabel}
+        </p>
+        ${notes ? `<p style="margin:12px 0 0 0;font-size:13px;color:${statusBadgeColor};background:rgba(255,255,255,0.6);padding:8px 12px;border-radius:10px;line-height:1.4;"><strong>Manager Note:</strong> ${notes}</p>` : ""}
+      </div>
+
+      <!-- Ticket Summary Table -->
+      <div style="background:#fcfaf7;border-radius:18px;padding:20px;margin-bottom:24px;border:1px solid #ede5de;">
+        <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Ticket ID:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;font-family:monospace;color:#1c140e;">#${ticketId}</td>
+          </tr>
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Location:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">${roomStay}</td>
+          </tr>
+          ${p.category ? `
+          <tr style="border-bottom:1px dashed #e8dfd8;">
+            <td style="padding:8px 0;color:#7b746c;">Category:</td>
+            <td style="padding:8px 0;text-align:right;font-weight:700;color:#1c140e;">${p.category}</td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding:8px 0 0 0;color:#7b746c;">Issue:</td>
+            <td style="padding:8px 0 0 0;text-align:right;font-weight:600;color:#1c140e;">${p.complaintTitle || "Maintenance request"}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Track Live Status Button -->
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${trackUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background:#c2652a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;border-radius:12px;box-shadow:0 4px 14px rgba(194,101,42,0.35);">
+          🔍 Track Live Ticket Status
+        </a>
+      </div>
+
+      <div style="border-top:1px solid #f0eae4;padding-top:18px;margin-top:20px;">
+        <p style="margin:0 0 4px 0;font-size:13px;font-weight:700;color:#334155;">Warm regards,</p>
+        <p style="margin:0;font-size:14px;font-weight:800;color:#1c140e;">${pName} Maintenance Team</p>
+        <p style="margin:2px 0 0 0;font-size:12px;color:#64748b;">Powered by TenoPilot 24/7 Operations Desk</p>
+      </div>
+    </div>
+
+    ${getCompliantEmailFooter(pName)}
+  </div>
+</body>
+</html>`;
+
+      const text = `${pName} Maintenance Desk 🔧\n\nHello ${residentName},\n\nYour maintenance ticket #${ticketId} (${p.complaintTitle || "Maintenance request"}) for ${roomStay} has been updated to: ${statusEmoji} ${statusLabel}.\n\n${notes ? `Manager Note: ${notes}\n\n` : ""}Track Live Status: ${trackUrl}\n\nWarm regards,\n${pName} Maintenance Operations`;
+
       return { subject, html, text };
     }
 
