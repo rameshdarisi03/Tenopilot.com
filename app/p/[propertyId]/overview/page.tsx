@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronRight,
+  ChevronDown,
   TrendingUp,
   Clock,
   Send,
@@ -90,15 +91,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "bottom",
   },
   {
-    id: "whatsapp-engine",
-    targetSelector: '[data-tour="whatsapp-reminders"]',
-    title: "1-Tap WhatsApp Cloud Reminders",
-    description:
-      "Send professional rent due reminders, UPI payment links, and payment receipts directly to residents' WhatsApp in one click.",
-    icon: Send,
-    placement: "bottom",
-  },
-  {
     id: "financial-hub",
     targetSelector: '[data-tour="financial-hub-btn"]',
     title: "Dual-Ledger Financial Hub",
@@ -130,6 +122,7 @@ export default function PropertyOverviewPage({
   const [copiedLink, setCopiedLink] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [isActivityExpanded, setIsActivityExpanded] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !propertyId) return;
@@ -479,31 +472,6 @@ export default function PropertyOverviewPage({
             </div>
           )}
 
-          {/* Urgent Attention Alert Banner */}
-          <div data-tour="whatsapp-reminders" className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 shrink-0">
-                <AlertCircle className="w-5 h-5 text-amber-800" />
-              </div>
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
-                  URGENT ATTENTION NEEDED
-                </span>
-                <p className="text-xs sm:text-sm font-bold text-gray-900">
-                  {overdueCount > 0 ? `${overdueCount} Overdue Rent Payments Pending` : "No Overdue Rent Payments"} • {noticeOccupants.length} Residents on Vacating Notice
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleSendWhatsAppReminders}
-              className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Send WhatsApp Reminders</span>
-            </button>
-          </div>
-
           {/* 4 High-Impact Operational KPI Bento Cards */}
           <div data-tour="kpi-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Card 1: Vacant Inventory & Occupancy */}
@@ -679,17 +647,26 @@ export default function PropertyOverviewPage({
               </div>
 
               {/* Recent Activity Audit Timeline Feed */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                  <div>
-                    <h3 className="font-serif font-bold text-xl text-gray-900">
-                      Recent Property Activity
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">Live updates of rent payments & check-ins</p>
-                  </div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
-                    LATEST UPDATES
-                  </span>
+              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
+                  <h3 className="font-serif font-bold text-lg sm:text-xl text-gray-900">
+                    Recent Property Activity
+                  </h3>
+                  {recentActivities.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsActivityExpanded(!isActivityExpanded)}
+                      className="lg:hidden p-1.5 rounded-xl hover:bg-orange-50 text-gray-500 hover:text-[#c2652a] transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title={isActivityExpanded ? "Collapse" : "Expand"}
+                    >
+                      <span>{isActivityExpanded ? "Collapse" : "Expand"}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isActivityExpanded ? "rotate-180 text-[#c2652a]" : ""
+                        }`}
+                      />
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -699,36 +676,56 @@ export default function PropertyOverviewPage({
                       <p>Onboard your first resident or configure property setup to get started.</p>
                     </div>
                   ) : (
-                    recentActivities.map((act) => (
-                      <div key={act.id} className="flex items-start gap-4 p-3.5 rounded-2xl bg-gray-50 border border-gray-200/70 hover:border-[#c2652a]/40 hover:bg-white transition-all">
-                        <div className={`p-2.5 rounded-xl border ${act.color} shrink-0 mt-0.5`}>
-                          {act.type === "PAYMENT" && <Wallet className="w-4 h-4" />}
-                          {act.type === "ONBOARDING" && <UserPlus className="w-4 h-4" />}
-                          {act.type === "COMPLAINT" && <Wrench className="w-4 h-4" />}
-                          {act.type === "NOTICE" && <Clock className="w-4 h-4" />}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="font-bold text-xs text-gray-900">{act.title}</p>
-                            <span className="text-[10px] text-gray-400 font-mono">{act.time}</span>
+                    recentActivities.map((act, idx) => {
+                      const isHiddenOnMobile = idx >= 2 && !isActivityExpanded;
+                      return (
+                        <div
+                          key={act.id}
+                          className={`items-start gap-3.5 sm:gap-4 p-3 sm:p-3.5 rounded-2xl bg-gray-50 border border-gray-200/70 hover:border-[#c2652a]/40 hover:bg-white transition-all ${
+                            isHiddenOnMobile ? "hidden lg:flex" : "flex"
+                          }`}
+                        >
+                          <div className={`p-2 sm:p-2.5 rounded-xl border ${act.color} shrink-0 mt-0.5`}>
+                            {act.type === "PAYMENT" && <Wallet className="w-4 h-4" />}
+                            {act.type === "ONBOARDING" && <UserPlus className="w-4 h-4" />}
+                            {act.type === "COMPLAINT" && <Wrench className="w-4 h-4" />}
+                            {act.type === "NOTICE" && <Clock className="w-4 h-4" />}
                           </div>
-                          <p className="text-xs text-gray-600 mt-0.5 leading-snug">{act.subtitle}</p>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <p className="font-bold text-xs text-gray-900">{act.title}</p>
+                              <span className="text-[10px] text-gray-400 font-mono">{act.time}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-0.5 leading-snug">{act.subtitle}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-gray-100">
-                  <Link
-                    href={`/p/${propertyId}/tenants`}
-                    className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1"
-                  >
-                    <span>View Full Resident Directory & Log</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
-                </div>
+                {/* Mobile Expand / Collapse View Button */}
+                {recentActivities.length > 2 && (
+                  <div className="pt-1 lg:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setIsActivityExpanded(!isActivityExpanded)}
+                      className="w-full py-2 px-3 rounded-xl bg-orange-50/80 hover:bg-orange-100/80 text-[#c2652a] font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-98"
+                    >
+                      <span>
+                        {isActivityExpanded
+                          ? "Show Less"
+                          : `View More (${recentActivities.length - 2} more)`}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isActivityExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
