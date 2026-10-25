@@ -56,21 +56,13 @@ import {
 
 
 const STATUS_OPTIONS: Array<{
-  key: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "REJECTED";
+  key: "IN_PROGRESS" | "RESOLVED" | "REJECTED";
   label: string;
   emoji: string;
   selectedStyle: string;
   radioBorder: string;
   radioDot: string;
 }> = [
-  {
-    key: "OPEN",
-    label: "OPEN / NEW (Awaiting Action)",
-    emoji: "🔴",
-    selectedStyle: "border-red-500 bg-red-50 text-red-900",
-    radioBorder: "border-red-500 bg-red-50",
-    radioDot: "bg-red-500",
-  },
   {
     key: "IN_PROGRESS",
     label: "IN PROGRESS (Under Servicing / Caretaker Dispatched)",
@@ -143,7 +135,8 @@ export default function AdminComplaintsPage({
 
   const handleOpenStatusModal = (c: Complaint, forceStatus?: Complaint["status"]) => {
     setStatusModalTicket(c);
-    setSelectedStatus(forceStatus || c.status);
+    const defaultStatus = forceStatus || (c.status === "OPEN" ? "IN_PROGRESS" : c.status);
+    setSelectedStatus(defaultStatus);
     setStatusNotes(c.resolutionNotes || "");
     setSendViaWhatsApp(true);
     setSendViaEmail(true);
