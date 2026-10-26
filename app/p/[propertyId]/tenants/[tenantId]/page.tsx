@@ -2673,11 +2673,12 @@ export default function IndividualTenantProfilePage({
                 const initialDeposit = audit?.initialDeposit ?? (occupantState.securityDeposit !== undefined ? occupantState.securityDeposit : (occupantState.rentAmount * 2));
                 
                 // Deductions
+                const unpaidDeposit = audit?.unpaidDepositDeduction ?? 0;
                 const unpaidRent = audit?.unpaidRentDeduction ?? (occupantState.arrearsBalance && occupantState.arrearsBalance > 0 ? occupantState.arrearsBalance : 0);
                 const repairs = audit?.repairDeduction ?? 0;
                 const maintenance = audit?.maintenanceDeduction ?? 0;
                 const otherDeductions = audit?.otherDeductions ?? 0;
-                const totalDeductions = audit?.totalDeductions ?? (unpaidRent + repairs + maintenance + otherDeductions);
+                const totalDeductions = audit?.totalDeductions ?? (unpaidDeposit + unpaidRent + repairs + maintenance + otherDeductions);
                 const netRefunded = audit?.netRefunded ?? Math.max(0, initialDeposit - totalDeductions);
                 
                 const status = audit?.status ?? (totalDeductions === 0 ? "FULL_REFUND" : netRefunded > 0 ? "PARTIAL_REFUND" : "NO_REFUND");
@@ -2732,6 +2733,13 @@ export default function IndividualTenantProfilePage({
                             <span>Deductions & Adjustments Breakdown</span>
                             <span className="font-mono text-rose-700 font-extrabold">-₹{totalDeductions.toLocaleString("en-IN")}</span>
                           </div>
+
+                          {unpaidDeposit > 0 && (
+                            <div className="flex justify-between items-center text-rose-900 pl-1.5 border-l-2 border-rose-400">
+                              <span className="font-sans font-medium text-[11px]">(-) Unpaid Security Deposit:</span>
+                              <span className="font-bold">-₹{unpaidDeposit.toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
 
                           {unpaidRent > 0 && (
                             <div className="flex justify-between items-center text-rose-900 pl-1.5 border-l-2 border-rose-400">

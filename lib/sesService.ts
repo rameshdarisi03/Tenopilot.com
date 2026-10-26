@@ -38,6 +38,7 @@ export interface SESSendParams {
     rentAmount?: number | string;
     depositAmount?: number | string;
     initialDeposit?: number | string;
+    unpaidDeposit?: number | string;
     unpaidRent?: number | string;
     repairs?: number | string;
     maintenance?: number | string;
@@ -1122,6 +1123,7 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
         settlementDetails: isSettlement
           ? {
               initialDeposit: Number(p.initialDeposit || p.amount || 0),
+              unpaidDeposit: Number(p.unpaidDeposit || 0),
               unpaidRent: Number(p.unpaidRent || 0),
               repairs: Number(p.repairs || 0),
               maintenance: Number(p.maintenance || 0),

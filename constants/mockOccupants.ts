@@ -24,12 +24,14 @@ export interface PaymentHistoryItem {
 export interface CheckoutSettlementAudit {
   settledDate: string;
   initialDeposit: number;
+  unpaidDepositDeduction?: number;
   unpaidRentDeduction?: number;
   repairDeduction?: number;
   maintenanceDeduction?: number;
   otherDeductions?: number;
   totalDeductions: number;
   netRefunded: number;
+  netDeficitCollected?: number;
   status: "FULL_REFUND" | "PARTIAL_REFUND" | "NO_REFUND";
   paymentChannel?: string;
   notes?: string;

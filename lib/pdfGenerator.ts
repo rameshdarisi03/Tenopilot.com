@@ -21,6 +21,7 @@ export interface ReceiptPdfData {
   parkingAmount?: number;
   settlementDetails?: {
     initialDeposit?: number;
+    unpaidDeposit?: number;
     unpaidRent?: number;
     repairs?: number;
     maintenance?: number;
@@ -577,10 +578,11 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
   if (data.isSettlement) {
     const s = data.settlementDetails || {};
     const initDeposit = s.initialDeposit ?? Number(data.amount || 0);
+    const unpaidDeposit = s.unpaidDeposit || 0;
     const unpaidRent = s.unpaidRent || 0;
     const repairs = s.repairs || 0;
     const maintenance = s.maintenance || 0;
-    const totalDeductions = s.totalDeductions ?? (unpaidRent + repairs + maintenance);
+    const totalDeductions = s.totalDeductions ?? (unpaidDeposit + unpaidRent + repairs + maintenance);
     const isDeficit = totalDeductions > initDeposit;
     const netDeficit = s.netDeficit ?? (isDeficit ? totalDeductions - initDeposit : 0);
     const netRefunded = s.netRefunded ?? (isDeficit ? 0 : Math.max(0, initDeposit - totalDeductions));
@@ -622,6 +624,7 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     const r2Y = r1Y - 48;
     if (totalDeductions > 0) {
       const parts = [];
+      if (unpaidDeposit > 0) parts.push(`Unpaid Deposit: INR ${unpaidDeposit.toLocaleString("en-IN")}`);
       if (unpaidRent > 0) parts.push(`Unpaid Rent: INR ${unpaidRent.toLocaleString("en-IN")}`);
       if (repairs > 0) parts.push(`Repairs: INR ${repairs.toLocaleString("en-IN")}`);
       if (maintenance > 0) parts.push(`Maintenance: INR ${maintenance.toLocaleString("en-IN")}`);

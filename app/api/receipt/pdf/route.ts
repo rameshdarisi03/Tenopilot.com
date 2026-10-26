@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       settlementDetails: isSettlement
         ? {
             initialDeposit: searchParams.get("initialDeposit") ? Number(searchParams.get("initialDeposit")) : amount,
+            unpaidDeposit: searchParams.get("unpaidDeposit") ? Number(searchParams.get("unpaidDeposit")) : 0,
             unpaidRent: searchParams.get("unpaidRent") ? Number(searchParams.get("unpaidRent")) : 0,
             repairs: searchParams.get("repairs") ? Number(searchParams.get("repairs")) : 0,
             maintenance: searchParams.get("maintenance") ? Number(searchParams.get("maintenance")) : 0,
