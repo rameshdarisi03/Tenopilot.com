@@ -2726,9 +2726,9 @@ export default function FinancialHubPage({
 
                   {/* MOBILE REDESIGNED OPERATIONAL EXPENSES LEDGER (STITCH-DESIGNED CARD FEED + SMOOTH PILL FILTER) */}
                   <div className="block md:hidden bg-white rounded-3xl border border-gray-200 p-4 sm:p-5 shadow-xs space-y-4">
-                    {/* Mobile Header: Title on single line, followed by clean action buttons on second line */}
-                    <div className="pb-3 border-b border-gray-100 space-y-2.5">
-                      <h3 className="font-serif font-bold text-lg text-gray-900">
+                    {/* Mobile Header: Title on single line, followed by clean sleek slim action buttons */}
+                    <div className="pb-2.5 border-b border-gray-100 space-y-2">
+                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900 leading-tight">
                         Expenses Ledger
                       </h3>
 
@@ -2736,16 +2736,18 @@ export default function FinancialHubPage({
                         <button
                           type="button"
                           onClick={() => setShowRecordDrawer(true)}
-                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                          className="w-full h-8 py-1 px-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98 whitespace-nowrap"
                         >
-                          <Plus className="w-3.5 h-3.5" /> Record Expense
+                          <Plus className="w-3.5 h-3.5 shrink-0" />
+                          <span>Record Expense</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
-                          className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                          className="w-full h-8 py-1 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98 whitespace-nowrap"
                         >
-                          <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
+                          <Download className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                          <span>Export CSV</span>
                         </button>
                       </div>
                     </div>
