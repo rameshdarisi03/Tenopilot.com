@@ -2726,29 +2726,24 @@ export default function FinancialHubPage({
 
                   {/* MOBILE REDESIGNED OPERATIONAL EXPENSES LEDGER (STITCH-DESIGNED CARD FEED + SMOOTH PILL FILTER) */}
                   <div className="block md:hidden bg-white rounded-3xl border border-gray-200 p-4 sm:p-5 shadow-xs space-y-4">
-                    {/* Mobile Header: Title & Export Button */}
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                      <div>
-                        <h3 className="font-serif font-bold text-lg text-gray-900">
-                          Expenses Ledger
-                        </h3>
-                        <p className="text-[11px] text-gray-500">
-                          {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded transactions
-                        </p>
-                      </div>
+                    {/* Mobile Header: Title on single line, followed by clean action buttons on second line */}
+                    <div className="pb-3 border-b border-gray-100 space-y-2.5">
+                      <h3 className="font-serif font-bold text-lg text-gray-900">
+                        Expenses Ledger
+                      </h3>
 
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => setShowRecordDrawer(true)}
-                          className="px-2.5 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-98"
+                          className="w-full py-2.5 px-3 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
                         >
                           <Plus className="w-3.5 h-3.5" /> Record Expense
                         </button>
                         <button
                           type="button"
                           onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                          className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
                         >
                           <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
                         </button>
