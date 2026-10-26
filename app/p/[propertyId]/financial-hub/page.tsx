@@ -281,6 +281,7 @@ export default function FinancialHubPage({
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
   const [hoveredPieCategory, setHoveredPieCategory] = useState<string | null>(null);
+  const [hoveredRevenueStream, setHoveredRevenueStream] = useState<string | null>(null);
 
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
@@ -1187,307 +1188,610 @@ export default function FinancialHubPage({
             </div>
           </div>
 
-          {/* TAB 1: REVENUES WORKSPACE */}
-          {activeTab === "Revenues" && (
-            <div className="space-y-8 animate-in fade-in">
-              {/* 1. Top 4 Revenue KPI Metrics Bento Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {/* KPI 1: Gross Monthly Revenue */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      GROSS REVENUE ({activeDateBounds.label.toUpperCase()})
-                    </span>
-                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
-                      <TrendingUp className="w-4 h-4" />
+          {/* TAB 1: REVENUES WORKSPACE (REVAMPED INDUSTRY STANDARD) */}
+          {activeTab === "Revenues" && (() => {
+            // 1. Calculate Pie Slices for Revenue Breakdown
+            const CIRCUMFERENCE = 2 * Math.PI * 38; // ~238.761
+            let accumulatedRevenueOffset = 0;
+
+            const validStreams = [
+              {
+                category: "Room Rent Collection",
+                shortName: "Rent",
+                amount: revenueMetrics.rentStream,
+                color: "#c2652a",
+                icon: "🏠",
+                badgeColor: "bg-orange-50 text-[#c2652a] border-orange-200",
+              },
+              {
+                category: "Security Deposit Collateral",
+                shortName: "Deposit",
+                amount: revenueMetrics.depositStream,
+                color: "#059669",
+                icon: "🔐",
+                badgeColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
+              },
+              {
+                category: "Maintenance & Utilities",
+                shortName: "Maintenance",
+                amount: revenueMetrics.maintenanceStream,
+                color: "#2563eb",
+                icon: "🧹",
+                badgeColor: "bg-blue-50 text-blue-800 border-blue-200",
+              },
+              {
+                category: "Penalties & Damages",
+                shortName: "Penalties",
+                amount: revenueMetrics.penaltyDamageStream,
+                color: "#9333ea",
+                icon: "⚖️",
+                badgeColor: "bg-purple-50 text-purple-800 border-purple-200",
+              },
+            ].filter((s) => s.amount > 0);
+
+            const totalStreamSum = validStreams.reduce((acc, s) => acc + s.amount, 0) || revenueMetrics.totalGrossRevenue || 1;
+
+            const revenueSlices = validStreams.map((stream) => {
+              const fraction = totalStreamSum > 0 ? stream.amount / totalStreamSum : 0;
+              const arcLength = fraction * CIRCUMFERENCE;
+              const hasMultiple = validStreams.length > 1;
+              const gap = hasMultiple ? 1.5 : 0;
+              const strokeDash = Math.max(0, arcLength - gap);
+              const strokeGap = CIRCUMFERENCE - strokeDash;
+              const offset = -accumulatedRevenueOffset;
+              accumulatedRevenueOffset += arcLength;
+              const percentage = Math.round(fraction * 100);
+
+              return {
+                ...stream,
+                percentage,
+                strokeDash,
+                strokeGap,
+                offset,
+              };
+            });
+
+            const activeRevenueSlice = hoveredRevenueStream
+              ? revenueSlices.find((s) => s.category.toLowerCase() === hoveredRevenueStream.toLowerCase())
+              : null;
+
+            // 2. Strict Realized Inflow Log: ONLY occupants/receipts who ACTUALLY paid (totalPaid > 0)
+            interface PaidRevenueItem {
+              id: string;
+              date: string;
+              occupantName: string;
+              roomNumber: string;
+              bedCode: string;
+              category: string;
+              paymentMode: string;
+              paidTo: string;
+              amount: number;
+              receiptNo: string;
+              stayType?: string;
+            }
+
+            const verifiedPaidItems: PaidRevenueItem[] = [];
+
+            revenueMetrics.occupants.forEach((occ) => {
+              const history = occ.paymentHistory || [];
+              if (history.length > 0) {
+                history.forEach((pm, idx) => {
+                  if (pm.amount > 0) {
+                    verifiedPaidItems.push({
+                      id: `${occ.id}-pay-${idx}-${pm.receiptNo || pm.date}`,
+                      date: pm.date || occ.joiningDate || "Active Cycle",
+                      occupantName: occ.name,
+                      roomNumber: occ.roomNumber,
+                      bedCode: occ.bedCode,
+                      category: (pm.month || "").toLowerCase().includes("deposit") || (pm.receiptNo || "").toLowerCase().includes("dep")
+                        ? "Security Deposit"
+                        : occ.stayType === "Guest"
+                        ? "Guest Stay Fee"
+                        : "Monthly Rent",
+                      paymentMode: pm.mode || "UPI",
+                      paidTo: pm.paidTo || "Main Business Account",
+                      amount: pm.amount,
+                      receiptNo: pm.receiptNo || `REC-${idx + 101}`,
+                      stayType: occ.stayType,
+                    });
+                  }
+                });
+              } else {
+                const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
+                if (stmt.totalPaid > 0) {
+                  verifiedPaidItems.push({
+                    id: `${occ.id}-stmt-paid`,
+                    date: occ.lastPaidDate || occ.joiningDate || "Active Cycle",
+                    occupantName: occ.name,
+                    roomNumber: occ.roomNumber,
+                    bedCode: occ.bedCode,
+                    category: occ.stayType === "Guest" ? "Guest Stay Fee" : "Monthly Rent",
+                    paymentMode: "UPI (GPay)",
+                    paidTo: "Main Business Account",
+                    amount: stmt.totalPaid,
+                    receiptNo: "REC-SSOT",
+                    stayType: occ.stayType,
+                  });
+                }
+              }
+            });
+
+            const complianceLogs = complianceLogStore.getLogs(propertyId);
+            complianceLogs.forEach((log) => {
+              if (log.penaltyPaid && log.penaltyPaid > 0) {
+                verifiedPaidItems.push({
+                  id: `compl-${log.id}-penalty`,
+                  date: log.checkOutDate || (log.timestamp ? new Date(log.timestamp).toISOString().slice(0, 10) : "Checkout"),
+                  occupantName: log.name || "Checkout Tenant",
+                  roomNumber: log.roomNumber || "—",
+                  bedCode: log.bedCode || "—",
+                  category: "Penalty / Damages",
+                  paymentMode: "Deduction / Cash",
+                  paidTo: "Property Account",
+                  amount: log.penaltyPaid,
+                  receiptNo: `PEN-${log.id.slice(0, 6)}`,
+                });
+              }
+              if (log.maintenancePaid && log.maintenancePaid > 0) {
+                verifiedPaidItems.push({
+                  id: `compl-${log.id}-maint`,
+                  date: log.checkOutDate || (log.timestamp ? new Date(log.timestamp).toISOString().slice(0, 10) : "Checkout"),
+                  occupantName: log.name || "Resident",
+                  roomNumber: log.roomNumber || "—",
+                  bedCode: log.bedCode || "—",
+                  category: "Maintenance Charge",
+                  paymentMode: "Online / Cash",
+                  paidTo: "Property Account",
+                  amount: log.maintenancePaid,
+                  receiptNo: `MNT-${log.id.slice(0, 6)}`,
+                });
+              }
+            });
+
+            // Sort by date descending
+            verifiedPaidItems.sort((a, b) => (b.date > a.date ? 1 : -1));
+
+            return (
+              <div className="space-y-6 md:space-y-8 animate-in fade-in">
+                {/* 1. Top 4 Revenue KPI Metrics Bento Grid (2x2 on Mobile, 4x1 on Desktop) */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+                  {/* KPI 1: Gross Monthly Revenue */}
+                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
+                        GROSS REVENUE ({activeDateBounds.label.toUpperCase()})
+                      </span>
+                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
+                        <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
+                    </div>
+                    <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
+                      ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
+                    </h2>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                      <span className="bg-emerald-100 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold truncate">
+                        LIVE REAL-TIME SSOT 🟢
+                      </span>
                     </div>
                   </div>
-                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                    ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
-                  </h2>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
-                    <span className="bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">
-                      LIVE REAL-TIME SSOT 🟢
+
+                  {/* KPI 2: Rent Collection Efficiency Rate */}
+                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
+                        COLLECTION EFFICIENCY
+                      </span>
+                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-50 text-blue-700 shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
+                    </div>
+                    <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
+                      {revenueMetrics.collectionEfficiency}%
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate">
+                      ₹{(revenueMetrics.rentStream / 100000).toFixed(2)}L of ₹{((revenueMetrics.rentStream + revenueMetrics.totalUncollectedArrears) / 100000).toFixed(2)}L
+                    </p>
+                  </div>
+
+                  {/* KPI 3: Average Revenue Per Bed (ARPB) */}
+                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
+                        AVERAGE YIELD (ARPB)
+                      </span>
+                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                        <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
+                    </div>
+                    <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-gray-900 tracking-tight truncate">
+                      ₹{revenueMetrics.arpb.toLocaleString("en-IN")}
+                    </h2>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate">
+                      Per active occupant
+                    </p>
+                  </div>
+
+                  {/* KPI 4: Pending Uncollected Rent Arrears */}
+                  <div className="bg-white border border-gray-200 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xs space-y-2 sm:space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 truncate">
+                        UNCOLLECTED ARREARS
+                      </span>
+                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-amber-50 text-amber-700 shrink-0">
+                        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
+                    </div>
+                    <h2 className="font-sans font-bold text-xl sm:text-2xl lg:text-3xl text-amber-900 tracking-tight truncate">
+                      ₹{revenueMetrics.totalUncollectedArrears.toLocaleString("en-IN")}
+                    </h2>
+                    <span className="inline-block bg-amber-100 text-amber-900 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full truncate">
+                      {revenueMetrics.occupants.filter((o) => calculateOccupantFinancialStatement(o, propertySettings).netOutstandingBalance > 0).length} Unpaid Occupants
                     </span>
                   </div>
                 </div>
 
-                {/* KPI 2: Rent Collection Efficiency Rate */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      COLLECTION EFFICIENCY
-                    </span>
-                    <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                    {revenueMetrics.collectionEfficiency}%
-                  </h2>
-                  <p className="text-[11px] text-gray-500 font-medium">
-                    ₹{(revenueMetrics.rentStream / 100000).toFixed(2)}L collected of ₹{((revenueMetrics.rentStream + revenueMetrics.totalUncollectedArrears) / 100000).toFixed(2)}L total due
-                  </p>
-                </div>
-
-                {/* KPI 3: Average Revenue Per Bed (ARPB) */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-[#c2652a] transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      AVERAGE YIELD PER BED (ARPB)
-                    </span>
-                    <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a]">
-                      <Zap className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h2 className="font-sans font-bold text-3xl text-gray-900 tracking-tight">
-                    ₹{revenueMetrics.arpb.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-[11px] text-gray-500 font-medium">
-                    Monthly yield per active physical occupant
-                  </p>
-                </div>
-
-                {/* KPI 4: Pending Uncollected Rent Arrears */}
-                <div className="bg-white border border-gray-200 p-6 rounded-3xl shadow-xs space-y-3 relative overflow-hidden group hover:border-amber-400 transition-all">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      UNCOLLECTED ARREARS
-                    </span>
-                    <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <h2 className="font-sans font-bold text-3xl text-amber-900 tracking-tight">
-                    ₹{revenueMetrics.totalUncollectedArrears.toLocaleString("en-IN")}
-                  </h2>
-                  <span className="inline-block bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {revenueMetrics.occupants.filter((o) => calculateOccupantFinancialStatement(o, propertySettings).netOutstandingBalance > 0).length} Unpaid Occupants
-                  </span>
-                </div>
-              </div>
-
-              {/* 2. Multi-Stream Income Breakdown & Payment Channels */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Multi-Stream Income Sources Breakdown */}
-                <div className="lg:col-span-7 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                      <h3 className="font-serif font-bold text-lg text-gray-900">
-                        Revenue Stream Breakdown
-                      </h3>
-                      <p className="text-xs text-gray-500">Categorized income distribution across estate services</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                      REAL-TIME STREAM
-                    </span>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Stream 1: Room Rent */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-gray-800 flex items-center gap-2">
-                          🏠 Monthly Room Rent Collection
-                        </span>
-                        <span className="text-[#c2652a] font-mono tabular-nums">
-                          ₹{revenueMetrics.rentStream.toLocaleString("en-IN")} ({revenueMetrics.rentPct}%)
-                        </span>
+                {/* 2. Industry Standard Revenue Breakdown Pie Chart & Payment Channels */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left (7 cols): Revenue Stream Breakdown Donut Chart */}
+                  <div className="lg:col-span-7 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div>
+                        <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                          Revenue Stream Breakdown
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                          Categorized income distribution across estate services
+                        </p>
                       </div>
-                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#c2652a] rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.rentPct)}%` }}></div>
-                      </div>
+                      <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200 uppercase">
+                        DYNAMIC PIE
+                      </span>
                     </div>
 
-                    {/* Stream 2: Security Deposits */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-gray-800 flex items-center gap-2">
-                          🔐 Security Deposit Collateral Intake
-                        </span>
-                        <span className="text-emerald-700 font-mono tabular-nums">
-                          ₹{revenueMetrics.depositStream.toLocaleString("en-IN")} ({revenueMetrics.depositPct}%)
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.depositPct)}%` }}></div>
-                      </div>
-                    </div>
-
-                    {/* Stream 3: Maintenance Charges */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-gray-800 flex items-center gap-2">
-                          🧹 Maintenance & Utility Charges
-                        </span>
-                        <span className="text-blue-700 font-mono tabular-nums">
-                          ₹{revenueMetrics.maintenanceStream.toLocaleString("en-IN")} ({revenueMetrics.maintenancePct}%)
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.maintenancePct)}%` }}></div>
-                      </div>
-                    </div>
-
-                    {/* Stream 4: Cancellations, Penalties & Damages */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-gray-800 flex items-center gap-2">
-                          ⚖️ Cancellations, Penalties & Damages
-                        </span>
-                        <span className="text-purple-700 font-mono tabular-nums">
-                          ₹{revenueMetrics.penaltyDamageStream.toLocaleString("en-IN")} ({revenueMetrics.penaltyDamagePct}%)
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, revenueMetrics.penaltyDamagePct)}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Payment Channels Distribution */}
-                <div className="lg:col-span-5 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                  <div className="border-b border-gray-100 pb-3">
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Payment Channels Analytics
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">Method distribution of collected payments</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-orange-50/60 border border-orange-200/60 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs">
-                          UPI
+                    {revenueSlices.length === 0 ? (
+                      <div className="py-12 text-center text-gray-400 space-y-2">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                          <TrendingUp className="w-6 h-6" />
                         </div>
-                        <div>
-                          <h4 className="font-bold text-xs text-gray-900">Online payments (UPI)</h4>
-                          <span className="text-[10px] text-gray-500 font-medium">Instant VPA Collection</span>
-                        </div>
+                        <p className="text-xs font-medium">No verified revenue logged yet for this period</p>
                       </div>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-sm text-[#c2652a] block">₹{revenueMetrics.onlineTotal.toLocaleString("en-IN")}</span>
-                        <span className="text-[10px] font-bold text-orange-700">{revenueMetrics.upiPct}% of Total</span>
-                      </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Centered Donut Chart on Top */}
+                        <div className="flex justify-center py-2">
+                          <div className="relative w-48 h-48 sm:w-52 sm:h-52">
+                            <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                              <circle
+                                cx="50"
+                                cy="50"
+                                r="38"
+                                stroke="#f3f4f6"
+                                strokeWidth="12"
+                                fill="transparent"
+                              />
+                              {revenueSlices.map((slice) => {
+                                const isHovered = hoveredRevenueStream === slice.category;
+                                return (
+                                  <circle
+                                    key={slice.category}
+                                    cx="50"
+                                    cy="50"
+                                    r="38"
+                                    stroke={slice.color}
+                                    strokeWidth={isHovered ? 16 : 12}
+                                    strokeDasharray={`${slice.strokeDash} ${slice.strokeGap}`}
+                                    strokeDashoffset={slice.offset}
+                                    fill="transparent"
+                                    className="transition-all duration-200 cursor-pointer"
+                                    onMouseEnter={() => setHoveredRevenueStream(slice.category)}
+                                    onMouseLeave={() => setHoveredRevenueStream(null)}
+                                    onClick={() => setHoveredRevenueStream(hoveredRevenueStream === slice.category ? null : slice.category)}
+                                  />
+                                );
+                              })}
+                            </svg>
 
-                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/60 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">
-                          💵
+                            {/* Central Metric Display */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
+                              {activeRevenueSlice ? (
+                                <div className="animate-in fade-in zoom-in-95 duration-150">
+                                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[120px]">
+                                    {activeRevenueSlice.category}
+                                  </span>
+                                  <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
+                                    ₹{activeRevenueSlice.amount.toLocaleString("en-IN")}
+                                  </span>
+                                  <span
+                                    className="text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block mt-0.5"
+                                    style={{ backgroundColor: `${activeRevenueSlice.color}20`, color: activeRevenueSlice.color }}
+                                  >
+                                    {activeRevenueSlice.percentage}% of total
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">
+                                    TOTAL INFLOW
+                                  </span>
+                                  <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
+                                    ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-emerald-600 block mt-0.5">
+                                    REAL-TIME SSOT 🟢
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-bold text-xs text-gray-900">Cash Desk</h4>
-                          <span className="text-[10px] text-gray-500 font-medium font-medium">Front Desk Reception</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-mono font-bold text-sm text-emerald-700 block">₹{revenueMetrics.cashAmount.toLocaleString("en-IN")}</span>
-                        <span className="text-[10px] font-bold text-emerald-700">{revenueMetrics.cashPct}% of Total</span>
-                      </div>
-                    </div>
 
-                    {/* 🏦 Collections by Deposited Account / Partner */}
-                    {Object.keys(revenueMetrics.accountCollections || {}).length > 0 && (
-                      <div className="pt-3 border-t border-gray-100 space-y-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                          Collections by Deposited Account / Partner
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {Object.entries(revenueMetrics.accountCollections).map(([accName, accAmt]) => (
-                            <span
-                              key={accName}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-800"
-                            >
-                              <span className="text-gray-500 text-[11px]">{accName}:</span>
-                              <span className="font-mono font-bold text-gray-900">₹{accAmt.toLocaleString("en-IN")}</span>
-                            </span>
-                          ))}
+                        {/* Revenue Streams Shown Below the Chart */}
+                        <div className="space-y-2 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold px-1 uppercase tracking-wider">
+                            <span>Revenue Streams by Category</span>
+                            <span>Ratio & Realized Amount</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {revenueSlices.map((slice) => {
+                              const isHovered = hoveredRevenueStream === slice.category;
+                              return (
+                                <div
+                                  key={slice.category}
+                                  onClick={() => setHoveredRevenueStream(hoveredRevenueStream === slice.category ? null : slice.category)}
+                                  onMouseEnter={() => setHoveredRevenueStream(slice.category)}
+                                  onMouseLeave={() => setHoveredRevenueStream(null)}
+                                  className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                                    isHovered
+                                      ? "bg-white border-gray-300 ring-2 ring-[#c2652a]/20 shadow-xs scale-[1.01]"
+                                      : "bg-[#fcfaf9] border-gray-200/70 hover:bg-white hover:border-gray-300"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div
+                                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 shadow-2xs text-xs"
+                                      style={{ backgroundColor: slice.color }}
+                                    >
+                                      {slice.icon}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`}>
+                                        {slice.category}
+                                      </h4>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span
+                                          className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full"
+                                          style={{ backgroundColor: `${slice.color}20`, color: slice.color }}
+                                        >
+                                          {slice.percentage}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <span className="font-mono font-bold text-xs text-gray-900 block tabular-nums">
+                                      ₹{slice.amount.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
 
-              {/* 3. Live Recent Revenue Transaction Log */}
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Recent Income & Revenue Log
-                    </h3>
-                    <p className="text-xs text-gray-500">Verified receipts and incoming payments for {propertySettings.propertyName || (propertyId === "sunshine-pg" ? "Sunshine Heights PG" : "My Property")}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> LIVE REVENUE STREAM
-                    </span>
-                  </div>
-                </div>
+                  {/* Right (5 cols): Payment Channels Distribution */}
+                  <div className="lg:col-span-5 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                    <div className="border-b border-gray-100 pb-3">
+                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                        Payment Channels Analytics
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                        Method distribution of collected payments
+                      </p>
+                    </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
-                        <th className="py-3 px-4 rounded-l-xl">Date & Time</th>
-                        <th className="py-3 px-4">Resident / Source</th>
-                        <th className="py-3 px-4">Room Location</th>
-                        <th className="py-3 px-4">Income Category</th>
-                        <th className="py-3 px-4">Payment Channel</th>
-                        <th className="py-3 px-4 text-right">Amount Billed</th>
-                        <th className="py-3 px-4 rounded-r-xl text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-medium">
-                      {revenueMetrics.occupants.slice(0, 8).map((occ) => {
-                        const stmt = calculateOccupantFinancialStatement(occ, propertySettings);
-                        const lastPayment = occ.paymentHistory && occ.paymentHistory.length > 0
-                          ? occ.paymentHistory[occ.paymentHistory.length - 1]
-                          : null;
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-2xl bg-orange-50/60 border border-orange-200/60 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs">
+                            UPI
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-xs text-gray-900">Online payments (UPI)</h4>
+                            <span className="text-[10px] text-gray-500 font-medium">Instant VPA Collection</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono font-bold text-sm text-[#c2652a] block">
+                            ₹{revenueMetrics.onlineTotal.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] font-bold text-orange-700">
+                            {revenueMetrics.upiPct}% of Total
+                          </span>
+                        </div>
+                      </div>
 
-                        return (
-                          <tr key={occ.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="py-3.5 px-4 text-gray-500 font-mono">
-                              {lastPayment?.date || occ.joiningDate || "Active Cycle"}
-                            </td>
-                            <td className="py-3.5 px-4 font-bold text-gray-900">{occ.name}</td>
-                            <td className="py-3.5 px-4 text-gray-600">
-                              Room {occ.roomNumber} ({occ.bedCode})
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className="bg-orange-50 text-[#c2652a] text-[10px] font-bold px-2.5 py-1 rounded-full border border-orange-200">
-                                {occ.stayType === "Guest" ? "Guest Stay Fee" : "Monthly Rent"}
+                      <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/60 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">
+                            💵
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-xs text-gray-900">Cash Desk</h4>
+                            <span className="text-[10px] text-gray-500 font-medium">Front Desk Reception</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono font-bold text-sm text-emerald-700 block">
+                            ₹{revenueMetrics.cashAmount.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700">
+                            {revenueMetrics.cashPct}% of Total
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 🏦 Collections by Deposited Account / Partner */}
+                      {Object.keys(revenueMetrics.accountCollections || {}).length > 0 && (
+                        <div className="pt-3 border-t border-gray-100 space-y-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                            Collections by Deposited Account / Partner
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(revenueMetrics.accountCollections).map(([accName, accAmt]) => (
+                              <span
+                                key={accName}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-800"
+                              >
+                                <span className="text-gray-500 text-[11px]">{accName}:</span>
+                                <span className="font-mono font-bold text-gray-900">₹{accAmt.toLocaleString("en-IN")}</span>
                               </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-gray-600">
-                              <div className="font-semibold text-gray-900">{lastPayment?.mode || "UPI"}</div>
-                              <div className="text-[10px] text-gray-400 font-medium">
-                                To: {lastPayment?.paidTo || "Business Account"}
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Verified Realized Revenue Log (Excluding Unpaid / ₹0 occupants) */}
+                <div className="bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 md:p-8 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                        Recent Income & Revenue Log
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                        Verified receipts and realized incoming payments for {propertySettings.propertyName || "My Property"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {verifiedPaidItems.length} VERIFIED RECEIPTS
+                      </span>
+                    </div>
+                  </div>
+
+                  {verifiedPaidItems.length === 0 ? (
+                    <div className="py-12 text-center text-gray-400 space-y-2">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <p className="text-xs font-medium">No verified realized revenues recorded yet for this period</p>
+                      <p className="text-[11px] text-gray-400">Unpaid dues appear in Uncollected Arrears above</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* 📱 MOBILE VIEW: Sleek Native Card Feed (Zero Horizontal Swiping Needed!) */}
+                      <div className="space-y-3 block md:hidden">
+                        {verifiedPaidItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-3.5 rounded-2xl bg-[#fcfaf9] border border-gray-200/80 shadow-2xs space-y-2.5 transition-all hover:bg-white hover:border-gray-300"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-xs text-gray-900 truncate">
+                                  {item.occupantName}
+                                </h4>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                                    Rm {item.roomNumber} ({item.bedCode})
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                    item.category.includes("Deposit")
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : "bg-orange-50 text-[#c2652a] border-orange-200"
+                                  }`}>
+                                    {item.category}
+                                  </span>
+                                </div>
                               </div>
-                            </td>
-                            <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">
-                              ₹{stmt.totalPaid.toLocaleString("en-IN")}
-                            </td>
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                                stmt.isFullyPaid
-                                  ? "bg-emerald-100 text-emerald-900"
-                                  : "bg-amber-100 text-amber-900"
-                              }`}>
-                                {stmt.isFullyPaid ? "✓ Verified" : `Due ₹${stmt.netOutstandingBalance}`}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              <div className="text-right shrink-0">
+                                <span className="font-mono font-extrabold text-sm text-emerald-700 block leading-tight">
+                                  +₹{item.amount.toLocaleString("en-IN")}
+                                </span>
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded-full mt-1">
+                                  ✓ Verified
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 pt-2 border-t border-gray-200/60 font-medium">
+                              <span className="font-mono text-gray-400">{item.date}</span>
+                              <div className="flex items-center gap-1 text-gray-600">
+                                <span>{item.paymentMode}</span>
+                                <span className="text-gray-400">•</span>
+                                <span className="truncate max-w-[130px]">{item.paidTo}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 💻 DESKTOP & TABLET VIEW: Full Spacious Table with Zero Horizontal Squeeze */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
+                              <th className="py-3 px-4 rounded-l-xl">Date & Time</th>
+                              <th className="py-3 px-4">Resident / Source</th>
+                              <th className="py-3 px-4">Room Location</th>
+                              <th className="py-3 px-4">Income Category</th>
+                              <th className="py-3 px-4">Payment Channel</th>
+                              <th className="py-3 px-4 text-right">Amount Paid</th>
+                              <th className="py-3 px-4 rounded-r-xl text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 font-medium">
+                            {verifiedPaidItems.map((item) => (
+                              <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="py-3.5 px-4 text-gray-500 font-mono">
+                                  {item.date}
+                                </td>
+                                <td className="py-3.5 px-4 font-bold text-gray-900">
+                                  {item.occupantName}
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600">
+                                  Room {item.roomNumber} ({item.bedCode})
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                                    item.category.includes("Deposit")
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : "bg-orange-50 text-[#c2652a] border-orange-200"
+                                  }`}>
+                                    {item.category}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600">
+                                  <div className="font-semibold text-gray-900">{item.paymentMode}</div>
+                                  <div className="text-[10px] text-gray-400 font-medium">
+                                    To: {item.paidTo}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-bold text-emerald-700 font-mono text-sm">
+                                  +₹{item.amount.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900">
+                                    ✓ Verified
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 2: EXPENSES WORKSPACE (STITCH V2 SPECIFICATION) */}
           {activeTab === "Expenses" && (
