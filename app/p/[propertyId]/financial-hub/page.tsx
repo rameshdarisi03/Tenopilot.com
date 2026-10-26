@@ -1831,7 +1831,7 @@ export default function FinancialHubPage({
                   ) : (
                     <>
                       {/* 📱 MOBILE VIEW: Sleek Native Card Feed (Shows 4 receipts at a time with invisible scroll) */}
-                      <div className="space-y-3 block md:hidden max-h-[420px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5">
+                      <div className="space-y-3 block md:hidden min-h-[420px] max-h-[420px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5 [overflow-anchor:none]">
                         {verifiedPaidItems.map((item) => (
                           <div
                             key={item.id}
@@ -1878,7 +1878,7 @@ export default function FinancialHubPage({
                       </div>
 
                       {/* 💻 DESKTOP & TABLET VIEW: Full Spacious Table (Shows 4 receipts at a time with invisible scroll) */}
-                      <div className="hidden md:block max-h-[340px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                      <div className="hidden md:block min-h-[340px] max-h-[340px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [overflow-anchor:none]">
                         <table className="w-full text-left text-xs">
                           <thead>
                             <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
@@ -2343,8 +2343,8 @@ export default function FinancialHubPage({
                 );
               })()}
 
-              {/* Expenses Sub-Tab Segment Switcher + Mobile Record CTA */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              {/* Expenses Sub-Tab Segment Switcher */}
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white border border-gray-200 shadow-xs w-full sm:w-auto">
                   <button
                     type="button"
@@ -2373,15 +2373,6 @@ export default function FinancialHubPage({
                     <span className="sm:hidden">Categories ({categories.length})</span>
                   </button>
                 </div>
-
-                {/* Mobile Quick Record CTA Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowRecordDrawer(true)}
-                  className="sm:hidden w-full py-3 px-4 rounded-2xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs shadow-xs flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Record New Expense
-                </button>
               </div>
 
               {/* VIEW 1: EXPENSES LEDGER & RECURRING BILLS */}
@@ -2595,6 +2586,15 @@ export default function FinancialHubPage({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3">
+                        {/* Record Expense Button */}
+                        <button
+                          type="button"
+                          onClick={() => setShowRecordDrawer(true)}
+                          className="px-3.5 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Record Expense
+                        </button>
+
                         {/* Export CSV Button */}
                         <button
                           type="button"
@@ -2646,7 +2646,7 @@ export default function FinancialHubPage({
                     </div>
 
                     {/* Expenses Table (Shows 4 receipts at a time with invisible scroll) */}
-                    <div className="overflow-x-auto max-h-[340px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="overflow-x-auto min-h-[340px] max-h-[340px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [overflow-anchor:none]">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
@@ -2740,6 +2740,13 @@ export default function FinancialHubPage({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => setShowRecordDrawer(true)}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-98"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Record Expense
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
                           className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                         >
@@ -2807,10 +2814,10 @@ export default function FinancialHubPage({
                       </div>
                     </div>
 
-                    {/* Mobile Tactile Expense Cards Feed (Shows 4 receipts at a time with invisible scroll) */}
-                    <div className="space-y-3 pt-1 max-h-[460px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5">
+                    {/* Mobile Tactile Expense Cards Feed (Shows 4 receipts at a time with invisible scroll & zero layout jerk) */}
+                    <div className="space-y-3 pt-1 min-h-[460px] max-h-[460px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5 [overflow-anchor:none]">
                       {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length === 0 ? (
-                        <div className="py-12 px-4 text-center rounded-2xl bg-gray-50/70 border border-dashed border-gray-200 space-y-3">
+                        <div className="min-h-[420px] flex flex-col items-center justify-center py-12 px-4 text-center rounded-2xl bg-gray-50/70 border border-dashed border-gray-200 space-y-3">
                           <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#c2652a] flex items-center justify-center mx-auto shadow-2xs">
                             <ReceiptRupeeIcon className="w-6 h-6" />
                           </div>
