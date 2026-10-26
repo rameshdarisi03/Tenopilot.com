@@ -1262,26 +1262,26 @@ export default function FinancialHubPage({
 
             const validChannels = [
               {
-                channel: "Online Payments (UPI)",
+                channel: "Online Payments",
                 shortName: "UPI",
                 amount: revenueMetrics.onlineTotal || (revenueMetrics.totalGrossRevenue > 0 ? revenueMetrics.totalGrossRevenue : 0),
-                color: "#c2652a",
+                color: "#059669",
                 icon: "UPI",
-                bgClass: "bg-orange-50/60 border-orange-200/60",
-                iconBg: "bg-orange-100 text-[#c2652a]",
-                textClass: "text-[#c2652a]",
-                tagClass: "text-orange-700",
+                bgClass: "bg-emerald-50/60 border-emerald-200/60",
+                iconBg: "bg-emerald-100 text-emerald-700",
+                textClass: "text-emerald-700",
+                tagClass: "text-emerald-700",
               },
               {
                 channel: "Cash Desk",
                 shortName: "Cash",
                 amount: revenueMetrics.cashAmount || 0,
-                color: "#059669",
+                color: "#c2652a",
                 icon: "💵",
-                bgClass: "bg-emerald-50/60 border-emerald-200/60",
-                iconBg: "bg-emerald-100 text-emerald-700",
-                textClass: "text-emerald-700",
-                tagClass: "text-emerald-700",
+                bgClass: "bg-orange-50/60 border-orange-200/60",
+                iconBg: "bg-orange-100 text-[#c2652a]",
+                textClass: "text-[#c2652a]",
+                tagClass: "text-orange-700",
               },
             ];
 
