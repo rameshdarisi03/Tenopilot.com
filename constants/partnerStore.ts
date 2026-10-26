@@ -78,7 +78,7 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
   { id: "cat-7", name: "Gas Cylinders & Fuel", icon: "Fuel", color: "#0f766e" },
   { id: "cat-8", name: "Security & Housekeeping", icon: "Shield", color: "#4338ca" },
   { id: "cat-9", name: "Property Rent", icon: "Building2", color: "#0f172a" },
-  { id: "cat-10", name: "Security Deposit Refund", icon: "ShieldCheck", color: "#e11d48" },
+  { id: "cat-10", name: "Security Deposit Refund", icon: "ShieldCheck", color: "#d946ef" },
 ];
 
 export const DEFAULT_PAYMENT_ACCOUNTS: PaymentAccountConfig[] = [

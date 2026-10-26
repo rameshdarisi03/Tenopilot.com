@@ -139,6 +139,19 @@ export default function ReportsAnalyticsPage({
 
   const activeDateBounds = resolveActiveDateBounds();
 
+  // Dynamic Calendar Timeline Labels based on current real-time date
+  const timelineLabels = useMemo(() => {
+    const now = new Date();
+    const curMonth = now.toLocaleString("en-IN", { month: "short", year: "numeric" });
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonth = lastMonthDate.toLocaleString("en-IN", { month: "short", year: "numeric" });
+    const qNum = Math.floor(now.getMonth() / 3) + 1;
+    const quarter = `Q${qNum} ${now.getFullYear()}`;
+    const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fy = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
+    return { curMonth, lastMonth, quarter, fy };
+  }, []);
+
   // Reactive State Stores
   const [propertySettings, setPropertySettings] = useState(() => propertySettingsStore.getSettings(propertyId));
   const [occupants, setOccupants] = useState<Occupant[]>(() => occupantStore.getOccupants(propertyId));
@@ -609,10 +622,10 @@ export default function ReportsAnalyticsPage({
                     }}
                     className="bg-transparent text-xs font-bold text-gray-900 focus:outline-none cursor-pointer pr-2 truncate"
                   >
-                    <option value="THIS_MONTH">This Month (Aug 2026)</option>
-                    <option value="LAST_MONTH">Last Month (Jul 2026)</option>
-                    <option value="THIS_QUARTER">This Quarter (Q3 2026)</option>
-                    <option value="THIS_YEAR">Financial Year (FY 2026-27)</option>
+                    <option value="THIS_MONTH">This Month ({timelineLabels.curMonth})</option>
+                    <option value="LAST_MONTH">Last Month ({timelineLabels.lastMonth})</option>
+                    <option value="THIS_QUARTER">This Quarter ({timelineLabels.quarter})</option>
+                    <option value="THIS_YEAR">Financial Year ({timelineLabels.fy})</option>
                     <option value="ALL_TIME">All Time Records</option>
                     <option value="CUSTOM">
                       📅 {selectedTimelineFilter === "CUSTOM" ? `${customStartDate} → ${customEndDate}` : "Custom Date Range..."}
