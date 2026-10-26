@@ -2933,11 +2933,6 @@ Scroll vertically to browse all residents without pagination limits
                             <span>⚡ Combined</span>
                           </button>
                         </div>
-                        {isDepositFullyPaid && (
-                          <p className="text-[10px] text-gray-500 mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 leading-tight">
-                            💡 Security deposit of <strong className="text-gray-800">₹{stmt.totalDepositPaid.toLocaleString("en-IN")}</strong> has already been received. Deposit menu is greyed out. To collect additional deposit, increase the Security Deposit in <strong className="text-[#c2652a]">Edit Profile</strong>.
-                          </p>
-                        )}
                       </>
                     );
                   })()}

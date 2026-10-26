@@ -3299,11 +3299,6 @@ export default function IndividualTenantProfilePage({
                               <span>⚡ Combined</span>
                             </button>
                           </div>
-                          {isDepositFullyPaid && (
-                            <p className="text-[10px] text-gray-500 mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 leading-tight">
-                              💡 Security deposit of <strong className="text-gray-800">₹{stmt.totalDepositPaid.toLocaleString("en-IN")}</strong> has already been received. Deposit menu is greyed out. To collect additional deposit, increase the Security Deposit in <strong className="text-[#c2652a]">Edit Profile</strong>.
-                            </p>
-                          )}
                         </>
                       );
                     })()}
@@ -3695,16 +3690,6 @@ export default function IndividualTenantProfilePage({
                               Both ⚡
                             </button>
                           </div>
-
-                          {receiptDispatchChannel !== "NONE" && (
-                            <p className="text-[10px] text-blue-800 font-medium">
-                              {receiptDispatchChannel === "BOTH"
-                                ? `Receipt will be sent to ${occupantState.phone} (WhatsApp) & ${occupantState.email || "registered email"} (Email).`
-                                : receiptDispatchChannel === "WHATSAPP"
-                                ? `Receipt will be sent to ${occupantState.phone} via WhatsApp Cloud.`
-                                : `Receipt will be sent to ${occupantState.email || "registered email"} via Email.`}
-                            </p>
-                          )}
                         </div>
                       </div>
                     );
