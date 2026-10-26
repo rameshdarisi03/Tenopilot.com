@@ -1966,60 +1966,16 @@ export default function FinancialHubPage({
 
                 return (
                   <>
-                    {/* DESKTOP BENTO GRID: TOTAL SPENT & INDUSTRY STANDARD EXPENSE BREAKDOWN PIE */}
-                    <div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
-                      {/* Left: Total Spent Summary Card */}
-                      <div className="lg:col-span-4 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
-                            TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
-                          </span>
-                          <div className="flex items-baseline gap-3 mt-2">
-                            <h2 className="font-sans font-bold text-3xl md:text-4xl text-gray-900 tracking-tight">
-                              ₹{totalSpent.toLocaleString("en-IN")}
-                            </h2>
-                          </div>
-                          <div className="mt-3">
-                            <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5">
-                              <TrendingUp className="w-3 h-3 text-emerald-700" /> REAL-TIME FIREBASE SYNCED 🟢
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 pt-4 border-t border-gray-100">
-                          <div className="flex items-center justify-between text-xs py-1">
-                            <span className="text-gray-500 font-medium">Logged Transactions:</span>
-                            <span className="font-bold text-gray-900">{expenseList.length} Entries</span>
-                          </div>
-                          <div className="flex items-center justify-between text-xs py-1">
-                            <span className="text-gray-500 font-medium">Active Categories:</span>
-                            <span className="font-bold text-gray-900">{slices.length} Incurred</span>
-                          </div>
-                          <div className="flex items-center justify-between text-xs py-1">
-                            <span className="text-gray-500 font-medium">Top Category Ratio:</span>
-                            <span className="font-bold text-[#c2652a] tabular-nums">
-                              {slices.length > 0 ? `${slices[0].category} (${slices[0].percentage}%)` : "—"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-xs py-1">
-                            <span className="text-gray-500 font-medium">Avg per Transaction:</span>
-                            <span className="font-bold text-gray-900 tabular-nums">
-                              ₹{expenseList.length > 0 ? Math.round(totalSpent / expenseList.length).toLocaleString("en-IN") : 0}
-                            </span>
-                          </div>
-                        </div>
+                    {/* DESKTOP EXPENSE BREAKDOWN DONUT PIE BENTO CARD */}
+                    <div className="hidden md:block bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                      <div className="border-b border-gray-100 pb-3">
+                        <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                          Expense Breakdown by Category
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                          Proportional ratio of expenses incurred in each category's assigned color
+                        </p>
                       </div>
-
-                      {/* Right: Industry Standard Pie Diagram of Expenses Breakdown */}
-                      <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                        <div className="border-b border-gray-100 pb-3">
-                          <h3 className="font-serif font-bold text-base text-gray-900">
-                            Expense Breakdown by Category
-                          </h3>
-                          <p className="text-[10px] text-gray-500 font-medium">
-                            Proportional ratio of expenses incurred in each category's assigned color
-                          </p>
-                        </div>
 
                         {slices.length === 0 ? (
                           <div className="py-12 text-center text-gray-400 space-y-2">
@@ -2156,7 +2112,6 @@ export default function FinancialHubPage({
                           </div>
                         )}
                       </div>
-                    </div>
 
                     {/* MOBILE BENTO HERO CARD WITH INDUSTRY STANDARD DONUT PIE */}
                     <div className="block md:hidden bg-white border border-gray-200 rounded-3xl p-5 shadow-xs space-y-4">
@@ -2352,17 +2307,12 @@ export default function FinancialHubPage({
               {/* VIEW 1: EXPENSES LEDGER & RECURRING BILLS */}
               {expensesSubTab === "LEDGER" && (
                 <div className="space-y-6 md:space-y-8 animate-in fade-in">
-                  {/* DESKTOP RECURRING FIXED BILLS (UNCHANGED) */}
+                  {/* DESKTOP RECURRING FIXED BILLS */}
                   <div className="hidden md:block space-y-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-serif font-bold text-lg text-gray-900">
-                          Recurring Bills & Utilities Summary
-                        </h3>
-                        <span className="text-[10px] font-extrabold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
-                          ↔️ Scrollable Row
-                        </span>
-                      </div>
+                      <h3 className="font-serif font-bold text-lg text-gray-900">
+                        Recurring Bills & Utilities ({recurringBillsList.length})
+                      </h3>
                       <button
                         type="button"
                         onClick={() => handleOpenAddRecurringModal()}
@@ -2547,8 +2497,8 @@ export default function FinancialHubPage({
                     </div>
                   </div>
 
-                  {/* DESKTOP RECENT EXPENSES DETAILED TABLE SECTION (UNCHANGED) */}
-                  <div className="hidden md:block bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-5">
+                  {/* DESKTOP RECENT EXPENSES DETAILED TABLE SECTION (REDESIGNED MATCHING MOBILE ELEGANCE) */}
+                  <div className="hidden md:block bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-4">
                       <div>
                         <h3 className="font-serif font-bold text-xl text-gray-900">
@@ -2559,12 +2509,12 @@ export default function FinancialHubPage({
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2.5">
                         {/* Record Expense Button */}
                         <button
                           type="button"
                           onClick={() => setShowRecordDrawer(true)}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                          className="px-3.5 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
                         >
                           <Plus className="w-3.5 h-3.5" /> Record Expense
                         </button>
@@ -2573,7 +2523,7 @@ export default function FinancialHubPage({
                         <button
                           type="button"
                           onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
-                          className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                         >
                           <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
                         </button>
@@ -2582,40 +2532,69 @@ export default function FinancialHubPage({
                         <button
                           type="button"
                           onClick={() => setShowCategoryDirectoryModal(true)}
-                          className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                          className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                         >
                           🏷️ Categories ({categories.length})
                         </button>
+                      </div>
+                    </div>
 
-                        {/* Category Filter Pills */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                          <span className="text-gray-500 font-bold flex items-center gap-1">
-                            <Filter className="w-3.5 h-3.5" /> Filter:
-                          </span>
+                    {/* Desktop Smooth-Scroll Horizontal Filter Pills Bar (Matching Mobile UX) */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-gray-400 font-bold px-0.5">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wider text-[10px] text-gray-400">
+                          <Filter className="w-3.5 h-3.5 text-gray-400" /> Filter by Category:
+                        </span>
+                        {selectedCategoryFilter !== "ALL" && (
                           <button
+                            type="button"
                             onClick={() => setSelectedCategoryFilter("ALL")}
-                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                              selectedCategoryFilter === "ALL"
-                                ? "bg-[#c2652a] text-white shadow-xs"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
+                            className="text-xs text-[#c2652a] font-extrabold hover:underline cursor-pointer"
                           >
-                            ALL
+                            Reset to ALL
                           </button>
-                          {categories.map((c) => (
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryFilter("ALL")}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                            selectedCategoryFilter === "ALL"
+                              ? "bg-[#c2652a] text-white shadow-2xs"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          ALL ({expenseList.length})
+                        </button>
+                        {categories.map((c) => {
+                          const count = expenseList.filter((item) => item.category.toLowerCase() === c.name.toLowerCase()).length;
+                          const isSelected = selectedCategoryFilter === c.name;
+                          return (
                             <button
                               key={c.id}
+                              type="button"
                               onClick={() => setSelectedCategoryFilter(c.name)}
-                              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                                selectedCategoryFilter === c.name
-                                  ? "bg-[#c2652a] text-white shadow-xs"
-                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#c2652a] text-white shadow-2xs"
+                                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-2xs"
                               }`}
                             >
-                              {c.name}
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: c.color || "#c2652a" }}
+                              />
+                              <span>{c.name}</span>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                                isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
+                              }`}>
+                                {count}
+                              </span>
                             </button>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
                     </div>
 
