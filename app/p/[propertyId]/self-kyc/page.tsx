@@ -48,7 +48,7 @@ import {
   SelfKycInvite,
 } from "@/lib/selfKycStore";
 import { propertyStore } from "@/constants/propertyLayoutStore";
-import { occupantStore } from "@/constants/mockOccupants";
+import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { SelfKycDeskStandeeModal } from "@/components/SelfKycDeskStandeeModal";
 import { buildWhatsAppUrl } from "@/utils/security";
@@ -69,6 +69,13 @@ export default function SelfKycDeskPage({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [submissions, setSubmissions] = useState<SelfKycSubmission[]>([]);
   const [invites, setInvites] = useState<SelfKycInvite[]>([]);
+  const [occupantsList, setOccupantsList] = useState<Occupant[]>(() => {
+    try {
+      return occupantStore.getOccupants(propertyId) || [];
+    } catch {
+      return [];
+    }
+  });
   const [propertyStructure, setPropertyStructure] = useState(() =>
     propertyStore.getStructure(propertyId)
   );
@@ -135,6 +142,7 @@ export default function SelfKycDeskPage({
     try {
       const localOccs = occupantStore.getOccupants(propertyId);
       if (localOccs && localOccs.length > 0) {
+        setOccupantsList(localOccs);
         const { phoneMap, emailMap } = buildMaps(localOccs);
         setExistingResidentMap(phoneMap);
         setExistingResidentEmailMap(emailMap);
@@ -150,6 +158,7 @@ export default function SelfKycDeskPage({
         const fromFs: any[] = [];
         snap.docs.forEach((d) => fromFs.push(d.data()));
         if (fromFs.length > 0) {
+          setOccupantsList(fromFs as Occupant[]);
           const { phoneMap, emailMap } = buildMaps(fromFs);
           setExistingResidentMap(phoneMap);
           setExistingResidentEmailMap(emailMap);
@@ -271,6 +280,33 @@ export default function SelfKycDeskPage({
     const trimmed = bedCode.trim();
     if (/^bed\s+/i.test(trimmed)) return trimmed;
     return `Bed ${trimmed}`;
+  };
+
+  // Resolve link to the approved resident's profile in the tenant directory
+  const getOccupantProfileLink = (sub: SelfKycSubmission) => {
+    if (sub.occupantId) {
+      return `/p/${propertyId}/tenants/${sub.occupantId}`;
+    }
+    const cleanSubPhone = (sub.phone || "").replace(/\D/g, "").slice(-10);
+    if (cleanSubPhone) {
+      const matched = occupantsList.find(
+        (o) => (o.phone || "").replace(/\D/g, "").slice(-10) === cleanSubPhone
+      );
+      if (matched?.id) return `/p/${propertyId}/tenants/${matched.id}`;
+    }
+    if (sub.roomNumber && sub.bedCode) {
+      const matched = occupantsList.find(
+        (o) => o.roomNumber === sub.roomNumber && o.bedCode === sub.bedCode
+      );
+      if (matched?.id) return `/p/${propertyId}/tenants/${matched.id}`;
+    }
+    if (sub.name) {
+      const matched = occupantsList.find(
+        (o) => o.name?.trim().toLowerCase() === sub.name?.trim().toLowerCase()
+      );
+      if (matched?.id) return `/p/${propertyId}/tenants/${matched.id}`;
+    }
+    return `/p/${propertyId}/tenants`;
   };
 
   // List of available rooms & beds for invite creation (dynamically filtered for target check-in date)
@@ -877,7 +913,7 @@ export default function SelfKycDeskPage({
                 )}
               </h1>
               <p className="text-xs text-gray-500 mt-1 max-w-xl">
-                Dispatch invite links with automated bed hold, print reception desk QR standees, and review submitted tenant documents with 1-click check-in.
+                Send digital invite links with automatic bed locking, share your Self-KYC QR, and review submitted tenant documents for 1-click check-in.
               </p>
             </div>
 
@@ -887,8 +923,8 @@ export default function SelfKycDeskPage({
                 onClick={() => setShowStandeeModal(true)}
                 className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-800 text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer active:scale-95"
               >
-                <Printer className="w-4 h-4 text-[#c2652a]" />
-                <span>4" × 6" Desk Standee QR</span>
+                <QrCode className="w-4 h-4 text-[#c2652a]" />
+                <span>Self KYC QR</span>
               </button>
 
               <button
@@ -902,9 +938,9 @@ export default function SelfKycDeskPage({
             </div>
           </div>
 
-          {/* Tab Navigation (Transition Pipeline: Sent Invites -> Review KYC -> Approved Residents) */}
+          {/* Tab Navigation (Transition Pipeline: Sent Invites -> Review KYC -> Approved) */}
           <div className="flex items-center gap-2 border-b border-gray-200">
-            {/* 1. Sent Invites Log */}
+            {/* 1. Sent Invites */}
             <button
               onClick={() => setActiveTab("INVITES")}
               className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
@@ -913,7 +949,7 @@ export default function SelfKycDeskPage({
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <span>Sent Invites Log</span>
+              <span>Sent Invites</span>
               {activeInvites.length > 0 && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold">
                   {activeInvites.length}
@@ -938,7 +974,7 @@ export default function SelfKycDeskPage({
               )}
             </button>
 
-            {/* 3. Approved Residents */}
+            {/* 3. Approved */}
             <button
               onClick={() => setActiveTab("APPROVED")}
               className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
@@ -947,7 +983,7 @@ export default function SelfKycDeskPage({
                   : "border-transparent text-gray-500 hover:text-gray-900"
               }`}
             >
-              <span>Approved Residents ({approvedSubmissions.length})</span>
+              <span>Approved ({approvedSubmissions.length})</span>
             </button>
           </div>
 
@@ -1402,10 +1438,10 @@ export default function SelfKycDeskPage({
                             </td>
                             <td className="py-3.5 px-4 text-right">
                               <Link
-                                href={`/p/${propertyId}/tenants`}
-                                className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-800 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                href={getOccupantProfileLink(sub)}
+                                className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-100 hover:border-[#c2652a] hover:text-[#c2652a] text-gray-800 text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                               >
-                                <span>Directory</span>
+                                <span>View Profile</span>
                                 <ArrowRight className="w-3.5 h-3.5" />
                               </Link>
                             </td>

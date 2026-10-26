@@ -67,6 +67,7 @@ export interface SelfKycSubmission {
   submittedAt: string;
   reviewedAt?: string;
   reviewedBy?: string;
+  occupantId?: string;
 }
 
 export interface SelfKycInvite {
@@ -714,6 +715,7 @@ export const selfKycStore = {
     submission.status = "APPROVED";
     submission.reviewedAt = new Date().toISOString();
     submission.reviewedBy = reviewerName;
+    submission.occupantId = newOccupantId;
 
     const list = SUBMISSIONS_CACHE.get(submission.propertyId) || [];
     SUBMISSIONS_CACHE.set(
@@ -745,6 +747,7 @@ export const selfKycStore = {
         status: "APPROVED",
         reviewedAt: submission.reviewedAt,
         reviewedBy: reviewerName,
+        occupantId: newOccupantId,
       });
     } catch (e) {
       console.warn(e);
