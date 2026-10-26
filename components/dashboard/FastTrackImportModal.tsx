@@ -1603,6 +1603,49 @@ export function FastTrackImportModal({
         {/* STEP 1: INPUT MODE SELECTOR & DROPZONE */}
         {step === "INPUT" && (
           <div className="p-6 overflow-y-auto space-y-6 flex-1">
+            {/* 📂 SAVED CLOUD DRAFT NOTIFICATION BANNER */}
+            {savedDraft && Array.isArray(savedDraft.rows) && savedDraft.rows.length > 0 && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-100/70 border-2 border-amber-300 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <FolderOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-serif font-bold text-sm text-amber-950">
+                        Saved Draft Found
+                      </span>
+                      <span className="bg-amber-200/90 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-amber-300">
+                        {savedDraft.rows.length} Residents
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      You have an in-progress draft saved on {savedDraft.updatedAt ? new Date(savedDraft.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "recently"}.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleResumeDraft}
+                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#a65420] text-white text-xs font-bold shadow-md shadow-orange-500/20 cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
+                  >
+                    <span>Open Saved Draft</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="p-2 rounded-xl text-gray-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 cursor-pointer transition-colors"
+                    title="Discard Draft"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* TAB SELECTOR */}
             <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-2xl max-w-md mx-auto">
               <button
@@ -3159,22 +3202,47 @@ Anil Verma   9812345678   Room 103   12000"
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
           {step === "INPUT" && (
             <>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={activeTab === "SHEET" ? !pastedText.trim() : selectedImages.length === 0}
-                onClick={handleProcessInput}
-                className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer"
-              >
-                <span>Process & Preview Roster</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                {savedDraft && Array.isArray(savedDraft.rows) && savedDraft.rows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Discard Draft</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {savedDraft && Array.isArray(savedDraft.rows) && savedDraft.rows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResumeDraft}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Open Saved Draft ({savedDraft.rows.length})</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={activeTab === "SHEET" ? !pastedText.trim() : selectedImages.length === 0}
+                  onClick={handleProcessInput}
+                  className="px-6 py-2.5 rounded-xl bg-[#c2652a] hover:bg-[#a3521e] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Process & Preview Roster</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </>
           )}
 
