@@ -282,6 +282,7 @@ export default function FinancialHubPage({
   const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
   const [hoveredPieCategory, setHoveredPieCategory] = useState<string | null>(null);
   const [hoveredRevenueStream, setHoveredRevenueStream] = useState<string | null>(null);
+  const [hoveredPaymentChannel, setHoveredPaymentChannel] = useState<string | null>(null);
 
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
@@ -1255,6 +1256,63 @@ export default function FinancialHubPage({
               ? revenueSlices.find((s) => s.category.toLowerCase() === hoveredRevenueStream.toLowerCase())
               : null;
 
+            // 1b. Calculate Pie Slices for Payment Channels Analytics
+            const channelCircumference = 2 * Math.PI * 38; // ~238.761
+            let accumulatedChannelOffset = 0;
+
+            const validChannels = [
+              {
+                channel: "Online payments (UPI)",
+                shortName: "UPI",
+                amount: revenueMetrics.onlineTotal || (revenueMetrics.totalGrossRevenue > 0 ? revenueMetrics.totalGrossRevenue : 0),
+                color: "#c2652a",
+                icon: "UPI",
+                subtitle: "Instant VPA Collection",
+                bgClass: "bg-orange-50/60 border-orange-200/60",
+                iconBg: "bg-orange-100 text-[#c2652a]",
+                textClass: "text-[#c2652a]",
+                tagClass: "text-orange-700",
+              },
+              {
+                channel: "Cash Desk",
+                shortName: "Cash",
+                amount: revenueMetrics.cashAmount || 0,
+                color: "#059669",
+                icon: "💵",
+                subtitle: "Front Desk Reception",
+                bgClass: "bg-emerald-50/60 border-emerald-200/60",
+                iconBg: "bg-emerald-100 text-emerald-700",
+                textClass: "text-emerald-700",
+                tagClass: "text-emerald-700",
+              },
+            ].filter((c) => c.amount > 0 || (revenueMetrics.totalGrossRevenue === 0 && c.channel.includes("UPI")));
+
+            const totalChannelSum = validChannels.reduce((acc, c) => acc + c.amount, 0) || revenueMetrics.totalGrossRevenue || 1;
+
+            const channelSlices = validChannels.map((ch) => {
+              const fraction = totalChannelSum > 0 ? ch.amount / totalChannelSum : 0;
+              const arcLength = fraction * channelCircumference;
+              const hasMultiple = validChannels.length > 1;
+              const gap = hasMultiple ? 1.5 : 0;
+              const strokeDash = Math.max(0, arcLength - gap);
+              const strokeGap = channelCircumference - strokeDash;
+              const offset = -accumulatedChannelOffset;
+              accumulatedChannelOffset += arcLength;
+              const percentage = Math.round(fraction * 100);
+
+              return {
+                ...ch,
+                percentage,
+                strokeDash,
+                strokeGap,
+                offset,
+              };
+            });
+
+            const activeChannelSlice = hoveredPaymentChannel
+              ? channelSlices.find((s) => s.channel.toLowerCase() === hoveredPaymentChannel.toLowerCase())
+              : null;
+
             // 2. Strict Realized Inflow Log: ONLY occupants/receipts who ACTUALLY paid (totalPaid > 0)
             interface PaidRevenueItem {
               id: string;
@@ -1582,78 +1640,165 @@ export default function FinancialHubPage({
                     )}
                   </div>
 
-                  {/* Right (5 cols): Payment Channels Distribution */}
+                  {/* Right (5 cols): Payment Channels Analytics Pie Chart */}
                   <div className="lg:col-span-5 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                    <div className="border-b border-gray-100 pb-3">
-                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
-                        Payment Channels Analytics
-                      </h3>
-                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
-                        Method distribution of collected payments
-                      </p>
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div>
+                        <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                          Payment Channels Analytics
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                          Method distribution of collected payments
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 uppercase">
+                        CHANNELS PIE
+                      </span>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="p-4 rounded-2xl bg-orange-50/60 border border-orange-200/60 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#c2652a] font-bold flex items-center justify-center text-xs">
-                            UPI
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-xs text-gray-900">Online payments (UPI)</h4>
-                            <span className="text-[10px] text-gray-500 font-medium">Instant VPA Collection</span>
-                          </div>
+                    {channelSlices.length === 0 ? (
+                      <div className="py-12 text-center text-gray-400 space-y-2">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                          <Wallet className="w-6 h-6" />
                         </div>
-                        <div className="text-right">
-                          <span className="font-mono font-bold text-sm text-[#c2652a] block">
-                            ₹{revenueMetrics.onlineTotal.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-[10px] font-bold text-orange-700">
-                            {revenueMetrics.upiPct}% of Total
-                          </span>
-                        </div>
+                        <p className="text-xs font-medium">No channel payments recorded yet</p>
                       </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Centered Donut SVG */}
+                        <div className="flex justify-center py-2">
+                          <div className="relative w-48 h-48 sm:w-52 sm:h-52">
+                            <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                              <circle
+                                cx="50"
+                                cy="50"
+                                r="38"
+                                stroke="#f3f4f6"
+                                strokeWidth="12"
+                                fill="transparent"
+                              />
+                              {channelSlices.map((slice) => {
+                                const isHovered = hoveredPaymentChannel === slice.channel;
+                                return (
+                                  <circle
+                                    key={slice.channel}
+                                    cx="50"
+                                    cy="50"
+                                    r="38"
+                                    stroke={slice.color}
+                                    strokeWidth={isHovered ? 16 : 12}
+                                    strokeDasharray={`${slice.strokeDash} ${slice.strokeGap}`}
+                                    strokeDashoffset={slice.offset}
+                                    fill="transparent"
+                                    className="transition-all duration-200 cursor-pointer"
+                                    onMouseEnter={() => setHoveredPaymentChannel(slice.channel)}
+                                    onMouseLeave={() => setHoveredPaymentChannel(null)}
+                                    onClick={() => setHoveredPaymentChannel(hoveredPaymentChannel === slice.channel ? null : slice.channel)}
+                                  />
+                                );
+                              })}
+                            </svg>
 
-                      <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/60 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">
-                            💵
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-xs text-gray-900">Cash Desk</h4>
-                            <span className="text-[10px] text-gray-500 font-medium">Front Desk Reception</span>
+                            {/* Central Metric Display */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
+                              {activeChannelSlice ? (
+                                <div className="animate-in fade-in zoom-in-95 duration-150">
+                                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[120px]">
+                                    {activeChannelSlice.channel}
+                                  </span>
+                                  <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
+                                    ₹{activeChannelSlice.amount.toLocaleString("en-IN")}
+                                  </span>
+                                  <span
+                                    className="text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block mt-0.5"
+                                    style={{ backgroundColor: `${activeChannelSlice.color}20`, color: activeChannelSlice.color }}
+                                  >
+                                    {activeChannelSlice.percentage}% of total
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">
+                                    PAYMENT MODES
+                                  </span>
+                                  <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
+                                    ₹{totalChannelSum.toLocaleString("en-IN")}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-emerald-600 block mt-0.5">
+                                    VERIFIED INFLOW 🟢
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="font-mono font-bold text-sm text-emerald-700 block">
-                            ₹{revenueMetrics.cashAmount.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-[10px] font-bold text-emerald-700">
-                            {revenueMetrics.cashPct}% of Total
-                          </span>
-                        </div>
-                      </div>
 
-                      {/* 🏦 Collections by Deposited Account / Partner */}
-                      {Object.keys(revenueMetrics.accountCollections || {}).length > 0 && (
-                        <div className="pt-3 border-t border-gray-100 space-y-2">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-                            Collections by Deposited Account / Partner
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(revenueMetrics.accountCollections).map(([accName, accAmt]) => (
-                              <span
-                                key={accName}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-800"
-                              >
-                                <span className="text-gray-500 text-[11px]">{accName}:</span>
-                                <span className="font-mono font-bold text-gray-900">₹{accAmt.toLocaleString("en-IN")}</span>
+                        {/* Channel Breakdown Cards Below Chart */}
+                        <div className="space-y-3 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold px-1 uppercase tracking-wider">
+                            <span>Active Channels</span>
+                            <span>Method Distribution</span>
+                          </div>
+
+                          <div className="space-y-2.5">
+                            {channelSlices.map((slice) => {
+                              const isHovered = hoveredPaymentChannel === slice.channel;
+                              return (
+                                <div
+                                  key={slice.channel}
+                                  onClick={() => setHoveredPaymentChannel(hoveredPaymentChannel === slice.channel ? null : slice.channel)}
+                                  onMouseEnter={() => setHoveredPaymentChannel(slice.channel)}
+                                  onMouseLeave={() => setHoveredPaymentChannel(null)}
+                                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                                    isHovered
+                                      ? "bg-white border-gray-300 ring-2 ring-[#c2652a]/20 shadow-xs scale-[1.01]"
+                                      : `${slice.bgClass} hover:bg-white hover:border-gray-300`
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-xl font-bold flex items-center justify-center text-xs shadow-2xs ${slice.iconBg}`}>
+                                      {slice.icon}
+                                    </div>
+                                    <div>
+                                      <h4 className="font-bold text-xs text-gray-900">{slice.channel}</h4>
+                                      <span className="text-[10px] text-gray-500 font-medium">{slice.subtitle}</span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <span className={`font-mono font-bold text-sm block ${slice.textClass}`}>
+                                      ₹{slice.amount.toLocaleString("en-IN")}
+                                    </span>
+                                    <span className={`text-[10px] font-bold ${slice.tagClass}`}>
+                                      {slice.percentage}% of Total
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 🏦 Collections by Deposited Account / Partner */}
+                          {Object.keys(revenueMetrics.accountCollections || {}).length > 0 && (
+                            <div className="pt-3 border-t border-gray-100 space-y-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Collections by Deposited Account / Partner
                               </span>
-                            ))}
-                          </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {Object.entries(revenueMetrics.accountCollections).map(([accName, accAmt]) => (
+                                  <span
+                                    key={accName}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-800"
+                                  >
+                                    <span className="text-gray-500 text-[11px]">{accName}:</span>
+                                    <span className="font-mono font-bold text-gray-900">₹{accAmt.toLocaleString("en-IN")}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1685,8 +1830,8 @@ export default function FinancialHubPage({
                     </div>
                   ) : (
                     <>
-                      {/* 📱 MOBILE VIEW: Sleek Native Card Feed (Zero Horizontal Swiping Needed!) */}
-                      <div className="space-y-3 block md:hidden">
+                      {/* 📱 MOBILE VIEW: Sleek Native Card Feed (Shows 4 receipts at a time with invisible scroll) */}
+                      <div className="space-y-3 block md:hidden max-h-[420px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5">
                         {verifiedPaidItems.map((item) => (
                           <div
                             key={item.id}
@@ -1732,8 +1877,8 @@ export default function FinancialHubPage({
                         ))}
                       </div>
 
-                      {/* 💻 DESKTOP & TABLET VIEW: Full Spacious Table with Zero Horizontal Squeeze */}
-                      <div className="hidden md:block overflow-x-auto">
+                      {/* 💻 DESKTOP & TABLET VIEW: Full Spacious Table (Shows 4 receipts at a time with invisible scroll) */}
+                      <div className="hidden md:block max-h-[340px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                         <table className="w-full text-left text-xs">
                           <thead>
                             <tr className="border-b border-gray-200 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-50/50">
@@ -2500,8 +2645,8 @@ export default function FinancialHubPage({
                       </div>
                     </div>
 
-                    {/* Expenses Table */}
-                    <div className="overflow-x-auto">
+                    {/* Expenses Table (Shows 4 receipts at a time with invisible scroll) */}
+                    <div className="overflow-x-auto max-h-[340px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
@@ -2662,8 +2807,8 @@ export default function FinancialHubPage({
                       </div>
                     </div>
 
-                    {/* Mobile Tactile Expense Cards Feed */}
-                    <div className="space-y-3 pt-1">
+                    {/* Mobile Tactile Expense Cards Feed (Shows 4 receipts at a time with invisible scroll) */}
+                    <div className="space-y-3 pt-1 max-h-[460px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5">
                       {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length === 0 ? (
                         <div className="py-12 px-4 text-center rounded-2xl bg-gray-50/70 border border-dashed border-gray-200 space-y-3">
                           <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#c2652a] flex items-center justify-center mx-auto shadow-2xs">
