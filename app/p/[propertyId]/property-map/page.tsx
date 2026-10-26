@@ -750,6 +750,19 @@ function PropertyMapContent({
                                     }
                                   }
 
+                                  // ⚠️ Evaluate if guest checkout date is past/overdue (guest scheduled checkout has passed without formal checkout)
+                                  const rawGuestCheckoutDate = primaryOcc?.vacatingDate || primaryOcc?.guestCheckoutDate || primaryOcc?.dueDate || bed.vacatingDate || bed.guestCheckoutDate || "";
+                                  let isOverdueGuest = false;
+                                  if (isGuestBed && primaryOcc && rawGuestCheckoutDate) {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    const parsedGuestOut = parseOccupantDate(rawGuestCheckoutDate) || new Date(rawGuestCheckoutDate);
+                                    if (parsedGuestOut && !isNaN(parsedGuestOut.getTime())) {
+                                      parsedGuestOut.setHours(0, 0, 0, 0);
+                                      isOverdueGuest = today > parsedGuestOut;
+                                    }
+                                  }
+
                                   if (isHoldBed) {
                                     badgeStyle =
                                       "bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 ring-1 ring-rose-400";
@@ -761,9 +774,12 @@ function PropertyMapContent({
                                       "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
                                     statusLabel = "Available";
                                   } else if (isGuestBed) {
-                                    badgeStyle =
-                                      "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
-                                    statusLabel = primaryOcc ? primaryOcc.name : nextOcc ? nextOcc.name : "Guest";
+                                    badgeStyle = isOverdueGuest
+                                      ? "bg-red-50 text-red-950 border-2 border-red-500 hover:bg-red-100 shadow-md ring-2 ring-red-400/50 animate-pulse"
+                                      : "bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100";
+                                    statusLabel = isOverdueGuest
+                                      ? `Overdue (${primaryOcc?.name || "Guest"})`
+                                      : primaryOcc ? primaryOcc.name : nextOcc ? nextOcc.name : "Guest";
                                   } else if (effectiveStatus === "Vacating") {
                                     badgeStyle = isOverdueVacating
                                       ? "bg-red-50 text-red-950 border-2 border-red-400 hover:bg-red-100 shadow-md ring-2 ring-red-400/50 animate-pulse"
@@ -819,10 +835,17 @@ function PropertyMapContent({
                                         </span>
                                       )}
 
-                                      {/* 🟣 TOP-RIGHT GUEST BADGE PILL */}
+                                      {/* 🟣 TOP-RIGHT GUEST / OVERDUE BADGE PILL */}
                                       {isGuestBed && (
-                                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-purple-200 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs">
-                                          GUEST
+                                        <span className={`absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 ${
+                                          isOverdueGuest
+                                            ? "bg-red-200 text-red-950 border border-red-400"
+                                            : "bg-purple-200 text-purple-950 border border-purple-300"
+                                        }`}>
+                                          {isOverdueGuest && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                                          )}
+                                          {isOverdueGuest ? "OVERDUE ⚠️" : "GUEST"}
                                         </span>
                                       )}
 
@@ -859,8 +882,13 @@ function PropertyMapContent({
                                         </span>
                                       )}
                                       {isGuestBed && primaryOcc && (
-                                        <span className="text-[8px] font-extrabold bg-purple-200/80 text-purple-950 px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full">
-                                          Out: {primaryOcc.vacatingDate || primaryOcc.dueDate || "12 Aug"}
+                                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-full flex items-center justify-center gap-1 ${
+                                          isOverdueGuest
+                                            ? "bg-red-200 text-red-950 border border-red-400 font-extrabold"
+                                            : "bg-purple-200/80 text-purple-950"
+                                        }`}>
+                                          {isOverdueGuest ? "🚨 Out Overdue: " : "Out: "}
+                                          {rawGuestCheckoutDate || "12 Aug"}
                                         </span>
                                       )}
 
@@ -1087,6 +1115,29 @@ function PropertyMapContent({
                 if (displayOcc) {
                   const isBooked = !activeOcc && !!nextOcc;
                   const isGuest = displayOcc.stayType === "Guest";
+                  const rawGuestCheckout = displayOcc.vacatingDate || displayOcc.guestCheckoutDate || displayOcc.dueDate || "";
+                  let isGuestOverdue = false;
+                  if (isGuest && !isBooked && rawGuestCheckout) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const parsedGuestOut = parseOccupantDate(rawGuestCheckout) || new Date(rawGuestCheckout);
+                    if (parsedGuestOut && !isNaN(parsedGuestOut.getTime())) {
+                      parsedGuestOut.setHours(0, 0, 0, 0);
+                      isGuestOverdue = today > parsedGuestOut;
+                    }
+                  }
+                  const rawVacDateModal = displayOcc.vacatingDate || "";
+                  let isVacatingOverdue = false;
+                  if (!isGuest && !isBooked && displayOcc.lifecycleStatus === "Notice" && rawVacDateModal) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const parsedVac = parseOccupantDate(rawVacDateModal) || new Date(rawVacDateModal);
+                    if (parsedVac && !isNaN(parsedVac.getTime())) {
+                      parsedVac.setHours(0, 0, 0, 0);
+                      isVacatingOverdue = today > parsedVac;
+                    }
+                  }
+                  const isPaymentOverdue = !isBooked && displayOcc.paymentStatus === "Overdue";
 
                   return (
                     <div className="space-y-6 text-xs">
@@ -1121,7 +1172,11 @@ function PropertyMapContent({
                                     ? "bg-purple-200 text-purple-900 border border-purple-300"
                                     : "bg-blue-100 text-blue-900 border border-blue-300"
                                   : isGuest
-                                  ? "bg-purple-100 text-purple-700"
+                                  ? isGuestOverdue
+                                    ? "bg-red-100 text-red-900 border border-red-300"
+                                    : "bg-purple-100 text-purple-700"
+                                  : isVacatingOverdue
+                                  ? "bg-red-100 text-red-900 border border-red-300"
                                   : "bg-green-100 text-green-700"
                               }`}
                             >
@@ -1133,6 +1188,12 @@ function PropertyMapContent({
                                 ? "🟣 GUEST"
                                 : "🟢 TENANT"}
                             </span>
+                            {(isGuestOverdue || isVacatingOverdue) && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-300 flex items-center gap-1 shadow-2xs animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                                OVERDUE ⚠️
+                              </span>
+                            )}
                             <span className="text-gray-500 font-medium font-mono">
                               {displayOcc.phone}
                             </span>
@@ -1140,12 +1201,33 @@ function PropertyMapContent({
                         </div>
                       </div>
 
+                      {isGuestOverdue && (
+                        <div className="p-3 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2.5 text-red-950 shadow-2xs">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping shrink-0" />
+                          <div className="text-xs">
+                            <span className="font-extrabold text-red-900">⚠️ Checkout Overdue ({rawGuestCheckout}):</span>{" "}
+                            <span className="text-red-800 font-medium">Guest stay has expired. Please initiate formal checkout or renew stay.</span>
+                          </div>
+                        </div>
+                      )}
+                      {isVacatingOverdue && (
+                        <div className="p-3 bg-red-50 border border-red-300 rounded-xl flex items-center gap-2.5 text-red-950 shadow-2xs">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping shrink-0" />
+                          <div className="text-xs">
+                            <span className="font-extrabold text-red-900">⚠️ Vacating Notice Overdue ({rawVacDateModal}):</span>{" "}
+                            <span className="text-red-800 font-medium">Scheduled move-out date has passed. Please complete formal checkout.</span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-500 font-medium">Status</span>
                           <span
-                            className={`font-bold ${
-                              isBooked
+                            className={`font-bold flex items-center gap-1.5 ${
+                              isGuestOverdue || isVacatingOverdue || isPaymentOverdue
+                                ? "text-red-600"
+                                : isBooked
                                 ? isGuest
                                   ? "text-purple-700"
                                   : "text-blue-700"
@@ -1154,11 +1236,28 @@ function PropertyMapContent({
                                 : "text-amber-600"
                             }`}
                           >
-                            {isBooked
-                              ? "CONFIRMED RESERVATION 🔵"
-                              : displayOcc.paymentStatus === "Paid"
-                              ? "PAID 🟢"
-                              : "PENDING 🟡"}
+                            {isGuestOverdue ? (
+                              <>
+                                <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                                CHECKOUT OVERDUE 🚨
+                              </>
+                            ) : isVacatingOverdue ? (
+                              <>
+                                <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                                VACATING OVERDUE 🚨
+                              </>
+                            ) : isPaymentOverdue ? (
+                              <>
+                                <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                                PAYMENT OVERDUE 🚨
+                              </>
+                            ) : isBooked ? (
+                              "CONFIRMED RESERVATION 🔵"
+                            ) : displayOcc.paymentStatus === "Paid" ? (
+                              "PAID 🟢"
+                            ) : (
+                              "PENDING 🟡"
+                            )}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
@@ -1169,17 +1268,18 @@ function PropertyMapContent({
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-gray-500 font-medium">
-                            {isBooked ? "Scheduled Move-In Date" : "Move-In / Joining Date"}
+                            {isBooked ? "Scheduled Move-In Date" : isGuest ? "Check-In Date" : "Move-In / Joining Date"}
                           </span>
                           <span className="font-bold text-blue-700 font-mono">
                             {displayOcc.joiningDate || "—"}
                           </span>
                         </div>
-                        {displayOcc.vacatingDate && (
+                        {(displayOcc.vacatingDate || displayOcc.guestCheckoutDate || (isGuest && displayOcc.dueDate)) && (
                           <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-medium">Vacating Date</span>
-                            <span className="font-bold text-orange-600 font-mono">
-                              {displayOcc.vacatingDate}
+                            <span className="text-gray-500 font-medium">{isGuest ? "Scheduled Checkout" : "Vacating Date"}</span>
+                            <span className={`font-bold font-mono ${isGuestOverdue || isVacatingOverdue ? "text-red-600 flex items-center gap-1" : "text-orange-600"}`}>
+                              {(isGuestOverdue || isVacatingOverdue) && "🚨 "}
+                              {displayOcc.vacatingDate || displayOcc.guestCheckoutDate || displayOcc.dueDate}
                             </span>
                           </div>
                         )}

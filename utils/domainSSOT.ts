@@ -50,6 +50,7 @@ export interface OccupantStatusBadge {
   isBooked: boolean;
   isNotice: boolean;
   isActive: boolean;
+  isOverdue?: boolean;
 }
 
 export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): OccupantStatusBadge {
@@ -63,6 +64,7 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
       isBooked: false,
       isNotice: false,
       isActive: false,
+      isOverdue: false,
     };
   }
 
@@ -99,8 +101,34 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
         isBooked: true,
         isNotice: false,
         isActive: false,
+        isOverdue: false,
       };
     }
+
+    // Check if guest checkout date has passed without checkout
+    const checkOutDateStr = occupant.vacatingDate || occupant.dueDate || occupant.guestCheckoutDate;
+    if (checkOutDateStr) {
+      const parsedCheckOut = parseOccupantDate(checkOutDateStr);
+      if (parsedCheckOut) {
+        const now = new Date();
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const checkOutMidnight = new Date(parsedCheckOut.getFullYear(), parsedCheckOut.getMonth(), parsedCheckOut.getDate()).getTime();
+        if (todayMidnight > checkOutMidnight) {
+          return {
+            label: "CHECKOUT OVERDUE 🚨",
+            shortLabel: "Overdue",
+            badgeClass: "bg-red-50 text-red-700 border-red-300 ring-1 ring-red-400 animate-pulse",
+            dotColor: "bg-red-500",
+            isGuest: true,
+            isBooked: false,
+            isNotice: false,
+            isActive: true,
+            isOverdue: true,
+          };
+        }
+      }
+    }
+
     return {
       label: "GUEST 🟣",
       shortLabel: "Guest",
@@ -110,10 +138,34 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
       isBooked: false,
       isNotice: false,
       isActive: true,
+      isOverdue: false,
     };
   }
 
   if (isNotice) {
+    const rawVacDate = occupant.vacatingDate;
+    if (rawVacDate) {
+      const parsedVac = parseOccupantDate(rawVacDate);
+      if (parsedVac) {
+        const now = new Date();
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const vacMidnight = new Date(parsedVac.getFullYear(), parsedVac.getMonth(), parsedVac.getDate()).getTime();
+        if (todayMidnight > vacMidnight) {
+          return {
+            label: "VACATING OVERDUE 🚨",
+            shortLabel: "Overdue",
+            badgeClass: "bg-red-50 text-red-700 border-red-300 ring-1 ring-red-400 animate-pulse",
+            dotColor: "bg-red-500",
+            isGuest: false,
+            isBooked: false,
+            isNotice: true,
+            isActive: false,
+            isOverdue: true,
+          };
+        }
+      }
+    }
+
     return {
       label: "NOTICE 🟧",
       shortLabel: "Notice",
@@ -123,6 +175,7 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
       isBooked: false,
       isNotice: true,
       isActive: false,
+      isOverdue: false,
     };
   }
 
