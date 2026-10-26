@@ -306,11 +306,11 @@ export default function FinancialHubPage({
   const resolveCategoryMeta = (catName: string) => {
     const cleanName = (catName || "").trim().toLowerCase();
     
-    // Dedicated match for Security Deposit Refund (special dedicated color)
+    // Dedicated match for Security Deposit Refund (special soothing Mauve color)
     if (cleanName.includes("deposit") || cleanName.includes("refund")) {
       return {
         displayName: "Security Deposit Refund",
-        color: "#d946ef",
+        color: "#a2678a",
         icon: "ShieldCheck",
       };
     }
@@ -2031,7 +2031,21 @@ export default function FinancialHubPage({
                 const CIRCUMFERENCE = 2 * Math.PI * 38; // ~238.761
                 let accumulatedOffset = 0;
 
-                const validWeightages = categoryWeightages;
+                // Robust rollup: Consolidate any duplicate or slight variations of deposit categories into single Mauve category
+                const consolidatedMap = new Map<string, { category: string; amount: number; percentage: number; isDeposit: boolean }>();
+                categoryWeightages.forEach((cw) => {
+                  const meta = resolveCategoryMeta(cw.category);
+                  const key = meta.displayName;
+                  const isDeposit = key.toLowerCase().includes("deposit") || cw.category.toLowerCase().includes("deposit");
+                  if (consolidatedMap.has(key)) {
+                    const existing = consolidatedMap.get(key)!;
+                    existing.amount += cw.amount;
+                    existing.percentage = totalSpent > 0 ? Number(((existing.amount / totalSpent) * 100).toFixed(1)) : 0;
+                  } else {
+                    consolidatedMap.set(key, { ...cw, category: key, isDeposit });
+                  }
+                });
+                const validWeightages = Array.from(consolidatedMap.values()).sort((a, b) => b.amount - a.amount);
 
                 const slices = validWeightages.map((cw) => {
                   const fraction = totalSpent > 0 ? cw.amount / totalSpent : 0;
@@ -2044,9 +2058,9 @@ export default function FinancialHubPage({
                   accumulatedOffset += arcLength;
 
                   const meta = resolveCategoryMeta(cw.category);
-                  const count = expenseList.filter(
-                    (e) => e.category.toLowerCase() === cw.category.toLowerCase()
-                  ).length;
+                  const count = cw.isDeposit
+                    ? expenseList.filter((e) => (e.category || "").toLowerCase().includes("deposit") || (e.category || "").toLowerCase().includes("refund")).length
+                    : expenseList.filter((e) => e.category.toLowerCase() === cw.category.toLowerCase()).length;
 
                   return {
                     ...cw,

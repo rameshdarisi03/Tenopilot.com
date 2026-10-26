@@ -185,7 +185,10 @@ class ExpenseStore {
 
     const catTotals: Record<string, number> = {};
     records.forEach((e) => {
-      catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
+      const rawCat = (e.category || "").trim();
+      const isDepositRefund = rawCat.toLowerCase().includes("deposit") || rawCat.toLowerCase().includes("refund");
+      const normalizedCat = isDepositRefund ? "Security Deposit Refund" : rawCat;
+      catTotals[normalizedCat] = (catTotals[normalizedCat] || 0) + e.amount;
     });
 
     const weightages: CategoryWeightage[] = Object.keys(catTotals).map((cat) => {
