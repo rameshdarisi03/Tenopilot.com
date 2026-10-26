@@ -95,6 +95,7 @@ export default function SelfKycDeskPage({
   const [inviteCandidateEmail, setInviteCandidateEmail] = useState("");
   const [inviteRentAmount, setInviteRentAmount] = useState<number>(12000);
   const [inviteDepositAmount, setInviteDepositAmount] = useState<number>(24000);
+  const [inviteDailyRate, setInviteDailyRate] = useState<number>(400);
   const [inviteDispatchLoading, setInviteDispatchLoading] = useState(false);
 
   // Active resident phone & email lookup maps (to detect conflict in Send Invite modal)
@@ -351,6 +352,7 @@ export default function SelfKycDeskPage({
       setInviteBedCode(firstBed.bedCode);
       setInviteRentAmount(firstBed.tariff);
       setInviteDepositAmount(firstBed.tariff * 2);
+      setInviteDailyRate(Math.round(firstBed.tariff / 30));
     }
   };
 
@@ -367,6 +369,7 @@ export default function SelfKycDeskPage({
         setInviteBedCode(first.bedCode);
         setInviteRentAmount(first.tariff);
         setInviteDepositAmount(first.tariff * 2);
+        setInviteDailyRate(Math.round(first.tariff / 30));
       }
     } else {
       setInviteRoomNumber("");
@@ -384,6 +387,7 @@ export default function SelfKycDeskPage({
       setInviteBedCode(first.bedCode);
       setInviteRentAmount(first.tariff);
       setInviteDepositAmount(first.tariff * 2);
+      setInviteDailyRate(Math.round(first.tariff / 30));
     } else {
       setInviteRoomNumber("");
       setInviteBedCode("");
@@ -458,7 +462,7 @@ export default function SelfKycDeskPage({
       bedCode: inviteBedCode,
       rentAmount: inviteRentAmount,
       securityDeposit: inviteStayType === "Tenant" ? inviteDepositAmount : undefined,
-      guestDailyRate: inviteStayType === "Guest" ? Math.round(inviteRentAmount / 30) : undefined,
+      guestDailyRate: inviteStayType === "Guest" ? (inviteDailyRate || Math.round(inviteRentAmount / 30)) : undefined,
       candidateName: inviteCandidateName.trim(),
       candidatePhone: fullPhone,
       candidateEmail: cleanEmail || undefined,
@@ -1579,6 +1583,7 @@ export default function SelfKycDeskPage({
                           if (target) {
                             setInviteRentAmount(target.tariff);
                             setInviteDepositAmount(target.tariff * 2);
+                            setInviteDailyRate(Math.round(target.tariff / 30));
                           }
                         }}
                         className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-semibold text-gray-900 bg-white focus:ring-1 focus:ring-[#c2652a]"
@@ -1710,7 +1715,11 @@ export default function SelfKycDeskPage({
                     placeholder="0"
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, "");
-                      setInviteRentAmount(val === "" ? 0 : parseInt(val, 10));
+                      const num = val === "" ? 0 : parseInt(val, 10);
+                      setInviteRentAmount(num);
+                      if (inviteStayType === "Guest") {
+                        setInviteDailyRate(Math.round(num / 30));
+                      }
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                   />
@@ -1737,13 +1746,19 @@ export default function SelfKycDeskPage({
                 ) : (
                   <div>
                     <label className="block font-bold text-gray-700 mb-1">
-                      Suggested Daily Rate (₹)
+                      Daily Rate (₹) *
                     </label>
                     <input
                       type="text"
-                      value={inviteRentAmount ? Math.round(inviteRentAmount / 30) : 0}
-                      disabled
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-100 text-xs font-mono font-bold text-gray-500"
+                      inputMode="numeric"
+                      required
+                      value={inviteDailyRate ? String(inviteDailyRate) : ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setInviteDailyRate(val === "" ? 0 : parseInt(val, 10));
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                     />
                   </div>
                 )}
