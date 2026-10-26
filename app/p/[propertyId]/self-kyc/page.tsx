@@ -912,9 +912,6 @@ export default function SelfKycDeskPage({
                   </span>
                 )}
               </h1>
-              <p className="text-xs text-gray-500 mt-1 max-w-xl">
-                Send digital invite links with automatic bed locking, share your Self-KYC QR, and review submitted tenant documents for 1-click check-in.
-              </p>
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap">
