@@ -45,8 +45,14 @@ import {
   FastTrackParseResult,
   reconcileRoomSharingAndBeds,
   validateParsedRow,
+  normalizeIndianPhoneNumber,
 } from "@/lib/fastTrackHeuristicParser";
 import { executeFastTrackBatchIngest, BatchIngestResult } from "@/lib/fastTrackBatchIngest";
+import {
+  saveFastTrackDraftToFirestore,
+  getFastTrackDraftFromFirestore,
+  deleteFastTrackDraftFromFirestore,
+} from "@/lib/firestoreService";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { buildWhatsAppUrl } from "@/utils/security";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -606,8 +612,8 @@ export function FastTrackImportModal({
 
   const settings = propertySettingsStore.getSettings(propertyId);
 
-  // Save draft to localStorage
-  const handleSaveDraft = (rowsToSave?: FastTrackParsedRow[]) => {
+  // Save draft to Cloud Firestore & localStorage (survives logout & device switch)
+  const handleSaveDraft = async (rowsToSave?: FastTrackParsedRow[]) => {
     const targetRows = rowsToSave || editableRows;
     if (targetRows.length === 0) return;
     try {
@@ -616,10 +622,14 @@ export function FastTrackImportModal({
         updatedAt: new Date().toISOString(),
         dateFormatMode,
       };
+      // 1. Instant local storage
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
       setSavedDraft(draftData);
-      setDraftSaveStatus(`Draft saved at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
-      setTimeout(() => setDraftSaveStatus(null), 3000);
+      setDraftSaveStatus(`Cloud draft saved ✓ (${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`);
+      setTimeout(() => setDraftSaveStatus(null), 3500);
+
+      // 2. Persistent Firestore sync
+      await saveFastTrackDraftToFirestore(propertyId, draftData);
     } catch (e) {
       console.warn("Could not save draft:", e);
     }
@@ -634,11 +644,12 @@ export function FastTrackImportModal({
     }
   };
 
-  // Discard saved draft
-  const handleClearDraft = () => {
+  // Discard saved draft from both Firestore & localStorage
+  const handleClearDraft = async () => {
     try {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
       setSavedDraft(null);
+      await deleteFastTrackDraftFromFirestore(propertyId);
     } catch (e) {
       console.warn("Could not clear draft:", e);
     }
@@ -833,7 +844,7 @@ export function FastTrackImportModal({
 
   useEffect(() => {
     if (isOpen) {
-      // Check for saved draft in localStorage
+      // 1. Check for saved draft in localStorage for instant preview
       try {
         const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
         if (raw) {
@@ -847,6 +858,18 @@ export function FastTrackImportModal({
       } catch (e) {
         setSavedDraft(null);
       }
+
+      // 2. Fetch persistent Cloud Firestore draft (survives logout & device switch)
+      getFastTrackDraftFromFirestore(propertyId).then((cloudDraft) => {
+        if (cloudDraft && Array.isArray(cloudDraft.rows) && cloudDraft.rows.length > 0) {
+          setSavedDraft(cloudDraft);
+          try {
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(cloudDraft));
+          } catch {}
+        }
+      }).catch((err) => {
+        console.warn("Could not fetch cloud draft:", err);
+      });
 
       setHasAttemptedEnroll(false);
       setStep("INPUT");
@@ -1293,7 +1316,11 @@ export function FastTrackImportModal({
   const updateRowField = (idx: number, field: keyof FastTrackParsedRow, value: any) => {
     setEditableRows((prev) => {
       const updated = [...prev];
-      const row = { ...updated[idx], [field]: value };
+      let finalVal = value;
+      if (field === "phone") {
+        finalVal = normalizeIndianPhoneNumber(value);
+      }
+      const row = { ...updated[idx], [field]: finalVal };
       const valResult = validateParsedRow(row);
       row.isValid = valResult.isValid;
       row.warnings = valResult.warnings;
@@ -1361,6 +1388,7 @@ export function FastTrackImportModal({
 
       setIngestResult(result);
       setStep("SUCCESS");
+      handleClearDraft();
 
       // Check if any enrolled tenants have a current month rent payment marked as paid
       const rentPaidTenants = (result.occupants || []).filter(
@@ -2808,11 +2836,18 @@ Anil Verma   9812345678   Room 103   12000"
                             <input
                               type="text"
                               inputMode="numeric"
-                              maxLength={10}
+                              maxLength={16}
                               value={row.phone || ""}
+                              onPaste={(e) => {
+                                e.preventDefault();
+                                const pasted = e.clipboardData.getData("text");
+                                const clean = normalizeIndianPhoneNumber(pasted);
+                                updateRowField(idx, "phone", clean);
+                              }}
                               onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, "");
-                                updateRowField(idx, "phone", val);
+                                const digits = e.target.value.replace(/\D/g, "");
+                                const clean = digits.length > 10 ? normalizeIndianPhoneNumber(digits) : digits;
+                                updateRowField(idx, "phone", clean);
                               }}
                               placeholder="10-digit mobile *"
                               className={`w-30 px-2.5 py-1.5 rounded-lg border font-mono text-xs focus:ring-1 focus:ring-[#c2652a] ${

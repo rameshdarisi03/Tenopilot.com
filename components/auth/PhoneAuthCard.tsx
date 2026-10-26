@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { loginOrRegisterWithPhone } from "@/lib/authService";
+import { normalizePhoneNumber } from "@/utils/security";
 
 interface PhoneAuthCardProps {
   onSuccess: (authResult: any) => void;
@@ -68,8 +69,17 @@ export function PhoneAuthCard({
 
   // Clean 10 digit Indian number
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "").slice(0, 10);
-    setPhoneNumber(raw);
+    const raw = e.target.value.replace(/\D/g, "");
+    const clean = raw.length > 10 ? normalizePhoneNumber(raw) : raw;
+    setPhoneNumber(clean);
+    setError(null);
+  };
+
+  const handlePhonePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text");
+    const clean = normalizePhoneNumber(text);
+    setPhoneNumber(clean);
     setError(null);
   };
 
@@ -323,7 +333,8 @@ export function PhoneAuthCard({
                 placeholder="98765 43210"
                 value={phoneNumber}
                 onChange={handlePhoneChange}
-                maxLength={10}
+                onPaste={handlePhonePaste}
+                maxLength={16}
                 disabled={isLoading}
                 className="flex-1 py-3 px-3.5 text-sm font-semibold text-gray-900 placeholder:text-gray-400 focus:outline-hidden tracking-wider bg-transparent"
               />

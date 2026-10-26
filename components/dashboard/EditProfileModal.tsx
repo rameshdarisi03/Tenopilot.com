@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { propertySettingsStore } from "@/constants/propertySettings";
+import { normalizePhoneNumber } from "@/utils/security";
 import { Edit3, X, Check, Lock, Phone, User, Mail, Sparkles, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 
 interface EditProfileModalProps {
@@ -449,10 +450,19 @@ export function EditProfileModal({
                 </div>
                 <input
                   type="tel"
-                  maxLength={10}
+                  maxLength={16}
                   value={editPhone}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pasted = e.clipboardData.getData("text");
+                    const clean = normalizePhoneNumber(pasted);
+                    setEditPhone(clean);
+                    setPhoneError("");
+                  }}
                   onChange={(e) => {
-                    setEditPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                    const digits = e.target.value.replace(/\D/g, "");
+                    const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                    setEditPhone(clean);
                     setPhoneError("");
                   }}
                   placeholder="98765 43210"

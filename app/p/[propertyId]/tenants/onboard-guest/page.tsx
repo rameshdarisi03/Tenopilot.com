@@ -62,7 +62,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { getEffectiveTenantLimit, evaluateTenantCapacity, evaluateSubscription } from "@/lib/subscriptionEngine";
 import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
 import { propertySettingsStore } from "@/constants/propertySettings";
-import { sanitizeVehicleNumber } from "@/utils/security";
+import { sanitizeVehicleNumber, normalizePhoneNumber } from "@/utils/security";
 
 export default function OnboardGuestPage({
   params,
@@ -818,10 +818,20 @@ export default function OnboardGuestPage({
                     <input
                       type="tel"
                       required
-                      maxLength={10}
+                      maxLength={16}
                       placeholder="9876543210"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData("text");
+                        const clean = normalizePhoneNumber(pasted);
+                        setPhone(clean);
+                      }}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "");
+                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                        setPhone(clean);
+                      }}
                       className={`flex-1 px-3.5 py-3 rounded-xl border font-semibold text-gray-900 text-base md:text-xs focus:ring-1 transition-colors ${
                         phoneConflict
                           ? "border-red-500 bg-red-50/40 text-red-950 focus:ring-red-500"
@@ -862,10 +872,20 @@ export default function OnboardGuestPage({
                     />
                     <input
                       type="tel"
-                      maxLength={10}
+                      maxLength={16}
                       placeholder="9812345678 (Parent/Guardian)"
                       value={emergencyPhone}
-                      onChange={(e) => setEmergencyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData("text");
+                        const clean = normalizePhoneNumber(pasted);
+                        setEmergencyPhone(clean);
+                      }}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "");
+                        const clean = digits.length > 10 ? normalizePhoneNumber(digits) : digits;
+                        setEmergencyPhone(clean);
+                      }}
                       className="flex-1 px-3.5 py-3 rounded-xl border border-gray-300 font-semibold text-gray-900 text-base md:text-xs focus:ring-1 focus:ring-purple-700"
                     />
                   </div>

@@ -3,6 +3,7 @@ import { db } from "./firebase";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
@@ -414,5 +415,54 @@ export function subscribeRecurringBillsFromFirestore(
     return unsubscribe;
   } catch {
     return () => {};
+  }
+}
+
+/**
+ * 📝 FastTrack Migration AI Draft Persistence (Cloud Firestore SSOT)
+ * Preserves draft across logout, device changes, and browser restarts.
+ * Collection Path: properties/{propertyId}/drafts/fasttrack
+ */
+export async function saveFastTrackDraftToFirestore(
+  propertyId: string,
+  draftData: any
+): Promise<boolean> {
+  try {
+    const draftRef = doc(db, "properties", propertyId, "drafts", "fasttrack");
+    const sanitized = sanitizeForFirestore(draftData);
+    await setDoc(draftRef, sanitized, { merge: true });
+    return true;
+  } catch (error) {
+    console.warn("Firestore save fasttrack draft fallback:", error);
+    return false;
+  }
+}
+
+export async function getFastTrackDraftFromFirestore(
+  propertyId: string
+): Promise<any | null> {
+  try {
+    const draftRef = doc(db, "properties", propertyId, "drafts", "fasttrack");
+    const snap = await getDoc(draftRef);
+    if (snap.exists()) {
+      return snap.data();
+    }
+    return null;
+  } catch (error) {
+    console.warn("Firestore get fasttrack draft fallback:", error);
+    return null;
+  }
+}
+
+export async function deleteFastTrackDraftFromFirestore(
+  propertyId: string
+): Promise<boolean> {
+  try {
+    const draftRef = doc(db, "properties", propertyId, "drafts", "fasttrack");
+    await deleteDoc(draftRef);
+    return true;
+  } catch (error) {
+    console.warn("Firestore delete fasttrack draft fallback:", error);
+    return false;
   }
 }

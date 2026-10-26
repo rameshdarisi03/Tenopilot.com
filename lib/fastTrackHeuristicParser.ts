@@ -59,29 +59,41 @@ const ROOM_REGEX = /\b(?:room|kholi|flat|unit|rm)?\s*([A-Za-z0-9\-_]{1,6})\b/i;
 const CURRENCY_CLEAN_REGEX = /[^\d.]/g;
 
 /**
- * Normalizes Indian Phone Number to standard 10 digits (e.g., +91 98765-43210 or 098450 11003 -> 9845011003)
+ * Normalizes Indian Phone Number to standard 10 digits (e.g., +91 9206651295, 919206651295, or 09206651295 -> 9206651295)
  */
 export function normalizeIndianPhoneNumber(rawPhone: string | number | undefined): string {
   if (!rawPhone) return "";
   const str = String(rawPhone).trim();
   const digitsOnly = str.replace(/\D/g, "");
 
-  if (digitsOnly.length === 10 && /^[6-9]/.test(digitsOnly)) {
+  // Exactly 10 digits
+  if (digitsOnly.length === 10) {
     return digitsOnly;
   }
-  // If 11 digits starting with 0: e.g. 09845011003 -> 9845011003
-  if (digitsOnly.length === 11 && digitsOnly.startsWith("0") && /^[6-9]/.test(digitsOnly.slice(1))) {
-    return digitsOnly.slice(1);
-  }
-  // If 12 digits starting with 91: e.g. 919845011003 -> 9845011003
-  if (digitsOnly.length === 12 && digitsOnly.startsWith("91") && /^[6-9]/.test(digitsOnly.slice(2))) {
+  // 12 digits starting with 91: e.g. 919206651295 -> 9206651295
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
     return digitsOnly.slice(2);
   }
-  // If ends with 10 digits starting with [6-9]
-  if (digitsOnly.length > 10 && /^[6-9]/.test(digitsOnly.slice(-10))) {
+  // 13 digits starting with 091: e.g. 0919206651295 -> 9206651295
+  if (digitsOnly.length === 13 && digitsOnly.startsWith("091")) {
+    return digitsOnly.slice(3);
+  }
+  // 11 digits starting with 0: e.g. 09206651295 -> 9206651295
+  if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) {
+    return digitsOnly.slice(1);
+  }
+  // If more than 10 digits and starts with 91 or 0, extract the last 10 digits
+  if (digitsOnly.length > 10) {
+    if (digitsOnly.startsWith("91") || digitsOnly.startsWith("0")) {
+      return digitsOnly.slice(-10);
+    }
+    // If ends with 10 digits starting with valid mobile range [6-9]
+    if (/^[6-9]/.test(digitsOnly.slice(-10))) {
+      return digitsOnly.slice(-10);
+    }
     return digitsOnly.slice(-10);
   }
-  return digitsOnly.slice(0, 10);
+  return digitsOnly;
 }
 
 /**

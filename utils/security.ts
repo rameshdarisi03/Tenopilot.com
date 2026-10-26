@@ -30,11 +30,26 @@ export function sanitizeSearchInput(input: string): string {
 }
 
 /**
- * Normalizes phone number string by stripping non-digit characters (+91, spaces, hyphens, parentheses).
+ * Normalizes phone number string by stripping non-digit characters (+91, spaces, hyphens, parentheses)
+ * and extracting the standard clean 10-digit mobile number.
  */
 export function normalizePhoneNumber(phone: string): string {
   if (!phone) return "";
-  return phone.replace(/\D/g, "");
+  const digitsOnly = String(phone).replace(/\D/g, "");
+  if (digitsOnly.length === 10) return digitsOnly;
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) return digitsOnly.slice(2);
+  if (digitsOnly.length === 13 && digitsOnly.startsWith("091")) return digitsOnly.slice(3);
+  if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) return digitsOnly.slice(1);
+  if (digitsOnly.length > 10) {
+    if (digitsOnly.startsWith("91") || digitsOnly.startsWith("0")) {
+      return digitsOnly.slice(-10);
+    }
+    if (/^[6-9]/.test(digitsOnly.slice(-10))) {
+      return digitsOnly.slice(-10);
+    }
+    return digitsOnly.slice(-10);
+  }
+  return digitsOnly;
 }
 
 /**
