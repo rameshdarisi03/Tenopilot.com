@@ -196,12 +196,26 @@ export default function ReportsAnalyticsPage({
     let totalRefunded = 0;
     let totalDamageDeductions = 0;
 
+    const parseDateToIso = (dateStr?: string, timestamp?: number): string => {
+      if (timestamp && !isNaN(timestamp)) {
+        try {
+          return new Date(timestamp).toISOString().slice(0, 10);
+        } catch (_) {}
+      }
+      if (!dateStr) return "";
+      const trimmed = dateStr.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+        return trimmed.slice(0, 10);
+      }
+      const parsed = Date.parse(trimmed);
+      if (!isNaN(parsed)) {
+        return new Date(parsed).toISOString().slice(0, 10);
+      }
+      return trimmed;
+    };
+
     complianceLogs.forEach((log) => {
-      const logDate = log.checkOutDate
-        ? log.checkOutDate
-        : log.timestamp
-        ? new Date(log.timestamp).toISOString().slice(0, 10)
-        : "";
+      const logDate = parseDateToIso(log.checkOutDate, log.timestamp);
       if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
         totalRefunded += log.depositRefunded || 0;
         totalDamageDeductions += (log.penaltyPaid || 0) + (log.maintenancePaid || 0);

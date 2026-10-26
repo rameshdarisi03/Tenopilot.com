@@ -282,7 +282,7 @@ export function CheckOutSettlementModal({
               Check-Out: {occupant.name}
             </h2>
             <p className="text-gray-500 text-xs mt-0.5">
-              Room {roomNumber} ({bedCode}) • Promised Vacating Date: {occupant.vacatingDate || "06 Aug 2026"}
+              Room {roomNumber} ({bedCode}) • {occupant.vacatingDate ? `Promised Vacating Date: ${occupant.vacatingDate}` : "Immediate Departure (No Notice Logged)"}
             </p>
           </div>
           <button

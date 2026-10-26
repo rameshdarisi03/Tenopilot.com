@@ -2182,8 +2182,12 @@ export default function TenantsDirectoryPage({
                               >
                                 {occ.name}
                                 {occ.stayType === "Guest" && (
-                                  <span className="bg-purple-100 text-purple-700 px-1.5 py-0.2 text-[9px] font-extrabold rounded-full uppercase">
-                                    Guest
+                                  <span className={`px-1.5 py-0.2 text-[9px] font-extrabold rounded-full uppercase ${
+                                    occ.lifecycleStatus === "Past"
+                                      ? "bg-slate-100 text-slate-700 border border-slate-300"
+                                      : "bg-purple-100 text-purple-700"
+                                  }`}>
+                                    {occ.lifecycleStatus === "Past" ? "Past Guest" : "Guest"}
                                   </span>
                                 )}
                               </Link>

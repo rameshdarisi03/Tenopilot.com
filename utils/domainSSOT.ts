@@ -51,6 +51,7 @@ export interface OccupantStatusBadge {
   isNotice: boolean;
   isActive: boolean;
   isOverdue?: boolean;
+  isPast?: boolean;
 }
 
 export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): OccupantStatusBadge {
@@ -65,13 +66,31 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
       isNotice: false,
       isActive: false,
       isOverdue: false,
+      isPast: false,
     };
   }
 
   const isGuest = occupant.stayType === "Guest";
+  const isPast = occupant.lifecycleStatus === "Past";
   const isBooked = occupant.lifecycleStatus === "Booked";
   const isNotice = occupant.lifecycleStatus === "Notice";
   const isActive = occupant.lifecycleStatus === "Active";
+
+  // 🏁 0. Past / Checked-Out Resident (Alumni / Departed Guest)
+  if (isPast) {
+    return {
+      label: "CHECKED OUT 🏁",
+      shortLabel: "Checked Out",
+      badgeClass: "bg-slate-100 text-slate-700 border-slate-300 font-bold",
+      dotColor: "bg-slate-400",
+      isGuest,
+      isBooked: false,
+      isNotice: false,
+      isActive: false,
+      isOverdue: false,
+      isPast: true,
+    };
+  }
 
   if (isGuest) {
     // 🏨 Guest Auto-Transition Rule:
@@ -234,13 +253,15 @@ export interface GuestStayTimeline {
   daysRemaining: number;
   progressPercent: number;
   isBooked: boolean;
+  isPast?: boolean;
   statusText: string;
 }
 
 export function getGuestStayTimeline(
   joiningDateStr?: string,
   checkoutDateStr?: string,
-  isBooked: boolean = false
+  isBooked: boolean = false,
+  isPast: boolean = false
 ): GuestStayTimeline {
   const parsedJoining = parseOccupantDate(joiningDateStr || "") || new Date();
   const parsedCheckout = parseOccupantDate(checkoutDateStr || "") || new Date();
@@ -255,6 +276,19 @@ export function getGuestStayTimeline(
     1,
     Math.round((checkoutMidnight.getTime() - joiningMidnight.getTime()) / (1000 * 60 * 60 * 24))
   );
+
+  // 🏁 Checked-Out / Completed Past Guest
+  if (isPast) {
+    return {
+      totalDays,
+      daysElapsed: totalDays,
+      daysRemaining: 0,
+      progressPercent: 100,
+      isBooked: false,
+      isPast: true,
+      statusText: `Stay Completed / Checked Out (${checkoutDateStr || "Departed"})`,
+    };
+  }
 
   // 🏨 Guest Auto-Transition: Only considered Booked if check-in date is strictly in the FUTURE.
   // Once the day arrives (today >= check-in date), status transitions to GUEST!

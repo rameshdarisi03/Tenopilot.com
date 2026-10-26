@@ -115,7 +115,8 @@ export function GuestProfileView({
   const timeline = getGuestStayTimeline(
     checkInDateStr,
     checkOutDateStr,
-    occupantState.lifecycleStatus === "Booked"
+    occupantState.lifecycleStatus === "Booked",
+    occupantState.lifecycleStatus === "Past"
   );
   const statusBadge = getOccupantStatusBadge(occupantState);
 
@@ -242,7 +243,9 @@ export function GuestProfileView({
             </span>
           </div>
           <div className="text-xs font-extrabold text-purple-950 flex items-center gap-1.5">
-            {timeline.isBooked ? (
+            {timeline.isPast ? (
+              <span className="text-slate-700">🏁 CHECKED OUT — {timeline.statusText}</span>
+            ) : timeline.isBooked ? (
               <span>🟦 BOOKED GUEST — {timeline.statusText}</span>
             ) : timeline.daysRemaining > 0 ? (
               <span>🟣 GUEST — {timeline.statusText}</span>
@@ -257,7 +260,9 @@ export function GuestProfileView({
           <div className="w-full bg-gray-200/80 h-3 rounded-full overflow-hidden p-0.5">
             <div
               className={`h-full rounded-full transition-all duration-500 shadow-xs ${
-                timeline.isBooked
+                timeline.isPast
+                  ? "bg-slate-500"
+                  : timeline.isBooked
                   ? "bg-blue-400"
                   : "bg-gradient-to-r from-purple-600 to-[#c2652a]"
               }`}
@@ -267,11 +272,13 @@ export function GuestProfileView({
 
           <div className="flex justify-between text-[10px] text-gray-500 font-bold">
             <span>
-              {timeline.isBooked
+              {timeline.isPast
+                ? `Checked In: ${checkInDateStr} (${timeline.totalDays} days completed)`
+                : timeline.isBooked
                 ? `Check-In Date: ${checkInDateStr} (Upcoming)`
                 : `Check-In: ${checkInDateStr} (${timeline.daysElapsed} ${timeline.daysElapsed === 1 ? "day" : "days"} elapsed)`}
             </span>
-            <span>Checkout: {checkOutDateStr}</span>
+            <span>{timeline.isPast ? `Checked Out: ${checkOutDateStr}` : `Checkout: ${checkOutDateStr}`}</span>
           </div>
         </div>
       </div>

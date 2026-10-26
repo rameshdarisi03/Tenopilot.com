@@ -320,9 +320,28 @@ export default function FinancialHubPage({
     };
   };
 
+  const parseDateToIso = (dateStr?: string, timestamp?: number): string => {
+    if (timestamp && !isNaN(timestamp)) {
+      try {
+        return new Date(timestamp).toISOString().slice(0, 10);
+      } catch (_) {}
+    }
+    if (!dateStr) return "";
+    const trimmed = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+    const parsed = Date.parse(trimmed);
+    if (!isNaN(parsed)) {
+      return new Date(parsed).toISOString().slice(0, 10);
+    }
+    return trimmed;
+  };
+
   // 100% Real-Time Date-Filtered Revenues Calculation Engine
   const computeLiveRevenueData = () => {
-    const occupants = occupantStore.getOccupants(propertyId).filter((o) => o.lifecycleStatus !== "Past");
+    const allOccupants = occupantStore.getOccupants(propertyId);
+    const occupants = allOccupants.filter((o) => o.lifecycleStatus !== "Past");
     const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
 
     let totalGrossRevenue = 0;
@@ -499,16 +518,30 @@ export default function FinancialHubPage({
     let maintenanceStream = 0;
 
     complianceLogs.forEach((log) => {
-      const logDate = log.checkOutDate
-        ? log.checkOutDate
-        : log.timestamp
-        ? new Date(log.timestamp).toISOString().slice(0, 10)
-        : "";
+      const logDate = parseDateToIso(log.checkOutDate, log.timestamp);
       if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
         penaltyDamageStream += log.penaltyPaid || 0;
         maintenanceStream += log.maintenancePaid || 0;
       }
     });
+
+    // Cross-check all occupants with checkoutSettlement to ensure 100% SSOT parity
+    allOccupants.forEach((occ) => {
+      if (occ.checkoutSettlement) {
+        const occSettleDate = parseDateToIso(occ.checkoutSettlement.settledDate || occ.vacatingDate);
+        if (isAllTime || (occSettleDate >= startDate && occSettleDate <= endDate)) {
+          const hasLog = complianceLogs.some(
+            (l) => l.occupantId === occ.id && ((l.penaltyPaid || 0) > 0 || (l.maintenancePaid || 0) > 0)
+          );
+          if (!hasLog) {
+            penaltyDamageStream += occ.checkoutSettlement.repairDeduction || 0;
+            maintenanceStream += occ.checkoutSettlement.maintenanceDeduction || 0;
+          }
+        }
+      }
+    });
+
+    totalGrossRevenue += penaltyDamageStream + maintenanceStream;
 
     const totalExpectedRent = rentStream + totalUncollectedArrears;
     const collectionEfficiency =
@@ -1376,34 +1409,82 @@ export default function FinancialHubPage({
             });
 
             const complianceLogs = complianceLogStore.getLogs(propertyId);
+            const { startDate, endDate, isAllTime } = resolveActiveDateBounds();
+
             complianceLogs.forEach((log) => {
-              if (log.penaltyPaid && log.penaltyPaid > 0) {
-                verifiedPaidItems.push({
-                  id: `compl-${log.id}-penalty`,
-                  date: log.checkOutDate || (log.timestamp ? new Date(log.timestamp).toISOString().slice(0, 10) : "Checkout"),
-                  occupantName: log.name || "Checkout Tenant",
-                  roomNumber: log.roomNumber || "—",
-                  bedCode: log.bedCode || "—",
-                  category: "Penalty / Damages",
-                  paymentMode: "Deduction / Cash",
-                  paidTo: "Property Account",
-                  amount: log.penaltyPaid,
-                  receiptNo: `PEN-${log.id.slice(0, 6)}`,
-                });
+              const logDate = parseDateToIso(log.checkOutDate, log.timestamp) || "2026-10-26";
+              if (isAllTime || (logDate >= startDate && logDate <= endDate)) {
+                if (log.penaltyPaid && log.penaltyPaid > 0) {
+                  verifiedPaidItems.push({
+                    id: `compl-${log.id}-penalty`,
+                    date: logDate,
+                    occupantName: log.name || "Checkout Tenant",
+                    roomNumber: log.roomNumber || "—",
+                    bedCode: log.bedCode || "—",
+                    category: "Penalty / Damages",
+                    paymentMode: "Deduction / Cash",
+                    paidTo: "Property Account",
+                    amount: log.penaltyPaid,
+                    receiptNo: `PEN-${log.id.slice(0, 6)}`,
+                  });
+                }
+                if (log.maintenancePaid && log.maintenancePaid > 0) {
+                  verifiedPaidItems.push({
+                    id: `compl-${log.id}-maint`,
+                    date: logDate,
+                    occupantName: log.name || "Resident",
+                    roomNumber: log.roomNumber || "—",
+                    bedCode: log.bedCode || "—",
+                    category: "Maintenance Charge",
+                    paymentMode: "Online / Cash",
+                    paidTo: "Property Account",
+                    amount: log.maintenancePaid,
+                    receiptNo: `MNT-${log.id.slice(0, 6)}`,
+                  });
+                }
               }
-              if (log.maintenancePaid && log.maintenancePaid > 0) {
-                verifiedPaidItems.push({
-                  id: `compl-${log.id}-maint`,
-                  date: log.checkOutDate || (log.timestamp ? new Date(log.timestamp).toISOString().slice(0, 10) : "Checkout"),
-                  occupantName: log.name || "Resident",
-                  roomNumber: log.roomNumber || "—",
-                  bedCode: log.bedCode || "—",
-                  category: "Maintenance Charge",
-                  paymentMode: "Online / Cash",
-                  paidTo: "Property Account",
-                  amount: log.maintenancePaid,
-                  receiptNo: `MNT-${log.id.slice(0, 6)}`,
-                });
+            });
+
+            // Also check occupants with checkoutSettlement to ensure items appear in verified list too
+            const allOccupantsList = occupantStore.getOccupants(propertyId);
+            allOccupantsList.forEach((occ) => {
+              if (occ.checkoutSettlement) {
+                const occSettleDate = parseDateToIso(occ.checkoutSettlement.settledDate || occ.vacatingDate) || "2026-10-26";
+                if (isAllTime || (occSettleDate >= startDate && occSettleDate <= endDate)) {
+                  const hasLog = complianceLogs.some(
+                    (l) => l.occupantId === occ.id && ((l.penaltyPaid || 0) > 0 || (l.maintenancePaid || 0) > 0)
+                  );
+                  if (!hasLog) {
+                    if (occ.checkoutSettlement.repairDeduction && occ.checkoutSettlement.repairDeduction > 0) {
+                      verifiedPaidItems.push({
+                        id: `occ-${occ.id}-penalty`,
+                        date: occSettleDate,
+                        occupantName: occ.name || "Checkout Tenant",
+                        roomNumber: occ.roomNumber || "—",
+                        bedCode: occ.bedCode || "—",
+                        category: "Penalty / Damages",
+                        paymentMode: "Deduction / Cash",
+                        paidTo: "Property Account",
+                        amount: occ.checkoutSettlement.repairDeduction,
+                        receiptNo: `PEN-${occ.id.slice(0, 6)}`,
+                      });
+                    }
+                    if (occ.checkoutSettlement.maintenanceDeduction && occ.checkoutSettlement.maintenanceDeduction > 0) {
+                      verifiedPaidItems.push({
+                        id: `occ-${occ.id}-maint`,
+                        date: occSettleDate,
+                        occupantName: occ.name || "Resident",
+                        roomNumber: occ.roomNumber || "—",
+                        bedCode: occ.bedCode || "—",
+                        category: "Maintenance Charge",
+                        paymentMode: "Online / Cash",
+                        paidTo: "Property Account",
+                        amount: occ.checkoutSettlement.maintenanceDeduction,
+                        receiptNo: `MNT-${occ.id.slice(0, 6)}`,
+                      });
+                    }
+                  }
+                }
               }
             });
 
