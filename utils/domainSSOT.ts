@@ -507,33 +507,102 @@ export function resolveOccupantLastPaidInfo(occupant?: Partial<Occupant> | null)
  * SSOT Helper to resolve the occupant's current billing cycle payment due date
  * Supports both "1st to End of Month" and "Anniversary Date" (Joining Date to Joining Date)
  */
+
+export interface BillingCycleContext {
+  targetDueDate: Date;
+  resetDate: Date;
+  graceCutoffDate: Date;
+  isPastGrace: boolean;
+  isDueWindow: boolean;
+  targetMonthKey: string; // e.g. "2026-11"
+}
+
+/**
+ * SSOT Helper: Resolves the dynamic billing cycle windows according to Case 1 rules.
+ * Triggers cycle reset on (n - 1) day where n is the due date.
+ * For Due Date = 1st -> resets on the last day of the previous month.
+ * Due period lasts until the grace days expire (e.g. Due 1st + 3 days grace = 1st, 2nd, 3rd are Due).
+ * Overdue triggers the moment grace days finish (from the 4th onwards).
+ */
+export function resolveOccupantBillingCycleContext(
+  occupant?: Partial<Occupant> | null,
+  settings?: any
+): BillingCycleContext {
+  const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const day = today.getDate();
+
+  let desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant?.dueDay ?? 1;
+  const graceDays = Math.max(0, Number(settings?.gracePeriodDays !== undefined ? settings.gracePeriodDays : 3));
+
+  if (isAnniversary && occupant?.joiningDate) {
+    const jDate = parseOccupantDate(occupant.joiningDate);
+    if (jDate && !isNaN(jDate.getTime())) {
+      desiredDueDay = occupant?.customDueDay ?? jDate.getDate();
+    }
+  }
+
+  // Bound desiredDueDay to valid month days
+  desiredDueDay = Math.max(1, Math.min(28, desiredDueDay));
+
+  let targetDueDate: Date;
+  let resetDate: Date;
+
+  if (desiredDueDay === 1) {
+    const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    if (day === daysInCurrentMonth) {
+      // (n-1) day for 1st of upcoming month! Resets today.
+      targetDueDate = new Date(year, month + 1, 1);
+      resetDate = new Date(year, month, daysInCurrentMonth);
+    } else {
+      // Active calendar month cycle
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+      targetDueDate = new Date(year, month, 1);
+      resetDate = new Date(year, month - 1, daysInPrevMonth);
+    }
+  } else {
+    // desiredDueDay > 1 (e.g. 5th) -> (n-1) day is 4th
+    if (day >= desiredDueDay - 1) {
+      targetDueDate = new Date(year, month, desiredDueDay);
+      resetDate = new Date(year, month, desiredDueDay - 1);
+    } else {
+      targetDueDate = new Date(year, month - 1, desiredDueDay);
+      resetDate = new Date(year, month - 1, desiredDueDay - 1);
+    }
+  }
+
+  // Grace cutoff: Due Date + (graceDays - 1) day end-of-day.
+  // E.g. Due 1st + 3 days grace => 1st, 2nd, 3rd are Due. Cutoff is 3rd midnight.
+  // Today > 3rd (i.e. from 4th onwards) => isPastGrace = true (OVERDUE)!
+  const graceCutoffDate = graceDays > 0
+    ? new Date(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate() + (graceDays - 1))
+    : new Date(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate() - 1);
+
+  const isPastGrace = today.getTime() > graceCutoffDate.getTime();
+  const isDueWindow = today.getTime() >= resetDate.getTime() && today.getTime() <= graceCutoffDate.getTime();
+  const targetMonthKey = `${targetDueDate.getFullYear()}-${String(targetDueDate.getMonth() + 1).padStart(2, "0")}`;
+
+  return {
+    targetDueDate,
+    resetDate,
+    graceCutoffDate,
+    isPastGrace,
+    isDueWindow,
+    targetMonthKey,
+  };
+}
+
 export function resolveOccupantPaymentDueDate(
   occupant?: Partial<Occupant> | null,
   settings?: any
 ): string {
   if (!occupant) return "—";
-
-  const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
-  const now = new Date();
-
-  if (isAnniversary && occupant.joiningDate) {
-    const jDate = parseOccupantDate(occupant.joiningDate);
-    if (jDate && !isNaN(jDate.getTime())) {
-      const joiningDay = jDate.getDate();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth();
-      const maxDaysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      const effectiveDay = occupant.customDueDay ?? Math.min(joiningDay, maxDaysInCurrentMonth);
-      
-      const dayPadded = String(effectiveDay).padStart(2, "0");
-      const monthStr = now.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-      return `${dayPadded} ${monthStr}`;
-    }
-  }
-
-  const desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant?.dueDay ?? 5;
-  const dayPadded = String(desiredDueDay).padStart(2, "0");
-  const monthStr = now.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  const cycle = resolveOccupantBillingCycleContext(occupant, settings);
+  const dayPadded = String(cycle.targetDueDate.getDate()).padStart(2, "0");
+  const monthStr = cycle.targetDueDate.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
   return `${dayPadded} ${monthStr}`;
 }
 
@@ -598,6 +667,9 @@ export interface FinancialStatementSummary {
   dueDay: number;
   graceCutoffDay: number;
   isPastGrace: boolean;
+  targetDueDateStr?: string;
+  resetDateStr?: string;
+  graceCutoffDateStr?: string;
 }
 
 /**
@@ -624,11 +696,13 @@ export function calculateOccupantFinancialStatement(
     }
   }
 
-  const graceDays = settings?.gracePeriodDays ?? 5;
+  // Resolve dynamic cycle context (Case 1: (n-1) reset trigger & grace window)
+  const cycleCtx = resolveOccupantBillingCycleContext(occupant, settings);
+  const graceDays = Math.max(0, Number(settings?.gracePeriodDays !== undefined ? settings.gracePeriodDays : 3));
   const now = new Date();
   const currentDay = now.getDate();
-  const graceCutoffDay = desiredDueDay + graceDays;
-  const isPastGrace = currentDay > graceCutoffDay;
+  const graceCutoffDay = cycleCtx.graceCutoffDate.getDate();
+  const isPastGrace = cycleCtx.isPastGrace;
 
   if (isGuest) {
     // -------------------------------------------------------------------------
@@ -845,7 +919,10 @@ export function calculateOccupantFinancialStatement(
     ? 0
     : Math.max(0, securityDepositRequired - baselineDepositPaid);
 
-  // Rent Clearance
+  // Rent Clearance:
+  // Evaluates receipts and payments against the current active billing cycle.
+  // When an occupant has paid receipts matching proRataRent OR is explicitly marked Paid,
+  // they remain Paid during their cleared billing cycle.
   const isRentCleared = occupant.paymentStatus === "Paid" || totalRentPaidFromReceipts >= proRataRent;
   const remainingRentDue = isRentCleared
     ? 0
@@ -937,6 +1014,9 @@ export function calculateOccupantFinancialStatement(
     dueDay: desiredDueDay,
     graceCutoffDay,
     isPastGrace,
+    targetDueDateStr: cycleCtx.targetDueDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    resetDateStr: cycleCtx.resetDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    graceCutoffDateStr: cycleCtx.graceCutoffDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
   };
 }
 

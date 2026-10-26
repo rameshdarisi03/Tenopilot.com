@@ -70,8 +70,8 @@ export const DEFAULT_PROPERTY_RENTAL_TIERS = {
 
 export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
   billingCycleDates: "1st to End of Month",
-  desiredDueDate: 5,
-  gracePeriodDays: 5,
+  desiredDueDate: 1,
+  gracePeriodDays: 3,
   defaultSecurityDeposit: 0,
   upiPaymentId: "",
   propertyName: "New Property Estate",
@@ -87,8 +87,8 @@ export const CLEAN_ZERO_PROPERTY_SETTINGS: PropertySettingsData = {
 
 export const DEFAULT_PROPERTY_SETTINGS: PropertySettingsData = {
   billingCycleDates: "1st to End of Month",
-  desiredDueDate: 5,
-  gracePeriodDays: 5,
+  desiredDueDate: 1,
+  gracePeriodDays: 3,
   defaultSecurityDeposit: 0,
   upiPaymentId: "tenopilot@ybl",
   propertyName: "Sunshine Heights PG",

@@ -972,6 +972,8 @@ export default function PropertySettingsPage({
                           setSettings({
                             ...settings,
                             billingCycleDates: "1st to End of Month",
+                            desiredDueDate: 1,
+                            gracePeriodDays: 3,
                           })
                         }
                         className={`p-3 rounded-xl border text-left font-bold text-xs transition-all cursor-pointer flex items-center justify-between ${
