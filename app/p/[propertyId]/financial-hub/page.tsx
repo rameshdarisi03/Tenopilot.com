@@ -39,6 +39,8 @@ import {
   MessageSquare,
   Check,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   partnerStore,
@@ -277,6 +279,8 @@ export default function FinancialHubPage({
   const [renameCategoryName, setRenameCategoryName] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
+  const [isMobileBreakdownOpen, setIsMobileBreakdownOpen] = useState(false);
+  const [isMobileRecurringOpen, setIsMobileRecurringOpen] = useState(true);
 
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
@@ -1466,9 +1470,9 @@ export default function FinancialHubPage({
 
           {/* TAB 2: EXPENSES WORKSPACE (STITCH V2 SPECIFICATION) */}
           {activeTab === "Expenses" && (
-            <div className="space-y-8 animate-in fade-in">
-              {/* Top Bento Grid: Total Spent & Budget Weightages */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="space-y-6 md:space-y-8 animate-in fade-in">
+              {/* DESKTOP BENTO GRID: TOTAL SPENT & BUDGET WEIGHTAGES (UNCHANGED) */}
+              <div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Main Summary Card */}
                 <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
                   <div>
@@ -1559,281 +1563,688 @@ export default function FinancialHubPage({
                 </div>
               </div>
 
-              {/* Expenses Sub-Tab Segment Switcher */}
-              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white border border-gray-200 shadow-xs max-w-md">
+              {/* MOBILE BENTO HERO CARD (STITCH-DESIGNED MOBILE FIRST UX) */}
+              <div className="block md:hidden bg-white border border-gray-200 rounded-3xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                    TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
+                  </span>
+                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    SYNCED
+                  </span>
+                </div>
+
+                <div>
+                  <h2 className="font-sans font-extrabold text-3xl text-gray-900 tracking-tight">
+                    ₹{totalSpent.toLocaleString("en-IN")}
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-gray-100">
+                  <div className="p-3 rounded-2xl bg-orange-50/70 border border-orange-200/60">
+                    <p className="text-[9px] font-extrabold uppercase tracking-wider text-[#c2652a] flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Highest
+                    </p>
+                    <span className="font-bold text-xs text-gray-900 block truncate mt-0.5">
+                      {highestCat.category}
+                    </span>
+                    <span className="font-extrabold text-[11px] text-[#c2652a] tabular-nums">
+                      ₹{highestCat.amount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-200/60">
+                    <p className="text-[9px] font-extrabold uppercase tracking-wider text-purple-700 flex items-center gap-1">
+                      <ReceiptRupeeIcon className="w-3 h-3" /> Entries
+                    </p>
+                    <span className="font-bold text-xs text-gray-900 block mt-0.5">
+                      {expenseList.length} Logged
+                    </span>
+                    <span className="font-medium text-[11px] text-purple-600">
+                      This Period
+                    </span>
+                  </div>
+                </div>
+
+                {/* Compact Mobile Weightage Bar with Toggle */}
+                {categoryWeightages.length > 0 && (
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[11px] font-bold text-gray-700">Cost Weightage</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsMobileBreakdownOpen(!isMobileBreakdownOpen)}
+                        className="text-[11px] font-extrabold text-[#c2652a] flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <span>{isMobileBreakdownOpen ? "Hide Breakdown" : "View Breakdown"}</span>
+                        {isMobileBreakdownOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    </div>
+
+                    {/* Segmented Distribution Bar */}
+                    <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                      {categoryWeightages.map((cw, idx) => {
+                        const barColors = ["bg-[#c2652a]", "bg-emerald-600", "bg-purple-600", "bg-blue-600", "bg-amber-500", "bg-rose-500", "bg-teal-600"];
+                        return (
+                          <div
+                            key={cw.category}
+                            className={`${barColors[idx % barColors.length]} h-full transition-all`}
+                            style={{ width: `${Math.min(cw.percentage, 100)}%` }}
+                            title={`${cw.category}: ₹${cw.amount} (${cw.percentage}%)`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* Expandable breakdown list */}
+                    {isMobileBreakdownOpen && (
+                      <div className="space-y-1.5 pt-2 animate-in fade-in max-h-48 overflow-y-auto pr-1">
+                        {categoryWeightages.map((cw, idx) => {
+                          const dotColors = ["bg-[#c2652a]", "bg-emerald-600", "bg-purple-600", "bg-blue-600", "bg-amber-500", "bg-rose-500", "bg-teal-600"];
+                          return (
+                            <div key={cw.category} className="flex items-center justify-between text-[11px] py-1 border-b border-gray-50">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${dotColors[idx % dotColors.length]}`}></span>
+                                <span className="font-medium text-gray-700 truncate">{cw.category}</span>
+                              </div>
+                              <span className="font-bold text-gray-900 tabular-nums shrink-0 ml-2">
+                                ₹{cw.amount.toLocaleString("en-IN")} <span className="text-gray-400 font-medium">({cw.percentage}%)</span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Expenses Sub-Tab Segment Switcher + Mobile Record CTA */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white border border-gray-200 shadow-xs w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setExpensesSubTab("LEDGER")}
+                    className={`flex-1 sm:flex-initial py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                      expensesSubTab === "LEDGER"
+                        ? "bg-[#c2652a] text-white shadow-xs"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <ReceiptRupeeIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Ledger & Recurring Bills</span>
+                    <span className="sm:hidden">Ledger & Bills</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpensesSubTab("CATEGORIES")}
+                    className={`flex-1 sm:flex-initial py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                      expensesSubTab === "CATEGORIES"
+                        ? "bg-[#c2652a] text-white shadow-xs"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <Tag className="w-4 h-4" />
+                    <span className="hidden sm:inline">Category Customizer ({categories.length})</span>
+                    <span className="sm:hidden">Categories ({categories.length})</span>
+                  </button>
+                </div>
+
+                {/* Mobile Quick Record CTA Button */}
                 <button
                   type="button"
-                  onClick={() => setExpensesSubTab("LEDGER")}
-                  className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                    expensesSubTab === "LEDGER"
-                      ? "bg-[#c2652a] text-white shadow-xs"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
+                  onClick={() => setShowRecordDrawer(true)}
+                  className="sm:hidden w-full py-3 px-4 rounded-2xl bg-[#c2652a] hover:bg-[#a3521e] text-white font-bold text-xs shadow-xs flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer"
                 >
-                  <ReceiptRupeeIcon className="w-4 h-4" /> Ledger & Recurring Bills
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExpensesSubTab("CATEGORIES")}
-                  className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                    expensesSubTab === "CATEGORIES"
-                      ? "bg-[#c2652a] text-white shadow-xs"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <Tag className="w-4 h-4" /> Category Customizer ({categories.length})
+                  <Plus className="w-4 h-4" /> Record New Expense
                 </button>
               </div>
 
               {/* VIEW 1: EXPENSES LEDGER & RECURRING BILLS */}
               {expensesSubTab === "LEDGER" && (
-                <div className="space-y-8 animate-in fade-in">
-                  {/* Recurring Fixed Bills Horizontal Left-to-Right Scrollable Row */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-serif font-bold text-lg text-gray-900">
-                      Recurring Bills & Utilities Summary
-                    </h3>
-                    <span className="text-[10px] font-extrabold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
-                      ↔️ Scrollable Row
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddRecurringModal()}
-                    className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Bill Schedule
-                  </button>
-                </div>
+                <div className="space-y-6 md:space-y-8 animate-in fade-in">
+                  {/* DESKTOP RECURRING FIXED BILLS (UNCHANGED) */}
+                  <div className="hidden md:block space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-serif font-bold text-lg text-gray-900">
+                          Recurring Bills & Utilities Summary
+                        </h3>
+                        <span className="text-[10px] font-extrabold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
+                          ↔️ Scrollable Row
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddRecurringModal()}
+                        className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Bill Schedule
+                      </button>
+                    </div>
 
-                <div className="flex overflow-x-auto gap-4 pb-3 scrollbar-thin snap-x">
-                  {recurringBillsList.map((bill) => (
-                    <div
-                      key={bill.id}
-                      className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3 flex flex-col justify-between shrink-0 w-72 sm:w-80 snap-start relative group"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a]">
-                            {bill.icon === "Droplet" ? (
-                              <Droplet className="w-5 h-5" />
-                            ) : bill.icon === "Users" ? (
-                              <Users className="w-5 h-5" />
-                            ) : bill.icon === "Wifi" ? (
-                              <Wifi className="w-5 h-5" />
-                            ) : bill.icon === "Fuel" ? (
-                              <Fuel className="w-5 h-5" />
-                            ) : bill.icon === "Shield" ? (
-                              <Shield className="w-5 h-5" />
-                            ) : (
-                              <Zap className="w-5 h-5" />
-                            )}
+                    <div className="flex overflow-x-auto gap-4 pb-3 scrollbar-thin snap-x">
+                      {recurringBillsList.map((bill) => (
+                        <div
+                          key={bill.id}
+                          className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs space-y-3 flex flex-col justify-between shrink-0 w-72 sm:w-80 snap-start relative group"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2.5 rounded-xl bg-orange-50 text-[#c2652a]">
+                                {bill.icon === "Droplet" ? (
+                                  <Droplet className="w-5 h-5" />
+                                ) : bill.icon === "Users" ? (
+                                  <Users className="w-5 h-5" />
+                                ) : bill.icon === "Wifi" ? (
+                                  <Wifi className="w-5 h-5" />
+                                ) : bill.icon === "Fuel" ? (
+                                  <Fuel className="w-5 h-5" />
+                                ) : bill.icon === "Shield" ? (
+                                  <Shield className="w-5 h-5" />
+                                ) : (
+                                  <Zap className="w-5 h-5" />
+                                )}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-sm text-gray-900">{bill.title}</h4>
+                                <p className="text-[10px] text-gray-500 font-medium">{bill.dueDate}</p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddRecurringModal(bill)}
+                              title="Edit Bill Details"
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 cursor-pointer"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                          <div>
-                            <h4 className="font-bold text-sm text-gray-900">{bill.title}</h4>
-                            <p className="text-[10px] text-gray-500 font-medium">{bill.dueDate}</p>
+
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="font-sans font-bold text-lg text-gray-900 tracking-tight tabular-nums">
+                              ₹{bill.amount.toLocaleString("en-IN")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRecurringModal({
+                                  billId: bill.id,
+                                  category: bill.category,
+                                  amount: bill.amount,
+                                  paidFrom: bill.paidFrom,
+                                  notes: bill.notes || "",
+                                  saveNewDefault: false,
+                                })
+                              }
+                              className="text-[10px] font-extrabold text-white bg-[#c2652a] hover:bg-[#c2652a]/90 px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                            >
+                              + Log Payment
+                            </button>
                           </div>
                         </div>
+                      ))}
 
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAddRecurringModal(bill)}
-                          title="Edit Bill Details"
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="font-sans font-bold text-lg text-gray-900 tracking-tight tabular-nums">
-                          ₹{bill.amount.toLocaleString("en-IN")}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRecurringModal({
-                              billId: bill.id,
-                              category: bill.category,
-                              amount: bill.amount,
-                              paidFrom: bill.paidFrom,
-                              notes: bill.notes || "",
-                              saveNewDefault: false,
-                            })
-                          }
-                          className="text-[10px] font-extrabold text-white bg-[#c2652a] hover:bg-[#c2652a]/90 px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
-                        >
-                          + Log Payment
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Add New Recurring Bill Action Dash Card */}
-                  <div
-                    onClick={() => handleOpenAddRecurringModal()}
-                    className="p-5 rounded-2xl border-2 border-dashed border-gray-300 bg-[#fcfcfc] hover:bg-white hover:border-[#c2652a] transition-all cursor-pointer flex flex-col justify-center items-center text-center space-y-2 shrink-0 w-64 snap-start group min-h-[120px]"
-                  >
-                    <div className="p-3 rounded-full bg-orange-50 text-[#c2652a] group-hover:scale-110 transition-transform">
-                      <Plus className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs text-gray-900">Add Recurring Bill</h4>
-                      <p className="text-[10px] text-gray-500">Setup new monthly schedule</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Expenses Detailed Table Section */}
-              <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-4">
-                  <div>
-                    <h3 className="font-serif font-bold text-xl text-gray-900">
-                      Operational Expenses Ledger
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Showing {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded expense transactions (Firebase Synced)
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* Export CSV Button */}
-                    <button
-                      type="button"
-                      onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
-                      className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    >
-                      <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
-                    </button>
-
-                    {/* View All Categories Included Button */}
-                    <button
-                      type="button"
-                      onClick={() => setShowCategoryDirectoryModal(true)}
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    >
-                      🏷️ Categories ({categories.length})
-                    </button>
-
-                    {/* Category Filter Pills */}
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                      <span className="text-gray-500 font-bold flex items-center gap-1">
-                        <Filter className="w-3.5 h-3.5" /> Filter:
-                      </span>
-                      <button
-                        onClick={() => setSelectedCategoryFilter("ALL")}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                          selectedCategoryFilter === "ALL"
-                            ? "bg-[#c2652a] text-white shadow-xs"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
+                      {/* Add New Recurring Bill Action Dash Card */}
+                      <div
+                        onClick={() => handleOpenAddRecurringModal()}
+                        className="p-5 rounded-2xl border-2 border-dashed border-gray-300 bg-[#fcfcfc] hover:bg-white hover:border-[#c2652a] transition-all cursor-pointer flex flex-col justify-center items-center text-center space-y-2 shrink-0 w-64 snap-start group min-h-[120px]"
                       >
-                        ALL
+                        <div className="p-3 rounded-full bg-orange-50 text-[#c2652a] group-hover:scale-110 transition-transform">
+                          <Plus className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">Add Recurring Bill</h4>
+                          <p className="text-[10px] text-gray-500">Setup new monthly schedule</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* MOBILE RECURRING BILLS COMPACT ROW */}
+                  <div className="block md:hidden space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-serif font-bold text-base text-gray-900">
+                          Recurring Bills ({recurringBillsList.length})
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddRecurringModal()}
+                        className="text-xs font-bold text-[#c2652a] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Bill
                       </button>
-                      {categories.map((c) => (
+                    </div>
+
+                    <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-none snap-x -mx-1 px-1">
+                      {recurringBillsList.map((bill) => (
+                        <div
+                          key={bill.id}
+                          className="p-4 rounded-2xl bg-white border border-gray-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between shrink-0 w-64 snap-start"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="p-2 rounded-xl bg-orange-50 text-[#c2652a] shrink-0">
+                                {bill.icon === "Droplet" ? (
+                                  <Droplet className="w-4 h-4" />
+                                ) : bill.icon === "Users" ? (
+                                  <Users className="w-4 h-4" />
+                                ) : bill.icon === "Wifi" ? (
+                                  <Wifi className="w-4 h-4" />
+                                ) : bill.icon === "Fuel" ? (
+                                  <Fuel className="w-4 h-4" />
+                                ) : bill.icon === "Shield" ? (
+                                  <Shield className="w-4 h-4" />
+                                ) : (
+                                  <Zap className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-xs text-gray-900 truncate">{bill.title}</h4>
+                                <p className="text-[10px] text-gray-500 font-medium">{bill.dueDate}</p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddRecurringModal(bill)}
+                              title="Edit Bill Details"
+                              className="p-1 rounded text-gray-400 hover:text-gray-700 cursor-pointer"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                            <span className="font-sans font-bold text-sm text-gray-900 tracking-tight tabular-nums">
+                              ₹{bill.amount.toLocaleString("en-IN")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRecurringModal({
+                                  billId: bill.id,
+                                  category: bill.category,
+                                  amount: bill.amount,
+                                  paidFrom: bill.paidFrom,
+                                  notes: bill.notes || "",
+                                  saveNewDefault: false,
+                                })
+                              }
+                              className="text-[10px] font-extrabold text-white bg-[#c2652a] px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95 cursor-pointer shadow-2xs"
+                            >
+                              + Pay
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Add Schedule Dash Card */}
+                      <div
+                        onClick={() => handleOpenAddRecurringModal()}
+                        className="p-4 rounded-2xl border-2 border-dashed border-gray-200 bg-[#fcfcfc] hover:bg-white hover:border-[#c2652a] transition-all cursor-pointer flex flex-col justify-center items-center text-center space-y-1.5 shrink-0 w-44 snap-start"
+                      >
+                        <div className="p-2 rounded-full bg-orange-50 text-[#c2652a]">
+                          <Plus className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">Add Schedule</h4>
+                          <p className="text-[9px] text-gray-400">Monthly bill</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DESKTOP RECENT EXPENSES DETAILED TABLE SECTION (UNCHANGED) */}
+                  <div className="hidden md:block bg-white rounded-3xl border border-gray-200 p-6 shadow-xs space-y-5">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-4">
+                      <div>
+                        <h3 className="font-serif font-bold text-xl text-gray-900">
+                          Operational Expenses Ledger
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Showing {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded expense transactions (Firebase Synced)
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Export CSV Button */}
                         <button
-                          key={c.id}
-                          onClick={() => setSelectedCategoryFilter(c.name)}
-                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                            selectedCategoryFilter === c.name
-                              ? "bg-[#c2652a] text-white shadow-xs"
+                          type="button"
+                          onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
+                        </button>
+
+                        {/* View All Categories Included Button */}
+                        <button
+                          type="button"
+                          onClick={() => setShowCategoryDirectoryModal(true)}
+                          className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          🏷️ Categories ({categories.length})
+                        </button>
+
+                        {/* Category Filter Pills */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className="text-gray-500 font-bold flex items-center gap-1">
+                            <Filter className="w-3.5 h-3.5" /> Filter:
+                          </span>
+                          <button
+                            onClick={() => setSelectedCategoryFilter("ALL")}
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                              selectedCategoryFilter === "ALL"
+                                ? "bg-[#c2652a] text-white shadow-xs"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                          >
+                            ALL
+                          </button>
+                          {categories.map((c) => (
+                            <button
+                              key={c.id}
+                              onClick={() => setSelectedCategoryFilter(c.name)}
+                              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                                selectedCategoryFilter === c.name
+                                  ? "bg-[#c2652a] text-white shadow-xs"
+                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              }`}
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expenses Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
+                            <th className="py-3 px-4 font-bold">DATE</th>
+                            <th className="py-3 px-4 font-bold">CATEGORY</th>
+                            <th className="py-3 px-4 font-bold">PAID BY</th>
+                            <th className="py-3 px-4 font-bold">PROPERTY</th>
+                            <th className="py-3 px-4 font-bold">AMOUNT</th>
+                            <th className="py-3 px-4 font-bold">RECEIPT</th>
+                            <th className="py-3 px-4 font-bold text-right">ACTIONS</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {expenseList
+                            .filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter)
+                            .map((exp) => (
+                              <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="py-4 px-4 text-gray-500 font-medium">{exp.date}</td>
+                                <td className="py-4 px-4 font-bold text-gray-900">
+                                  {(() => {
+                                    const catObj = categories.find(
+                                      (c) => c.name.toLowerCase() === exp.category.toLowerCase()
+                                    );
+                                    const catColor = catObj?.color || "#475569";
+                                    const catIcon = catObj?.icon || "Receipt";
+
+                                    return (
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className="p-1.5 rounded-lg text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
+                                          style={{ backgroundColor: catColor }}
+                                        >
+                                          <RenderDynamicCategoryIcon iconName={catIcon} className="w-3.5 h-3.5 text-white" />
+                                        </div>
+                                        <span className="font-bold text-gray-900">{exp.category}</span>
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="py-4 px-4">
+                                  <span className="font-semibold text-gray-900 flex items-center gap-1.5">
+                                    <span className="w-5 h-5 rounded-full bg-[#c2652a] text-white text-[9px] font-bold flex items-center justify-center">
+                                      {exp.paidFrom.charAt(0)}
+                                    </span>
+                                    {exp.paidFrom}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-4 text-gray-500">{exp.property}</td>
+                                <td className="py-4 px-4 font-sans font-bold text-sm text-gray-900 tabular-nums">
+                                  ₹{exp.amount.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-4 px-4">
+                                  {exp.hasReceipt ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveReceiptModal(exp)}
+                                      className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-900 border border-purple-200 font-bold text-[10px] flex items-center gap-1 hover:bg-purple-100 transition-colors cursor-pointer"
+                                    >
+                                      <FileText className="w-3 h-3 text-purple-700" /> View Receipt
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400 font-medium">—</span>
+                                  )}
+                                </td>
+                                <td className="py-4 px-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteExpense(exp.id)}
+                                    className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
+                                    title="Delete Expense"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* MOBILE REDESIGNED OPERATIONAL EXPENSES LEDGER (STITCH-DESIGNED CARD FEED + SMOOTH PILL FILTER) */}
+                  <div className="block md:hidden bg-white rounded-3xl border border-gray-200 p-4 sm:p-5 shadow-xs space-y-4">
+                    {/* Mobile Header: Title & Export Button */}
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-serif font-bold text-lg text-gray-900">
+                          Expenses Ledger
+                        </h3>
+                        <p className="text-[11px] text-gray-500">
+                          {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length} recorded transactions
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => expenseStore.exportLedgerToCSV(propertyId, activeDateBounds.startDate, activeDateBounds.endDate)}
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" /> Export CSV
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mobile Smooth-Scroll Horizontal Filter Pills Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold px-0.5">
+                        <span className="flex items-center gap-1 uppercase tracking-wider text-[9px] text-gray-400">
+                          <Filter className="w-3 h-3 text-gray-400" /> Filter by Category:
+                        </span>
+                        {selectedCategoryFilter !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCategoryFilter("ALL")}
+                            className="text-[10px] text-[#c2652a] font-extrabold hover:underline cursor-pointer"
+                          >
+                            Reset to ALL
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 scroll-smooth">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryFilter("ALL")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                            selectedCategoryFilter === "ALL"
+                              ? "bg-[#c2652a] text-white shadow-2xs"
                               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                           }`}
                         >
-                          {c.name}
+                          ALL ({expenseList.length})
                         </button>
-                      ))}
+                        {categories.map((c) => {
+                          const count = expenseList.filter((item) => item.category.toLowerCase() === c.name.toLowerCase()).length;
+                          const isSelected = selectedCategoryFilter === c.name;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setSelectedCategoryFilter(c.name)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#c2652a] text-white shadow-2xs"
+                                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-2xs"
+                              }`}
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: c.color || "#c2652a" }}
+                              />
+                              <span>{c.name}</span>
+                              <span className={`text-[10px] font-semibold px-1 rounded-full ${
+                                isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
+                              }`}>
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Mobile Tactile Expense Cards Feed */}
+                    <div className="space-y-3 pt-1">
+                      {expenseList.filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter).length === 0 ? (
+                        <div className="py-12 px-4 text-center rounded-2xl bg-gray-50/70 border border-dashed border-gray-200 space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#c2652a] flex items-center justify-center mx-auto shadow-2xs">
+                            <ReceiptRupeeIcon className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-gray-900">No Expenses Found</h4>
+                            <p className="text-xs text-gray-500 max-w-xs mx-auto mt-0.5">
+                              {selectedCategoryFilter === "ALL"
+                                ? "No operational expenses logged yet for this period."
+                                : `No expenses logged under "${selectedCategoryFilter}".`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowRecordDrawer(true)}
+                            className="px-4 py-2 rounded-xl bg-[#c2652a] text-white font-bold text-xs shadow-xs hover:bg-[#a3521e] transition-all cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4" /> Record New Expense
+                          </button>
+                        </div>
+                      ) : (
+                        expenseList
+                          .filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter)
+                          .map((exp) => {
+                            const catObj = categories.find(
+                              (c) => c.name.toLowerCase() === exp.category.toLowerCase()
+                            );
+                            const catColor = catObj?.color || "#475569";
+                            const catIcon = catObj?.icon || "Receipt";
+
+                            return (
+                              <div
+                                key={exp.id}
+                                className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-2xs space-y-3 transition-all hover:border-gray-300 active:bg-gray-50/50"
+                              >
+                                {/* Top Row: Category Icon + Title + Date | Amount */}
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div
+                                      className="w-10 h-10 rounded-xl text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
+                                      style={{ backgroundColor: catColor }}
+                                    >
+                                      <RenderDynamicCategoryIcon iconName={catIcon} className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="font-bold text-sm text-gray-900 truncate">{exp.category}</h4>
+                                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-500">
+                                        <span>{exp.date}</span>
+                                        {exp.property && (
+                                          <>
+                                            <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                            <span className="truncate max-w-[120px]">{exp.property}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <span className="font-sans font-extrabold text-base text-gray-900 tabular-nums block">
+                                      ₹{exp.amount.toLocaleString("en-IN")}
+                                    </span>
+                                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                      Logged
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Bottom Row: Paid By + Action Buttons */}
+                                <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 text-xs">
+                                  <div className="flex items-center gap-1.5 text-gray-600 min-w-0">
+                                    <span className="w-5 h-5 rounded-full bg-[#c2652a]/10 text-[#c2652a] text-[9px] font-extrabold flex items-center justify-center shrink-0">
+                                      {exp.paidFrom ? exp.paidFrom.charAt(0) : "P"}
+                                    </span>
+                                    <span className="font-medium text-[11px] text-gray-700 truncate max-w-[140px]">
+                                      {exp.paidFrom || "Business Account"}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {exp.hasReceipt && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveReceiptModal(exp)}
+                                        className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                                      >
+                                        <FileText className="w-3 h-3 text-purple-700" /> Receipt
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteExpense(exp.id)}
+                                      className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                                      title="Delete Expense"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {exp.notes && (
+                                  <p className="text-[11px] text-gray-600 bg-gray-50/80 rounded-xl p-2.5 border border-gray-100 italic">
+                                    "{exp.notes}"
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })
+                      )}
                     </div>
                   </div>
                 </div>
-
-                {/* Expenses Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500 font-bold bg-[#fcf9f8]">
-                        <th className="py-3 px-4 font-bold">DATE</th>
-                        <th className="py-3 px-4 font-bold">CATEGORY</th>
-                        <th className="py-3 px-4 font-bold">PAID BY</th>
-                        <th className="py-3 px-4 font-bold">PROPERTY</th>
-                        <th className="py-3 px-4 font-bold">AMOUNT</th>
-                        <th className="py-3 px-4 font-bold">RECEIPT</th>
-                        <th className="py-3 px-4 font-bold text-right">ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {expenseList
-                        .filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter)
-                        .map((exp) => (
-                          <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="py-4 px-4 text-gray-500 font-medium">{exp.date}</td>
-                            <td className="py-4 px-4 font-bold text-gray-900">
-                              {(() => {
-                                const catObj = categories.find(
-                                  (c) => c.name.toLowerCase() === exp.category.toLowerCase()
-                                );
-                                const catColor = catObj?.color || "#475569";
-                                const catIcon = catObj?.icon || "Receipt";
-
-                                return (
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="p-1.5 rounded-lg text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
-                                      style={{ backgroundColor: catColor }}
-                                    >
-                                      <RenderDynamicCategoryIcon iconName={catIcon} className="w-3.5 h-3.5 text-white" />
-                                    </div>
-                                    <span className="font-bold text-gray-900">{exp.category}</span>
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                            <td className="py-4 px-4">
-                              <span className="font-semibold text-gray-900 flex items-center gap-1.5">
-                                <span className="w-5 h-5 rounded-full bg-[#c2652a] text-white text-[9px] font-bold flex items-center justify-center">
-                                  {exp.paidFrom.charAt(0)}
-                                </span>
-                                {exp.paidFrom}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 text-gray-500">{exp.property}</td>
-                            <td className="py-4 px-4 font-sans font-bold text-sm text-gray-900 tabular-nums">
-                              ₹{exp.amount.toLocaleString("en-IN")}
-                            </td>
-                            <td className="py-4 px-4">
-                              {exp.hasReceipt ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveReceiptModal(exp)}
-                                  className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-900 border border-purple-200 font-bold text-[10px] flex items-center gap-1 hover:bg-purple-100 transition-colors cursor-pointer"
-                                >
-                                  <FileText className="w-3 h-3 text-purple-700" /> View Receipt
-                                </button>
-                              ) : (
-                                <span className="text-[10px] text-gray-400 font-medium">—</span>
-                              )}
-                            </td>
-                            <td className="py-4 px-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteExpense(exp.id)}
-                                className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors cursor-pointer"
-                                title="Delete Expense"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
 
               {/* VIEW 2: CLEAN ACTIVE CATEGORIES DIRECTORY */}
               {expensesSubTab === "CATEGORIES" && (
