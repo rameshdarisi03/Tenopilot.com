@@ -619,12 +619,18 @@ function WelcomeOnboardingContent() {
       const userDocRef = doc(db, "users", ownerUid);
       let existingCreatedAt = "";
       let existingPlanExpiresAt = "";
+      let existingPlan = "10_DAY_TRIAL";
+      let existingSubPlan = "trial";
+      let existingSubStatus = "TRIAL";
       try {
         const existingSnap = await getDoc(userDocRef);
         if (existingSnap.exists()) {
           const uData = existingSnap.data();
           existingCreatedAt = uData.createdAt;
           existingPlanExpiresAt = uData.planExpiresAt;
+          if (uData.plan) existingPlan = uData.plan;
+          if (uData.subscriptionPlan) existingSubPlan = uData.subscriptionPlan;
+          if (uData.subscriptionStatus) existingSubStatus = uData.subscriptionStatus;
         }
       } catch {}
 
@@ -654,8 +660,9 @@ function WelcomeOnboardingContent() {
           securityPin: pin,
           createdAt: finalCreatedAt,
           planExpiresAt: finalPlanExpiresAt,
-          plan: "10_DAY_TRIAL",
-          subscriptionStatus: "TRIAL",
+          plan: existingPlan,
+          subscriptionPlan: existingSubPlan,
+          subscriptionStatus: existingSubStatus,
           updatedAt: nowIso,
         },
         { merge: true }

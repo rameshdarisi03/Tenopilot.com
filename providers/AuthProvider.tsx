@@ -186,81 +186,131 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 data.role = data.role === "admin" ? "master_admin" : (data.role || "master_admin");
                 data.assignedPropertyId = data.assignedPropertyId || resolvedProp;
 
-                // 🔗 CROSS-AUTH IDENTITY LINKING & REAL-TIME SUBSCRIPTION HEALING:
-                // If this account was accessed via phone or has a primary master UID (e.g. Google OAuth Master),
-                // synchronize Pro subscription and property authority from the master account!
-                if (data.primaryUid && data.primaryUid !== currentUser.uid) {
-                  getDoc(doc(db, "users", data.primaryUid)).then((primarySnap) => {
-                    if (primarySnap.exists()) {
-                      const pData = primarySnap.data();
-                      const isPrimaryPro =
-                        pData.subscriptionStatus === "ACTIVE_PRO" ||
-                        pData.plan?.startsWith("PRO_") ||
-                        pData.plan === "VIP_PASS" ||
-                        pData.subscriptionPlan === "pro" ||
-                        (pData.planExpiresAt && new Date(pData.planExpiresAt).getTime() > Date.now());
-                      if (isPrimaryPro && data.subscriptionStatus !== "ACTIVE_PRO") {
-                        const synced: Partial<UserProfile> = {
-                          plan: pData.plan || "PRO_MONTHLY",
-                          subscriptionPlan: pData.subscriptionPlan || "pro",
-                          subscriptionStatus: pData.subscriptionStatus || "ACTIVE_PRO",
-                          planExpiresAt: pData.planExpiresAt,
-                          trialEndsAtMs: pData.trialEndsAtMs || null,
-                          tenantExtensionPacks: pData.tenantExtensionPacks || 0,
-                          maxPropertiesAllowed: pData.maxPropertiesAllowed || 1,
-                          organizationId: pData.organizationId || data.organizationId,
-                          assignedPropertyId: pData.assignedPropertyId || data.assignedPropertyId,
-                          propertyName: pData.propertyName || data.propertyName,
-                        };
-                        Object.assign(data, synced);
-                        setDoc(userDocRef, synced, { merge: true }).catch(() => {});
-                        setProfile({ ...data });
+                // 🔗 CROSS-AUTH IDENTITY LINKING & REAL-TIME SUBSCRIPTION HEALING (Omni-Auth Bidirectional SSOT)
+                // Harmonizes Google/Email and WhatsApp/Phone logins so validity dates & Pro privileges are 100% synchronized
+                (async () => {
+                  try {
+                    const candidateDocs: { id: string; ref: any; data: any }[] = [];
+
+                    // A. Check primaryUid
+                    if (data.primaryUid && data.primaryUid !== currentUser.uid) {
+                      const pSnap = await getDoc(doc(db, "users", data.primaryUid));
+                      if (pSnap.exists()) {
+                        candidateDocs.push({ id: pSnap.id, ref: pSnap.ref, data: pSnap.data() });
                       }
                     }
-                  }).catch(() => {});
-                } else if (
-                  data.subscriptionStatus !== "ACTIVE_PRO" &&
-                  data.plan !== "PRO_MONTHLY" &&
-                  data.plan !== "PRO_ANNUAL" &&
-                  data.plan !== "VIP_PASS"
-                ) {
-                  // Fallback proactive lookup by phone if primaryUid wasn't stamped yet
-                  const cleanPhone = (data.phone || savedSessionPhone || "").replace(/\D/g, "").slice(-10);
-                  if (cleanPhone) {
-                    getDocs(query(collection(db, "users"), where("phone", "==", cleanPhone))).then((pSnap: any) => {
-                      const proMatch = pSnap.docs.find((d: any) => {
-                        const dData = d.data();
-                        return (
-                          d.id !== currentUser.uid &&
-                          (dData.subscriptionStatus === "ACTIVE_PRO" ||
-                            dData.plan?.startsWith("PRO_") ||
-                            dData.plan === "VIP_PASS" ||
-                            dData.subscriptionPlan === "pro" ||
-                            (dData.planExpiresAt && new Date(dData.planExpiresAt).getTime() > Date.now()))
-                        );
-                      });
-                      if (proMatch) {
-                        const pData = proMatch.data();
-                        const synced: Partial<UserProfile> = {
-                          primaryUid: proMatch.id,
-                          plan: pData.plan || "PRO_MONTHLY",
-                          subscriptionPlan: pData.subscriptionPlan || "pro",
-                          subscriptionStatus: pData.subscriptionStatus || "ACTIVE_PRO",
-                          planExpiresAt: pData.planExpiresAt,
-                          trialEndsAtMs: pData.trialEndsAtMs || null,
-                          tenantExtensionPacks: pData.tenantExtensionPacks || 0,
-                          maxPropertiesAllowed: pData.maxPropertiesAllowed || 1,
-                          organizationId: pData.organizationId || data.organizationId,
-                          assignedPropertyId: pData.assignedPropertyId || data.assignedPropertyId,
-                          propertyName: pData.propertyName || data.propertyName,
-                        };
-                        Object.assign(data, synced);
-                        setDoc(userDocRef, synced, { merge: true }).catch(() => {});
-                        setProfile({ ...data });
+
+                    // B. Check linkedPhoneUid
+                    if (data.linkedPhoneUid && data.linkedPhoneUid !== currentUser.uid) {
+                      const lSnap = await getDoc(doc(db, "users", data.linkedPhoneUid));
+                      if (lSnap.exists()) {
+                        candidateDocs.push({ id: lSnap.id, ref: lSnap.ref, data: lSnap.data() });
                       }
-                    }).catch(() => {});
+                    }
+
+                    // C. Proactive lookup by Phone (10 digits)
+                    const cleanPhone = (data.phone || savedSessionPhone || "").replace(/\D/g, "").slice(-10);
+                    if (cleanPhone) {
+                      const pSnap = await getDocs(query(collection(db, "users"), where("phone", "==", cleanPhone)));
+                      pSnap.docs.forEach((d) => {
+                        if (d.id !== currentUser.uid && !candidateDocs.some((c) => c.id === d.id)) {
+                          candidateDocs.push({ id: d.id, ref: d.ref, data: d.data() });
+                        }
+                      });
+                    }
+
+                    // D. Proactive lookup by Email (excluding synthetic)
+                    const rawEmail = (data.email || currentUser.email || "").trim().toLowerCase();
+                    if (rawEmail && !rawEmail.startsWith("phone_") && !rawEmail.includes("tenopilot.auth")) {
+                      const eSnap = await getDocs(query(collection(db, "users"), where("email", "==", rawEmail)));
+                      eSnap.docs.forEach((d) => {
+                        if (d.id !== currentUser.uid && !candidateDocs.some((c) => c.id === d.id)) {
+                          candidateDocs.push({ id: d.id, ref: d.ref, data: d.data() });
+                        }
+                      });
+                    }
+
+                    if (candidateDocs.length === 0) return;
+
+                    const getDocScore = (d: any) => {
+                      const expTime = d.planExpiresAt ? new Date(d.planExpiresAt).getTime() : 0;
+                      const isPro =
+                        d.subscriptionStatus === "ACTIVE_PRO" ||
+                        d.plan?.startsWith("PRO_") ||
+                        d.plan === "VIP_PASS" ||
+                        d.subscriptionPlan === "pro";
+                      return { isPro, expTime };
+                    };
+
+                    const currentScore = getDocScore(data);
+                    let bestDoc: any = null;
+                    let bestScore = currentScore;
+
+                    for (const cand of candidateDocs) {
+                      const candScore = getDocScore(cand.data);
+                      const isBetter =
+                        (candScore.isPro && !bestScore.isPro) ||
+                        (candScore.isPro === bestScore.isPro && candScore.expTime > bestScore.expTime + 60000);
+                      if (isBetter) {
+                        bestDoc = cand;
+                        bestScore = candScore;
+                      }
+                    }
+
+                    if (bestDoc) {
+                      const bData = bestDoc.data;
+                      const synced: Partial<UserProfile> = {
+                        primaryUid: bestDoc.id,
+                        plan: bData.plan || "PRO_MONTHLY",
+                        subscriptionPlan: bData.subscriptionPlan || "pro",
+                        subscriptionStatus: bData.subscriptionStatus || "ACTIVE_PRO",
+                        planExpiresAt: bData.planExpiresAt,
+                        trialEndsAtMs: bData.trialEndsAtMs || null,
+                        tenantExtensionPacks: Math.max(data.tenantExtensionPacks || 0, bData.tenantExtensionPacks || 0),
+                        maxPropertiesAllowed: Math.max(data.maxPropertiesAllowed || 1, bData.maxPropertiesAllowed || 1),
+                        organizationId: bData.organizationId || data.organizationId,
+                        assignedPropertyId: bData.assignedPropertyId || data.assignedPropertyId,
+                        propertyName: bData.propertyName || data.propertyName,
+                      };
+                      Object.assign(data, synced);
+                      await setDoc(userDocRef, synced, { merge: true });
+                      setProfile({ ...data });
+
+                      try {
+                        const s = localStorage.getItem("tenopilot_saved_session");
+                        if (s) {
+                          const parsed = JSON.parse(s);
+                          localStorage.setItem("tenopilot_saved_session", JSON.stringify({
+                            ...parsed,
+                            plan: synced.plan,
+                            subscriptionPlan: synced.subscriptionPlan,
+                            subscriptionStatus: synced.subscriptionStatus,
+                            planExpiresAt: synced.planExpiresAt,
+                          }));
+                        }
+                      } catch {}
+                    } else {
+                      // Propagate current authoritative subscription to linked candidate docs
+                      const pushSync = {
+                        plan: data.plan,
+                        subscriptionPlan: data.subscriptionPlan,
+                        subscriptionStatus: data.subscriptionStatus,
+                        planExpiresAt: data.planExpiresAt,
+                        trialEndsAtMs: data.trialEndsAtMs || null,
+                        tenantExtensionPacks: data.tenantExtensionPacks || 0,
+                        maxPropertiesAllowed: data.maxPropertiesAllowed || 1,
+                      };
+                      for (const cand of candidateDocs) {
+                        const candScore = getDocScore(cand.data);
+                        if ((currentScore.isPro && !candScore.isPro) || currentScore.expTime > candScore.expTime + 60000) {
+                          await setDoc(cand.ref, pushSync, { merge: true });
+                        }
+                      }
+                    }
+                  } catch (crossErr) {
+                    console.warn("Cross-auth subscription sync notice:", crossErr);
                   }
-                }
+                })();
 
                 // 🛡️ Self-heal existing accounts: stamp planExpiresAt if missing
                 if (!data.planExpiresAt && data.role === "master_admin") {

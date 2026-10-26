@@ -125,7 +125,7 @@ export default function PropertySettingsPage({
   );
 
   // Unified Payment Accounts State
-  const [newQrPartnerId, setNewQrPartnerId] = useState<string>("BUSINESS");
+  const [newQrPartnerId, setNewQrPartnerId] = useState<string>("");
   const [newQrBank, setNewQrBank] = useState("");
   const [newQrUpi, setNewQrUpi] = useState("");
 
@@ -143,46 +143,32 @@ export default function PropertySettingsPage({
   const [newCatName, setNewCatName] = useState("");
 
   const handleAddQrProfile = async () => {
-    const isCashDesk = newQrPartnerId === "PETTY_CASH";
+    if (!newQrPartnerId) {
+      alert("Please select a partner to tag this payment account under.");
+      return;
+    }
 
-    if (!newQrBank.trim() && !isCashDesk) {
+    if (!newQrBank.trim()) {
       alert("Please enter a Bank / Account Label (e.g. HDFC Bank, ICICI Bank).");
       return;
     }
 
-    let resolvedPartnerName = "Main Business Pool";
-    let autoProfileName = "";
-
-    if (newQrPartnerId === "BUSINESS") {
-      resolvedPartnerName = "Main Business Pool";
-      autoProfileName = newQrBank.trim() ? `Main Business — ${newQrBank.trim()}` : "Main Business Account";
-    } else if (newQrPartnerId === "PETTY_CASH") {
-      resolvedPartnerName = "Petty Cash Desk";
-      autoProfileName = newQrBank.trim() ? `Petty Cash — ${newQrBank.trim()}` : "Petty Cash Desk";
-    } else {
-      const matchedPartner = partners.find((p) => p.id === newQrPartnerId);
-      if (matchedPartner) {
-        resolvedPartnerName = matchedPartner.name;
-        autoProfileName = newQrBank.trim() ? `${matchedPartner.name} — ${newQrBank.trim()}` : `${matchedPartner.name} Account`;
-      } else {
-        autoProfileName = newQrBank.trim() || "Account";
-      }
-    }
+    const matchedPartner = partners.find((p) => p.id === newQrPartnerId);
+    const resolvedPartnerName = matchedPartner ? matchedPartner.name : "Partner Account";
+    const autoProfileName = newQrBank.trim() ? `${resolvedPartnerName} — ${newQrBank.trim()}` : `${resolvedPartnerName} Account`;
 
     const currentProfiles = settings.qrProfiles && settings.qrProfiles.length > 0 ? settings.qrProfiles : DEFAULT_QR_PROFILES;
     const isFirstAccount = currentProfiles.length === 0;
 
-    const resolvedAccountType: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK" = isCashDesk
-      ? "CASH_DESK"
-      : newQrUpi.trim()
+    const resolvedAccountType: "UPI_QR" | "BANK_TRANSFER" | "CASH_DESK" = newQrUpi.trim()
       ? "UPI_QR"
       : "BANK_TRANSFER";
 
     const newProf: PaymentQRProfile = {
       id: `qr-${Date.now()}`,
       name: autoProfileName,
-      bankLabel: newQrBank.trim() || (isCashDesk ? "Reception Cash Drawer" : "Bank Account"),
-      upiId: isCashDesk ? "CASH" : newQrUpi.trim(),
+      bankLabel: newQrBank.trim() || "Bank Account",
+      upiId: newQrUpi.trim(),
       accountType: resolvedAccountType,
       partnerId: newQrPartnerId,
       partnerName: resolvedPartnerName,
@@ -800,17 +786,12 @@ export default function PropertySettingsPage({
                             onChange={(e) => setNewQrPartnerId(e.target.value)}
                             className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
                           >
-                            <option value="BUSINESS">🏢 Main Business (Common Pool)</option>
-                            <option value="PETTY_CASH">💵 Petty Cash Desk (Reception Drawer)</option>
-                            {partners.length > 0 && (
-                              <optgroup label="👤 Tag Under Partner">
-                                {partners.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    👤 {p.name} ({p.ownershipPercentage}%)
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
+                            <option value="">-- Select Enrolled Partner * --</option>
+                            {partners.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                👤 {p.name} ({p.ownershipPercentage}% Partner)
+                              </option>
+                            ))}
                           </select>
                         </div>
 

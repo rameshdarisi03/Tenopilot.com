@@ -238,7 +238,11 @@ export default function FinancialHubPage({
   // Form state
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Electricity");
-  const [paidFrom, setPaidFrom] = useState("Business Account");
+  const [paidFrom, setPaidFrom] = useState(() => {
+    const initPartners = partnerStore.getPartners(propertyId);
+    const initAccs = partnerStore.getPaymentAccounts(propertyId);
+    return initPartners.length === 1 ? (initAccs[0]?.name || initPartners[0]?.name || "") : "";
+  });
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [receiptFile, setReceiptFile] = useState<{ url: string; fileName: string; size: string } | null>(null);
@@ -301,6 +305,13 @@ export default function FinancialHubPage({
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
   const router = useRouter();
+
+  // Auto-reset paying account based on partner count (Empty by default for 2+ partners)
+  useEffect(() => {
+    if (showRecordDrawer) {
+      setPaidFrom(partners.length === 1 ? (paymentAccounts[0]?.name || partners[0]?.name || "") : "");
+    }
+  }, [showRecordDrawer, partners, paymentAccounts]);
 
   // Exact SSOT Category Metadata Resolver (Colors & Icons strictly mapped from category configuration)
   const resolveCategoryMeta = (catName: string) => {
@@ -870,6 +881,11 @@ export default function FinancialHubPage({
       return;
     }
 
+    if (!paidFrom || paidFrom.trim() === "") {
+      triggerToast("⚠️ Please select the paying partner / account before recording expense.");
+      return;
+    }
+
     const isoDateStr = expenseDate || new Date().toISOString().split("T")[0];
 
     await expenseStore.addExpense(propertyId, {
@@ -903,6 +919,11 @@ export default function FinancialHubPage({
 
     if (isNaN(recurringModal.amount) || recurringModal.amount <= 0) {
       triggerToast("⚠️ Please enter a valid payment amount.");
+      return;
+    }
+
+    if (!recurringModal.paidFrom || recurringModal.paidFrom.trim() === "") {
+      triggerToast("⚠️ Please select the paying partner / account before confirming bill payment.");
       return;
     }
 
@@ -948,7 +969,7 @@ export default function FinancialHubPage({
       setRecCategory(categories[0]?.name || "Electricity");
       setRecAmount("");
       setRecDueDate("Monthly • 1st");
-      setRecPaidFrom("Business Account");
+      setRecPaidFrom(partners.length === 1 ? (paymentAccounts[0]?.name || partners[0]?.name || "") : "");
       setRecNotes("");
     }
     setShowAddRecurringModal(true);
@@ -959,6 +980,11 @@ export default function FinancialHubPage({
     const numAmount = parseFloat(recAmount);
     if (!recTitle.trim() || isNaN(numAmount) || numAmount <= 0) {
       triggerToast("⚠️ Please enter a valid bill title and amount.");
+      return;
+    }
+
+    if (!recPaidFrom || recPaidFrom.trim() === "") {
+      triggerToast("⚠️ Please select the paying partner / account for this recurring bill.");
       return;
     }
 

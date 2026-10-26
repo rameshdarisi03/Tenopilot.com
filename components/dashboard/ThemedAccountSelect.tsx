@@ -38,54 +38,18 @@ export function ThemedAccountSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Group accounts logically into SSOT categories
+  // Group accounts logically strictly under Enrolled Partners (No synthetic Main Business or Petty Cash)
   const groups: AccountGroup[] = useMemo(() => {
     const list = accounts || [];
-
-    // 1. Common Business Pool
-    const businessAccs = list.filter(
-      (a) => a.type === "Business Account" || a.partnerId === "BUSINESS" || a.name.toLowerCase().includes("business")
-    );
-    const finalBusinessAccs =
-      businessAccs.length > 0
-        ? businessAccs
-        : [
-            {
-              id: "acc-business-default",
-              name: "Main Business Account",
-              type: "Business Account" as const,
-              bankLabel: "Primary Operating Pool",
-            },
-          ];
-
-    // 2. Cash / Reception Drawer
-    const cashAccs = list.filter(
-      (a) =>
-        a.type === "Petty Cash" ||
-        a.partnerId === "PETTY_CASH" ||
-        a.accountType === "CASH_DESK" ||
-        a.name.toLowerCase().includes("cash")
-    );
-    const finalCashAccs =
-      cashAccs.length > 0
-        ? cashAccs
-        : [
-            {
-              id: "acc-cash-default",
-              name: "Petty Cash / Reception Desk",
-              type: "Petty Cash" as const,
-              bankLabel: "PG Reception",
-            },
-          ];
-
-    // 3. Partner Accounts
     const partnerAccMap = new Map<string, PaymentAccountConfig[]>();
     partners.forEach((p) => partnerAccMap.set(p.id, []));
 
     const otherAccs: PaymentAccountConfig[] = [];
 
     list.forEach((acc) => {
-      if (businessAccs.includes(acc) || cashAccs.includes(acc)) return;
+      // Exclude legacy synthetic pools
+      if (acc.partnerId === "BUSINESS" || acc.partnerId === "PETTY_CASH") return;
+      if (acc.name.toLowerCase().includes("main business") || acc.name.toLowerCase().includes("petty cash")) return;
 
       if (acc.partnerId && partnerAccMap.has(acc.partnerId)) {
         partnerAccMap.get(acc.partnerId)!.push(acc);
@@ -106,20 +70,7 @@ export function ThemedAccountSelect({
       }
     });
 
-    const result: AccountGroup[] = [
-      {
-        id: "group-business",
-        label: "🏢 Common Business Pool",
-        icon: "business",
-        items: finalBusinessAccs,
-      },
-      {
-        id: "group-cash",
-        label: "💵 Cash / Reception Drawer",
-        icon: "cash",
-        items: finalCashAccs,
-      },
-    ];
+    const result: AccountGroup[] = [];
 
     partners.forEach((p) => {
       const pAccs = partnerAccMap.get(p.id) || [];

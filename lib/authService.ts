@@ -1526,6 +1526,44 @@ export async function loginOrRegisterWithPhone(
     });
     scored.sort((a, b) => b.score - a.score);
     existingUserDoc = scored[0].docData;
+
+    // Harmonize authoritative subscription across all candidate records
+    let latestExpMs = 0;
+    let authPlanExpiresAt: string | null = null;
+    let authPlan = "10_DAY_TRIAL";
+    let authSubPlan = "trial";
+    let authStatus = "TRIAL";
+
+    candidateDocs.forEach((d) => {
+      const expTime = d.planExpiresAt ? new Date(d.planExpiresAt).getTime() : 0;
+      const isPro =
+        d.subscriptionStatus === "ACTIVE_PRO" ||
+        d.plan === "PRO_MONTHLY" ||
+        d.plan === "PRO_ANNUAL" ||
+        d.plan === "VIP_PASS" ||
+        d.subscriptionPlan === "pro";
+
+      if (isPro) {
+        authStatus = "ACTIVE_PRO";
+        authSubPlan = "pro";
+        authPlan = d.plan || "PRO_MONTHLY";
+      }
+      if (expTime > latestExpMs) {
+        latestExpMs = expTime;
+        authPlanExpiresAt = d.planExpiresAt;
+      }
+    });
+
+    if (existingUserDoc) {
+      if (authStatus === "ACTIVE_PRO") {
+        existingUserDoc.subscriptionStatus = "ACTIVE_PRO";
+        existingUserDoc.subscriptionPlan = "pro";
+        existingUserDoc.plan = authPlan;
+      }
+      if (authPlanExpiresAt && (!existingUserDoc.planExpiresAt || new Date(authPlanExpiresAt).getTime() > new Date(existingUserDoc.planExpiresAt).getTime())) {
+        existingUserDoc.planExpiresAt = authPlanExpiresAt;
+      }
+    }
   }
 
   // Determine clean public email (never expose synthetic phone_XXX@... to user profiles)

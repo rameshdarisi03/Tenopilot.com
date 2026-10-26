@@ -228,7 +228,11 @@ export default function TenantsDirectoryPage({
   const [parkingPaymentPortion, setParkingPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(14500);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
-  const [paidTo, setPaidTo] = useState<string>("Main Business Account");
+  const [paidTo, setPaidTo] = useState<string>(() => {
+    const initPartners = partnerStore.getPartners(propertyId);
+    const initAccs = partnerStore.getPaymentAccounts(propertyId);
+    return initPartners.length === 1 ? (initAccs[0]?.name || initPartners[0]?.name || "") : "";
+  });
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>(() =>
     partnerStore.getPaymentAccounts(propertyId)
   );
@@ -1186,6 +1190,11 @@ export default function TenantsDirectoryPage({
       return;
     }
 
+    if (!paidTo || paidTo.trim() === "") {
+      triggerToast("⚠️ Please select the receiving partner / account before collecting payment.");
+      return;
+    }
+
     const dParts = paymentDate.split("-");
     const formattedPaidDate = `${dParts[2]} ${
       ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][
@@ -1217,7 +1226,7 @@ export default function TenantsDirectoryPage({
         parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
         date: formattedPaidDate,
         mode: modeLabel,
-        paidTo: paidTo || "Main Business Account",
+        paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
         status: "PAID",
         collectedBy: {
           id: profile?.uid,
@@ -1239,7 +1248,7 @@ export default function TenantsDirectoryPage({
           depositAmount: 0,
           date: formattedPaidDate,
           mode: modeLabel,
-          paidTo: paidTo || "Main Business Account",
+          paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           status: "PAID",
           collectedBy: {
             id: profile?.uid,
@@ -1261,7 +1270,7 @@ export default function TenantsDirectoryPage({
           depositAmount: effectiveDeposit,
           date: formattedPaidDate,
           mode: modeLabel,
-          paidTo: paidTo || "Main Business Account",
+          paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           status: "PAID",
           collectedBy: {
             id: profile?.uid,
@@ -2417,6 +2426,7 @@ export default function TenantsDirectoryPage({
                                       setActiveActionDropdownId(null);
                                       setCollectRentOccupant(occ);
                                       setPaymentAmount(occ.rentAmount);
+                                      setPaidTo(partners.length === 1 ? (paymentAccounts[0]?.name || partners[0]?.name || "") : "");
                                     }}
                                     className="w-full text-left flex items-center gap-2 px-3.5 py-2 hover:bg-orange-50 text-gray-700"
                                   >

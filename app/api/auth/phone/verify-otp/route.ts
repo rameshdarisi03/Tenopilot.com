@@ -170,6 +170,32 @@ export async function POST(req: NextRequest) {
           emailSnap.docs.forEach((d) => candidateDocs.push({ ...d.data(), id: d.id, uid: d.id }));
 
           if (candidateDocs.length > 0) {
+            let latestExpiryMs = 0;
+            let authPlanExpiresAt: string | null = null;
+            let authPlan = "10_DAY_TRIAL";
+            let authSubPlan = "trial";
+            let authStatus = "TRIAL";
+
+            candidateDocs.forEach((d) => {
+              const expTime = d.planExpiresAt ? new Date(d.planExpiresAt).getTime() : 0;
+              const isPro =
+                d.subscriptionStatus === "ACTIVE_PRO" ||
+                d.plan === "PRO_MONTHLY" ||
+                d.plan === "PRO_ANNUAL" ||
+                d.plan === "VIP_PASS" ||
+                d.subscriptionPlan === "pro";
+
+              if (isPro) {
+                authStatus = "ACTIVE_PRO";
+                authSubPlan = "pro";
+                authPlan = d.plan || "PRO_MONTHLY";
+              }
+              if (expTime > latestExpiryMs) {
+                latestExpiryMs = expTime;
+                authPlanExpiresAt = d.planExpiresAt;
+              }
+            });
+
             const scored = candidateDocs.map((docData) => {
               let score = 0;
               const isPro =
@@ -188,6 +214,15 @@ export async function POST(req: NextRequest) {
             });
             scored.sort((a, b) => b.score - a.score);
             existingProfile = scored[0].docData;
+
+            if (authStatus === "ACTIVE_PRO") {
+              existingProfile.subscriptionStatus = "ACTIVE_PRO";
+              existingProfile.subscriptionPlan = "pro";
+              existingProfile.plan = authPlan;
+            }
+            if (authPlanExpiresAt && (!existingProfile.planExpiresAt || new Date(authPlanExpiresAt).getTime() > new Date(existingProfile.planExpiresAt).getTime())) {
+              existingProfile.planExpiresAt = authPlanExpiresAt;
+            }
           }
 
           if (existingProfile?.onboardingCompleted === true && existingProfile?.assignedPropertyId) {

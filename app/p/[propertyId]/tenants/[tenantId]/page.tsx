@@ -486,7 +486,11 @@ export default function IndividualTenantProfilePage({
   const [parkingPaymentPortion, setParkingPaymentPortion] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(occupantState?.rentAmount || 0);
   const [paymentMode, setPaymentMode] = useState<string>("UPI");
-  const [paidTo, setPaidTo] = useState<string>("Main Business Account");
+  const [paidTo, setPaidTo] = useState<string>(() => {
+    const initPartners = partnerStore.getPartners(propertyId);
+    const initAccs = partnerStore.getPaymentAccounts(propertyId);
+    return initPartners.length === 1 ? (initAccs[0]?.name || initPartners[0]?.name || "") : "";
+  });
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>(() =>
     partnerStore.getPaymentAccounts(propertyId)
   );
@@ -509,6 +513,7 @@ export default function IndividualTenantProfilePage({
   // Sync initial allocation when opening Collect Payment Modal
   useEffect(() => {
     if (showCollectRentModal && occupantState) {
+      setPaidTo(partners.length === 1 ? (paymentAccounts[0]?.name || partners[0]?.name || "") : "");
       const stmt = calculateOccupantFinancialStatement(occupantState, propertySettings);
       setParkingPaymentPortion(stmt.remainingParkingDue > 0 ? stmt.remainingParkingDue : 0);
       const rentDue = stmt.remainingRentDue > 0 ? stmt.remainingRentDue : occupantState.rentAmount;
@@ -975,6 +980,11 @@ export default function IndividualTenantProfilePage({
       return;
     }
 
+    if (!paidTo || paidTo.trim() === "") {
+      triggerToast("⚠️ Please select the receiving partner / account before collecting payment.");
+      return;
+    }
+
     // Format selected date (e.g. "2026-07-31" -> "31 Jul 2026")
     const dParts = paymentDate.split("-");
     const formattedPaidDate = `${dParts[2]} ${
@@ -1003,7 +1013,7 @@ export default function IndividualTenantProfilePage({
         depositAmount: effectiveDeposit,
         parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
         mode: modeLabel,
-        paidTo: paidTo || "Main Business Account",
+        paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
         receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
         status: "PAID",
       });
@@ -1019,7 +1029,7 @@ export default function IndividualTenantProfilePage({
           parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
           depositAmount: 0,
           mode: modeLabel,
-          paidTo: paidTo || "Main Business Account",
+          paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
           status: "PAID",
         });
@@ -1035,7 +1045,7 @@ export default function IndividualTenantProfilePage({
           rentAmount: 0,
           depositAmount: effectiveDeposit,
           mode: modeLabel,
-          paidTo: paidTo || "Main Business Account",
+          paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
           receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
           status: "PAID",
         });

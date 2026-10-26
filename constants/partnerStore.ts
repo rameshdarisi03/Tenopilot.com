@@ -293,56 +293,24 @@ export const partnerStore = {
         };
       });
 
-      // Ensure Main Business Account is always present as a pool source
-      const hasBusiness = unified.some(
-        (a) => a.type === "Business Account" || a.partnerId === "BUSINESS" || a.name.toLowerCase().includes("business")
+      // Filter out legacy synthetic Main Business or Petty Cash accounts
+      const partnerScoped = unified.filter(
+        (a) => a.partnerId !== "BUSINESS" && a.partnerId !== "PETTY_CASH" && !a.name.toLowerCase().includes("main business") && !a.name.toLowerCase().includes("petty cash")
       );
-      if (!hasBusiness) {
-        unified.unshift({
-          id: "acc-main-business-default",
-          name: "Main Business Account",
-          type: "Business Account",
-          partnerId: "BUSINESS",
-          partnerName: "Main Business Pool",
-          bankLabel: "Primary Operating Pool",
-          isDefault: true,
-        });
+      if (partnerScoped.length > 0) {
+        return partnerScoped;
       }
-
-      // Ensure Petty Cash is always present as a funding source
-      const hasCash = unified.some(
-        (a) => a.type === "Petty Cash" || a.accountType === "CASH_DESK" || a.name.toLowerCase().includes("cash")
-      );
-      if (!hasCash) {
-        unified.push({
-          id: "acc-cash-reception",
-          name: "Petty Cash / Reception Desk",
-          type: "Petty Cash",
-          partnerId: "PETTY_CASH",
-          partnerName: "Petty Cash Desk",
-          bankLabel: "PG Reception",
-          upiId: "CASH",
-          accountType: "CASH_DESK",
-        });
-      }
-
-      return unified;
     }
 
-    // Default fallback if no qrProfiles configured yet
-    const partnerAccountConfigs: PaymentAccountConfig[] = partners.map((p) => ({
+    // Direct mapping to enrolled partners
+    return partners.map((p, idx) => ({
       id: `acc-partner-${p.id}`,
-      name: `${p.name} (Partner Account)`,
+      name: `${p.name} (${p.ownershipPercentage}% Partner)`,
       type: "Partner Account",
       partnerId: p.id,
       partnerName: p.name,
+      isDefault: idx === 0,
     }));
-
-    return [
-      { id: "acc-1", name: "Main Business Account", type: "Business Account", isDefault: true, partnerId: "BUSINESS", partnerName: "Main Business Pool" },
-      { id: "acc-2", name: "Petty Cash / Reception Desk", type: "Petty Cash", partnerId: "PETTY_CASH", partnerName: "Petty Cash Desk" },
-      ...partnerAccountConfigs,
-    ];
   },
 
   addPaymentAccount(name: string, type: PaymentAccountConfig["type"] = "Bank Account", propertyId?: string) {

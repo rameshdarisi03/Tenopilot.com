@@ -272,6 +272,11 @@ export function PhoneAuthCard({
           phone: verifyData.phone,
           securityPin: authResult.profile.securityPin || verifyData.existingProfile?.securityPin || "",
           hasSetPin: Boolean(authResult.profile.hasSetPin || authResult.profile.securityPin || verifyData.existingProfile?.securityPin),
+          plan: authResult.profile.plan || verifyData.existingProfile?.plan || "10_DAY_TRIAL",
+          subscriptionPlan: authResult.profile.subscriptionPlan || verifyData.existingProfile?.subscriptionPlan || "trial",
+          subscriptionStatus: authResult.profile.subscriptionStatus || verifyData.existingProfile?.subscriptionStatus || "TRIAL",
+          planExpiresAt: authResult.profile.planExpiresAt || verifyData.existingProfile?.planExpiresAt || null,
+          primaryUid: authResult.profile.primaryUid || verifyData.existingProfile?.uid || verifyData.existingProfile?.id || "",
         };
         localStorage.setItem("tenopilot_saved_session", JSON.stringify(sessionPayload));
       }
