@@ -1489,10 +1489,10 @@ export default function FinancialHubPage({
                   </div>
                 </div>
 
-                {/* 2. Industry Standard Revenue Breakdown Pie Chart & Payment Channels */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Left (7 cols): Revenue Stream Breakdown Donut Chart */}
-                  <div className="lg:col-span-7 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                {/* 2. Industry Standard Revenue Breakdown Pie Chart & Payment Channels (Side-by-side on Tablet & Desktop) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                  {/* Left: Revenue Stream Breakdown Donut Chart */}
+                  <div className="bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6 flex flex-col justify-between">
                     <div className="border-b border-gray-100 pb-3">
                       <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
                         Revenue Stream Breakdown
@@ -1583,7 +1583,7 @@ export default function FinancialHubPage({
                             <span>Ratio & Realized Amount</span>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2.5">
                             {revenueSlices.map((slice) => {
                               const isHovered = hoveredRevenueStream === slice.category;
                               return (
@@ -1592,7 +1592,7 @@ export default function FinancialHubPage({
                                   onClick={() => setHoveredRevenueStream(hoveredRevenueStream === slice.category ? null : slice.category)}
                                   onMouseEnter={() => setHoveredRevenueStream(slice.category)}
                                   onMouseLeave={() => setHoveredRevenueStream(null)}
-                                  className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                                  className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                                     isHovered
                                       ? "bg-white border-gray-300 ring-2 ring-[#c2652a]/20 shadow-xs scale-[1.01]"
                                       : "bg-[#fcfaf9] border-gray-200/70 hover:bg-white hover:border-gray-300"
@@ -1605,23 +1605,19 @@ export default function FinancialHubPage({
                                     >
                                       {slice.icon}
                                     </div>
-                                    <div className="min-w-0">
-                                      <h4 className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`}>
-                                        {slice.category}
-                                      </h4>
-                                      <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span
-                                          className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full"
-                                          style={{ backgroundColor: `${slice.color}20`, color: slice.color }}
-                                        >
-                                          {slice.percentage}%
-                                        </span>
-                                      </div>
-                                    </div>
+                                    <h4 className={`text-xs leading-snug ${isHovered ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`}>
+                                      {slice.category}
+                                    </h4>
                                   </div>
-                                  <div className="text-right shrink-0">
-                                    <span className="font-mono font-bold text-xs text-gray-900 block tabular-nums">
+                                  <div className="mt-2 pt-2 border-t border-gray-200/50 flex items-baseline justify-between gap-1">
+                                    <span className="font-mono font-bold text-xs sm:text-sm text-gray-900 tabular-nums">
                                       ₹{slice.amount.toLocaleString("en-IN")}
+                                    </span>
+                                    <span
+                                      className="text-[10px] font-bold shrink-0 px-1.5 py-0.2 rounded-full"
+                                      style={{ backgroundColor: `${slice.color}20`, color: slice.color }}
+                                    >
+                                      {slice.percentage}%
                                     </span>
                                   </div>
                                 </div>
@@ -1633,8 +1629,8 @@ export default function FinancialHubPage({
                     )}
                   </div>
 
-                  {/* Right (5 cols): Payment Channels Analytics Pie Chart */}
-                  <div className="lg:col-span-5 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
+                  {/* Right: Payment Channels Analytics Pie Chart */}
+                  <div className="bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6 flex flex-col justify-between">
                     <div className="border-b border-gray-100 pb-3">
                       <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
                         Payment Channels Analytics
