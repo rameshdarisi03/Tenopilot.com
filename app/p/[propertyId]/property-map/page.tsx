@@ -1226,10 +1226,10 @@ function PropertyMapContent({
 
                       <div className="space-y-3 p-4 rounded-2xl border border-gray-200 bg-white">
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-500 font-medium">Status</span>
+                          <span className="text-gray-500 font-medium">Rent Status</span>
                           <span
                             className={`font-bold flex items-center gap-1.5 ${
-                              isGuestOverdue || isVacatingOverdue || isPaymentOverdue
+                              isPaymentOverdue
                                 ? "text-red-600"
                                 : isBooked
                                 ? isGuest
@@ -1240,27 +1240,17 @@ function PropertyMapContent({
                                 : "text-amber-600"
                             }`}
                           >
-                            {isGuestOverdue ? (
+                            {isPaymentOverdue ? (
                               <>
                                 <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-                                CHECKOUT OVERDUE 🚨
-                              </>
-                            ) : isVacatingOverdue ? (
-                              <>
-                                <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-                                VACATING OVERDUE 🚨
-                              </>
-                            ) : isPaymentOverdue ? (
-                              <>
-                                <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
-                                PAYMENT OVERDUE 🚨
+                                RENT OVERDUE 🚨
                               </>
                             ) : isBooked ? (
                               "CONFIRMED RESERVATION 🔵"
                             ) : displayOcc.paymentStatus === "Paid" ? (
                               "PAID 🟢"
                             ) : (
-                              "PENDING 🟡"
+                              "RENT PENDING 🟡"
                             )}
                           </span>
                         </div>
