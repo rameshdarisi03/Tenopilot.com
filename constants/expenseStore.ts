@@ -135,10 +135,6 @@ class ExpenseStore {
     endDate?: string
   ): ExpenseRecord[] {
     let records = this.expenses.filter((e) => e.propertyId === propertyId);
-    // Strict SSOT: Security deposit refunds are balance sheet liabilities/capital returns, NEVER operational building expenses
-    records = records.filter(
-      (e) => !e.category || !e.category.toLowerCase().includes("deposit")
-    );
     if (startDate && endDate) {
       records = records.filter((e) => {
         const rawDate = e.date || e.createdAt || "";

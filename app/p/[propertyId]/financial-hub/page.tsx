@@ -293,6 +293,15 @@ export default function FinancialHubPage({
   const resolveCategoryMeta = (catName: string) => {
     const cleanName = (catName || "").trim().toLowerCase();
     
+    // Dedicated match for Security Deposit Refund (special dedicated color)
+    if (cleanName.includes("deposit") || cleanName.includes("refund")) {
+      return {
+        displayName: "Security Deposit Refund",
+        color: "#e11d48",
+        icon: "ShieldCheck",
+      };
+    }
+
     // 1. Direct match in active property categories
     let found = categories.find((c) => c.name.trim().toLowerCase() === cleanName);
     
@@ -2009,10 +2018,7 @@ export default function FinancialHubPage({
                 const CIRCUMFERENCE = 2 * Math.PI * 38; // ~238.761
                 let accumulatedOffset = 0;
 
-                // Strict SSOT: Exclude any deposit refunds from operational expense weightages
-                const validWeightages = categoryWeightages.filter(
-                  (cw) => !cw.category || !cw.category.toLowerCase().includes("deposit")
-                );
+                const validWeightages = categoryWeightages;
 
                 const slices = validWeightages.map((cw) => {
                   const fraction = totalSpent > 0 ? cw.amount / totalSpent : 0;

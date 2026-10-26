@@ -24,6 +24,7 @@ import {
 } from "@/utils/domainSSOT";
 import { parseOccupantDate } from "@/utils/autoCheckInEngine";
 import { propertySettingsStore, PaymentQRProfile, PAY_BY_CASH_PROFILE } from "@/constants/propertySettings";
+import { expenseStore } from "@/constants/expenseStore";
 import { partnerStore, PaymentAccountConfig, PartnerConfig } from "@/constants/partnerStore";
 import { ThemedAccountSelect } from "@/components/dashboard/ThemedAccountSelect";
 import { complianceLogStore } from "@/constants/complianceLogStore";
@@ -1528,6 +1529,19 @@ export default function IndividualTenantProfilePage({
         mode: guestSettlementPaymentMode || "Cash",
         receiptNo: `RET-${Date.now().toString().slice(-4)}`,
         status: "PAID",
+      });
+
+      // Log Financial Outflow in expenseStore (Expense Ledger)
+      const propName = propertySettings?.propertyName || "PG Property";
+      const refundDate = guestCheckoutDate || new Date().toISOString().slice(0, 10);
+      expenseStore.addExpense(propertyId, {
+        category: "Security Deposit Refund",
+        amount: netCashToReturn,
+        paidFrom: guestSettlementPaymentMode || "Petty Cash",
+        property: propName,
+        date: refundDate,
+        hasReceipt: false,
+        notes: `Guest check-out refund for ${occupantState.name} (Room ${occupantState.roomNumber} - ${occupantState.bedCode})`,
       });
     } else if (netCashToReturn < 0) {
       // If guest had unpaid stay dues, log the on-departure collection receipt in ledger

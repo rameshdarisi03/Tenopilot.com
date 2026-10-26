@@ -172,9 +172,22 @@ export function CheckOutSettlementModal({
       // 2. Reset Bed Status to "Available" (Reusing standard Available category)
       propertyStore.freeUpBedSlot(propertyId, roomNumber, bedCode);
 
-      // Note: Security Deposit refunds are balance sheet capital returns (escrow liabilities), NOT operational building expenses.
+      // 3. Log Financial Outflow in expenseStore (Expense Ledger)
+      if (netRefundableAmount > 0) {
+        const propName = propertySettingsStore.getSettings(propertyId)?.propertyName || "PG Property";
+        const todayIso = new Date().toISOString().slice(0, 10);
+        expenseStore.addExpense(propertyId, {
+          category: "Security Deposit Refund",
+          amount: netRefundableAmount,
+          paidFrom: paymentChannel || "Main Business Account",
+          property: propName,
+          date: todayIso,
+          hasReceipt: false,
+          notes: `Check-out deposit refund for ${occupant.name} (Room ${roomNumber || occupant.roomNumber || "N/A"} - ${bedCode || occupant.bedCode || "N/A"})`,
+        });
+      }
 
-      // 3. 🔒 Write DPDP Act 2023 Sanitized Immutable Record to Master Police Register
+      // 4. 🔒 Write DPDP Act 2023 Sanitized Immutable Record to Master Police Register
       const sanitizedComplianceEntry = sanitizeOccupantForCompliance({
         propertyId,
         occupantId: occupant.id,
