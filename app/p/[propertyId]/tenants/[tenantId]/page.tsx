@@ -415,6 +415,11 @@ export default function IndividualTenantProfilePage({
     const isCashReq = activeCard?.upiId === "CASH_PAYMENT" || activeCard?.accountType === "CASH_DESK";
     const pName = propertySettings.propertyName || "TenoPilot PG";
 
+    const occStmt = calculateOccupantFinancialStatement(occ, propertySettings);
+    const effectiveAmount = occStmt.netOutstandingBalance > 0 ? occStmt.netOutstandingBalance : occ.rentAmount;
+    const dueDateStr = resolveOccupantPaymentDueDate(occ, propertySettings);
+    const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
+
     const payHeader = isCashReq ? "Pay via Cash" : "Pay to UPI";
     const payDest = isCashReq
       ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
@@ -424,8 +429,8 @@ export default function IndividualTenantProfilePage({
       `**${pName}**\n\n` +
       `Hello ${occ.name},\n\n` +
       `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
-      `💰 Amount Due: INR ${Number(occ.rentAmount || 0).toLocaleString("en-IN")}\n` +
-      `📅 Due Date: ${occ.dueDate || "5th of this month"}\n` +
+      `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+      `📅 Due Date: ${dueDateStr}\n` +
       `💳 ${payHeader}: ${payDest}\n\n` +
       `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
       `Thank you for being a valued resident!\n\n` +
