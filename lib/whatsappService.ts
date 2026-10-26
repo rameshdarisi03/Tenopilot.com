@@ -352,46 +352,44 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
       } else if (payload.type === "TENANT_WELCOME") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot PG & Living";
-        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` - ${p.bedCode}` : ""}`;
-        const checkinDate = p.paidDate || p.dueDate || p.joiningDate || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+        const roomStay = `${p.roomNumber || "N/A"}${p.bedCode ? ` (${p.bedCode})` : ""}`;
+        
+        // Clean display formatting for joining / check-in date (e.g. "26 Oct 2026")
+        const rawDate = p.joiningDate || p.paidDate || p.dueDate;
+        let checkinDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        if (rawDate) {
+          if (/[a-zA-Z]/.test(rawDate) && rawDate.includes(" ")) {
+            checkinDate = rawDate;
+          } else {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) {
+              checkinDate = parsed.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+            } else {
+              checkinDate = rawDate;
+            }
+          }
+        }
 
-        const agreementParams = new URLSearchParams({
-          propertyId: payload.propertyId || "",
-          tenantName: payload.recipientName,
-          phone: payload.toPhone,
-          roomNumber: p.roomNumber || "N/A",
-          bedCode: p.bedCode || "Standard Bed",
-          joiningDate: checkinDate,
-          monthlyRent: String(p.rentAmount || p.amount || 0),
-          securityDeposit: String(p.depositAmount || 0),
-          propertyName: pName,
-          propertyAddress: p.propertyAddress || "",
-        });
-        if (p.houseRules) {
-          agreementParams.set("houseRules", p.houseRules);
-        }
-        if (p.billingCycle) {
-          agreementParams.set("billingCycle", p.billingCycle);
-        }
-        if (p.ownerName) {
-          agreementParams.set("ownerName", p.ownerName);
-        }
-        const pdfUrl = `${baseUrl}/api/agreement/pdf?${agreementParams.toString()}`;
-        const safeName = (payload.recipientName || "Resident").replace(/[^a-zA-Z0-9_-]/g, "_");
-        const safeRoom = (p.roomNumber || "Room").replace(/[^a-zA-Z0-9_-]/g, "_");
-        const fileName = `Rental_Agreement_${safeName}_${safeRoom}.pdf`;
-
-        // 📎 Send official Rental Agreement PDF as a native WhatsApp Document Attachment
+        // 🚀 Primary: Approved Meta WhatsApp Template "pg_welcome_onboarding" (Guaranteed 100% 0-day delivery with joining date)
         requestBody = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: formattedPhone,
-          type: "document",
-          document: {
-            link: pdfUrl,
-            filename: fileName,
-            caption: `🎉 Welcome to ${pName}, ${payload.recipientName}!\n\nAttached is your official digitally attested Residential Tenancy & Lease Agreement (Room ${roomStay}).\n\nCheck-In Date: ${checkinDate}\n\n— Management Desk`,
+          type: "template",
+          template: {
+            name: "pg_welcome_onboarding",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName },
+                  { type: "text", text: pName },
+                  { type: "text", text: roomStay },
+                  { type: "text", text: checkinDate },
+                ],
+              },
+            ],
           },
         };
       } else if (payload.type === "ONBOARDING_INVITE") {

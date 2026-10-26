@@ -217,9 +217,7 @@ function PropertyMapContent({
               ? bed.occupant
               : undefined);
 
-          const effectiveStatus = bed.status === "Hold"
-            ? "Hold"
-            : primaryOcc
+          const effectiveStatus = primaryOcc
             ? primaryOcc.lifecycleStatus === "Notice"
               ? "Vacating"
               : primaryOcc.stayType === "Guest"
@@ -229,6 +227,8 @@ function PropertyMapContent({
             ? nextOcc.stayType === "Guest"
               ? "Guest"
               : "Booked"
+            : bed.status === "Hold"
+            ? "Hold"
             : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
 
           if (effectiveStatus === "Available") available++;
@@ -317,9 +317,7 @@ function PropertyMapContent({
                   ? bd.occupant
                   : undefined);
 
-              const effStatus = bd.status === "Hold"
-                ? "Hold"
-                : primaryOcc
+              const effStatus = primaryOcc
                 ? primaryOcc.lifecycleStatus === "Notice"
                   ? "Vacating"
                   : primaryOcc.stayType === "Guest"
@@ -329,6 +327,8 @@ function PropertyMapContent({
                 ? nextOcc.stayType === "Guest"
                   ? "Guest"
                   : "Booked"
+                : bd.status === "Hold"
+                ? "Hold"
                 : (bd.status === "Occupied" && !bd.occupant ? "Available" : bd.status === "Booked" ? "Available" : bd.status);
 
               return effStatus === activeFilterStatus;
@@ -707,9 +707,7 @@ function PropertyMapContent({
                                   let icon = <User className="w-3.5 h-3.5" />;
                                   let statusLabel: string = bed.status;
 
-                                  const effectiveStatus = bed.status === "Hold"
-                                    ? "Hold"
-                                    : primaryOcc
+                                  const effectiveStatus = primaryOcc
                                     ? primaryOcc.lifecycleStatus === "Notice"
                                       ? "Vacating"
                                       : primaryOcc.stayType === "Guest"
@@ -719,9 +717,11 @@ function PropertyMapContent({
                                     ? nextOcc.stayType === "Guest"
                                       ? "Guest"
                                       : "Booked"
+                                    : bed.status === "Hold"
+                                    ? "Hold"
                                     : (bed.status === "Occupied" && !bed.occupant ? "Available" : bed.status === "Booked" ? "Available" : bed.status);
 
-                                  const isHoldBed = effectiveStatus === "Hold" || bed.status === "Hold";
+                                  const isHoldBed = effectiveStatus === "Hold";
                                   const isGuestBed = !isHoldBed && (effectiveStatus === "Guest" || primaryOcc?.stayType === "Guest" || (!primaryOcc && nextOcc?.stayType === "Guest"));
                                   const isBookedBed = !isHoldBed && (effectiveStatus === "Booked" && !primaryOcc && !!nextOcc);
                                   const rawVacDate = primaryOcc?.vacatingDate || bed.vacatingDate || "";
@@ -1025,7 +1025,9 @@ function PropertyMapContent({
 
                 const displayOcc = activeOcc || nextOcc;
 
-                if (activeBedSlot.bed.status === "Hold") {
+                const isSlotOnHold = activeBedSlot.bed.status === "Hold" && !activeOcc && !nextOcc;
+
+                if (isSlotOnHold) {
                   return (
                     <div className="space-y-5 text-xs text-center py-6">
                       <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">

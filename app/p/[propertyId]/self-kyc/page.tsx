@@ -631,7 +631,7 @@ export default function SelfKycDeskPage({
         const cleanPhone = createdResident.phone.replace(/\D/g, "");
         const fullPhone = cleanPhone.length === 10 ? `+91 ${cleanPhone}` : createdResident.phone;
 
-        fetch("/api/whatsapp/send", {
+        await fetch("/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -663,9 +663,9 @@ export default function SelfKycDeskPage({
               },
             ],
           }),
-        }).catch((e) => console.warn("WhatsApp welcome dispatch notice:", e));
+        });
       } catch (waErr) {
-        console.warn("Welcome dispatch catch:", waErr);
+        console.warn("WhatsApp welcome dispatch notice:", waErr);
       }
 
       // 2. Automated Welcome Email to Tenant (Identical to Owner Managed Form Welcome Engine)
@@ -675,7 +675,7 @@ export default function SelfKycDeskPage({
 
       if (isGenuineEmail) {
         try {
-          fetch("/api/email/send", {
+          await fetch("/api/email/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -709,7 +709,7 @@ export default function SelfKycDeskPage({
                 },
               ],
             }),
-          }).catch((e) => console.warn("Email welcome dispatch API error:", e));
+          });
           emailDispatched = true;
         } catch (emailErr) {
           console.warn("Welcome email dispatch catch:", emailErr);

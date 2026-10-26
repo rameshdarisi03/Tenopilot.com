@@ -15,7 +15,7 @@ import {
   where,
   onSnapshot,
 } from "firebase/firestore";
-import { propertyStore } from "@/constants/propertyLayoutStore";
+import { propertyStore, FloorConfig } from "@/constants/propertyLayoutStore";
 import { occupantStore, Occupant } from "@/constants/mockOccupants";
 import { saveOccupantToFirestore, sanitizeForFirestore } from "@/lib/firestoreService";
 import {
@@ -689,27 +689,62 @@ export const selfKycStore = {
       ? ("Guest" as const)
       : ("Occupied" as const);
 
-    const structure = propertyStore.getStructure(submission.propertyId);
-    const updatedStructure = structure.map((fl) => ({
+    let structure = propertyStore.getStructure(submission.propertyId);
+    if (!structure || structure.length === 0) {
+      try {
+        const structSnap = await getDoc(doc(db, "properties", submission.propertyId, "layout", "structure"));
+        if (structSnap.exists()) {
+          structure = (structSnap.data()?.floors || []) as FloorConfig[];
+        }
+      } catch (e) {
+        console.warn("Layout fetch fallback in approveSubmission:", e);
+      }
+    }
+
+    const cleanSubRoom = (submission.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const cleanSubBed = (submission.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    const updatedStructure = (structure || []).map((fl) => ({
       ...fl,
       rooms: fl.rooms.map((rm) => {
-        if (rm.roomNumber !== submission.roomNumber) return rm;
+        const cleanRm = (rm.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (cleanRm !== cleanSubRoom) return rm;
         return {
           ...rm,
           beds: rm.beds.map((bd) => {
-            if (bd.bedCode !== submission.bedCode) return bd;
+            const cleanBd = (bd.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (cleanBd !== cleanSubBed) return bd;
             return {
               ...bd,
               status: targetBedStatus,
-              occupant: newResident,
-              holdCandidate: undefined,
-              vacatingDate: undefined,
+              occupant: {
+                ...newResident,
+                avatar: newResident.avatar?.startsWith("data:")
+                  ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(newResident.name)}`
+                  : newResident.avatar,
+                kycDocs: undefined,
+              },
+              holdCandidate: null as any,
+              vacatingDate: null as any,
             };
           }),
         };
       }),
     }));
-    propertyStore.updateStructure(updatedStructure, submission.propertyId);
+
+    await propertyStore.updateStructure(updatedStructure, submission.propertyId);
+
+    // Direct Firestore Layout SSOT Sync
+    try {
+      const docRef = doc(db, "properties", submission.propertyId, "layout", "structure");
+      const sanitizedFloors = sanitizeForFirestore(updatedStructure);
+      await setDoc(docRef, {
+        floors: sanitizedFloors,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (fsLayoutErr) {
+      console.warn("Direct Firestore layout sync in approveSubmission:", fsLayoutErr);
+    }
 
     // Update submission record
     submission.status = "APPROVED";

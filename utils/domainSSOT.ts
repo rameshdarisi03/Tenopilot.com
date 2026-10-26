@@ -127,6 +127,27 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
   }
 
   if (isBooked) {
+    // 🏠 Auto-Transition Rule: When scheduled check-in/joining date arrives or passes (today >= joiningDate),
+    // the resident transitions automatically from BOOKED to ACTIVE!
+    const checkInDate = parseOccupantDate(occupant.joiningDate || occupant.lastPaidDate || "");
+    if (checkInDate) {
+      const now = new Date();
+      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const checkInMidnight = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate()).getTime();
+      if (todayMidnight >= checkInMidnight) {
+        return {
+          label: "ACTIVE 🟢",
+          shortLabel: "Active",
+          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          dotColor: "bg-emerald-500",
+          isGuest: false,
+          isBooked: false,
+          isNotice: false,
+          isActive: true,
+        };
+      }
+    }
+
     return {
       label: "BOOKED 🟦",
       shortLabel: "Booked",
@@ -850,21 +871,47 @@ export function getBedOccupantsTimeline(
   propertyId?: string
 ): BedOccupantsTimeline {
   const allOccupants = propertyId ? occupantStore.getOccupants(propertyId) : (occupantStore.getOccupants() || []);
-  const matching = allOccupants.filter(
-    (occ) =>
-      occ.roomNumber.toLowerCase() === roomNumber.toLowerCase() &&
-      occ.bedCode.toLowerCase() === bedCode.toLowerCase() &&
-      occ.lifecycleStatus !== "Past"
-  );
+  
+  const cleanRoom = (roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const cleanBed = (bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  // 1. Primary Active or Notice Resident physically living in bed right now
+  const matching = allOccupants.filter((occ) => {
+    const occRoom = (occ.roomNumber || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const occBed = (occ.bedCode || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return occRoom === cleanRoom && occBed === cleanBed && occ.lifecycleStatus !== "Past";
+  });
+
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  // 1. Primary Active or Notice Resident physically living in bed right now,
+  // OR a Booked resident whose joining date has reached/passed (today >= joiningDate)
   const activeOccupant =
-    matching.find((occ) => occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") ||
+    matching.find((occ) => {
+      if (occ.lifecycleStatus === "Active" || occ.lifecycleStatus === "Notice") return true;
+      if (occ.lifecycleStatus === "Booked") {
+        const joinD = parseOccupantDate(occ.joiningDate);
+        if (joinD) {
+          const joinMidnight = new Date(joinD.getFullYear(), joinD.getMonth(), joinD.getDate()).getTime();
+          return todayMidnight >= joinMidnight;
+        }
+      }
+      return false;
+    }) ||
     (bed.occupant && bed.occupant.lifecycleStatus !== "Booked" && bed.occupant.lifecycleStatus !== "Past" ? bed.occupant : undefined);
 
-  // 2. Chronological list of upcoming pre-booked reservations
+  // 2. Chronological list of upcoming pre-booked reservations strictly in the FUTURE (today < joiningDate)
   const bookedList = matching
-    .filter((occ) => occ.lifecycleStatus === "Booked" && occ.id !== activeOccupant?.id)
+    .filter((occ) => {
+      if (occ.id === activeOccupant?.id) return false;
+      if (occ.lifecycleStatus !== "Booked") return false;
+      const joinD = parseOccupantDate(occ.joiningDate);
+      if (joinD) {
+        const joinMidnight = new Date(joinD.getFullYear(), joinD.getMonth(), joinD.getDate()).getTime();
+        return joinMidnight > todayMidnight;
+      }
+      return true;
+    })
     .sort((a, b) => {
       const dateA = new Date(a.joiningDate).getTime() || 0;
       const dateB = new Date(b.joiningDate).getTime() || 0;
@@ -872,7 +919,10 @@ export function getBedOccupantsTimeline(
     });
 
   if (bookedList.length === 0 && (bed.status === "Booked" || bed.occupant?.lifecycleStatus === "Booked") && bed.occupant && bed.occupant.id !== activeOccupant?.id) {
-    bookedList.push(bed.occupant);
+    const bedJoinD = parseOccupantDate(bed.occupant.joiningDate);
+    if (!bedJoinD || todayMidnight < new Date(bedJoinD.getFullYear(), bedJoinD.getMonth(), bedJoinD.getDate()).getTime()) {
+      bookedList.push(bed.occupant);
+    }
   }
 
   const nextBooking = bookedList[0];
