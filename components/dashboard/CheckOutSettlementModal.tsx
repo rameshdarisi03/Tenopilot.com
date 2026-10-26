@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   X,
   CheckCircle2,
@@ -11,6 +11,8 @@ import {
   Receipt,
   Sparkles,
   ArrowRight,
+  TrendingDown,
+  Info,
 } from "lucide-react";
 import { Occupant, occupantStore } from "@/constants/mockOccupants";
 import { propertyStore } from "@/constants/propertyLayoutStore";
@@ -19,6 +21,7 @@ import { complianceLogStore } from "@/constants/complianceLogStore";
 import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { propertySettingsStore } from "@/constants/propertySettings";
 import { getCanonicalPortalOrigin } from "@/utils/urlUtils";
+import { calculateOccupantFinancialStatement } from "@/utils/domainSSOT";
 
 export function CheckOutSettlementModal({
   occupant,
@@ -43,15 +46,30 @@ export function CheckOutSettlementModal({
   const [acRemoteReturned, setAcRemoteReturned] = useState(true);
   const [roomInspected, setRoomInspected] = useState(true);
 
-  // Step 2: Financial Settlement Calculator State
+  // Step 2: Live Financial Statement & Dues Detection
+  const settings = propertySettingsStore.getSettings(propertyId);
+  const liveStmt = useMemo(
+    () => (occupant ? calculateOccupantFinancialStatement(occupant, settings) : null),
+    [occupant, settings]
+  );
+  const liveUnpaidRent = liveStmt ? Math.max(0, liveStmt.netOutstandingBalance) : 0;
+
+  // Step 3: Financial Settlement Calculator State
   const initialDeposit = occupant.checkoutSettlement?.initialDeposit ?? (occupant.securityDeposit !== undefined ? occupant.securityDeposit : (occupant.rentAmount ? occupant.rentAmount * 2 : 0));
-  const [unpaidRentDues, setUnpaidRentDues] = useState<number>(() => occupant.checkoutSettlement?.unpaidRentDeduction ?? 0);
+  const [unpaidRentDues, setUnpaidRentDues] = useState<number>(() => {
+    if (occupant.checkoutSettlement?.unpaidRentDeduction !== undefined) {
+      return occupant.checkoutSettlement.unpaidRentDeduction;
+    }
+    return liveUnpaidRent;
+  });
   const [repairDeductions, setRepairDeductions] = useState<number>(() => occupant.checkoutSettlement?.repairDeduction ?? 0);
   const [maintenanceExpenses, setMaintenanceExpenses] = useState<number>(() => occupant.checkoutSettlement?.maintenanceDeduction ?? 0); // Cleaning, painting fees
 
-  // Calculated Net Refundable Deposit
+  // Calculated Net Settlement Math (2-Way: Refund vs Deficit)
   const totalDeductions = unpaidRentDues + repairDeductions + maintenanceExpenses;
-  const netRefundableAmount = Math.max(0, initialDeposit - totalDeductions);
+  const netDifference = initialDeposit - totalDeductions;
+  const netRefundableAmount = Math.max(0, netDifference);
+  const netDeficitToCollect = Math.max(0, -netDifference);
 
   const [paymentChannel, setPaymentChannel] = useState<"Online payments (UPI)" | "Cash Desk">(() =>
     (occupant.checkoutSettlement?.paymentChannel as any) || "Online payments (UPI)"
@@ -78,6 +96,35 @@ export function CheckOutSettlementModal({
           ? "PARTIAL_REFUND"
           : "NO_REFUND";
 
+      // 1. Build official ledger settlement entries
+      const settlementRecords: any[] = [];
+
+      // A. If unpaid rent dues were settled (adjusted against deposit or collected on exit)
+      if (unpaidRentDues > 0) {
+        settlementRecords.push({
+          id: `pay-settle-rent-${Date.now()}`,
+          amount: unpaidRentDues,
+          date: todayStr,
+          month: `Rent Cleared on Checkout (${netDifference >= 0 ? "Adjusted from Security Deposit" : "Collected on Departure"})`,
+          mode: netDifference >= 0 ? "Deposit Settlement" : (paymentChannel === "Online payments (UPI)" ? "UPI" : "Cash"),
+          receiptNo: `SET-RENT-${Date.now().toString().slice(-4)}`,
+          status: "PAID" as const,
+        });
+      }
+
+      // B. If net deposit refund is returned to the tenant
+      if (netRefundableAmount > 0) {
+        settlementRecords.push({
+          id: `pay-ref-${Date.now()}`,
+          amount: netRefundableAmount,
+          date: todayStr,
+          month: "Security Deposit Refund",
+          mode: paymentChannel === "Online payments (UPI)" ? "UPI" : "Cash",
+          receiptNo: `REF-${Date.now().toString().slice(-6)}`,
+          status: "PAID" as const,
+        });
+      }
+
       const checkoutSettlement = {
         settledDate: todayStr,
         initialDeposit,
@@ -86,6 +133,7 @@ export function CheckOutSettlementModal({
         maintenanceDeduction: maintenanceExpenses,
         totalDeductions,
         netRefunded: netRefundableAmount,
+        netDeficitCollected: netDeficitToCollect,
         status: settlementStatus,
         paymentChannel,
         notes: settlementNotes.trim() || undefined,
@@ -97,22 +145,12 @@ export function CheckOutSettlementModal({
         lifecycleStatus: "Past",
         depositStatus: "REFUNDED",
         vacatingDate: todayStr,
+        paymentStatus: "Paid",
+        arrearsBalance: 0,
         checkoutSettlement,
         paymentHistory: [
           ...(occupant.paymentHistory || []),
-          ...(netRefundableAmount > 0
-            ? [
-                {
-                  id: `pay-ref-${Date.now()}`,
-                  amount: netRefundableAmount,
-                  date: todayStr,
-                  month: todayStr,
-                  mode: paymentChannel,
-                  receiptNo: `REF-${Date.now().toString().slice(-6)}`,
-                  status: "PAID" as const,
-                },
-              ]
-            : []),
+          ...settlementRecords,
         ],
       };
 
@@ -168,7 +206,7 @@ export function CheckOutSettlementModal({
             residentName: occupant.name,
             roomNumber: roomNumber || occupant.roomNumber || "N/A",
             bedCode: bedCode || occupant.bedCode || "Bed 1",
-            amount: String(netRefundableAmount),
+            amount: String(netRefundableAmount > 0 ? netRefundableAmount : netDeficitToCollect),
             paidDate: todayStr,
             paymentMode: paymentChannel,
             isSettlement: "true",
@@ -178,6 +216,7 @@ export function CheckOutSettlementModal({
             maintenance: String(maintenanceExpenses),
             totalDeductions: String(totalDeductions),
             netRefunded: String(netRefundableAmount),
+            netDeficit: String(netDeficitToCollect),
             checkoutDate: todayStr,
             status: settlementStatus,
             notes: settlementNotes.trim(),
@@ -353,6 +392,31 @@ export function CheckOutSettlementModal({
             </span>
           </div>
 
+          {/* Live Rent Status Notification Banner */}
+          {liveUnpaidRent > 0 ? (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-900 font-semibold">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <span className="font-bold">Live Unpaid Rent Dues: ₹{liveUnpaidRent.toLocaleString("en-IN")}</span>
+                  <span className="block text-[10px] text-amber-700 font-normal">Pre-filled below to adjust directly against security deposit or collect on exit</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUnpaidRentDues(liveUnpaidRent)}
+                className="px-2.5 py-1 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-950 font-bold text-[10px] self-start sm:self-auto cursor-pointer"
+              >
+                Reset to ₹{liveUnpaidRent.toLocaleString("en-IN")}
+              </button>
+            </div>
+          ) : (
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800 font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Rent is fully paid & up-to-date (₹0.00 outstanding dues)</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-gray-700 text-[11px] mb-1">
@@ -406,26 +470,42 @@ export function CheckOutSettlementModal({
             </div>
           </div>
 
-          {/* Dynamic Net Settlement Summary Banner */}
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
-                Net Refundable Amount to Tenant
-              </span>
-              <span className="text-xl font-serif font-bold text-emerald-950">
-                ₹{netRefundableAmount.toLocaleString("en-IN")}
-              </span>
+          {/* Dynamic Net Settlement Summary Banner (2-Way: Refund vs Deficit) */}
+          {netDifference >= 0 ? (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                  👉 Net Refund to Pay to Tenant
+                </span>
+                <span className="text-xl font-serif font-bold text-emerald-950">
+                  ₹{netRefundableAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="text-right text-[10px] text-emerald-800 font-medium">
+                Deposit: ₹{initialDeposit.toLocaleString("en-IN")} • Deductions: ₹{totalDeductions.toLocaleString("en-IN")}
+              </div>
             </div>
-            <div className="text-right text-[10px] text-emerald-800 font-medium">
-              Deductions Subtotal: ₹{totalDeductions.toLocaleString("en-IN")}
+          ) : (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 flex items-center justify-between animate-in fade-in">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">
+                  👉 Net Deficit to Collect from Tenant (Dues exceed Deposit)
+                </span>
+                <span className="text-xl font-serif font-bold text-rose-950">
+                  ₹{netDeficitToCollect.toLocaleString("en-IN")} 🔴
+                </span>
+              </div>
+              <div className="text-right text-[10px] text-rose-800 font-medium">
+                Deposit: ₹{initialDeposit.toLocaleString("en-IN")} • Total Dues: ₹{totalDeductions.toLocaleString("en-IN")}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* SECTION 3: Refund Payment Channel & Notes */}
+        {/* SECTION 3: Refund / Deficit Payment Channel & Notes */}
         <div className="space-y-3">
           <label className="block font-bold text-gray-900 text-xs">
-            Refund Payment Mode (Channel) *
+            {netDifference >= 0 ? "Refund Payment Mode (Channel) *" : "Deficit Collection Mode (Channel) *"}
           </label>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -485,9 +565,18 @@ export function CheckOutSettlementModal({
             type="button"
             disabled={isSubmitting || !keysReturned}
             onClick={handleExecuteCheckout}
-            className="flex-1 py-3.5 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+            className={`flex-1 py-3.5 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 ${
+              netDifference >= 0
+                ? "bg-[#c2652a] hover:bg-[#c2652a]/90"
+                : "bg-rose-600 hover:bg-rose-700"
+            }`}
           >
-            <CheckCircle2 className="w-4 h-4" /> Complete Check-Out & Release Bed
+            <CheckCircle2 className="w-4 h-4" />
+            <span>
+              {netDifference >= 0
+                ? "Complete Check-Out & Release Bed"
+                : `Collect ₹${netDeficitToCollect.toLocaleString("en-IN")} & Complete Check-Out`}
+            </span>
           </button>
         </div>
       </div>

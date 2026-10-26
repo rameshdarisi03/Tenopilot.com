@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
             maintenance: searchParams.get("maintenance") ? Number(searchParams.get("maintenance")) : 0,
             totalDeductions: searchParams.get("totalDeductions") ? Number(searchParams.get("totalDeductions")) : 0,
             netRefunded: searchParams.get("netRefunded") ? Number(searchParams.get("netRefunded")) : amount,
+            netDeficit: searchParams.get("netDeficit") ? Number(searchParams.get("netDeficit")) : 0,
             status: searchParams.get("status") || "SETTLED & CLOSED",
             notes: searchParams.get("notes") || undefined,
           }

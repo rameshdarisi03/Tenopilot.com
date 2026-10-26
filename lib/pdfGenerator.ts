@@ -26,6 +26,7 @@ export interface ReceiptPdfData {
     maintenance?: number;
     totalDeductions?: number;
     netRefunded?: number;
+    netDeficit?: number;
     status?: string;
     notes?: string;
   };
@@ -580,7 +581,9 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     const repairs = s.repairs || 0;
     const maintenance = s.maintenance || 0;
     const totalDeductions = s.totalDeductions ?? (unpaidRent + repairs + maintenance);
-    const netRefunded = s.netRefunded ?? Math.max(0, initDeposit - totalDeductions);
+    const isDeficit = totalDeductions > initDeposit;
+    const netDeficit = s.netDeficit ?? (isDeficit ? totalDeductions - initDeposit : 0);
+    const netRefunded = s.netRefunded ?? (isDeficit ? 0 : Math.max(0, initDeposit - totalDeductions));
 
     // Row 1: Initial Deposit Intake
     const r1Y = tableY - 55;
@@ -680,33 +683,61 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
       color: borderLight,
     });
 
-    // Total Paid / Net Refund Row
+    // Total Paid / Net Refund or Deficit Row
     const totalY = r2Y - 56;
-    page.drawRectangle({
-      x: 40,
-      y: totalY,
-      width: width - 80,
-      height: 32,
-      color: rgb(0.93, 0.98, 0.95), // light emerald
-      borderColor: rgb(0.65, 0.89, 0.75),
-      borderWidth: 1,
-    });
-    page.drawText("NET DEPOSIT AMOUNT REFUNDED & CLEARED", {
-      x: 55,
-      y: totalY + 11,
-      size: 9,
-      font: fontBold,
-      color: emeraldGreen,
-    });
-    const grandTotalStr = `INR ${Number(netRefunded).toLocaleString("en-IN")}`;
-    const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
-    page.drawText(grandTotalStr, {
-      x: width - 55 - grandTotalWidth,
-      y: totalY + 10,
-      size: 13,
-      font: fontBold,
-      color: emeraldGreen,
-    });
+    if (isDeficit) {
+      page.drawRectangle({
+        x: 40,
+        y: totalY,
+        width: width - 80,
+        height: 32,
+        color: rgb(0.99, 0.93, 0.93), // light rose
+        borderColor: rgb(0.95, 0.65, 0.65),
+        borderWidth: 1,
+      });
+      page.drawText("NET DEFICIT COLLECTED ON DEPARTURE", {
+        x: 55,
+        y: totalY + 11,
+        size: 9,
+        font: fontBold,
+        color: rgb(0.75, 0.15, 0.15),
+      });
+      const grandTotalStr = `INR ${Number(netDeficit).toLocaleString("en-IN")}`;
+      const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
+      page.drawText(grandTotalStr, {
+        x: width - 55 - grandTotalWidth,
+        y: totalY + 10,
+        size: 13,
+        font: fontBold,
+        color: rgb(0.75, 0.15, 0.15),
+      });
+    } else {
+      page.drawRectangle({
+        x: 40,
+        y: totalY,
+        width: width - 80,
+        height: 32,
+        color: rgb(0.93, 0.98, 0.95), // light emerald
+        borderColor: rgb(0.65, 0.89, 0.75),
+        borderWidth: 1,
+      });
+      page.drawText("NET DEPOSIT AMOUNT REFUNDED & CLEARED", {
+        x: 55,
+        y: totalY + 11,
+        size: 9,
+        font: fontBold,
+        color: emeraldGreen,
+      });
+      const grandTotalStr = `INR ${Number(netRefunded).toLocaleString("en-IN")}`;
+      const grandTotalWidth = fontBold.widthOfTextAtSize(grandTotalStr, 13);
+      page.drawText(grandTotalStr, {
+        x: width - 55 - grandTotalWidth,
+        y: totalY + 10,
+        size: 13,
+        font: fontBold,
+        color: emeraldGreen,
+      });
+    }
 
     // 5. No Dues Clearance Declaration Box
     declarationBoxY = totalY - 70;

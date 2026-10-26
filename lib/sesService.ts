@@ -43,6 +43,7 @@ export interface SESSendParams {
     maintenance?: number | string;
     totalDeductions?: number | string;
     netRefunded?: number | string;
+    netDeficit?: number | string;
     notes?: string;
     rejectionReason?: string;
     phone?: string;
@@ -1126,6 +1127,7 @@ export async function sendSESEmail(payload: SESSendParams): Promise<SESSendResul
               maintenance: Number(p.maintenance || 0),
               totalDeductions: Number(p.totalDeductions || 0),
               netRefunded: Number(p.netRefunded || p.amount || 0),
+              netDeficit: Number(p.netDeficit || 0),
               status: "SETTLED & CLOSED",
               notes: p.notes,
             }

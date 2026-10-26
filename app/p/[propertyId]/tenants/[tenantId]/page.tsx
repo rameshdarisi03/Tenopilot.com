@@ -455,6 +455,7 @@ export default function IndividualTenantProfilePage({
   const [guestCheckoutNotes, setGuestCheckoutNotes] = useState<string>("");
   const [earlyDeparturePolicy, setEarlyDeparturePolicy] = useState<"PRO_RATA_REFUND" | "RETAIN_PACKAGE">("PRO_RATA_REFUND");
   const [penaltyAmount, setPenaltyAmount] = useState<number>(0);
+  const [guestSettlementPaymentMode, setGuestSettlementPaymentMode] = useState<string>("Cash");
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showDeleteGuestModal, setShowDeleteGuestModal] = useState(false);
   const [showGuestCheckoutConfirmModal, setShowGuestCheckoutConfirmModal] = useState(false);
@@ -1524,8 +1525,20 @@ export default function IndividualTenantProfilePage({
         month: `Checkout Settlement (${analysis?.isEarly ? `${analysis.actualDaysElapsed}d stay` : "Regular checkout"})`,
         date: guestCheckoutDate,
         amount: -netCashToReturn,
-        mode: "Cash",
+        mode: guestSettlementPaymentMode || "Cash",
         receiptNo: `RET-${Date.now().toString().slice(-4)}`,
+        status: "PAID",
+      });
+    } else if (netCashToReturn < 0) {
+      // If guest had unpaid stay dues, log the on-departure collection receipt in ledger
+      const deficitAmount = Math.abs(netCashToReturn);
+      newPaymentHistory.push({
+        id: `pay_guest_deficit_${Date.now()}`,
+        month: `Stay Dues Cleared on Checkout (${analysis?.isEarly ? `${analysis.actualDaysElapsed}d stay` : "Regular stay"})`,
+        date: guestCheckoutDate,
+        amount: deficitAmount,
+        mode: guestSettlementPaymentMode || "Cash",
+        receiptNo: `SET-${Date.now().toString().slice(-4)}`,
         status: "PAID",
       });
     }
@@ -1536,7 +1549,8 @@ export default function IndividualTenantProfilePage({
       vacatingDate: guestCheckoutDate,
       rentAmount: finalRoomRent,
       paymentHistory: newPaymentHistory,
-      paymentStatus: stmt.totalPaid >= totalOwnerKeeps ? "Paid" : "Due",
+      paymentStatus: "Paid",
+      arrearsBalance: 0,
     };
 
     setOccupantState(updatedGuest);
@@ -1596,9 +1610,15 @@ export default function IndividualTenantProfilePage({
 
     const summaryMsg =
       netCashToReturn > 0
-        ? `🏁 Checkout Done for ${occupantState.name}! Hand over ₹${netCashToReturn.toLocaleString(
+        ? `🏁 Checkout Done for ${occupantState.name}! Handed over ₹${netCashToReturn.toLocaleString(
             "en-IN"
-          )} to guest (You keep ₹${totalOwnerKeeps.toLocaleString("en-IN")} earned rent). Bed ${occupantState.roomNumber} (${
+          )} refund via ${guestSettlementPaymentMode} (You keep ₹${totalOwnerKeeps.toLocaleString("en-IN")} earned rent). Bed ${occupantState.roomNumber} (${
+            occupantState.bedCode
+          }) is now Available 🟢`
+        : netCashToReturn < 0
+        ? `🏁 Checkout Done for ${occupantState.name}! Collected ₹${Math.abs(netCashToReturn).toLocaleString(
+            "en-IN"
+          )} pending stay dues via ${guestSettlementPaymentMode}. Bed ${occupantState.roomNumber} (${
             occupantState.bedCode
           }) is now Available 🟢`
         : `🏁 Checkout Completed for ${occupantState.name}! Bed ${occupantState.roomNumber} (${occupantState.bedCode}) is now vacant & Available 🟢`;
@@ -2748,21 +2768,31 @@ export default function IndividualTenantProfilePage({
                         </div>
                       )}
 
-                      {/* Net Amount Refunded */}
-                      <div className="flex justify-between items-center text-emerald-900 font-bold border-t border-purple-200/80 pt-2 text-xs">
-                        <span className="font-sans flex items-center gap-1.5">
-                          <span>Net Amount Refunded:</span>
-                          {status === "FULL_REFUND" && (
-                            <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-bold">100%</span>
-                          )}
-                        </span>
-                        <span className="font-mono text-sm font-black text-emerald-700">₹{netRefunded.toLocaleString("en-IN")}</span>
-                      </div>
+                      {/* Net Amount Refunded or Deficit Collected */}
+                      {totalDeductions > initialDeposit ? (
+                        <div className="flex justify-between items-center text-rose-900 font-bold border-t border-purple-200/80 pt-2 text-xs">
+                          <span className="font-sans flex items-center gap-1.5">
+                            <span>Net Deficit Collected on Exit:</span>
+                            <span className="text-[9px] px-1.5 py-0.2 bg-rose-100 text-rose-800 rounded-full font-bold">Deficit Cleared</span>
+                          </span>
+                          <span className="font-mono text-sm font-black text-rose-700">₹{(totalDeductions - initialDeposit).toLocaleString("en-IN")} 🔴</span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center text-emerald-900 font-bold border-t border-purple-200/80 pt-2 text-xs">
+                          <span className="font-sans flex items-center gap-1.5">
+                            <span>Net Amount Refunded:</span>
+                            {status === "FULL_REFUND" && (
+                              <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-bold">100%</span>
+                            )}
+                          </span>
+                          <span className="font-mono text-sm font-black text-emerald-700">₹{netRefunded.toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
 
                       {/* Payment Channel */}
                       {paymentChannel && (
                         <div className="flex justify-between items-center text-[11px] text-purple-900 pt-1 font-sans">
-                          <span className="text-gray-600">Refund Payment Channel:</span>
+                          <span className="text-gray-600">{totalDeductions > initialDeposit ? "Collection Payment Channel:" : "Refund Payment Channel:"}</span>
                           <span className="font-bold">{paymentChannel}</span>
                         </div>
                       )}
@@ -4298,6 +4328,27 @@ export default function IndividualTenantProfilePage({
                                     </div>
                                   )}
                                 </div>
+
+                                {/* Refund Payment Channel Selector */}
+                                <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between text-xs">
+                                  <span className="font-bold text-emerald-950 text-[11px]">Refund Mode:</span>
+                                  <div className="flex gap-1.5">
+                                    {["Cash", "UPI", "Bank Transfer"].map((mode) => (
+                                      <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => setGuestSettlementPaymentMode(mode)}
+                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                                          guestSettlementPaymentMode === mode
+                                            ? "bg-emerald-200 text-emerald-950 border-emerald-400 font-black shadow-xs"
+                                            : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50"
+                                        }`}
+                                      >
+                                        {mode}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             );
                           })()
@@ -4326,6 +4377,27 @@ export default function IndividualTenantProfilePage({
                               <div className="flex justify-between items-center text-rose-700">
                                 <span>💳 Less Money Paid at Check-in:</span>
                                 <span className="font-mono font-bold">-₹{stmt.totalPaid.toLocaleString("en-IN")}</span>
+                              </div>
+                            </div>
+
+                            {/* Collection Mode Selector */}
+                            <div className="pt-2 border-t border-rose-200/80 flex items-center justify-between text-xs">
+                              <span className="font-bold text-rose-950 text-[11px]">Collection Mode:</span>
+                              <div className="flex gap-1.5">
+                                {["Cash", "UPI", "Bank Transfer"].map((mode) => (
+                                  <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => setGuestSettlementPaymentMode(mode)}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                                      guestSettlementPaymentMode === mode
+                                        ? "bg-rose-200 text-rose-950 border-rose-400 font-black shadow-xs"
+                                        : "bg-white text-gray-700 border-gray-200 hover:bg-rose-100/50"
+                                    }`}
+                                  >
+                                    {mode}
+                                  </button>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -4454,9 +4526,9 @@ export default function IndividualTenantProfilePage({
                         <span className="text-gray-800">Final Cash Action:</span>
                         <span className={`font-mono ${netCashDifference > 0 ? "text-emerald-700 font-extrabold" : netCashDifference < 0 ? "text-rose-700 font-extrabold" : "text-gray-800"}`}>
                           {netCashDifference > 0
-                            ? `Return ₹${netCashDifference.toLocaleString("en-IN")} 💵`
+                            ? `Return ₹${netCashDifference.toLocaleString("en-IN")} via ${guestSettlementPaymentMode} 💵`
                             : netCashDifference < 0
-                            ? `Collect ₹${Math.abs(netCashDifference).toLocaleString("en-IN")} 🔴`
+                            ? `Collect ₹${Math.abs(netCashDifference).toLocaleString("en-IN")} via ${guestSettlementPaymentMode} 🔴`
                             : "All Balanced (₹0) 🟢"}
                         </span>
                       </div>
