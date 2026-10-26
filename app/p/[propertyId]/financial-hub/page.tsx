@@ -279,8 +279,7 @@ export default function FinancialHubPage({
   const [renameCategoryName, setRenameCategoryName] = useState("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [expensesSubTab, setExpensesSubTab] = useState<"LEDGER" | "CATEGORIES">("LEDGER");
-  const [isMobileBreakdownOpen, setIsMobileBreakdownOpen] = useState(false);
-  const [isMobileRecurringOpen, setIsMobileRecurringOpen] = useState(true);
+  const [hoveredPieCategory, setHoveredPieCategory] = useState<string | null>(null);
 
   const [partners, setPartners] = useState<PartnerConfig[]>([]);
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
@@ -1011,16 +1010,6 @@ export default function FinancialHubPage({
                     </button>
                   )}
                 </div>
-
-                {activeTab === "Expenses" && (
-                  <button
-                    type="button"
-                    onClick={() => setShowRecordDrawer(true)}
-                    className="px-4 py-2 rounded-xl bg-[#c2652a] hover:bg-[#c2652a]/90 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Record Expense
-                  </button>
-                )}
               </div>
             </div>
 
@@ -1471,194 +1460,375 @@ export default function FinancialHubPage({
           {/* TAB 2: EXPENSES WORKSPACE (STITCH V2 SPECIFICATION) */}
           {activeTab === "Expenses" && (
             <div className="space-y-6 md:space-y-8 animate-in fade-in">
-              {/* DESKTOP BENTO GRID: TOTAL SPENT & BUDGET WEIGHTAGES (UNCHANGED) */}
-              <div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Main Summary Card */}
-                <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
-                      TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
-                    </span>
-                    <div className="flex items-baseline gap-4 mt-2">
-                      <h2 className="font-sans font-bold text-3xl md:text-4xl text-gray-900 tracking-tight">
-                        ₹{totalSpent.toLocaleString("en-IN")}
-                      </h2>
-                      <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-emerald-700" /> REAL-TIME FIREBASE SYNCED 🟢
-                      </span>
-                    </div>
-                  </div>
+              {/* Pie Slice Calculations for Industry Standard Donut Chart */}
+              {(() => {
+                const CIRCUMFERENCE = 2 * Math.PI * 38; // ~238.761
+                let accumulatedOffset = 0;
+                const fallbackColors = [
+                  "#c2652a",
+                  "#059669",
+                  "#7c3aed",
+                  "#2563eb",
+                  "#d97706",
+                  "#dc2626",
+                  "#0891b2",
+                  "#db2777",
+                  "#4b5563",
+                  "#0d9488",
+                ];
 
-                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-gray-100">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                        HIGHEST CATEGORY
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Zap className="w-4 h-4 text-[#c2652a]" />
-                        <span className="font-sans font-bold text-base text-gray-900">
-                          {highestCat.category} (₹{highestCat.amount.toLocaleString("en-IN")})
-                        </span>
-                      </div>
-                    </div>
+                const slices = categoryWeightages.map((cw, idx) => {
+                  const fraction = totalSpent > 0 ? cw.amount / totalSpent : 0;
+                  const arcLength = fraction * CIRCUMFERENCE;
+                  const hasMultiple = categoryWeightages.length > 1;
+                  const gap = hasMultiple ? 1.5 : 0;
+                  const strokeDash = Math.max(0, arcLength - gap);
+                  const strokeGap = CIRCUMFERENCE - strokeDash;
+                  const offset = -accumulatedOffset;
+                  accumulatedOffset += arcLength;
 
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                        RECORDED TRANSACTIONS
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <ReceiptRupeeIcon className="w-4 h-4 text-purple-700" />
-                        <span className="font-sans font-bold text-base text-gray-900">
-                          {expenseList.length} Entries Logged
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  const catObj = categories.find((c) => c.name.toLowerCase() === cw.category.toLowerCase());
+                  const color = catObj?.color || fallbackColors[idx % fallbackColors.length];
+                  const icon = catObj?.icon || "Receipt";
+                  const count = expenseList.filter(
+                    (e) => e.category.toLowerCase() === cw.category.toLowerCase()
+                  ).length;
 
-                {/* Category Weightage & Cost Breakdown Progress Card */}
-                <div className="lg:col-span-4 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div>
-                      <h3 className="font-serif font-bold text-base text-gray-900">
-                        Category Cost Weightage
-                      </h3>
-                      <p className="text-[10px] text-gray-500 font-medium">% Share of total monthly spend</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 uppercase">
-                      DYNAMIC
-                    </span>
-                  </div>
+                  return {
+                    ...cw,
+                    color,
+                    icon,
+                    count,
+                    strokeDash,
+                    strokeGap,
+                    offset,
+                  };
+                });
 
-                  <div className="space-y-3.5 text-xs font-bold max-h-56 overflow-y-auto pr-1">
-                    {categoryWeightages.length === 0 ? (
-                      <p className="text-xs text-gray-400 font-medium">No expenses logged yet</p>
-                    ) : (
-                      categoryWeightages.map((cw, idx) => (
-                        <div key={cw.category} className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">{cw.category}</span>
-                            <span className="text-[#c2652a] font-sans font-bold tabular-nums">
-                              ₹{cw.amount.toLocaleString("en-IN")} ({cw.percentage}%)
+                const activeSlice = hoveredPieCategory
+                  ? slices.find((s) => s.category.toLowerCase() === hoveredPieCategory.toLowerCase())
+                  : null;
+
+                return (
+                  <>
+                    {/* DESKTOP BENTO GRID: TOTAL SPENT & INDUSTRY STANDARD EXPENSE BREAKDOWN PIE */}
+                    <div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      {/* Left: Total Spent Summary Card */}
+                      <div className="lg:col-span-5 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
+                            TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
+                          </span>
+                          <div className="flex items-baseline gap-3 mt-2">
+                            <h2 className="font-sans font-bold text-3xl md:text-4xl text-gray-900 tracking-tight">
+                              ₹{totalSpent.toLocaleString("en-IN")}
+                            </h2>
+                          </div>
+                          <div className="mt-3">
+                            <span className="bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5">
+                              <TrendingUp className="w-3 h-3 text-emerald-700" /> REAL-TIME FIREBASE SYNCED 🟢
                             </span>
                           </div>
-                          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                idx === 0
-                                  ? "bg-[#c2652a]"
-                                  : idx === 1
-                                  ? "bg-emerald-600"
-                                  : idx === 2
-                                  ? "bg-purple-600"
-                                  : "bg-blue-600"
-                              }`}
-                              style={{ width: `${Math.min(cw.percentage, 100)}%` }}
-                            ></div>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-xs py-1">
+                            <span className="text-gray-500 font-medium">Logged Transactions:</span>
+                            <span className="font-bold text-gray-900">{expenseList.length} Entries</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs py-1">
+                            <span className="text-gray-500 font-medium">Active Categories:</span>
+                            <span className="font-bold text-gray-900">{categoryWeightages.length} Categories</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs py-1">
+                            <span className="text-gray-500 font-medium">Avg per Transaction:</span>
+                            <span className="font-bold text-[#c2652a] tabular-nums">
+                              ₹{expenseList.length > 0 ? Math.round(totalSpent / expenseList.length).toLocaleString("en-IN") : 0}
+                            </span>
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* MOBILE BENTO HERO CARD (STITCH-DESIGNED MOBILE FIRST UX) */}
-              <div className="block md:hidden bg-white border border-gray-200 rounded-3xl p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
-                    TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
-                  </span>
-                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    SYNCED
-                  </span>
-                </div>
-
-                <div>
-                  <h2 className="font-sans font-extrabold text-3xl text-gray-900 tracking-tight">
-                    ₹{totalSpent.toLocaleString("en-IN")}
-                  </h2>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-gray-100">
-                  <div className="p-3 rounded-2xl bg-orange-50/70 border border-orange-200/60">
-                    <p className="text-[9px] font-extrabold uppercase tracking-wider text-[#c2652a] flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> Highest
-                    </p>
-                    <span className="font-bold text-xs text-gray-900 block truncate mt-0.5">
-                      {highestCat.category}
-                    </span>
-                    <span className="font-extrabold text-[11px] text-[#c2652a] tabular-nums">
-                      ₹{highestCat.amount.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-purple-50/70 border border-purple-200/60">
-                    <p className="text-[9px] font-extrabold uppercase tracking-wider text-purple-700 flex items-center gap-1">
-                      <ReceiptRupeeIcon className="w-3 h-3" /> Entries
-                    </p>
-                    <span className="font-bold text-xs text-gray-900 block mt-0.5">
-                      {expenseList.length} Logged
-                    </span>
-                    <span className="font-medium text-[11px] text-purple-600">
-                      This Period
-                    </span>
-                  </div>
-                </div>
-
-                {/* Compact Mobile Weightage Bar with Toggle */}
-                {categoryWeightages.length > 0 && (
-                  <div className="pt-2 border-t border-gray-100 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[11px] font-bold text-gray-700">Cost Weightage</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsMobileBreakdownOpen(!isMobileBreakdownOpen)}
-                        className="text-[11px] font-extrabold text-[#c2652a] flex items-center gap-1 hover:underline cursor-pointer"
-                      >
-                        <span>{isMobileBreakdownOpen ? "Hide Breakdown" : "View Breakdown"}</span>
-                        {isMobileBreakdownOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
-                    </div>
-
-                    {/* Segmented Distribution Bar */}
-                    <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden flex">
-                      {categoryWeightages.map((cw, idx) => {
-                        const barColors = ["bg-[#c2652a]", "bg-emerald-600", "bg-purple-600", "bg-blue-600", "bg-amber-500", "bg-rose-500", "bg-teal-600"];
-                        return (
-                          <div
-                            key={cw.category}
-                            className={`${barColors[idx % barColors.length]} h-full transition-all`}
-                            style={{ width: `${Math.min(cw.percentage, 100)}%` }}
-                            title={`${cw.category}: ₹${cw.amount} (${cw.percentage}%)`}
-                          />
-                        );
-                      })}
-                    </div>
-
-                    {/* Expandable breakdown list */}
-                    {isMobileBreakdownOpen && (
-                      <div className="space-y-1.5 pt-2 animate-in fade-in max-h-48 overflow-y-auto pr-1">
-                        {categoryWeightages.map((cw, idx) => {
-                          const dotColors = ["bg-[#c2652a]", "bg-emerald-600", "bg-purple-600", "bg-blue-600", "bg-amber-500", "bg-rose-500", "bg-teal-600"];
-                          return (
-                            <div key={cw.category} className="flex items-center justify-between text-[11px] py-1 border-b border-gray-50">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${dotColors[idx % dotColors.length]}`}></span>
-                                <span className="font-medium text-gray-700 truncate">{cw.category}</span>
-                              </div>
-                              <span className="font-bold text-gray-900 tabular-nums shrink-0 ml-2">
-                                ₹{cw.amount.toLocaleString("en-IN")} <span className="text-gray-400 font-medium">({cw.percentage}%)</span>
-                              </span>
-                            </div>
-                          );
-                        })}
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
+
+                      {/* Right: Industry Standard Pie Diagram of Expenses Breakdown */}
+                      <div className="lg:col-span-7 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
+                        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                          <div>
+                            <h3 className="font-serif font-bold text-base text-gray-900">
+                              Expense Breakdown by Category
+                            </h3>
+                            <p className="text-[10px] text-gray-500 font-medium">
+                              Interactive proportional spend distribution
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 uppercase">
+                            DYNAMIC PIE
+                          </span>
+                        </div>
+
+                        {slices.length === 0 ? (
+                          <div className="py-12 text-center text-gray-400 space-y-2">
+                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto text-gray-400">
+                              <ReceiptRupeeIcon className="w-6 h-6" />
+                            </div>
+                            <p className="text-xs font-medium">No expenses logged yet for this period</p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
+                            {/* SVG Donut Chart */}
+                            <div className="sm:col-span-5 flex justify-center">
+                              <div className="relative w-44 h-44">
+                                <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="38"
+                                    stroke="#f3f4f6"
+                                    strokeWidth="12"
+                                    fill="transparent"
+                                  />
+                                  {slices.map((slice) => {
+                                    const isHovered = hoveredPieCategory === slice.category;
+                                    return (
+                                      <circle
+                                        key={slice.category}
+                                        cx="50"
+                                        cy="50"
+                                        r="38"
+                                        stroke={slice.color}
+                                        strokeWidth={isHovered ? 16 : 12}
+                                        strokeDasharray={`${slice.strokeDash} ${slice.strokeGap}`}
+                                        strokeDashoffset={slice.offset}
+                                        fill="transparent"
+                                        className="transition-all duration-200 cursor-pointer"
+                                        onMouseEnter={() => setHoveredPieCategory(slice.category)}
+                                        onMouseLeave={() => setHoveredPieCategory(null)}
+                                        onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
+                                      />
+                                    );
+                                  })}
+                                </svg>
+
+                                {/* Central Metric Display */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
+                                  {activeSlice ? (
+                                    <div className="animate-in fade-in zoom-in-95 duration-150">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[100px]">
+                                        {activeSlice.category}
+                                      </span>
+                                      <span className="font-sans font-black text-base text-gray-900 block leading-tight tabular-nums">
+                                        ₹{activeSlice.amount.toLocaleString("en-IN")}
+                                      </span>
+                                      <span
+                                        className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full inline-block mt-0.5"
+                                        style={{ backgroundColor: `${activeSlice.color}20`, color: activeSlice.color }}
+                                      >
+                                        {activeSlice.percentage}%
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">
+                                        TOTAL
+                                      </span>
+                                      <span className="font-sans font-black text-base text-gray-900 block leading-tight tabular-nums">
+                                        ₹{totalSpent.toLocaleString("en-IN")}
+                                      </span>
+                                      <span className="text-[9px] font-bold text-gray-400 block mt-0.5">
+                                        {expenseList.length} Entries
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Donut Legend List */}
+                            <div className="sm:col-span-7 space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                              {slices.map((slice) => {
+                                const isHovered = hoveredPieCategory === slice.category;
+                                return (
+                                  <div
+                                    key={slice.category}
+                                    onMouseEnter={() => setHoveredPieCategory(slice.category)}
+                                    onMouseLeave={() => setHoveredPieCategory(null)}
+                                    onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
+                                    className={`flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer ${
+                                      isHovered ? "bg-gray-100/90 shadow-2xs scale-[1.01]" : "hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                                        style={{ backgroundColor: slice.color }}
+                                      />
+                                      <span className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-medium text-gray-700"}`}>
+                                        {slice.category}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                                      <span className="text-xs font-bold text-gray-900 tabular-nums">
+                                        ₹{slice.amount.toLocaleString("en-IN")}
+                                      </span>
+                                      <span
+                                        className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md tabular-nums"
+                                        style={{ backgroundColor: `${slice.color}15`, color: slice.color }}
+                                      >
+                                        {slice.percentage}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* MOBILE BENTO HERO CARD WITH INDUSTRY STANDARD DONUT PIE */}
+                    <div className="block md:hidden bg-white border border-gray-200 rounded-3xl p-5 shadow-xs space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                          TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
+                        </span>
+                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          SYNCED
+                        </span>
+                      </div>
+
+                      <div>
+                        <h2 className="font-sans font-extrabold text-3xl text-gray-900 tracking-tight">
+                          ₹{totalSpent.toLocaleString("en-IN")}
+                        </h2>
+                      </div>
+
+                      {/* Industry Standard Mobile Donut Pie Diagram */}
+                      <div className="pt-3 border-t border-gray-100 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-serif font-bold text-sm text-gray-900">
+                            Expenses Breakdown
+                          </h3>
+                          <span className="text-[9px] font-extrabold text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 uppercase">
+                            Pie Diagram
+                          </span>
+                        </div>
+
+                        {slices.length === 0 ? (
+                          <div className="py-8 text-center text-gray-400">
+                            <p className="text-xs font-medium">No expenses logged yet</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Donut SVG Centered */}
+                            <div className="flex justify-center py-1">
+                              <div className="relative w-40 h-40">
+                                <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="38"
+                                    stroke="#f3f4f6"
+                                    strokeWidth="12"
+                                    fill="transparent"
+                                  />
+                                  {slices.map((slice) => {
+                                    const isHovered = hoveredPieCategory === slice.category;
+                                    return (
+                                      <circle
+                                        key={slice.category}
+                                        cx="50"
+                                        cy="50"
+                                        r="38"
+                                        stroke={slice.color}
+                                        strokeWidth={isHovered ? 16 : 12}
+                                        strokeDasharray={`${slice.strokeDash} ${slice.strokeGap}`}
+                                        strokeDashoffset={slice.offset}
+                                        fill="transparent"
+                                        className="transition-all duration-200 cursor-pointer"
+                                        onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
+                                      />
+                                    );
+                                  })}
+                                </svg>
+
+                                {/* Center Label */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
+                                  {activeSlice ? (
+                                    <div className="animate-in fade-in zoom-in-95 duration-150">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[85px]">
+                                        {activeSlice.category}
+                                      </span>
+                                      <span className="font-sans font-black text-sm text-gray-900 block leading-tight tabular-nums">
+                                        ₹{activeSlice.amount.toLocaleString("en-IN")}
+                                      </span>
+                                      <span
+                                        className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full inline-block mt-0.5"
+                                        style={{ backgroundColor: `${activeSlice.color}20`, color: activeSlice.color }}
+                                      >
+                                        {activeSlice.percentage}%
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">
+                                        TOTAL
+                                      </span>
+                                      <span className="font-sans font-black text-sm text-gray-900 block leading-tight tabular-nums">
+                                        ₹{totalSpent.toLocaleString("en-IN")}
+                                      </span>
+                                      <span className="text-[9px] font-bold text-gray-400 block mt-0.5">
+                                        {expenseList.length} Entries
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Mobile Tactile Donut Legend */}
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                              {slices.map((slice) => {
+                                const isHovered = hoveredPieCategory === slice.category;
+                                return (
+                                  <div
+                                    key={slice.category}
+                                    onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
+                                    className={`flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer ${
+                                      isHovered ? "bg-gray-100 shadow-2xs scale-[1.01]" : "hover:bg-gray-50 active:bg-gray-100"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: slice.color }}
+                                      />
+                                      <span className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-medium text-gray-700"}`}>
+                                        {slice.category}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                                      <span className="text-xs font-bold text-gray-900 tabular-nums">
+                                        ₹{slice.amount.toLocaleString("en-IN")}
+                                      </span>
+                                      <span
+                                        className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md tabular-nums"
+                                        style={{ backgroundColor: `${slice.color}15`, color: slice.color }}
+                                      >
+                                        {slice.percentage}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Expenses Sub-Tab Segment Switcher + Mobile Record CTA */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
