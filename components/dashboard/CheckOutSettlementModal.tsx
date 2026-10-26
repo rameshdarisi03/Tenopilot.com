@@ -59,14 +59,15 @@ export function CheckOutSettlementModal({
   const liveUnpaidDeposit = liveStmt ? Math.max(0, liveStmt.remainingDepositDue) : (occupant.depositStatus === "PAID" ? 0 : requiredDeposit);
   const hasUnpaidDeposit = liveUnpaidDeposit > 0 || (occupant.depositStatus !== "PAID" && requiredDeposit > 0);
 
+  // Actual deposit received/held (if deposit was never paid, owner holds 0)
+  const actualDepositReceived = occupant.checkoutSettlement?.initialDeposit !== undefined
+    ? occupant.checkoutSettlement.initialDeposit
+    : liveStmt
+    ? liveStmt.totalDepositPaid
+    : (occupant.depositStatus === "PAID" ? requiredDeposit : 0);
+
   // Step 3: Financial Settlement Calculator State
-  const initialDeposit = occupant.checkoutSettlement?.initialDeposit ?? requiredDeposit;
-  const [unpaidDepositDeduction, setUnpaidDepositDeduction] = useState<number>(() => {
-    if ((occupant.checkoutSettlement as any)?.unpaidDepositDeduction !== undefined) {
-      return (occupant.checkoutSettlement as any).unpaidDepositDeduction;
-    }
-    return liveUnpaidDeposit;
-  });
+  const initialDeposit = actualDepositReceived;
   const [unpaidRentDues, setUnpaidRentDues] = useState<number>(() => {
     if (occupant.checkoutSettlement?.unpaidRentDeduction !== undefined) {
       return occupant.checkoutSettlement.unpaidRentDeduction;
@@ -77,7 +78,7 @@ export function CheckOutSettlementModal({
   const [maintenanceExpenses, setMaintenanceExpenses] = useState<number>(() => occupant.checkoutSettlement?.maintenanceDeduction ?? 0); // Cleaning, painting fees
 
   // Calculated Net Settlement Math (2-Way: Refund vs Deficit)
-  const totalDeductions = unpaidRentDues + unpaidDepositDeduction + repairDeductions + maintenanceExpenses;
+  const totalDeductions = unpaidRentDues + repairDeductions + maintenanceExpenses;
   const netDifference = initialDeposit - totalDeductions;
   const netRefundableAmount = Math.max(0, netDifference);
   const netDeficitToCollect = Math.max(0, -netDifference);
@@ -139,7 +140,6 @@ export function CheckOutSettlementModal({
       const checkoutSettlement = {
         settledDate: todayStr,
         initialDeposit,
-        unpaidDepositDeduction,
         unpaidRentDeduction: unpaidRentDues,
         repairDeduction: repairDeductions,
         maintenanceDeduction: maintenanceExpenses,
@@ -236,7 +236,6 @@ export function CheckOutSettlementModal({
             paymentMode: paymentChannel,
             isSettlement: "true",
             initialDeposit: String(initialDeposit),
-            unpaidDeposit: String(unpaidDepositDeduction),
             unpaidRent: String(unpaidRentDues),
             repairs: String(repairDeductions),
             maintenance: String(maintenanceExpenses),
@@ -297,7 +296,6 @@ export function CheckOutSettlementModal({
                         receiptUrl: pdfUrl,
                         amount: netRefundableAmount,
                         initialDeposit,
-                        unpaidDeposit: unpaidDepositDeduction,
                         unpaidRent: unpaidRentDues,
                         repairs: repairDeductions,
                         maintenance: maintenanceExpenses,
@@ -416,15 +414,11 @@ export function CheckOutSettlementModal({
             </div>
             <div className="text-right">
               <span className="text-[10px] font-mono font-bold block text-gray-500">
-                Agreed Deposit: ₹{initialDeposit.toLocaleString("en-IN")}
+                Deposit: ₹{initialDeposit.toLocaleString("en-IN")}
               </span>
-              {hasUnpaidDeposit ? (
+              {hasUnpaidDeposit && (
                 <span className="text-[9px] font-extrabold text-rose-600 block">
-                  ⚠️ ₹{liveUnpaidDeposit.toLocaleString("en-IN")} Deposit Unpaid
-                </span>
-              ) : (
-                <span className="text-[9px] font-extrabold text-emerald-600 block">
-                  ✓ Deposit Paid at Check-In
+                  ⚠️ ₹{liveUnpaidDeposit.toLocaleString("en-IN")} Unpaid
                 </span>
               )}
             </div>
@@ -432,55 +426,24 @@ export function CheckOutSettlementModal({
 
           {/* Live Status Notification Banner for Unpaid Rent & Deposit */}
           {(liveUnpaidRent > 0 || hasUnpaidDeposit) ? (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-2 text-xs text-amber-900 font-semibold">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <div>
-                    <span className="font-bold">
-                      {liveUnpaidRent > 0 && hasUnpaidDeposit
-                        ? `Unpaid Dues: ₹${liveUnpaidRent.toLocaleString("en-IN")} Rent + ₹${liveUnpaidDeposit.toLocaleString("en-IN")} Deposit`
-                        : liveUnpaidRent > 0
-                        ? `Live Unpaid Rent Dues: ₹${liveUnpaidRent.toLocaleString("en-IN")}`
-                        : `Security Deposit Unpaid: ₹${liveUnpaidDeposit.toLocaleString("en-IN")} Pending`}
-                    </span>
-                    <span className="block text-[10px] text-amber-700 font-normal">
-                      {hasUnpaidDeposit
-                        ? "Security deposit was never received from tenant. Pre-filled below so unreceived deposit is not credited."
-                        : "Pre-filled below to adjust directly against security deposit or collect on exit"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1.5 self-start sm:self-auto">
-                  {liveUnpaidRent > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setUnpaidRentDues(liveUnpaidRent)}
-                      className="px-2 py-1 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-950 font-bold text-[10px] cursor-pointer"
-                    >
-                      Reset Rent (₹{liveUnpaidRent.toLocaleString("en-IN")})
-                    </button>
-                  )}
-                  {hasUnpaidDeposit && (
-                    <button
-                      type="button"
-                      onClick={() => setUnpaidDepositDeduction(liveUnpaidDeposit)}
-                      className="px-2 py-1 rounded-lg bg-rose-200/80 hover:bg-rose-300 text-rose-950 font-bold text-[10px] cursor-pointer"
-                    >
-                      Reset Deposit (₹{liveUnpaidDeposit.toLocaleString("en-IN")})
-                    </button>
-                  )}
-                </div>
-              </div>
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-xs text-amber-900 font-bold">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                {liveUnpaidRent > 0 && hasUnpaidDeposit
+                  ? `Unpaid Dues: ₹${liveUnpaidRent.toLocaleString("en-IN")} Rent + ₹${liveUnpaidDeposit.toLocaleString("en-IN")} Deposit`
+                  : liveUnpaidRent > 0
+                  ? `Unpaid Dues: ₹${liveUnpaidRent.toLocaleString("en-IN")} Rent`
+                  : `Unpaid Dues: ₹${liveUnpaidDeposit.toLocaleString("en-IN")} Deposit`}
+              </span>
             </div>
           ) : (
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800 font-semibold">
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800 font-bold">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Rent & Security Deposit are fully paid & up-to-date (₹0.00 outstanding dues)</span>
+              <span>All Dues Cleared (₹0)</span>
             </div>
           )}
 
-          <div className={`grid grid-cols-1 ${hasUnpaidDeposit ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"} gap-3`}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-gray-700 text-[11px] mb-1">
                 (-) Unpaid Rent Dues (₹)
@@ -497,29 +460,6 @@ export function CheckOutSettlementModal({
                 className="w-full p-2.5 rounded-xl border border-gray-300 bg-white font-mono font-bold text-gray-900 focus:ring-1 focus:ring-[#c2652a]"
               />
             </div>
-
-            {hasUnpaidDeposit && (
-              <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-300">
-                <label className="block font-bold text-rose-900 text-[11px] mb-1 flex items-center justify-between">
-                  <span>(-) Unpaid Deposit (₹)</span>
-                  <span className="text-[9px] bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded font-extrabold">Never Paid</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={unpaidDepositDeduction ? unpaidDepositDeduction : ""}
-                  placeholder="0"
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    setUnpaidDepositDeduction(val === "" ? 0 : parseInt(val, 10));
-                  }}
-                  className="w-full p-2 rounded-lg border border-rose-300 bg-white font-mono font-bold text-rose-950 focus:ring-1 focus:ring-rose-500 text-xs"
-                />
-                <span className="text-[9px] text-rose-700 block mt-1 font-medium leading-tight">
-                  Cancels unreceived deposit credit
-                </span>
-              </div>
-            )}
 
             <div>
               <label className="block font-bold text-gray-700 text-[11px] mb-1">
@@ -575,19 +515,14 @@ export function CheckOutSettlementModal({
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 flex items-center justify-between animate-in fade-in">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">
-                  👉 Net Deficit to Collect from Tenant (Dues exceed Deposit)
+                  👉 Net Deficit to Collect from Tenant
                 </span>
                 <span className="text-xl font-serif font-bold text-rose-950">
                   ₹{netDeficitToCollect.toLocaleString("en-IN")} 🔴
                 </span>
               </div>
               <div className="text-right text-[10px] text-rose-800 font-medium">
-                Deposit: ₹{initialDeposit.toLocaleString("en-IN")} • Total Dues: ₹{totalDeductions.toLocaleString("en-IN")}
-                {hasUnpaidDeposit && unpaidDepositDeduction > 0 && (
-                  <span className="block text-[9px] text-rose-600 font-bold">
-                    (₹{unpaidDepositDeduction.toLocaleString("en-IN")} deposit never received)
-                  </span>
-                )}
+                Deposit: ₹{initialDeposit.toLocaleString("en-IN")} • Deductions: ₹{totalDeductions.toLocaleString("en-IN")}
               </div>
             </div>
           )}
