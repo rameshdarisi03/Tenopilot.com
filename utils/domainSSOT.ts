@@ -214,7 +214,7 @@ export function getOccupantStatusBadge(occupant?: Partial<Occupant> | null): Occ
   }
 
   return {
-    label: "ACTIVE TENANT 🟢",
+    label: "ACTIVE 🟢",
     shortLabel: "Active",
     badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
     dotColor: "bg-emerald-500",

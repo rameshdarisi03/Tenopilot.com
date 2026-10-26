@@ -1177,16 +1177,20 @@ function PropertyMapContent({
                                     : "bg-purple-100 text-purple-700"
                                   : isVacatingOverdue
                                   ? "bg-red-100 text-red-900 border border-red-300"
+                                  : displayOcc.lifecycleStatus === "Notice"
+                                  ? "bg-orange-100 text-orange-700 border border-orange-200"
                                   : "bg-green-100 text-green-700"
                               }`}
                             >
                               {isBooked
                                 ? isGuest
                                   ? "🟣 BOOKED GUEST"
-                                  : "🔵 BOOKED TENANT"
+                                  : "🔵 BOOKED"
                                 : isGuest
                                 ? "🟣 GUEST"
-                                : "🟢 TENANT"}
+                                : displayOcc.lifecycleStatus === "Notice"
+                                ? "🟧 NOTICE"
+                                : "🟢 ACTIVE"}
                             </span>
                             {(isGuestOverdue || isVacatingOverdue) && (
                               <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-300 flex items-center gap-1 shadow-2xs animate-pulse">
@@ -1309,7 +1313,7 @@ function PropertyMapContent({
                               Upcoming Reservation
                             </span>
                             <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
-                              {nextOcc.stayType === "Guest" ? "🟣 GUEST" : "🔵 TENANT"}
+                              {nextOcc.stayType === "Guest" ? "🟣 GUEST" : "🔵 BOOKED"}
                             </span>
                           </div>
                           <p className="font-bold text-gray-900 text-sm">
