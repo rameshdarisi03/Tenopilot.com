@@ -1256,7 +1256,7 @@ export default function FinancialHubPage({
               ? revenueSlices.find((s) => s.category.toLowerCase() === hoveredRevenueStream.toLowerCase())
               : null;
 
-            // 1b. Calculate Pie Slices for Payment Channels Analytics
+            // 1b. Calculate Pie Slices for Payment Channels Analytics (Always keep Cash Desk beside UPI)
             const channelCircumference = 2 * Math.PI * 38; // ~238.761
             let accumulatedChannelOffset = 0;
 
@@ -1285,20 +1285,23 @@ export default function FinancialHubPage({
                 textClass: "text-emerald-700",
                 tagClass: "text-emerald-700",
               },
-            ].filter((c) => c.amount > 0 || (revenueMetrics.totalGrossRevenue === 0 && c.channel.includes("UPI")));
+            ];
 
-            const totalChannelSum = validChannels.reduce((acc, c) => acc + c.amount, 0) || revenueMetrics.totalGrossRevenue || 1;
+            const totalChannelSum = (validChannels[0].amount + validChannels[1].amount) || revenueMetrics.totalGrossRevenue || 0;
+            const nonZeroChannels = validChannels.filter((c) => c.amount > 0);
+            const hasMultipleNonZero = nonZeroChannels.length > 1;
 
             const channelSlices = validChannels.map((ch) => {
-              const fraction = totalChannelSum > 0 ? ch.amount / totalChannelSum : 0;
+              const fraction = totalChannelSum > 0 ? ch.amount / totalChannelSum : (ch.shortName === "UPI" ? 1 : 0);
               const arcLength = fraction * channelCircumference;
-              const hasMultiple = validChannels.length > 1;
-              const gap = hasMultiple ? 1.5 : 0;
+              const gap = (hasMultipleNonZero && ch.amount > 0) ? 1.5 : 0;
               const strokeDash = Math.max(0, arcLength - gap);
               const strokeGap = channelCircumference - strokeDash;
               const offset = -accumulatedChannelOffset;
-              accumulatedChannelOffset += arcLength;
-              const percentage = Math.round(fraction * 100);
+              if (ch.amount > 0) {
+                accumulatedChannelOffset += arcLength;
+              }
+              const percentage = totalChannelSum > 0 ? Math.round(fraction * 100) : (ch.shortName === "UPI" ? 100 : 0);
 
               return {
                 ...ch,
@@ -1574,9 +1577,6 @@ export default function FinancialHubPage({
                                   <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
                                     ₹{revenueMetrics.totalGrossRevenue.toLocaleString("en-IN")}
                                   </span>
-                                  <span className="text-[9px] font-bold text-emerald-600 block mt-0.5">
-                                    REAL-TIME SSOT 🟢
-                                  </span>
                                 </div>
                               )}
                             </div>
@@ -1677,26 +1677,28 @@ export default function FinancialHubPage({
                                 strokeWidth="12"
                                 fill="transparent"
                               />
-                              {channelSlices.map((slice) => {
-                                const isHovered = hoveredPaymentChannel === slice.channel;
-                                return (
-                                  <circle
-                                    key={slice.channel}
-                                    cx="50"
-                                    cy="50"
-                                    r="38"
-                                    stroke={slice.color}
-                                    strokeWidth={isHovered ? 16 : 12}
-                                    strokeDasharray={`${slice.strokeDash} ${slice.strokeGap}`}
-                                    strokeDashoffset={slice.offset}
-                                    fill="transparent"
-                                    className="transition-all duration-200 cursor-pointer"
-                                    onMouseEnter={() => setHoveredPaymentChannel(slice.channel)}
-                                    onMouseLeave={() => setHoveredPaymentChannel(null)}
-                                    onClick={() => setHoveredPaymentChannel(hoveredPaymentChannel === slice.channel ? null : slice.channel)}
-                                  />
-                                );
-                              })}
+                              {channelSlices
+                                .filter((slice) => slice.amount > 0)
+                                .map((slice) => {
+                                  const isHovered = hoveredPaymentChannel === slice.channel;
+                                  return (
+                                    <circle
+                                      key={slice.channel}
+                                      cx="50"
+                                      cy="50"
+                                      r="38"
+                                      stroke={slice.color}
+                                      strokeWidth={isHovered ? 16 : 12}
+                                      strokeDasharray={`${slice.strokeDash} ${slice.strokeGap}`}
+                                      strokeDashoffset={slice.offset}
+                                      fill="transparent"
+                                      className="transition-all duration-200 cursor-pointer"
+                                      onMouseEnter={() => setHoveredPaymentChannel(slice.channel)}
+                                      onMouseLeave={() => setHoveredPaymentChannel(null)}
+                                      onClick={() => setHoveredPaymentChannel(hoveredPaymentChannel === slice.channel ? null : slice.channel)}
+                                    />
+                                  );
+                                })}
                             </svg>
 
                             {/* Central Metric Display */}
@@ -1724,23 +1726,20 @@ export default function FinancialHubPage({
                                   <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
                                     ₹{totalChannelSum.toLocaleString("en-IN")}
                                   </span>
-                                  <span className="text-[9px] font-bold text-emerald-600 block mt-0.5">
-                                    VERIFIED INFLOW 🟢
-                                  </span>
                                 </div>
                               )}
                             </div>
                           </div>
                         </div>
 
-                        {/* Channel Breakdown Cards Below Chart */}
+                        {/* Channel Breakdown Cards Below Chart (Side-by-side: Cash Desk beside UPI) */}
                         <div className="space-y-3 pt-4 border-t border-gray-100">
                           <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold px-1 uppercase tracking-wider">
                             <span>Active Channels</span>
                             <span>Method Distribution</span>
                           </div>
 
-                          <div className="space-y-2.5">
+                          <div className="grid grid-cols-2 gap-2.5">
                             {channelSlices.map((slice) => {
                               const isHovered = hoveredPaymentChannel === slice.channel;
                               return (
@@ -1749,27 +1748,27 @@ export default function FinancialHubPage({
                                   onClick={() => setHoveredPaymentChannel(hoveredPaymentChannel === slice.channel ? null : slice.channel)}
                                   onMouseEnter={() => setHoveredPaymentChannel(slice.channel)}
                                   onMouseLeave={() => setHoveredPaymentChannel(null)}
-                                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                                  className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                                     isHovered
                                       ? "bg-white border-gray-300 ring-2 ring-[#c2652a]/20 shadow-xs scale-[1.01]"
                                       : `${slice.bgClass} hover:bg-white hover:border-gray-300`
                                   }`}
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-9 h-9 rounded-xl font-bold flex items-center justify-center text-xs shadow-2xs ${slice.iconBg}`}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={`w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs ${slice.iconBg}`}>
                                       {slice.icon}
                                     </div>
-                                    <div>
-                                      <h4 className="font-bold text-xs text-gray-900">{slice.channel}</h4>
-                                      <span className="text-[10px] text-gray-500 font-medium">{slice.subtitle}</span>
+                                    <div className="min-w-0">
+                                      <h4 className="font-bold text-xs text-gray-900 truncate">{slice.channel}</h4>
+                                      <span className="text-[10px] text-gray-500 font-medium truncate block">{slice.subtitle}</span>
                                     </div>
                                   </div>
-                                  <div className="text-right shrink-0">
-                                    <span className={`font-mono font-bold text-sm block ${slice.textClass}`}>
+                                  <div className="mt-2 pt-2 border-t border-gray-200/50 flex items-baseline justify-between gap-1">
+                                    <span className={`font-mono font-bold text-xs sm:text-sm ${slice.textClass}`}>
                                       ₹{slice.amount.toLocaleString("en-IN")}
                                     </span>
-                                    <span className={`text-[10px] font-bold ${slice.tagClass}`}>
-                                      {slice.percentage}% of Total
+                                    <span className={`text-[10px] font-bold shrink-0 ${slice.tagClass}`}>
+                                      {slice.percentage}%
                                     </span>
                                   </div>
                                 </div>
