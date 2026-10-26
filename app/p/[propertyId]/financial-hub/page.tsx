@@ -1197,20 +1197,20 @@ export default function FinancialHubPage({
 
             const validStreams = [
               {
-                category: "Room Rent Collection",
+                category: "Rent Collection",
                 shortName: "Rent",
                 amount: revenueMetrics.rentStream,
-                color: "#c2652a",
+                color: "#059669",
                 icon: "🏠",
-                badgeColor: "bg-orange-50 text-[#c2652a] border-orange-200",
+                badgeColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
               },
               {
-                category: "Security Deposit Collateral",
+                category: "Security Deposit",
                 shortName: "Deposit",
                 amount: revenueMetrics.depositStream,
-                color: "#059669",
+                color: "#c2652a",
                 icon: "🔐",
-                badgeColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
+                badgeColor: "bg-orange-50 text-[#c2652a] border-orange-200",
               },
               {
                 category: "Maintenance & Utilities",
@@ -1262,12 +1262,11 @@ export default function FinancialHubPage({
 
             const validChannels = [
               {
-                channel: "Online payments (UPI)",
+                channel: "Online Payments (UPI)",
                 shortName: "UPI",
                 amount: revenueMetrics.onlineTotal || (revenueMetrics.totalGrossRevenue > 0 ? revenueMetrics.totalGrossRevenue : 0),
                 color: "#c2652a",
                 icon: "UPI",
-                subtitle: "Instant VPA Collection",
                 bgClass: "bg-orange-50/60 border-orange-200/60",
                 iconBg: "bg-orange-100 text-[#c2652a]",
                 textClass: "text-[#c2652a]",
@@ -1279,7 +1278,6 @@ export default function FinancialHubPage({
                 amount: revenueMetrics.cashAmount || 0,
                 color: "#059669",
                 icon: "💵",
-                subtitle: "Front Desk Reception",
                 bgClass: "bg-emerald-50/60 border-emerald-200/60",
                 iconBg: "bg-emerald-100 text-emerald-700",
                 textClass: "text-emerald-700",
@@ -1495,18 +1493,13 @@ export default function FinancialHubPage({
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   {/* Left (7 cols): Revenue Stream Breakdown Donut Chart */}
                   <div className="lg:col-span-7 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                      <div>
-                        <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
-                          Revenue Stream Breakdown
-                        </h3>
-                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
-                          Categorized income distribution across estate services
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200 uppercase">
-                        DYNAMIC PIE
-                      </span>
+                    <div className="border-b border-gray-100 pb-3">
+                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                        Revenue Stream Breakdown
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                        Categorized income distribution across estate services
+                      </p>
                     </div>
 
                     {revenueSlices.length === 0 ? (
@@ -1642,18 +1635,13 @@ export default function FinancialHubPage({
 
                   {/* Right (5 cols): Payment Channels Analytics Pie Chart */}
                   <div className="lg:col-span-5 bg-white border border-gray-200 p-5 sm:p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                      <div>
-                        <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
-                          Payment Channels Analytics
-                        </h3>
-                        <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
-                          Method distribution of collected payments
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 uppercase">
-                        CHANNELS PIE
-                      </span>
+                    <div className="border-b border-gray-100 pb-3">
+                      <h3 className="font-serif font-bold text-base sm:text-lg text-gray-900">
+                        Payment Channels Analytics
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                        Method distribution of collected payments
+                      </p>
                     </div>
 
                     {channelSlices.length === 0 ? (
@@ -1754,14 +1742,13 @@ export default function FinancialHubPage({
                                       : `${slice.bgClass} hover:bg-white hover:border-gray-300`
                                   }`}
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
+                                  <div className="flex items-center gap-2.5 min-w-0">
                                     <div className={`w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs ${slice.iconBg}`}>
                                       {slice.icon}
                                     </div>
-                                    <div className="min-w-0">
-                                      <h4 className="font-bold text-xs text-gray-900 truncate">{slice.channel}</h4>
-                                      <span className="text-[10px] text-gray-500 font-medium truncate block">{slice.subtitle}</span>
-                                    </div>
+                                    <h4 className="font-bold text-xs text-gray-900 leading-snug">
+                                      {slice.channel}
+                                    </h4>
                                   </div>
                                   <div className="mt-2 pt-2 border-t border-gray-200/50 flex items-baseline justify-between gap-1">
                                     <span className={`font-mono font-bold text-xs sm:text-sm ${slice.textClass}`}>
@@ -2029,18 +2016,13 @@ export default function FinancialHubPage({
 
                       {/* Right: Industry Standard Pie Diagram of Expenses Breakdown */}
                       <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
-                        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                          <div>
-                            <h3 className="font-serif font-bold text-base text-gray-900">
-                              Expense Breakdown by Category
-                            </h3>
-                            <p className="text-[10px] text-gray-500 font-medium">
-                              Proportional ratio of expenses incurred in each category's assigned color
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 uppercase">
-                            DYNAMIC PIE
-                          </span>
+                        <div className="border-b border-gray-100 pb-3">
+                          <h3 className="font-serif font-bold text-base text-gray-900">
+                            Expense Breakdown by Category
+                          </h3>
+                          <p className="text-[10px] text-gray-500 font-medium">
+                            Proportional ratio of expenses incurred in each category's assigned color
+                          </p>
                         </div>
 
                         {slices.length === 0 ? (
@@ -2200,13 +2182,10 @@ export default function FinancialHubPage({
 
                       {/* Industry Standard Mobile Donut Pie Diagram */}
                       <div className="pt-3 border-t border-gray-100 space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div>
                           <h3 className="font-serif font-bold text-sm text-gray-900">
                             Expenses Breakdown
                           </h3>
-                          <span className="text-[9px] font-extrabold text-[#c2652a] bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 uppercase">
-                            Pie Diagram
-                          </span>
                         </div>
 
                         {slices.length === 0 ? (
