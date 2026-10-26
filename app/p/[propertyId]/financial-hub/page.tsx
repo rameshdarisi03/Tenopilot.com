@@ -47,6 +47,7 @@ import {
   PartnerConfig,
   ExpenseCategoryConfig,
   PaymentAccountConfig,
+  DEFAULT_EXPENSE_CATEGORIES,
 } from "@/constants/partnerStore";
 import { expenseStore, ExpenseRecord, CategoryWeightage } from "@/constants/expenseStore";
 import { recurringBillStore, RecurringBillRecord } from "@/constants/recurringBillStore";
@@ -285,6 +286,37 @@ export default function FinancialHubPage({
   const [categories, setCategories] = useState<ExpenseCategoryConfig[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccountConfig[]>([]);
   const router = useRouter();
+
+  // Exact SSOT Category Metadata Resolver (Colors & Icons strictly mapped from category configuration)
+  const resolveCategoryMeta = (catName: string) => {
+    const cleanName = (catName || "").trim().toLowerCase();
+    
+    // 1. Direct match in active property categories
+    let found = categories.find((c) => c.name.trim().toLowerCase() === cleanName);
+    
+    // 2. Direct match in DEFAULT_EXPENSE_CATEGORIES
+    if (!found) {
+      found = DEFAULT_EXPENSE_CATEGORIES.find((c) => c.name.trim().toLowerCase() === cleanName);
+    }
+    
+    // 3. Normalized / fuzzy match (strip punctuation, spaces)
+    if (!found) {
+      const strippedClean = cleanName.replace(/[^a-z0-9]/g, "");
+      found = categories.find((c) => {
+        const stripped = c.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        return stripped === strippedClean || stripped.includes(strippedClean) || strippedClean.includes(stripped);
+      }) || DEFAULT_EXPENSE_CATEGORIES.find((c) => {
+        const stripped = c.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        return stripped === strippedClean || stripped.includes(strippedClean) || strippedClean.includes(stripped);
+      });
+    }
+
+    return {
+      displayName: found?.name || catName,
+      color: found?.color || "#d97706",
+      icon: found?.icon || "Receipt",
+    };
+  };
 
   // 100% Real-Time Date-Filtered Revenues Calculation Engine
   const computeLiveRevenueData = () => {
@@ -1464,40 +1496,32 @@ export default function FinancialHubPage({
               {(() => {
                 const CIRCUMFERENCE = 2 * Math.PI * 38; // ~238.761
                 let accumulatedOffset = 0;
-                const fallbackColors = [
-                  "#c2652a",
-                  "#059669",
-                  "#7c3aed",
-                  "#2563eb",
-                  "#d97706",
-                  "#dc2626",
-                  "#0891b2",
-                  "#db2777",
-                  "#4b5563",
-                  "#0d9488",
-                ];
 
-                const slices = categoryWeightages.map((cw, idx) => {
+                // Strict SSOT: Exclude any deposit refunds from operational expense weightages
+                const validWeightages = categoryWeightages.filter(
+                  (cw) => !cw.category || !cw.category.toLowerCase().includes("deposit")
+                );
+
+                const slices = validWeightages.map((cw) => {
                   const fraction = totalSpent > 0 ? cw.amount / totalSpent : 0;
                   const arcLength = fraction * CIRCUMFERENCE;
-                  const hasMultiple = categoryWeightages.length > 1;
+                  const hasMultiple = validWeightages.length > 1;
                   const gap = hasMultiple ? 1.5 : 0;
                   const strokeDash = Math.max(0, arcLength - gap);
                   const strokeGap = CIRCUMFERENCE - strokeDash;
                   const offset = -accumulatedOffset;
                   accumulatedOffset += arcLength;
 
-                  const catObj = categories.find((c) => c.name.toLowerCase() === cw.category.toLowerCase());
-                  const color = catObj?.color || fallbackColors[idx % fallbackColors.length];
-                  const icon = catObj?.icon || "Receipt";
+                  const meta = resolveCategoryMeta(cw.category);
                   const count = expenseList.filter(
                     (e) => e.category.toLowerCase() === cw.category.toLowerCase()
                   ).length;
 
                   return {
                     ...cw,
-                    color,
-                    icon,
+                    category: meta.displayName,
+                    color: meta.color,
+                    icon: meta.icon,
                     count,
                     strokeDash,
                     strokeGap,
@@ -1514,7 +1538,7 @@ export default function FinancialHubPage({
                     {/* DESKTOP BENTO GRID: TOTAL SPENT & INDUSTRY STANDARD EXPENSE BREAKDOWN PIE */}
                     <div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
                       {/* Left: Total Spent Summary Card */}
-                      <div className="lg:col-span-5 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
+                      <div className="lg:col-span-4 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs relative overflow-hidden flex flex-col justify-between space-y-6">
                         <div>
                           <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
                             TOTAL SPENT ({activeDateBounds.label.toUpperCase()})
@@ -1538,11 +1562,17 @@ export default function FinancialHubPage({
                           </div>
                           <div className="flex items-center justify-between text-xs py-1">
                             <span className="text-gray-500 font-medium">Active Categories:</span>
-                            <span className="font-bold text-gray-900">{categoryWeightages.length} Categories</span>
+                            <span className="font-bold text-gray-900">{slices.length} Incurred</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs py-1">
+                            <span className="text-gray-500 font-medium">Top Category Ratio:</span>
+                            <span className="font-bold text-[#c2652a] tabular-nums">
+                              {slices.length > 0 ? `${slices[0].category} (${slices[0].percentage}%)` : "—"}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-xs py-1">
                             <span className="text-gray-500 font-medium">Avg per Transaction:</span>
-                            <span className="font-bold text-[#c2652a] tabular-nums">
+                            <span className="font-bold text-gray-900 tabular-nums">
                               ₹{expenseList.length > 0 ? Math.round(totalSpent / expenseList.length).toLocaleString("en-IN") : 0}
                             </span>
                           </div>
@@ -1550,14 +1580,14 @@ export default function FinancialHubPage({
                       </div>
 
                       {/* Right: Industry Standard Pie Diagram of Expenses Breakdown */}
-                      <div className="lg:col-span-7 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-5">
+                      <div className="lg:col-span-8 bg-white border border-gray-200 p-6 md:p-8 rounded-3xl shadow-xs space-y-6">
                         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                           <div>
                             <h3 className="font-serif font-bold text-base text-gray-900">
                               Expense Breakdown by Category
                             </h3>
                             <p className="text-[10px] text-gray-500 font-medium">
-                              Interactive proportional spend distribution
+                              Proportional ratio of expenses incurred in each category's assigned color
                             </p>
                           </div>
                           <span className="text-[10px] font-bold text-[#c2652a] bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 uppercase">
@@ -1573,10 +1603,10 @@ export default function FinancialHubPage({
                             <p className="text-xs font-medium">No expenses logged yet for this period</p>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
-                            {/* SVG Donut Chart */}
-                            <div className="sm:col-span-5 flex justify-center">
-                              <div className="relative w-44 h-44">
+                          <div className="space-y-6">
+                            {/* Centered Donut Chart on Top */}
+                            <div className="flex justify-center py-2">
+                              <div className="relative w-48 h-48">
                                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                                   <circle
                                     cx="50"
@@ -1612,17 +1642,17 @@ export default function FinancialHubPage({
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
                                   {activeSlice ? (
                                     <div className="animate-in fade-in zoom-in-95 duration-150">
-                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[100px]">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[110px]">
                                         {activeSlice.category}
                                       </span>
-                                      <span className="font-sans font-black text-base text-gray-900 block leading-tight tabular-nums">
+                                      <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
                                         ₹{activeSlice.amount.toLocaleString("en-IN")}
                                       </span>
                                       <span
-                                        className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full inline-block mt-0.5"
+                                        className="text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block mt-0.5"
                                         style={{ backgroundColor: `${activeSlice.color}20`, color: activeSlice.color }}
                                       >
-                                        {activeSlice.percentage}%
+                                        {activeSlice.percentage}% of total
                                       </span>
                                     </div>
                                   ) : (
@@ -1630,7 +1660,7 @@ export default function FinancialHubPage({
                                       <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block">
                                         TOTAL
                                       </span>
-                                      <span className="font-sans font-black text-base text-gray-900 block leading-tight tabular-nums">
+                                      <span className="font-sans font-black text-lg text-gray-900 block leading-tight tabular-nums">
                                         ₹{totalSpent.toLocaleString("en-IN")}
                                       </span>
                                       <span className="text-[9px] font-bold text-gray-400 block mt-0.5">
@@ -1642,43 +1672,60 @@ export default function FinancialHubPage({
                               </div>
                             </div>
 
-                            {/* Donut Legend List */}
-                            <div className="sm:col-span-7 space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                              {slices.map((slice) => {
-                                const isHovered = hoveredPieCategory === slice.category;
-                                return (
-                                  <div
-                                    key={slice.category}
-                                    onMouseEnter={() => setHoveredPieCategory(slice.category)}
-                                    onMouseLeave={() => setHoveredPieCategory(null)}
-                                    onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
-                                    className={`flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer ${
-                                      isHovered ? "bg-gray-100/90 shadow-2xs scale-[1.01]" : "hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span
-                                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
-                                        style={{ backgroundColor: slice.color }}
-                                      />
-                                      <span className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-medium text-gray-700"}`}>
-                                        {slice.category}
-                                      </span>
+                            {/* Current Expenses Shown Below the Chart (Standard Chart Layout) */}
+                            <div className="space-y-2 pt-4 border-t border-gray-100">
+                              <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold px-1 uppercase tracking-wider">
+                                <span>Current Expenses by Category</span>
+                                <span>Ratio & Incurred Amount</span>
+                              </div>
+
+                              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                                {slices.map((slice) => {
+                                  const isHovered = hoveredPieCategory === slice.category;
+                                  return (
+                                    <div
+                                      key={slice.category}
+                                      onMouseEnter={() => setHoveredPieCategory(slice.category)}
+                                      onMouseLeave={() => setHoveredPieCategory(null)}
+                                      onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
+                                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                        isHovered
+                                          ? "bg-white border-gray-300 ring-2 ring-[#c2652a]/20 shadow-xs scale-[1.01]"
+                                          : "bg-[#fcfaf9] border-gray-200/70 hover:bg-white hover:border-gray-300"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div
+                                          className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 shadow-2xs"
+                                          style={{ backgroundColor: slice.color }}
+                                        >
+                                          <RenderDynamicCategoryIcon iconName={slice.icon} className="w-4 h-4 text-white" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <h4 className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`} title={slice.category}>
+                                            {slice.category}
+                                          </h4>
+                                          <p className="text-[10px] text-gray-500 font-medium">
+                                            {slice.count} {slice.count === 1 ? "entry" : "entries"}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right shrink-0">
+                                        <span className="font-sans font-extrabold text-xs text-gray-900 tabular-nums block">
+                                          ₹{slice.amount.toLocaleString("en-IN")}
+                                        </span>
+                                        <span
+                                          className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full inline-block mt-0.5 tabular-nums"
+                                          style={{ backgroundColor: `${slice.color}15`, color: slice.color }}
+                                        >
+                                          {slice.percentage}%
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                                      <span className="text-xs font-bold text-gray-900 tabular-nums">
-                                        ₹{slice.amount.toLocaleString("en-IN")}
-                                      </span>
-                                      <span
-                                        className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md tabular-nums"
-                                        style={{ backgroundColor: `${slice.color}15`, color: slice.color }}
-                                      >
-                                        {slice.percentage}%
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1720,9 +1767,9 @@ export default function FinancialHubPage({
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            {/* Donut SVG Centered */}
+                            {/* Centered Donut SVG */}
                             <div className="flex justify-center py-1">
-                              <div className="relative w-40 h-40">
+                              <div className="relative w-44 h-44">
                                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                                   <circle
                                     cx="50"
@@ -1756,7 +1803,7 @@ export default function FinancialHubPage({
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-3">
                                   {activeSlice ? (
                                     <div className="animate-in fade-in zoom-in-95 duration-150">
-                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[85px]">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 block truncate max-w-[95px]">
                                         {activeSlice.category}
                                       </span>
                                       <span className="font-sans font-black text-sm text-gray-900 block leading-tight tabular-nums">
@@ -1786,41 +1833,58 @@ export default function FinancialHubPage({
                               </div>
                             </div>
 
-                            {/* Mobile Tactile Donut Legend */}
-                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                              {slices.map((slice) => {
-                                const isHovered = hoveredPieCategory === slice.category;
-                                return (
-                                  <div
-                                    key={slice.category}
-                                    onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
-                                    className={`flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer ${
-                                      isHovered ? "bg-gray-100 shadow-2xs scale-[1.01]" : "hover:bg-gray-50 active:bg-gray-100"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span
-                                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                                        style={{ backgroundColor: slice.color }}
-                                      />
-                                      <span className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-medium text-gray-700"}`}>
-                                        {slice.category}
-                                      </span>
+                            {/* Mobile Current Expenses Shown Below the Chart */}
+                            <div className="space-y-2 pt-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold px-1 uppercase tracking-wider">
+                                <span>Current Expenses</span>
+                                <span>Ratio & Spend</span>
+                              </div>
+
+                              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                                {slices.map((slice) => {
+                                  const isHovered = hoveredPieCategory === slice.category;
+                                  return (
+                                    <div
+                                      key={slice.category}
+                                      onClick={() => setHoveredPieCategory(hoveredPieCategory === slice.category ? null : slice.category)}
+                                      className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                                        isHovered
+                                          ? "bg-white border-gray-300 ring-2 ring-[#c2652a]/20 shadow-xs scale-[1.01]"
+                                          : "bg-[#fcfaf9] border-gray-200/70 hover:bg-white hover:border-gray-300 active:bg-gray-100"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div
+                                          className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 shadow-2xs"
+                                          style={{ backgroundColor: slice.color }}
+                                        >
+                                          <RenderDynamicCategoryIcon iconName={slice.icon} className="w-4 h-4 text-white" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <h4 className={`text-xs truncate ${isHovered ? "font-extrabold text-gray-900" : "font-bold text-gray-800"}`}>
+                                            {slice.category}
+                                          </h4>
+                                          <p className="text-[10px] text-gray-500 font-medium">
+                                            {slice.count} {slice.count === 1 ? "entry" : "entries"}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                                        <span className="text-xs font-bold text-gray-900 tabular-nums">
+                                          ₹{slice.amount.toLocaleString("en-IN")}
+                                        </span>
+                                        <span
+                                          className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md tabular-nums"
+                                          style={{ backgroundColor: `${slice.color}15`, color: slice.color }}
+                                        >
+                                          {slice.percentage}%
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                                      <span className="text-xs font-bold text-gray-900 tabular-nums">
-                                        ₹{slice.amount.toLocaleString("en-IN")}
-                                      </span>
-                                      <span
-                                        className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md tabular-nums"
-                                        style={{ backgroundColor: `${slice.color}15`, color: slice.color }}
-                                      >
-                                        {slice.percentage}%
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -2154,21 +2218,17 @@ export default function FinancialHubPage({
                                 <td className="py-4 px-4 text-gray-500 font-medium">{exp.date}</td>
                                 <td className="py-4 px-4 font-bold text-gray-900">
                                   {(() => {
-                                    const catObj = categories.find(
-                                      (c) => c.name.toLowerCase() === exp.category.toLowerCase()
-                                    );
-                                    const catColor = catObj?.color || "#475569";
-                                    const catIcon = catObj?.icon || "Receipt";
+                                    const meta = resolveCategoryMeta(exp.category);
 
                                     return (
                                       <div className="flex items-center gap-2">
                                         <div
                                           className="p-1.5 rounded-lg text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
-                                          style={{ backgroundColor: catColor }}
+                                          style={{ backgroundColor: meta.color }}
                                         >
-                                          <RenderDynamicCategoryIcon iconName={catIcon} className="w-3.5 h-3.5 text-white" />
+                                          <RenderDynamicCategoryIcon iconName={meta.icon} className="w-3.5 h-3.5 text-white" />
                                         </div>
-                                        <span className="font-bold text-gray-900">{exp.category}</span>
+                                        <span className="font-bold text-gray-900">{meta.displayName}</span>
                                       </div>
                                     );
                                   })()}
@@ -2325,11 +2385,7 @@ export default function FinancialHubPage({
                         expenseList
                           .filter((item) => selectedCategoryFilter === "ALL" || item.category === selectedCategoryFilter)
                           .map((exp) => {
-                            const catObj = categories.find(
-                              (c) => c.name.toLowerCase() === exp.category.toLowerCase()
-                            );
-                            const catColor = catObj?.color || "#475569";
-                            const catIcon = catObj?.icon || "Receipt";
+                            const meta = resolveCategoryMeta(exp.category);
 
                             return (
                               <div
@@ -2341,12 +2397,12 @@ export default function FinancialHubPage({
                                   <div className="flex items-center gap-3 min-w-0">
                                     <div
                                       className="w-10 h-10 rounded-xl text-white font-bold flex items-center justify-center shrink-0 shadow-2xs"
-                                      style={{ backgroundColor: catColor }}
+                                      style={{ backgroundColor: meta.color }}
                                     >
-                                      <RenderDynamicCategoryIcon iconName={catIcon} className="w-5 h-5 text-white" />
+                                      <RenderDynamicCategoryIcon iconName={meta.icon} className="w-5 h-5 text-white" />
                                     </div>
                                     <div className="min-w-0">
-                                      <h4 className="font-bold text-sm text-gray-900 truncate">{exp.category}</h4>
+                                      <h4 className="font-bold text-sm text-gray-900 truncate">{meta.displayName}</h4>
                                       <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-500">
                                         <span>{exp.date}</span>
                                         {exp.property && (
