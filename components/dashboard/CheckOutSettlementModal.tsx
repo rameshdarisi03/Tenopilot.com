@@ -561,7 +561,7 @@ export function CheckOutSettlementModal({
         </div>
 
         {/* SECTION 4: Automated Digital Dispatch (WhatsApp & Email) */}
-        <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-1">
+        <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-emerald-950">
           <label className="flex items-center gap-2.5 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -573,9 +573,6 @@ export function CheckOutSettlementModal({
               <span>💬</span> Send Thank You note & Settlement PDF Receipt via WhatsApp & Email
             </span>
           </label>
-          <p className="text-[11px] text-emerald-800/80 pl-6.5 font-medium leading-relaxed">
-            Delivers a warm appreciation note with the official Settlement & No-Dues PDF Receipt attached (zero number clutter in text; all financial breakdown in PDF).
-          </p>
         </div>
 
         {/* SECTION 5: Final Execution Action */}
