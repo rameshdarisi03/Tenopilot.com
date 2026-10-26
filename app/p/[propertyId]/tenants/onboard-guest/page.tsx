@@ -1268,7 +1268,11 @@ export default function OnboardGuestPage({
                                         {bed.bedCode}
                                       </span>
                                       <span className="text-[9px] font-bold text-gray-400 truncate max-w-full">
-                                        {evalResult?.status === "Booked" ? "🔵 Booked" : "🔒 Occupied"}
+                                        {evalResult?.status === "Hold"
+                                          ? "🔒 On Hold"
+                                          : evalResult?.status === "Booked"
+                                          ? "🔵 Booked"
+                                          : "🔒 Occupied"}
                                       </span>
                                     </div>
                                   );

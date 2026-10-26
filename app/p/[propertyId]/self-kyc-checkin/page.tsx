@@ -282,13 +282,8 @@ export default function WalkInSelfKycCheckinPage({
               ? "Triple Sharing"
               : `${room.sharingType}-Sharing`;
 
-          // Check if bed is on active hold (< 30 mins)
-          const isHeld =
-            b.status === "Hold" &&
-            b.holdCandidate?.heldAt &&
-            Date.now() - new Date(b.holdCandidate.heldAt).getTime() < 30 * 60 * 1000;
-
-          if (isHeld) return;
+          // Beds currently locked on Hold (Self-KYC in progress) must NEVER appear in available bed lists
+          if (b.status === "Hold") return;
 
           // Determine effective vacating/departure date if any
           const rawVacDate =
@@ -297,7 +292,7 @@ export default function WalkInSelfKycCheckinPage({
             b.guestCheckoutDate ||
             (occ?.stayType === "Guest" ? occ?.dueDate : undefined);
 
-          // 1. Bed is completely vacant right now (no active occupant or status is Available)
+          // 1. Bed is completely vacant right now (no active occupant and status is Available)
           if (b.status === "Available" || (!occ && b.status !== "Occupied" && b.status !== "Booked")) {
             available.push({
               floorName: floor.floorName,

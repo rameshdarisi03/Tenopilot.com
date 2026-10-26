@@ -937,7 +937,7 @@ export function getBedOccupantsTimeline(
 
 export interface BedAvailabilityEvaluation {
   isAvailable: boolean;
-  status: "Available" | "Occupied" | "Booked" | "VacatingSoon" | "Conflict";
+  status: "Available" | "Occupied" | "Booked" | "VacatingSoon" | "Conflict" | "Hold";
   reason: string;
   vacatingDate?: string;
   vacatingNote?: string;
@@ -973,6 +973,17 @@ export function evaluateBedAvailabilityForDate(
   now.setHours(0, 0, 0, 0);
   const targetStartTs = parseToMidnightTimestamp(targetJoiningDate) || now.getTime();
   const targetEndTs = parseToMidnightTimestamp(targetVacatingDate);
+
+  // 0. Check if bed is locked on Hold (Self-KYC in progress)
+  if (bed.status === "Hold" && !timeline.activeOccupant && !timeline.nextBooking) {
+    const candidateName = bed.holdCandidate?.name ? `Hold (${bed.holdCandidate.name})` : "On Hold (Self-KYC)";
+    return {
+      isAvailable: false,
+      status: "Hold",
+      reason: `Bed is locked on Hold for ${bed.holdCandidate?.name || "incoming resident"} (Self-KYC in progress)`,
+      occupantName: bed.holdCandidate?.name,
+    };
+  }
 
   // 1. Check Active / Current resident in the bed
   if (timeline.activeOccupant) {
