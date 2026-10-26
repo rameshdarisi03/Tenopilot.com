@@ -211,11 +211,15 @@ function PropertyMapContent({
              bed.occupant.lifecycleStatus !== "Booked"
               ? bed.occupant
               : undefined);
-          const nextOcc =
+          const rawNext =
             timeline.nextBooking ||
             (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
               ? bed.occupant
               : undefined);
+          const nextOcc =
+            rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
+              ? undefined
+              : rawNext;
 
           const effectiveStatus = primaryOcc
             ? primaryOcc.lifecycleStatus === "Notice"
@@ -311,11 +315,15 @@ function PropertyMapContent({
                  bd.occupant.lifecycleStatus !== "Booked"
                   ? bd.occupant
                   : undefined);
-              const nextOcc =
+              const rawNext =
                 timeline.nextBooking ||
                 (bd.occupant && bd.occupant.lifecycleStatus === "Booked"
                   ? bd.occupant
                   : undefined);
+              const nextOcc =
+                rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
+                  ? undefined
+                  : rawNext;
 
               const effStatus = primaryOcc
                 ? primaryOcc.lifecycleStatus === "Notice"
@@ -697,11 +705,15 @@ function PropertyMapContent({
                                      bed.occupant.lifecycleStatus !== "Booked"
                                       ? bed.occupant
                                       : undefined);
-                                  const nextOcc =
+                                  const rawNext =
                                     timeline.nextBooking ||
                                     (bed.occupant && bed.occupant.lifecycleStatus === "Booked"
                                       ? bed.occupant
                                       : undefined);
+                                  const nextOcc =
+                                    rawNext && primaryOcc && (rawNext.id === primaryOcc.id || rawNext.name?.toLowerCase() === primaryOcc.name?.toLowerCase())
+                                      ? undefined
+                                      : rawNext;
 
                                   let badgeStyle = "";
                                   let icon = <User className="w-3.5 h-3.5" />;
@@ -1017,11 +1029,16 @@ function PropertyMapContent({
                     ? activeBedSlot.bed.occupant
                     : undefined);
 
-                const nextOcc =
+                const rawNext =
                   activeBedSlot.timeline?.nextBooking ||
                   (activeBedSlot.bed.occupant?.lifecycleStatus === "Booked"
                     ? activeBedSlot.bed.occupant
                     : undefined);
+
+                const nextOcc =
+                  rawNext && activeOcc && (rawNext.id === activeOcc.id || rawNext.name?.toLowerCase() === activeOcc.name?.toLowerCase())
+                    ? undefined
+                    : rawNext;
 
                 const displayOcc = activeOcc || nextOcc;
 

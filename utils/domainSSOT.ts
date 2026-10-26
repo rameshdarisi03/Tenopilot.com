@@ -903,7 +903,7 @@ export function getBedOccupantsTimeline(
   // 2. Chronological list of upcoming pre-booked reservations strictly in the FUTURE (today < joiningDate)
   const bookedList = matching
     .filter((occ) => {
-      if (occ.id === activeOccupant?.id) return false;
+      if (occ.id === activeOccupant?.id || occ.name?.toLowerCase() === activeOccupant?.name?.toLowerCase()) return false;
       if (occ.lifecycleStatus !== "Booked") return false;
       const joinD = parseOccupantDate(occ.joiningDate);
       if (joinD) {
@@ -918,7 +918,7 @@ export function getBedOccupantsTimeline(
       return dateA - dateB;
     });
 
-  if (bookedList.length === 0 && (bed.status === "Booked" || bed.occupant?.lifecycleStatus === "Booked") && bed.occupant && bed.occupant.id !== activeOccupant?.id) {
+  if (bookedList.length === 0 && (bed.status === "Booked" || bed.occupant?.lifecycleStatus === "Booked") && bed.occupant && bed.occupant.id !== activeOccupant?.id && bed.occupant.name?.toLowerCase() !== activeOccupant?.name?.toLowerCase()) {
     const bedJoinD = parseOccupantDate(bed.occupant.joiningDate);
     if (!bedJoinD || todayMidnight < new Date(bedJoinD.getFullYear(), bedJoinD.getMonth(), bedJoinD.getDate()).getTime()) {
       bookedList.push(bed.occupant);
