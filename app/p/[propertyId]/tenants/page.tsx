@@ -162,7 +162,7 @@ export default function TenantsDirectoryPage({
 
   // Interactive Column Sorting state (Default: Room Number Low to High)
   const [sortColumn, setSortColumn] = useState<
-    "name" | "dueDate" | "room" | "rent"
+    "name" | "dueDate" | "room" | "rent" | "duePriority" | "overduePriority"
   >("room");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -175,6 +175,10 @@ export default function TenantsDirectoryPage({
     { id: "name-desc", label: "Name: Z to A", shortLabel: "Name (Z→A)", column: "name" as const, direction: "desc" as const, icon: "🔤" },
     { id: "due-asc", label: "Payment Due: Earliest", shortLabel: "Due: Earliest", column: "dueDate" as const, direction: "asc" as const, icon: "📅" },
     { id: "due-desc", label: "Payment Due: Latest", shortLabel: "Due: Latest", column: "dueDate" as const, direction: "desc" as const, icon: "📅" },
+    { id: "due-priority-desc", label: "Due: High to Low Priority", shortLabel: "Due: High→Low", column: "duePriority" as const, direction: "desc" as const, icon: "⏳" },
+    { id: "due-priority-asc", label: "Due: Low to High Priority", shortLabel: "Due: Low→High", column: "duePriority" as const, direction: "asc" as const, icon: "⏳" },
+    { id: "overdue-priority-desc", label: "Overdue: High to Low Priority", shortLabel: "Overdue: High→Low", column: "overduePriority" as const, direction: "desc" as const, icon: "🚨" },
+    { id: "overdue-priority-asc", label: "Overdue: Low to High Priority", shortLabel: "Overdue: Low→High", column: "overduePriority" as const, direction: "asc" as const, icon: "🚨" },
     { id: "rent-desc", label: "Rent: Highest First", shortLabel: "Rent: High→Low", column: "rent" as const, direction: "desc" as const, icon: "💰" },
     { id: "rent-asc", label: "Rent: Lowest First", shortLabel: "Rent: Low→High", column: "rent" as const, direction: "asc" as const, icon: "💰" },
   ], []);
@@ -478,21 +482,28 @@ export default function TenantsDirectoryPage({
     }
   }, [searchParams, occupantsList]);
 
-  // When reminder modal opens, ensure all candidate occupants are checked by default
+  // When reminder modal opens, auto-select active due/overdue occupants
+  // Choice B Protection: Postponed custom due date residents are UNCHECKED by default to prevent premature spam!
   useEffect(() => {
     if (showRentReminderQRModal) {
       const active = occupantsList.filter(
         (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
       );
-      const pendingIds = active
-        .filter((o) => o.paymentStatus === "Due" || o.paymentStatus === "Overdue" || (o.daysDiff !== undefined && o.daysDiff <= 0))
+      const pendingActiveIds = active
+        .filter((o) => {
+          const stmt = calculateOccupantFinancialStatement(o, currentSettings);
+          if (stmt.isFullyPaid) return false;
+          // If postponed to a future salary date this month, do NOT auto-check!
+          if (stmt.isCustomFuturePostponed) return false;
+          return true;
+        })
         .map((o) => o.id);
 
-      if (pendingIds.length > 0 && selectedIds.length === 0) {
-        setSelectedIds(pendingIds);
+      if (pendingActiveIds.length > 0 && selectedIds.length === 0) {
+        setSelectedIds(pendingActiveIds);
       }
     }
-  }, [showRentReminderQRModal, occupantsList]);
+  }, [showRentReminderQRModal, occupantsList, currentSettings]);
 
   // Helper for current calendar ISO date
   const getTodayIsoDate = () => {
@@ -598,12 +609,17 @@ export default function TenantsDirectoryPage({
   };
 
   // Candidate occupants for Rent Reminders Modal (All active residents with pending due rent)
+  // Implements Choice B:
+  // - High Priority: Regular due & overdue residents (active cycle now)
+  // - Low Priority: Residents with postponed custom salary cycles (e.g. 6th of month) positioned at bottom
   const reminderCandidateOccupants = useMemo(() => {
     const active = occupantsList.filter(
       (o) => o.lifecycleStatus === "Active" || o.lifecycleStatus === "Notice"
     );
     const candidates = active.filter((o) => {
+      const stmt = calculateOccupantFinancialStatement(o, currentSettings);
       const isPending =
+        !stmt.isFullyPaid ||
         o.paymentStatus === "Due" ||
         o.paymentStatus === "Overdue" ||
         (o.daysDiff !== undefined && o.daysDiff <= 0);
@@ -611,11 +627,19 @@ export default function TenantsDirectoryPage({
     });
 
     return [...candidates].sort((a, b) => {
+      const stmtA = calculateOccupantFinancialStatement(a, currentSettings);
+      const stmtB = calculateOccupantFinancialStatement(b, currentSettings);
+
+      // Choice B: Postponed salary cycle residents are positioned at the bottom (Low Priority)
+      const rankA = stmtA.isCustomFuturePostponed ? 1 : 0;
+      const rankB = stmtB.isCustomFuturePostponed ? 1 : 0;
+      if (rankA !== rankB) return rankA - rankB;
+
       const roomA = a.roomNumber || "";
       const roomB = b.roomNumber || "";
       return roomA.localeCompare(roomB, undefined, { numeric: true });
     });
-  }, [occupantsList, selectedIds]);
+  }, [occupantsList, selectedIds, currentSettings]);
 
   // Accurately bounded count of selected candidates (guaranteed never to exceed candidate total)
   const selectedCandidateCount = useMemo(() => {
@@ -1596,9 +1620,47 @@ export default function TenantsDirectoryPage({
       } else if (sortColumn === "rent") {
         comparison = a.rentAmount - b.rentAmount;
       } else if (sortColumn === "dueDate") {
-        const dayA = a.customDueDay ?? a.dueDay ?? currentSettings.desiredDueDate ?? 5;
-        const dayB = b.customDueDay ?? b.dueDay ?? currentSettings.desiredDueDate ?? 5;
+        const dayA = a.customDueDay ?? a.dueDay ?? currentSettings.desiredDueDate ?? 1;
+        const dayB = b.customDueDay ?? b.dueDay ?? currentSettings.desiredDueDate ?? 1;
         comparison = dayA - dayB;
+      } else if (sortColumn === "duePriority") {
+        const stmtA = calculateOccupantFinancialStatement(a, currentSettings);
+        const stmtB = calculateOccupantFinancialStatement(b, currentSettings);
+
+        // Priority calculation for DUE:
+        // Rank 3: Immediate Active Due window (today is reset day / due day / grace period)
+        // Rank 2: Standard due, pending payment
+        // Rank 1: Postponed salary cycle (customDueDay in future, e.g. 6th when today is 1st-4th)
+        // Rank 0: Fully Paid
+        const getDueRank = (occ: Occupant, stmt: any): number => {
+          if (stmt.isFullyPaid) return 0;
+          if (stmt.isCustomFuturePostponed) return 1;
+          if (stmt.isOverdue) return 2;
+          return 3;
+        };
+
+        const rankA = getDueRank(a, stmtA);
+        const rankB = getDueRank(b, stmtB);
+        if (rankA !== rankB) {
+          comparison = rankA - rankB;
+        } else {
+          comparison = stmtA.netOutstandingBalance - stmtB.netOutstandingBalance;
+        }
+      } else if (sortColumn === "overduePriority") {
+        const stmtA = calculateOccupantFinancialStatement(a, currentSettings);
+        const stmtB = calculateOccupantFinancialStatement(b, currentSettings);
+
+        // Priority calculation for OVERDUE:
+        // Highest priority = Most arrears / longest past grace / highest outstanding balance
+        const getOverdueScore = (occ: Occupant, stmt: any): number => {
+          if (!stmt.isOverdue) return 0;
+          const arrearsWeight = (stmt.priorArrears || 0) * 2;
+          return arrearsWeight + stmt.netOutstandingBalance;
+        };
+
+        const scoreA = getOverdueScore(a, stmtA);
+        const scoreB = getOverdueScore(b, stmtB);
+        comparison = scoreA - scoreB;
       }
 
       return sortDirection === "asc" ? comparison : -comparison;
@@ -3657,22 +3719,40 @@ Scroll vertically to browse all residents without pagination limits
                               className="w-4 h-4 rounded border-gray-300 text-[#c2652a] focus:ring-[#c2652a] cursor-pointer shrink-0"
                             />
 
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-gray-900 truncate">{occ.name}</span>
-                                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold uppercase">
-                                  ⏳ Due
-                                </span>
-                                {occ.email && (
-                                  <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[130px]">
-                                    ✉️ {occ.email}
+                            {(() => {
+                              const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
+                              const balanceAmt = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
+                              const dueDateStr = resolveOccupantPaymentDueDate(occ, currentSettings);
+
+                              return (
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-gray-900 truncate">{occ.name}</span>
+                                    {occStmt.isCustomFuturePostponed ? (
+                                      <span className="px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 border border-purple-200 text-[9px] font-bold">
+                                        🗓️ Custom Due: {dueDateStr} (Salary Cycle)
+                                      </span>
+                                    ) : occStmt.isOverdue ? (
+                                      <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-700 border border-red-200 text-[9px] font-bold uppercase">
+                                        🚨 Overdue
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold uppercase">
+                                        ⏳ Due
+                                      </span>
+                                    )}
+                                    {occ.email && (
+                                      <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono truncate max-w-[130px]">
+                                        ✉️ {occ.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 block truncate mt-0.5">
+                                    Room {occ.roomNumber} ({occ.bedCode}) • ₹{balanceAmt.toLocaleString("en-IN")} due • Due Date: {dueDateStr}
                                   </span>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-gray-500 block truncate mt-0.5">
-                                Room {occ.roomNumber} ({occ.bedCode}) • ₹{occ.rentAmount.toLocaleString("en-IN")} • Due: {occ.dueDate}
-                              </span>
-                            </div>
+                                </div>
+                              );
+                            })()}
 
                             <a
                               href={waUrl}

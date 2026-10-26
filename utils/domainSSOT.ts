@@ -515,28 +515,53 @@ export interface BillingCycleContext {
   isPastGrace: boolean;
   isDueWindow: boolean;
   targetMonthKey: string; // e.g. "2026-11"
+  hasCustomDueOverride: boolean;
+  isCustomFuturePostponed: boolean;
+}
+
+/**
+ * Returns the current date broken down in Indian Standard Time (IST, GMT+5:30)
+ */
+export function getNowIST(): { nowIST: Date; year: number; month: number; day: number } {
+  const now = new Date();
+  const istStr = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  const nowIST = new Date(istStr);
+  return {
+    nowIST,
+    year: nowIST.getFullYear(),
+    month: nowIST.getMonth(),
+    day: nowIST.getDate(),
+  };
 }
 
 /**
  * SSOT Helper: Resolves the dynamic billing cycle windows according to Case 1 rules.
+ * All date checks run strictly in Indian Standard Time (IST - UTC+05:30).
  * Triggers cycle reset on (n - 1) day where n is the due date.
  * For Due Date = 1st -> resets on the last day of the previous month.
  * Due period lasts until the grace days expire (e.g. Due 1st + 3 days grace = 1st, 2nd, 3rd are Due).
  * Overdue triggers the moment grace days finish (from the 4th onwards).
+ *
+ * For Individual Custom Due Overrides (e.g. TCS salary on 6th):
+ * - Reset day is (6 - 1) = 5th.
+ * - Due on 5th & 6th.
+ * - Flips to Overdue immediately on 7th (zero secondary grace).
+ * - Choice B: Prior to 5th (e.g. 1st-4th), marked as isCustomFuturePostponed = true (Low priority, auto-unchecked in reminders).
  */
 export function resolveOccupantBillingCycleContext(
   occupant?: Partial<Occupant> | null,
   settings?: any
 ): BillingCycleContext {
   const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const day = today.getDate();
+  const { nowIST, year, month, day } = getNowIST();
+  const today = new Date(year, month, day);
 
+  const hasCustomDueOverride = occupant?.customDueDay !== undefined && occupant?.customDueDay !== null && occupant.customDueDay > 0;
   let desiredDueDay = occupant?.customDueDay ?? settings?.desiredDueDate ?? occupant?.dueDay ?? 1;
-  const graceDays = Math.max(0, Number(settings?.gracePeriodDays !== undefined ? settings.gracePeriodDays : 3));
+  const propertyGraceDays = Math.max(0, Number(settings?.gracePeriodDays !== undefined ? settings.gracePeriodDays : 3));
+
+  // If occupant has a custom postponed due date override, their extension WAS their grace period (0 secondary grace)
+  const graceDays = hasCustomDueOverride ? 0 : propertyGraceDays;
 
   if (isAnniversary && occupant?.joiningDate) {
     const jDate = parseOccupantDate(occupant.joiningDate);
@@ -564,26 +589,34 @@ export function resolveOccupantBillingCycleContext(
       resetDate = new Date(year, month - 1, daysInPrevMonth);
     }
   } else {
-    // desiredDueDay > 1 (e.g. 5th) -> (n-1) day is 4th
+    // desiredDueDay > 1 (e.g. 5th or 6th) -> (n-1) day is 4th or 5th
     if (day >= desiredDueDay - 1) {
       targetDueDate = new Date(year, month, desiredDueDay);
       resetDate = new Date(year, month, desiredDueDay - 1);
     } else {
+      // Prior to (n-1) day in the current calendar month
       targetDueDate = new Date(year, month - 1, desiredDueDay);
       resetDate = new Date(year, month - 1, desiredDueDay - 1);
     }
   }
 
   // Grace cutoff: Due Date + (graceDays - 1) day end-of-day.
-  // E.g. Due 1st + 3 days grace => 1st, 2nd, 3rd are Due. Cutoff is 3rd midnight.
+  // For standard Due 1st + 3 days grace => 1st, 2nd, 3rd are Due. Cutoff is 3rd midnight.
   // Today > 3rd (i.e. from 4th onwards) => isPastGrace = true (OVERDUE)!
+  // For custom override (graceDays = 0) => graceCutoffDate = targetDueDate.
+  // Today > targetDueDate (e.g. 7th for due on 6th) => isPastGrace = true (OVERDUE)!
   const graceCutoffDate = graceDays > 0
     ? new Date(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate() + (graceDays - 1))
-    : new Date(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate() - 1);
+    : new Date(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate());
 
   const isPastGrace = today.getTime() > graceCutoffDate.getTime();
   const isDueWindow = today.getTime() >= resetDate.getTime() && today.getTime() <= graceCutoffDate.getTime();
   const targetMonthKey = `${targetDueDate.getFullYear()}-${String(targetDueDate.getMonth() + 1).padStart(2, "0")}`;
+
+  // Choice B: If occupant has custom due day in the current month (e.g. 6th),
+  // and today is strictly before their reset day (e.g. 1st - 4th of month),
+  // they are postponed to a future date in this month.
+  const isCustomFuturePostponed = hasCustomDueOverride && day < desiredDueDay - 1;
 
   return {
     targetDueDate,
@@ -592,6 +625,8 @@ export function resolveOccupantBillingCycleContext(
     isPastGrace,
     isDueWindow,
     targetMonthKey,
+    hasCustomDueOverride,
+    isCustomFuturePostponed,
   };
 }
 
@@ -670,6 +705,8 @@ export interface FinancialStatementSummary {
   targetDueDateStr?: string;
   resetDateStr?: string;
   graceCutoffDateStr?: string;
+  hasCustomDueOverride?: boolean;
+  isCustomFuturePostponed?: boolean;
 }
 
 /**
@@ -1017,6 +1054,8 @@ export function calculateOccupantFinancialStatement(
     targetDueDateStr: cycleCtx.targetDueDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
     resetDateStr: cycleCtx.resetDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
     graceCutoffDateStr: cycleCtx.graceCutoffDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    hasCustomDueOverride: cycleCtx.hasCustomDueOverride,
+    isCustomFuturePostponed: cycleCtx.isCustomFuturePostponed,
   };
 }
 

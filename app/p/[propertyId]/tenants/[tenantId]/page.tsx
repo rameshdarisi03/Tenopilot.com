@@ -2537,8 +2537,16 @@ export default function IndividualTenantProfilePage({
                 } else {
                   // Current month rent is due/overdue
                   displayDueDate = currentCycleDueDateStr || occupantState.dueDate;
-                  dueSubtext = `RENT DUE (₹${topStmt.remainingRentDue.toLocaleString("en-IN")}) 🔴`;
-                  subtextColor = "text-red-600";
+                  if (topStmt.isCustomFuturePostponed) {
+                    dueSubtext = `SALARY CYCLE (DUE ON ${displayDueDate}) ⏳`;
+                    subtextColor = "text-amber-700";
+                  } else if (topStmt.isOverdue) {
+                    dueSubtext = `OVERDUE (₹${topStmt.remainingRentDue.toLocaleString("en-IN")}) 🔴`;
+                    subtextColor = "text-red-600";
+                  } else {
+                    dueSubtext = `DUE (₹${topStmt.remainingRentDue.toLocaleString("en-IN")}) 🟧`;
+                    subtextColor = "text-amber-600";
+                  }
                 }
               }
 
