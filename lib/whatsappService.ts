@@ -52,6 +52,7 @@ export interface WhatsAppSendParams {
     isVoided?: boolean;
     isReplacement?: boolean;
     isCorrected?: boolean;
+    totalBuildings?: string | number;
   };
 }
 
@@ -813,39 +814,85 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
         const fileName = `TAX_INVOICE_${invoiceNo.replace(/^#+/, "")}.pdf`;
         const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
         const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
+        const rawDeskPhone = p.managerPhone || p.propertyPhone || p.ownerPhone || "9206651295";
+        const cleanDeskPhone = rawDeskPhone.replace(/\D/g, "").slice(-10) || "9206651295";
 
-        requestBody = {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: formattedPhone,
-          type: "template",
-          template: {
-            name: "pg_subscription_receipt_doc",
-            language: { code: "en_US" },
-            components: [
-              {
-                type: "header",
-                parameters: [
-                  {
-                    type: "document",
-                    document: {
-                      link: pdfUrl,
-                      filename: fileName,
+        if (isMultiProp) {
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_property_expansion_receipt_v1",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "header",
+                  parameters: [
+                    {
+                      type: "document",
+                      document: {
+                        link: pdfUrl,
+                        filename: fileName,
+                      },
                     },
-                  },
-                ],
-              },
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: payload.recipientName || "Property Partner" },
-                  { type: "text", text: displayPropertyTarget },
-                  { type: "text", text: invoiceNo },
-                ],
-              },
-            ],
-          },
-        };
+                  ],
+                },
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: payload.recipientName || "Property Partner" },
+                    { type: "text", text: pName },
+                    { type: "text", text: String(p.totalBuildings || "2") },
+                    { type: "text", text: invoiceNo },
+                  ],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "0",
+                  parameters: [
+                    { type: "text", text: cleanDeskPhone },
+                  ],
+                },
+              ],
+            },
+          };
+        } else {
+          requestBody = {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: formattedPhone,
+            type: "template",
+            template: {
+              name: "pg_subscription_receipt_doc",
+              language: { code: "en_US" },
+              components: [
+                {
+                  type: "header",
+                  parameters: [
+                    {
+                      type: "document",
+                      document: {
+                        link: pdfUrl,
+                        filename: fileName,
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: payload.recipientName || "Property Partner" },
+                    { type: "text", text: displayPropertyTarget },
+                    { type: "text", text: invoiceNo },
+                  ],
+                },
+              ],
+            },
+          };
+        }
       } else if (payload.type === "COMPLAINT_UPDATE") {
         const p = payload.params || {};
         const pName = payload.propertyName || "TenoPilot Living";
@@ -1412,6 +1459,60 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
             "Content-Type": "application/json",
           },
           body: JSON.stringify(fallbackTextBody),
+        });
+        resData = await response.json();
+      }
+
+      // Automatic Graceful Fallback for SUBSCRIPTION_INVOICE if pg_property_expansion_receipt_v1 is pending review
+      if (!response.ok && payload.type === "SUBSCRIPTION_INVOICE" && requestBody?.template?.name === "pg_property_expansion_receipt_v1") {
+        console.warn("Notice: pg_property_expansion_receipt_v1 pending Meta review, falling back to approved pg_subscription_receipt_doc:", resData?.error?.message);
+        const p = payload.params || {};
+        const pName = payload.propertyName || "TenoPilot PG";
+        const invoiceNo = p.receiptId || `INV-${Date.now().toString().slice(-6)}`;
+        const fileName = `TAX_INVOICE_${invoiceNo.replace(/^#+/, "")}.pdf`;
+        const origin = process.env.NEXT_PUBLIC_APP_URL || "https://www.tenopilot.com";
+        const pdfUrl = p.receiptUrl || `${origin}/api/subscription/invoice/pdf?invoiceNo=${encodeURIComponent(invoiceNo)}`;
+
+        const fallbackSubReceiptBody = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "template",
+          template: {
+            name: "pg_subscription_receipt_doc",
+            language: { code: "en_US" },
+            components: [
+              {
+                type: "header",
+                parameters: [
+                  {
+                    type: "document",
+                    document: {
+                      link: pdfUrl,
+                      filename: fileName,
+                    },
+                  },
+                ],
+              },
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: payload.recipientName || "Property Partner" },
+                  { type: "text", text: `${pName} (Building Expansion)` },
+                  { type: "text", text: invoiceNo },
+                ],
+              },
+            ],
+          },
+        };
+
+        response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackSubReceiptBody),
         });
         resData = await response.json();
       }
