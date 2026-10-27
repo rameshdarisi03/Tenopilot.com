@@ -164,34 +164,16 @@ export const emailCreditStore = {
       messageType?: "RENT_REMINDER" | "PAYMENT_RECEIPT" | "ONBOARDING_INVITE" | "COMPLAINT_UPDATE" | "CUSTOM";
       description?: string;
     }
-  ): boolean {
-    const current = this.getWallet(propertyId);
-    if (current.credits <= 0) return false;
-
-    const newCredits = current.credits - 1;
-    const tx: EmailCreditTransaction = {
-      id: `tx-email-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      type: "USAGE",
-      amount: -1,
-      balanceAfter: newCredits,
-      description: details?.description || `Dispatched ${details?.messageType?.replace(/_/g, " ").toLowerCase() || "Email message"} to ${details?.recipientName || details?.recipientEmail || "Resident"}`,
-      recipientEmail: details?.recipientEmail,
-      recipientName: details?.recipientName,
-      messageType: details?.messageType || "RENT_REMINDER",
-      timestamp: new Date().toISOString(),
-      status: "DELIVERED",
+  ): { success: boolean; remainingCredits: number; error?: string } {
+    // 🛡️ Server-Authoritative SSOT:
+    // /api/email/send atomically verifies and deducts credits in Cloud Firestore upon delivery.
+    // The Firestore onSnapshot listener automatically updates the client state in real time.
+    const currentCredits = this.getCredits(propertyId);
+    return {
+      success: currentCredits > 0,
+      remainingCredits: currentCredits,
+      error: currentCredits <= 0 ? "🔒 Email Gateway Locked: Your credit balance is 0. Please recharge your wallet." : undefined,
     };
-
-    const nextState: PropertyEmailWalletState = {
-      credits: newCredits,
-      transactions: [tx, ...current.transactions].slice(0, 100),
-    };
-
-    PROPERTY_EMAIL_WALLET_MAP.set(propertyId, nextState);
-    setStoredEmailWallet(propertyId, nextState);
-    this.syncToFirestore(propertyId, nextState);
-    notify();
-    return true;
   },
 
   addCredits(propertyId: string, amount: number, description?: string, type: "PURCHASE" | "STARTER_BONUS" = "PURCHASE"): number {

@@ -807,6 +807,7 @@ export default function TenantsDirectoryPage({
 
     let emailSentCount = 0;
     let lastAwsError = "";
+    let lastRemainingCredits: number | null = null;
 
     for (const occ of selectedOccupants) {
       const occStmt = calculateOccupantFinancialStatement(occ, currentSettings);
@@ -849,6 +850,9 @@ export default function TenantsDirectoryPage({
         const resData = await emailRes.json().catch(() => ({}));
         if (emailRes.ok && resData?.successfulCount > 0) {
           emailSentCount++;
+          if (typeof resData?.remainingCredits === "number") {
+            lastRemainingCredits = resData.remainingCredits;
+          }
           emailCreditStore.deductCredit(propertyId, {
             description: `Auto-sent Rent Reminder to ${occ.name} (${occ.roomNumber ? `Room ${occ.roomNumber}` : "Bed Assigned"})`,
             recipientName: occ.name,
@@ -903,7 +907,7 @@ export default function TenantsDirectoryPage({
       type: "EMAIL",
       count: emailSentCount,
       total: selectedOccupants.length,
-      emailCreditsRemaining: emailCreditStore.getCredits(propertyId),
+      emailCreditsRemaining: typeof lastRemainingCredits === "number" ? lastRemainingCredits : emailCreditStore.getCredits(propertyId),
     });
   };
 
@@ -1103,6 +1107,7 @@ export default function TenantsDirectoryPage({
     let emailSentCount = 0;
     let waSentCount = 0;
     let lastAwsError = "";
+    let lastRemainingEmailCredits: number | null = null;
 
     // 1. Send via Email if ticked
     if (selectedReminderChannels.email) {
@@ -1147,6 +1152,9 @@ export default function TenantsDirectoryPage({
           const resData = await emailRes.json().catch(() => ({}));
           if (emailRes.ok && resData?.successfulCount > 0) {
             emailSentCount++;
+            if (typeof resData?.remainingCredits === "number") {
+              lastRemainingEmailCredits = resData.remainingCredits;
+            }
             emailCreditStore.deductCredit(propertyId, {
               recipientEmail: destEmail,
               recipientName: occ.name,
@@ -1270,7 +1278,7 @@ export default function TenantsDirectoryPage({
       count: Math.max(emailSentCount, waSentCount),
       total: selectedOccupants.length,
       creditsRemaining: whatsappCreditStore.getCredits(propertyId),
-      emailCreditsRemaining: emailCreditStore.getCredits(propertyId),
+      emailCreditsRemaining: typeof lastRemainingEmailCredits === "number" ? lastRemainingEmailCredits : emailCreditStore.getCredits(propertyId),
     });
   };
 
