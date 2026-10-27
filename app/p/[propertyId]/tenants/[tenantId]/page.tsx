@@ -34,6 +34,7 @@ import { sanitizeOccupantForCompliance } from "@/utils/dpdpRetentionEngine";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import { buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
+import { generatePayToken } from "@/lib/paymentToken";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
 import {
   ChevronLeft,
@@ -423,21 +424,67 @@ export default function IndividualTenantProfilePage({
     const dueDateStr = resolveOccupantPaymentDueDate(occ, propertySettings);
     const breakupText = occStmt.parkingBreakupText ? ` (Breakup: ${occStmt.parkingBreakupText})` : "";
 
-    const payHeader = isCashReq ? "Pay via Cash" : "Pay to UPI";
+    const payHeader = isCashReq ? "Payment Mode" : "Pay to UPI";
     const payDest = isCashReq
       ? (activeCard?.bankLabel ? `Cash at Desk (${activeCard.bankLabel})` : "Cash at Front Desk / Reception")
       : (activeCard?.upiId || "PG Reception / Manager UPI");
 
-    const message =
-      `**${pName}**\n\n` +
-      `Hello ${occ.name},\n\n` +
-      `This is a friendly reminder regarding your monthly accommodation rent for ${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}:\n\n` +
-      `💰 Amount Due: INR ${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
-      `📅 Due Date: ${dueDateStr}\n` +
-      `💳 ${payHeader}: ${payDest}\n\n` +
-      `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
-      `Thank you for being a valued resident!\n\n` +
-      `- ${pName}`;
+    let message = "";
+    if (isCashReq) {
+      const callUsText = propertySettings.managerPhone
+        ? `📞 *Reception Desk:* ${propertySettings.managerPhone}\n\n`
+        : "";
+
+      message =
+        `*${pName}*\n\n` +
+        `Hello ${occ.name},\n\n` +
+        `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
+        `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+        `📅 *Due Date:* ${dueDateStr}\n` +
+        `💵 *Payment Mode:* ${payDest}\n\n` +
+        callUsText +
+        `🏢 *Please visit the PG reception / front desk to hand over the cash and collect your official receipt.*\n\n` +
+        `Thank you for being a valued resident!\n\n` +
+        `- ${pName}`;
+    } else {
+      let paymentActionLinks = "";
+      if (activeCard?.upiId) {
+        const token = generatePayToken({
+          propertyId,
+          propertyName: pName,
+          tenantId: occ.id,
+          tenantName: occ.name,
+          roomNumber: occ.roomNumber,
+          amount: effectiveAmount,
+          dueDate: dueDateStr,
+          upiId: activeCard.upiId,
+          partnerName: activeCard.bankLabel || activeCard.name,
+          partnerPhone: activeCard.phone || propertySettings.managerPhone || "",
+          propertyPhone: propertySettings.managerPhone || "",
+        });
+
+        paymentActionLinks =
+          `👉 *Pay through UPI:*\nhttps://www.tenopilot.com/pay/${token}?view=pay\n\n` +
+          `📸 *Upload payment screenshot:*\nhttps://www.tenopilot.com/pay/${token}?view=proof\n\n`;
+      }
+
+      const callUsText = propertySettings.managerPhone
+        ? `📞 *Call Us:* ${propertySettings.managerPhone}\n\n`
+        : "";
+
+      message =
+        `*${pName}*\n\n` +
+        `Hello ${occ.name},\n\n` +
+        `This is a friendly reminder regarding your monthly accommodation rent for *${occ.roomNumber || "N/A"}${occ.bedCode ? ` - ${occ.bedCode}` : ""}*:\n\n` +
+        `💰 *Amount Due:* ₹${Number(effectiveAmount || 0).toLocaleString("en-IN")}${breakupText}\n` +
+        `📅 *Due Date:* ${dueDateStr}\n` +
+        `💳 *${payHeader}:* ${payDest}\n\n` +
+        paymentActionLinks +
+        callUsText +
+        `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
+        `Thank you for being a valued resident!\n\n` +
+        `- ${pName}`;
+    }
 
     return buildWhatsAppUrl(occ.phone, message);
   };
