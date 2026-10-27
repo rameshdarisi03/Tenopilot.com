@@ -1480,9 +1480,14 @@ export default function TenantsDirectoryPage({
 
     if (paymentPurpose === "COMBINED") {
       // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit + Optional Parking)
+      const receiptNo = generateReceiptNumber(currentSettings, {
+        date: formattedPaidDate,
+        existingOccupants: occupantsList,
+        propertyId,
+      });
       newReceipts.push({
         id: `rcpt_comb_${Date.now()}`,
-        receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
+        receiptNo,
         month: `${currentBillingMonth} + Security Deposit`,
         amount: totalCollected,
         rentAmount: effectiveRent,
@@ -1502,11 +1507,17 @@ export default function TenantsDirectoryPage({
         },
       });
     } else {
+      let rentReceiptNo = "";
       // 🏠 Rent Receipt (with Optional Parking Charges)
       if (effectiveRent > 0 || effectiveParking > 0) {
+        rentReceiptNo = generateReceiptNumber(currentSettings, {
+          date: formattedPaidDate,
+          existingOccupants: occupantsList,
+          propertyId,
+        });
         newReceipts.push({
           id: `rcpt_rent_${Date.now()}`,
-          receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
+          receiptNo: rentReceiptNo,
           month: currentBillingMonth,
           amount: effectiveRent + effectiveParking,
           rentAmount: effectiveRent,
@@ -1529,9 +1540,15 @@ export default function TenantsDirectoryPage({
 
       // 🔒 Security Deposit Receipt
       if (effectiveDeposit > 0) {
+        const depositReceiptNo = generateReceiptNumber(currentSettings, {
+          date: formattedPaidDate,
+          existingOccupants: occupantsList,
+          propertyId,
+          additionalExistingReceipts: rentReceiptNo ? [rentReceiptNo] : [],
+        });
         newReceipts.push({
           id: `rcpt_dep_${Date.now() + 1}`,
-          receiptNo: generateReceiptNumber(currentSettings, { date: formattedPaidDate }),
+          receiptNo: depositReceiptNo,
           month: "Security Deposit",
           amount: effectiveDeposit,
           rentAmount: 0,

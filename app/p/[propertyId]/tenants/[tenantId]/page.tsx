@@ -1102,6 +1102,10 @@ export default function IndividualTenantProfilePage({
 
     if (paymentPurpose === "COMBINED") {
       // ⚡ Unified Combined Receipt with Itemized Breakup (Rent + Security Deposit + Optional Parking)
+      const receiptNo = generateReceiptNumber(propertySettings, {
+        date: formattedPaidDate,
+        propertyId,
+      });
       newReceipts.push({
         id: `pay-comb-${Date.now()}`,
         month: `${currentBillingMonth} + Security Deposit`,
@@ -1112,14 +1116,19 @@ export default function IndividualTenantProfilePage({
         parkingAmount: effectiveParking > 0 ? effectiveParking : undefined,
         mode: modeLabel,
         paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
-        receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
+        receiptNo,
         status: "PAID",
         screenshotUrl: collectScreenshotUrl || undefined,
         proofId: matchedProofId || undefined,
       });
     } else {
+      let rentReceiptNo = "";
       // 🏠 Rent Receipt (with optional Parking Charges)
       if (effectiveRent > 0 || effectiveParking > 0) {
+        rentReceiptNo = generateReceiptNumber(propertySettings, {
+          date: formattedPaidDate,
+          propertyId,
+        });
         newReceipts.push({
           id: `pay-rent-${Date.now()}`,
           month: currentBillingMonth,
@@ -1130,7 +1139,7 @@ export default function IndividualTenantProfilePage({
           depositAmount: 0,
           mode: modeLabel,
           paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
-          receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
+          receiptNo: rentReceiptNo,
           status: "PAID",
           screenshotUrl: collectScreenshotUrl || undefined,
           proofId: matchedProofId || undefined,
@@ -1139,6 +1148,11 @@ export default function IndividualTenantProfilePage({
 
       // 🔒 Security Deposit Receipt
       if (effectiveDeposit > 0) {
+        const depositReceiptNo = generateReceiptNumber(propertySettings, {
+          date: formattedPaidDate,
+          propertyId,
+          additionalExistingReceipts: rentReceiptNo ? [rentReceiptNo] : [],
+        });
         newReceipts.push({
           id: `pay-dep-${Date.now() + 1}`,
           month: "Security Deposit",
@@ -1148,7 +1162,7 @@ export default function IndividualTenantProfilePage({
           depositAmount: effectiveDeposit,
           mode: modeLabel,
           paidTo: paidTo || (paymentAccounts[0]?.name || "Partner Account"),
-          receiptNo: generateReceiptNumber(propertySettings, { date: formattedPaidDate }),
+          receiptNo: depositReceiptNo,
           status: "PAID",
           screenshotUrl: collectScreenshotUrl || undefined,
           proofId: matchedProofId || undefined,
