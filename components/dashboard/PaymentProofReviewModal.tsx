@@ -129,49 +129,7 @@ export function PaymentProofReviewModal({
         </div>
 
         {/* Scrollable Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
-          {/* Due & Submission Summary Card */}
-          <div className="p-4 rounded-2xl border border-gray-200 bg-gradient-to-r from-orange-50/40 via-white to-amber-50/40 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
-                Total Rent Due
-              </span>
-              <div className="font-mono font-black text-2xl text-gray-900 mt-0.5">
-                ₹{proof.originalDueAmount.toLocaleString("en-IN")}
-              </div>
-            </div>
-
-            <div className="text-right">
-              <span className="text-[10px] font-bold text-gray-400 block">Submitted At</span>
-              <span className="font-mono font-bold text-gray-700 text-xs block">
-                {proof.submittedAtFormatted ? `🕒 ${proof.submittedAtFormatted}` : new Date(proof.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-              </span>
-              <span className="text-[10px] text-gray-400 block mt-0.5">
-                {new Date(proof.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
-              </span>
-            </div>
-          </div>
-
-          {/* Tenant Remarks Card - Highlighted prominently */}
-          {proof.tenantNote ? (
-            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 flex items-start gap-2.5 shadow-2xs">
-              <span className="text-base leading-none mt-0.5">💬</span>
-              <div className="flex-1 min-w-0">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
-                  Resident Note / Remarks
-                </span>
-                <p className="text-xs font-bold text-gray-900 mt-0.5 break-words">
-                  &ldquo;{proof.tenantNote}&rdquo;
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="px-3.5 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 text-[11px] flex items-center gap-2">
-              <span className="text-sm">ℹ️</span>
-              <span>Resident submitted screenshot without additional remarks.</span>
-            </div>
-          )}
-
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs">
           {/* Screenshot Preview */}
           {proof.screenshotUrl ? (
             <div className="space-y-1.5">
@@ -188,7 +146,7 @@ export function PaymentProofReviewModal({
                 <img
                   src={proof.screenshotUrl}
                   alt="Payment Proof"
-                  className="w-full max-h-56 object-contain cursor-pointer transition-transform hover:scale-[1.01]"
+                  className="w-full max-h-60 object-contain cursor-pointer transition-transform hover:scale-[1.01]"
                   onClick={() => setIsZoomed(true)}
                 />
                 <button
@@ -207,18 +165,31 @@ export function PaymentProofReviewModal({
             </div>
           )}
 
+          {/* Tenant Remarks Card - Shown if resident entered a note */}
+          {proof.tenantNote && (
+            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 flex items-start gap-2.5 shadow-2xs">
+              <span className="text-base leading-none mt-0.5">💬</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 block">
+                  Resident Note / Remarks
+                </span>
+                <p className="text-xs font-bold text-gray-900 mt-0.5 break-words">
+                  &ldquo;{proof.tenantNote}&rdquo;
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Payment Metadata Grid */}
           <div className="p-3.5 rounded-2xl bg-gray-50/90 border border-gray-200 space-y-2">
-            {/* Verification Source */}
-            <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
-              <span className="font-bold text-gray-600">Verification Source:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-gray-900 text-xs">
-                  {proof.utrNumber && proof.utrNumber !== "Screenshot Attached"
-                    ? proof.utrNumber
-                    : "📸 Screenshot Attached"}
-                </span>
-                {proof.utrNumber && proof.utrNumber !== "Screenshot Attached" && (
+            {/* Show UTR only if an actual 12-digit UTR was provided */}
+            {proof.utrNumber && proof.utrNumber !== "Screenshot Attached" && (
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200/70">
+                <span className="font-bold text-gray-600">UTR / Ref:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-gray-900 text-xs">
+                    {proof.utrNumber}
+                  </span>
                   <button
                     type="button"
                     onClick={handleCopyUtr}
@@ -227,9 +198,9 @@ export function PaymentProofReviewModal({
                   >
                     {copiedUtr ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Receiving Account */}
             <div className="flex items-center justify-between">
@@ -273,16 +244,6 @@ export function PaymentProofReviewModal({
               </div>
             </div>
           )}
-
-          {/* Bank Verification Notice */}
-          <div className="p-3 rounded-xl bg-orange-50/70 border border-orange-200/80 text-orange-950 text-[11px] space-y-0.5">
-            <p className="font-bold flex items-center gap-1.5">
-              <span>👉 Bank Verification:</span>
-            </p>
-            <p className="text-gray-600">
-              Please check your Bank SMS, GPay, or Soundbox to confirm the exact credited amount, then click <strong>Proceed to Collect Rent</strong> to record it.
-            </p>
-          </div>
         </div>
 
         {/* Footer Actions */}
