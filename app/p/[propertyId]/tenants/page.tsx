@@ -171,16 +171,12 @@ export default function TenantsDirectoryPage({
   const sortOptions = useMemo(() => [
     { id: "room-asc", label: "Room: Low to High", shortLabel: "Room (1→9)", column: "room" as const, direction: "asc" as const, icon: "🏢" },
     { id: "room-desc", label: "Room: High to Low", shortLabel: "Room (9→1)", column: "room" as const, direction: "desc" as const, icon: "🏢" },
-    { id: "name-asc", label: "Name: A to Z", shortLabel: "Name (A→Z)", column: "name" as const, direction: "asc" as const, icon: "🔤" },
-    { id: "name-desc", label: "Name: Z to A", shortLabel: "Name (Z→A)", column: "name" as const, direction: "desc" as const, icon: "🔤" },
-    { id: "due-asc", label: "Payment Due: Earliest", shortLabel: "Due: Earliest", column: "dueDate" as const, direction: "asc" as const, icon: "📅" },
-    { id: "due-desc", label: "Payment Due: Latest", shortLabel: "Due: Latest", column: "dueDate" as const, direction: "desc" as const, icon: "📅" },
     { id: "due-priority-desc", label: "Due: High to Low Priority", shortLabel: "Due: High→Low", column: "duePriority" as const, direction: "desc" as const, icon: "⏳" },
     { id: "due-priority-asc", label: "Due: Low to High Priority", shortLabel: "Due: Low→High", column: "duePriority" as const, direction: "asc" as const, icon: "⏳" },
     { id: "overdue-priority-desc", label: "Overdue: High to Low Priority", shortLabel: "Overdue: High→Low", column: "overduePriority" as const, direction: "desc" as const, icon: "🚨" },
     { id: "overdue-priority-asc", label: "Overdue: Low to High Priority", shortLabel: "Overdue: Low→High", column: "overduePriority" as const, direction: "asc" as const, icon: "🚨" },
-    { id: "rent-desc", label: "Rent: Highest First", shortLabel: "Rent: High→Low", column: "rent" as const, direction: "desc" as const, icon: "💰" },
-    { id: "rent-asc", label: "Rent: Lowest First", shortLabel: "Rent: Low→High", column: "rent" as const, direction: "asc" as const, icon: "💰" },
+    { id: "name-asc", label: "Name: A to Z", shortLabel: "Name (A→Z)", column: "name" as const, direction: "asc" as const, icon: "🔤" },
+    { id: "name-desc", label: "Name: Z to A", shortLabel: "Name (Z→A)", column: "name" as const, direction: "desc" as const, icon: "🔤" },
   ], []);
 
   const currentSortOption = useMemo(() => {
