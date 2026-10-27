@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month") || "Current Cycle";
     const isDeposit = searchParams.get("isDeposit") === "true" || receiptNo.startsWith("DEP");
     const isSettlement = searchParams.get("isSettlement") === "true" || receiptNo.startsWith("REF") || receiptNo.startsWith("SETTLE");
+    const isVoided = searchParams.get("isVoided") === "true";
+    const voidReason = searchParams.get("voidReason") || undefined;
+    const replacesReceiptNo = searchParams.get("replacesReceiptNo") || undefined;
+    const replacedByReceiptNo = searchParams.get("replacedByReceiptNo") || undefined;
     const rentAmount = searchParams.get("rentAmount") ? Number(searchParams.get("rentAmount")) : undefined;
     const depositAmount = searchParams.get("depositAmount") ? Number(searchParams.get("depositAmount")) : undefined;
     const parkingAmount = searchParams.get("parkingAmount") ? Number(searchParams.get("parkingAmount")) : undefined;
@@ -39,6 +43,10 @@ export async function GET(req: NextRequest) {
       month,
       isDeposit,
       isSettlement,
+      isVoided,
+      voidReason,
+      replacesReceiptNo,
+      replacedByReceiptNo,
       rentAmount,
       depositAmount,
       parkingAmount,

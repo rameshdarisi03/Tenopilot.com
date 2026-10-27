@@ -8,7 +8,17 @@ export interface PaymentHistoryItem {
   mode: string;
   paidTo?: string; // "Main Business Account" | "Petty Cash" | Partner Name
   receiptNo: string;
-  status: "PAID" | "PENDING" | "PARTIAL";
+  status: "PAID" | "PENDING" | "PARTIAL" | "VOIDED";
+  voidReason?: string;
+  voidedAt?: string;
+  voidedBy?: {
+    id?: string;
+    name: string;
+    role: string;
+    email?: string;
+  };
+  replacesReceiptNo?: string;
+  replacedByReceiptNo?: string;
   rentAmount?: number;      // Itemized Rent Portion
   depositAmount?: number;   // Itemized Security Deposit Portion
   maintenanceAmount?: number;

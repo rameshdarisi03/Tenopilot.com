@@ -729,7 +729,9 @@ export function calculateOccupantFinancialStatement(
   settings?: any
 ): FinancialStatementSummary {
   const isGuest = occupant.stayType === "Guest";
-  const history = occupant.paymentHistory || [];
+  const rawHistory = occupant.paymentHistory || [];
+  // Exclude voided and cancelled receipts from ledger calculations
+  const history = rawHistory.filter((item) => item.status !== "VOIDED" && (item as any).status !== "FAILED");
 
   const isAnniversary = settings?.billingCycleDates === "Anniversary Date";
   const includeDepositInOutstanding = Boolean(settings?.includeDepositInOutstanding);

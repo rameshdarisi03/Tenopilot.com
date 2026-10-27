@@ -3,7 +3,7 @@
 import React, { useRef, useState } from "react";
 import { Occupant, PaymentHistoryItem } from "@/constants/mockOccupants";
 import { PropertySettingsData } from "@/constants/propertySettings";
-import { Printer, Download, CheckCircle2, ShieldCheck, Building2, Calendar, CreditCard, User, Sparkles, X, FileText, Eye, ZoomIn } from "lucide-react";
+import { Printer, Download, CheckCircle2, ShieldCheck, Building2, Calendar, CreditCard, User, Sparkles, X, FileText, Eye, ZoomIn, RotateCcw, AlertTriangle } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -13,6 +13,7 @@ interface RentReceiptModalProps {
   receiptItem: PaymentHistoryItem;
   occupant: Occupant;
   propertySettings: PropertySettingsData;
+  onVoidReceipt?: (receipt: PaymentHistoryItem) => void;
 }
 
 export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
@@ -21,12 +22,15 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
   receiptItem,
   occupant,
   propertySettings,
+  onVoidReceipt,
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showProofModal, setShowProofModal] = useState(false);
 
   if (!isOpen) return null;
+
+  const isVoided = receiptItem.status === "VOIDED";
 
   const isDeposit =
     receiptItem.receiptNo.startsWith("DEP") ||
@@ -93,6 +97,17 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {!isVoided && onVoidReceipt && (
+              <button
+                type="button"
+                onClick={() => onVoidReceipt(receiptItem)}
+                className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                title="Void or Correct this Receipt"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Void / Replace</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handlePrint}
@@ -130,7 +145,50 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
             style={{ minHeight: "680px" }}
           >
             {/* Top Modern Colorful Header Accent */}
-            <div className="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500" />
+            <div className={`absolute top-0 left-0 right-0 h-3 ${isVoided ? "bg-rose-600" : "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500"}`} />
+
+            {/* VOIDED Diagonal Watermark */}
+            {isVoided && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 select-none">
+                <span className="text-red-500/15 font-black text-5xl sm:text-7xl -rotate-45 tracking-widest border-8 border-red-500/15 p-6 rounded-3xl uppercase">
+                  VOIDED / CANCELLED
+                </span>
+              </div>
+            )}
+
+            {/* VOIDED Banner */}
+            {isVoided && (
+              <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 flex items-start gap-2.5 mt-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-xs text-rose-950">⚠️ CANCELLED / VOIDED RECEIPT</p>
+                  <p className="text-[11px] text-rose-800 mt-0.5">
+                    This receipt was cancelled in property records
+                    {receiptItem.voidedAt ? ` on ${new Date(receiptItem.voidedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : ""}.
+                  </p>
+                  {receiptItem.voidReason && (
+                    <p className="text-[11px] text-rose-700 font-semibold mt-0.5">
+                      <strong>Reason:</strong> {receiptItem.voidReason}
+                    </p>
+                  )}
+                  {receiptItem.replacedByReceiptNo && (
+                    <p className="text-[11px] text-emerald-800 font-bold mt-1">
+                      🔄 Superseded by updated receipt #{receiptItem.replacedByReceiptNo.replace(/^#+/, "")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* REPLACEMENT Notice */}
+            {receiptItem.replacesReceiptNo && (
+              <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center gap-2 mt-2">
+                <span className="text-sm">🔄</span>
+                <span className="text-[11px] font-semibold">
+                  <strong>Replacement Receipt:</strong> Replaces cancelled receipt #{receiptItem.replacesReceiptNo.replace(/^#+/, "")}.
+                </span>
+              </div>
+            )}
 
             {/* Header: Brand & Meta */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-100 mt-1">
@@ -148,8 +206,16 @@ export const RentReceiptModal: React.FC<RentReceiptModalProps> = ({
 
               {/* Receipt Tag / Badge */}
               <div className="sm:text-right">
-                <span className="inline-block px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 text-emerald-800 font-mono font-black text-xs uppercase tracking-wider">
-                  {isDeposit ? "SECURITY DEPOSIT RECEIPT" : "RENT PAYMENT RECEIPT"}
+                <span className={`inline-block px-3 py-1 rounded-xl font-mono font-black text-xs uppercase tracking-wider border ${
+                  isVoided
+                    ? "bg-rose-100 border-rose-300 text-rose-800"
+                    : "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-emerald-500/30 text-emerald-800"
+                }`}>
+                  {isVoided
+                    ? "VOIDED RECEIPT"
+                    : isDeposit
+                    ? "SECURITY DEPOSIT RECEIPT"
+                    : "RENT PAYMENT RECEIPT"}
                 </span>
                 <div className="mt-2 text-xs text-slate-500">
                   <p className="font-semibold text-slate-900 font-mono text-sm">{receiptItem.receiptNo}</p>

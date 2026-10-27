@@ -36,6 +36,7 @@ import { generateReceiptNumber } from "@/lib/invoiceNumberEngine";
 import { buildWhatsAppUrl, sanitizeVehicleNumber } from "@/utils/security";
 import { generatePayToken } from "@/lib/paymentToken";
 import { RentReceiptModal } from "@/components/RentReceiptModal";
+import { VoidReceiptModal } from "@/components/dashboard/VoidReceiptModal";
 import {
   ChevronLeft,
   ChevronDown,
@@ -73,6 +74,8 @@ import {
   MessageSquare,
   Send,
   Loader2,
+  RotateCcw,
+  Ban,
   AlertCircle,
   Car,
   Plus,
@@ -364,6 +367,48 @@ export default function IndividualTenantProfilePage({
 
   // Selected Receipt for PDF/Print Modal
   const [selectedReceiptForModal, setSelectedReceiptForModal] = useState<PaymentHistoryItem | null>(null);
+
+  // Void & Replace Target Receipt State
+  const [voidReceiptTarget, setVoidReceiptTarget] = useState<PaymentHistoryItem | null>(null);
+
+  const handleVoidReceiptSuccess = async (
+    updatedHistory: PaymentHistoryItem[],
+    replacementReceipt?: PaymentHistoryItem
+  ) => {
+    if (!occupantState) return;
+
+    // Recalculate financial statement with the new history
+    const updatedDraft: Occupant = {
+      ...occupantState,
+      paymentHistory: updatedHistory,
+    };
+    const stmt = calculateOccupantFinancialStatement(updatedDraft, propertySettings);
+
+    const updated: Occupant = {
+      ...occupantState,
+      paymentHistory: updatedHistory,
+      paymentStatus: stmt.isFullyPaid ? "Paid" : "Due",
+      depositStatus: stmt.depositStatusLabel,
+      lastPaidDate: replacementReceipt ? replacementReceipt.date : occupantState.lastPaidDate,
+      daysRemainingText: stmt.isFullyPaid ? "—" : "PARTIAL DUE",
+    };
+
+    setOccupantState(updated);
+    setPaymentHistory(updatedHistory);
+    occupantStore.updateOccupant(updated, propertyId);
+
+    try {
+      await saveOccupantToFirestore(propertyId, updated);
+      triggerToast(
+        replacementReceipt
+          ? `✓ Receipt ${voidReceiptTarget?.receiptNo} voided. Corrected receipt ${replacementReceipt.receiptNo} issued successfully!`
+          : `✓ Receipt ${voidReceiptTarget?.receiptNo} voided successfully. Ledger updated.`
+      );
+    } catch (err: any) {
+      console.error("Failed to sync voided receipt to cloud:", err);
+      triggerToast("⚠️ Saved locally, but failed to sync to cloud.", "error");
+    }
+  };
 
   // Real-time Property Settings
   const [propertySettings, setPropertySettings] = useState(() => propertySettingsStore.getSettings(propertyId));
@@ -3226,91 +3271,151 @@ export default function IndividualTenantProfilePage({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-xs">
-                        {paymentHistory.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50/50">
-                            <td className="py-3 font-bold text-gray-900">{item.month}</td>
-                            <td className="py-3 text-gray-600">{item.date}</td>
-                            <td className="py-3 font-mono font-bold text-gray-900">
-                              ₹{item.amount.toLocaleString("en-IN")}
-                            </td>
-                            <td className="py-3 text-gray-600">
-                              <div className="font-semibold text-gray-900">{item.mode}</div>
-                              <div className="text-[10px] text-gray-400 font-medium">
-                                To: {item.paidTo || "Business Account"}
-                              </div>
-                            </td>
-                            <td className="py-3 font-mono text-gray-500">{item.receiptNo}</td>
-                            <td className="py-3">
-                              <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold text-[10px]">
-                                {item.status}
-                              </span>
-                            </td>
-                            <td className="py-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {/* 1. View / Download PDF */}
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedReceiptForModal(item)}
-                                  className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
-                                  title="View / Download PDF Receipt"
-                                >
-                                  <FileText className="w-3 h-3 text-amber-600" />
-                                  <span>PDF</span>
-                                </button>
+                        {paymentHistory.map((item) => {
+                          const isItemVoided = item.status === "VOIDED";
 
-                                {/* 2. WhatsApp Receipt Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
-                                  disabled={isDispatchingReceipt}
-                                  className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
-                                    isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP"
-                                      ? "bg-emerald-100 border-emerald-400 text-emerald-800 ring-2 ring-emerald-300"
-                                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 disabled:opacity-50"
-                                  }`}
-                                  title="Send Official Receipt via WhatsApp"
-                                >
-                                  {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP" ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 text-emerald-700 animate-spin" />
-                                      <span>Sending...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <MessageSquare className="w-3 h-3 text-emerald-600" />
-                                      <span className="hidden sm:inline">WhatsApp</span>
-                                    </>
-                                  )}
-                                </button>
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`transition-colors ${
+                                isItemVoided
+                                  ? "bg-rose-50/20 opacity-60 hover:bg-rose-50/30"
+                                  : "hover:bg-gray-50/50"
+                              }`}
+                            >
+                              <td className="py-3 font-bold text-gray-900">
+                                <div className="flex items-center gap-1.5">
+                                  {isItemVoided && <Ban className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                                  <span className={isItemVoided ? "line-through text-gray-500" : ""}>{item.month}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 text-gray-600">{item.date}</td>
+                              <td className="py-3 font-mono font-bold text-gray-900">
+                                <span className={isItemVoided ? "line-through text-rose-600 font-semibold" : ""}>
+                                  ₹{item.amount.toLocaleString("en-IN")}
+                                </span>
+                              </td>
+                              <td className="py-3 text-gray-600">
+                                <div className="font-semibold text-gray-900">{item.mode}</div>
+                                <div className="text-[10px] text-gray-400 font-medium">
+                                  To: {item.paidTo || "Business Account"}
+                                </div>
+                              </td>
+                              <td className="py-3 font-mono text-gray-500">
+                                <span>{item.receiptNo}</span>
+                                {item.replacesReceiptNo && (
+                                  <div className="text-[9px] text-amber-700 font-bold">
+                                    Replaces: #{item.replacesReceiptNo.replace(/^#+/, "")}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3">
+                                {isItemVoided ? (
+                                  <div>
+                                    <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px] border border-rose-200">
+                                      VOIDED
+                                    </span>
+                                    {item.replacedByReceiptNo && (
+                                      <div className="text-[9px] text-emerald-700 font-bold mt-0.5">
+                                        Replaced: #{item.replacedByReceiptNo.replace(/^#+/, "")}
+                                      </div>
+                                    )}
+                                    {item.voidReason && (
+                                      <div className="text-[9px] text-gray-500 font-medium truncate max-w-[130px]" title={item.voidReason}>
+                                        {item.voidReason}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold text-[10px]">
+                                    {item.status}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {/* 1. View / Download PDF */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedReceiptForModal(item)}
+                                    className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
+                                    title="View / Download PDF Receipt"
+                                  >
+                                    <FileText className="w-3 h-3 text-amber-600" />
+                                    <span>PDF</span>
+                                  </button>
 
-                                {/* 3. Email Receipt Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
-                                  disabled={isDispatchingReceipt}
-                                  className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
-                                    isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL"
-                                      ? "bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-300"
-                                      : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 disabled:opacity-50"
-                                  }`}
-                                  title="Send Official PDF Receipt via Email"
-                                >
-                                  {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL" ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 text-blue-700 animate-spin" />
-                                      <span>Sending...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Mail className="w-3 h-3 text-blue-600" />
-                                      <span className="hidden sm:inline">Email</span>
-                                    </>
+                                  {/* 2. Void / Replace Button (Only on active valid receipts) */}
+                                  {!isItemVoided && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setVoidReceiptTarget(item)}
+                                      className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
+                                      title="Void or Correct this billing receipt"
+                                    >
+                                      <RotateCcw className="w-3 h-3 text-rose-600" />
+                                      <span className="hidden sm:inline">Void</span>
+                                    </button>
                                   )}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+
+                                  {/* 3. WhatsApp Receipt Button (Only on valid receipts; voided receipts are never sent!) */}
+                                  {!isItemVoided && (
+                                    <button
+                                      type="button"
+                                      onClick={() => dispatchElectronicReceipt(item, "WHATSAPP")}
+                                      disabled={isDispatchingReceipt}
+                                      className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                        isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP"
+                                          ? "bg-emerald-100 border-emerald-400 text-emerald-800 ring-2 ring-emerald-300"
+                                          : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 disabled:opacity-50"
+                                      }`}
+                                      title="Send Official Receipt via WhatsApp"
+                                    >
+                                      {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "WHATSAPP" ? (
+                                        <>
+                                          <Loader2 className="w-3 h-3 text-emerald-700 animate-spin" />
+                                          <span>Sending...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                          <span className="hidden sm:inline">WhatsApp</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {/* 4. Email Receipt Button (Only on valid receipts; voided receipts are never sent!) */}
+                                  {!isItemVoided && (
+                                    <button
+                                      type="button"
+                                      onClick={() => dispatchElectronicReceipt(item, "EMAIL")}
+                                      disabled={isDispatchingReceipt}
+                                      className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                                        isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL"
+                                          ? "bg-blue-100 border-blue-400 text-blue-800 ring-2 ring-blue-300"
+                                          : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 disabled:opacity-50"
+                                      }`}
+                                      title="Send Official PDF Receipt via Email"
+                                    >
+                                      {isDispatchingReceipt && activeDispatchTarget?.receiptId === item.id && activeDispatchTarget?.channel === "EMAIL" ? (
+                                        <>
+                                          <Loader2 className="w-3 h-3 text-blue-700 animate-spin" />
+                                          <span>Sending...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Mail className="w-3 h-3 text-blue-600" />
+                                          <span className="hidden sm:inline">Email</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -6894,6 +6999,24 @@ export default function IndividualTenantProfilePage({
             receiptItem={selectedReceiptForModal}
             occupant={occupantState}
             propertySettings={propertySettings}
+            onVoidReceipt={(rcpt) => {
+              setSelectedReceiptForModal(null);
+              setVoidReceiptTarget(rcpt);
+            }}
+          />
+        )}
+
+        {/* 🔄 Void & Replace Receipt Modal */}
+        {voidReceiptTarget && occupantState && (
+          <VoidReceiptModal
+            isOpen={!!voidReceiptTarget}
+            receipt={voidReceiptTarget}
+            occupant={occupantState}
+            propertySettings={propertySettings}
+            propertyId={propertyId}
+            userProfile={profile}
+            onClose={() => setVoidReceiptTarget(null)}
+            onSuccess={handleVoidReceiptSuccess}
           />
         )}
 

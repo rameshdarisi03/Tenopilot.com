@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 
 export interface ReceiptPdfData {
   receiptNo: string;
@@ -15,6 +15,10 @@ export interface ReceiptPdfData {
   month?: string;
   isDeposit?: boolean;
   isSettlement?: boolean;
+  isVoided?: boolean;
+  voidReason?: string;
+  replacesReceiptNo?: string;
+  replacedByReceiptNo?: string;
   rentAmount?: number;
   depositAmount?: number;
   maintenanceAmount?: number;
@@ -1137,6 +1141,19 @@ export async function generateReceiptPdfBuffer(data: ReceiptPdfData): Promise<Ui
     font: fontRegular,
     color: slateMuted,
   });
+
+  // 8. VOIDED Watermark
+  if (data.isVoided) {
+    page.drawText("VOIDED / CANCELLED", {
+      x: 80,
+      y: height / 2 - 40,
+      size: 44,
+      font: fontBold,
+      color: rgb(0.85, 0.2, 0.2),
+      opacity: 0.2,
+      rotate: degrees(45),
+    });
+  }
 
   return await pdfDoc.save();
 }
