@@ -363,7 +363,7 @@ export default function PropertySettingsPage({
     setIsSaving(true);
     await propertySettingsStore.updateSettings(settings, propertyId);
     setIsSaving(false);
-    triggerToast("🎉 Settings saved! Revised monthly rental tariffs will take effect starting from the next 5th billing cycle (existing current month rent stays locked).");
+    triggerToast("🎉 Settings saved! All billing rules, tariffs, and property preferences have been updated instantly.");
   };
 
   const handleResetDefaults = () => {
@@ -414,7 +414,7 @@ export default function PropertySettingsPage({
                   Settings
                 </h1>
                 <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
-                  Customize billing cycles, 5th rent due dates, pro-rata proration, and PG preferences.
+                  Customize billing cycles, rent due dates, pro-rata proration, and property preferences.
                 </p>
               </div>
             </div>
