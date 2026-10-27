@@ -28,6 +28,15 @@ export interface StaffMember {
   securityPin?: string; // 6-Digit security PIN
   hasSetPin?: boolean;
   password?: string; // Clear-text staff password visible to Master Admin & Admin
+  ownerEmail?: string;
+  ownerPhone?: string;
+  masterAdminUid?: string;
+  organizationId?: string;
+  plan?: string;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+  planExpiresAt?: string | null;
+  trialEndsAtMs?: number | string | null;
 }
 
 // 100% Clean Seed - Zero Mock Accounts (Empty Array)

@@ -39,6 +39,9 @@ export interface UserProfile {
   whatsappCreditsLimit?: number;
   emailCreditsLimit?: number;
   emailMultiplier?: number;
+  masterAdminUid?: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
 }
 
 interface AuthContextType {
@@ -171,9 +174,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (isExplicitStaff) {
                 const finalStaffRole = (staffAccountDoc?.role || staffMatch?.role || (data.role === "admin" ? "admin" : "receptionist")) as UserRole;
                 data.role = finalStaffRole;
-                data.plan = "ORGANIZATION_STAFF";
-                data.subscriptionPlan = "pro";
-                data.subscriptionStatus = "ACTIVE_PRO";
                 data.isStaff = true;
                 data.assignedPropertyId =
                   (staffAccountDoc?.assignedPropertyId || staffMatch?.assignedPropertyId) ||
@@ -182,6 +182,120 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (staffAccountDoc?.organizationId && !data.organizationId) {
                   data.organizationId = staffAccountDoc.organizationId;
                 }
+
+                // 🏢 STAFF SUBSCRIPTION TIER INHERITANCE (Unified Subscription Roof)
+                // Real-time synchronization: Staff inherits exact master admin subscription tier, status & expiration
+                (async () => {
+                  try {
+                    let masterDocData: any = null;
+                    let masterDocUid = data.masterAdminUid || staffAccountDoc?.masterAdminUid;
+                    let masterOwnerEmail = data.ownerEmail || staffAccountDoc?.ownerEmail || staffMatch?.ownerEmail;
+
+                    // 1. Direct UID lookup
+                    if (masterDocUid) {
+                      try {
+                        const mSnap = await getDoc(doc(db, "users", masterDocUid));
+                        if (mSnap.exists()) {
+                          masterDocData = mSnap.data();
+                        }
+                      } catch {}
+                    }
+
+                    // 2. Lookup by ownerEmail in users collection
+                    if (!masterDocData && masterOwnerEmail) {
+                      try {
+                        const mQ = query(collection(db, "users"), where("email", "==", masterOwnerEmail.toLowerCase().trim()));
+                        const mSnap = await getDocs(mQ);
+                        if (!mSnap.empty) {
+                          masterDocUid = mSnap.docs[0].id;
+                          masterDocData = mSnap.docs[0].data();
+                        }
+                      } catch {}
+                    }
+
+                    // 3. Lookup by property owner in portfolio_properties
+                    if (!masterDocData && data.assignedPropertyId) {
+                      try {
+                        const propSnap = await getDoc(doc(db, "portfolio_properties", data.assignedPropertyId));
+                        if (propSnap.exists()) {
+                          const pOwner = propSnap.data().ownerEmail;
+                          if (pOwner) {
+                            masterOwnerEmail = pOwner;
+                            const mQ = query(collection(db, "users"), where("email", "==", pOwner.toLowerCase().trim()));
+                            const mSnap = await getDocs(mQ);
+                            if (!mSnap.empty) {
+                              masterDocUid = mSnap.docs[0].id;
+                              masterDocData = mSnap.docs[0].data();
+                            }
+                          }
+                        }
+                      } catch {}
+                    }
+
+                    // 4. Lookup by assignedPropertyId where role is master_admin
+                    if (!masterDocData && data.assignedPropertyId) {
+                      try {
+                        const mQ = query(
+                          collection(db, "users"),
+                          where("assignedPropertyId", "==", data.assignedPropertyId),
+                          where("role", "==", "master_admin")
+                        );
+                        const mSnap = await getDocs(mQ);
+                        if (!mSnap.empty) {
+                          masterDocUid = mSnap.docs[0].id;
+                          masterDocData = mSnap.docs[0].data();
+                        }
+                      } catch {}
+                    }
+
+                    if (masterDocData) {
+                      const syncedTier: Partial<UserProfile> = {
+                        plan: masterDocData.plan || "PRO_MONTHLY",
+                        subscriptionPlan: masterDocData.subscriptionPlan || "pro",
+                        subscriptionStatus: masterDocData.subscriptionStatus || "ACTIVE_PRO",
+                        planExpiresAt: masterDocData.planExpiresAt || null,
+                        trialEndsAtMs: masterDocData.trialEndsAtMs || null,
+                        tenantExtensionPacks: masterDocData.tenantExtensionPacks || 0,
+                        maxPropertiesAllowed: masterDocData.maxPropertiesAllowed || 1,
+                        masterAdminUid: masterDocUid,
+                        ownerEmail: masterDocData.email || masterOwnerEmail,
+                        organizationId: masterDocData.organizationId || data.organizationId,
+                      };
+
+                      Object.assign(data, syncedTier);
+                      await setDoc(userDocRef, syncedTier, { merge: true });
+                      setProfile({ ...data });
+
+                      try {
+                        const s = localStorage.getItem("tenopilot_saved_session");
+                        if (s) {
+                          const parsed = JSON.parse(s);
+                          localStorage.setItem("tenopilot_saved_session", JSON.stringify({
+                            ...parsed,
+                            role: data.role,
+                            assignedPropertyId: data.assignedPropertyId,
+                            plan: syncedTier.plan,
+                            subscriptionPlan: syncedTier.subscriptionPlan,
+                            subscriptionStatus: syncedTier.subscriptionStatus,
+                            planExpiresAt: syncedTier.planExpiresAt,
+                            trialEndsAtMs: syncedTier.trialEndsAtMs,
+                            masterAdminUid: syncedTier.masterAdminUid,
+                            ownerEmail: syncedTier.ownerEmail,
+                          }));
+                        }
+                      } catch {}
+                    } else if (!data.planExpiresAt) {
+                      // Fallback for standalone/demo staff accounts
+                      data.plan = data.plan && data.plan !== "ORGANIZATION_STAFF" ? data.plan : "PRO_MONTHLY";
+                      data.subscriptionPlan = "pro";
+                      data.subscriptionStatus = "ACTIVE_PRO";
+                      data.planExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+                      setProfile({ ...data });
+                    }
+                  } catch (staffSyncErr) {
+                    console.warn("Staff subscription roof sync notice:", staffSyncErr);
+                  }
+                })();
               } else {
                 data.role = data.role === "admin" ? "master_admin" : (data.role || "master_admin");
                 data.assignedPropertyId = data.assignedPropertyId || resolvedProp;
@@ -355,13 +469,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   assignedPropertyId: resolvedProp,
                   isNewUser: false,
                   onboardingCompleted: true,
-                  plan: "ORGANIZATION_STAFF",
-                  subscriptionPlan: "pro",
-                  subscriptionStatus: "ACTIVE_PRO",
+                  plan: staffAccountDoc?.plan && staffAccountDoc?.plan !== "ORGANIZATION_STAFF" ? staffAccountDoc.plan : "PRO_MONTHLY",
+                  subscriptionPlan: staffAccountDoc?.subscriptionPlan || "pro",
+                  subscriptionStatus: staffAccountDoc?.subscriptionStatus || "ACTIVE_PRO",
+                  planExpiresAt: staffAccountDoc?.planExpiresAt || new Date(Date.now() + 30 * 86400000).toISOString(),
+                  trialEndsAtMs: staffAccountDoc?.trialEndsAtMs || null,
+                  masterAdminUid: staffAccountDoc?.masterAdminUid || "",
+                  ownerEmail: staffAccountDoc?.ownerEmail || "",
                   isStaff: true,
                 };
                 setProfile(staffProf);
                 staffStore.setActiveRole(staffProf.role);
+                // Also write to users collection so future onSnapshot is warm!
+                setDoc(userDocRef, staffProf, { merge: true }).catch(() => {});
               } else {
                 // 🛑 If user is currently on onboarding / signup pages, allow setup to proceed
                 if (pathname === "/signup" || pathname === "/welcome") {
@@ -402,11 +522,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 uid: `local_${parsed.email || "user"}`,
                 email: parsed.email || "staff@tenopilot.com",
                 displayName: sanitizeTitleCase(parsed.name || parsed.email?.split("@")[0] || "Team Member"),
-                organizationId: "org_estate_01",
+                organizationId: parsed.organizationId || "org_estate_01",
                 role: (parsed.role as UserRole) || "master_admin",
                 assignedPropertyId: parsed.assignedPropertyId || "sunshine-pg",
                 phone: parsed.phone || "",
                 onboardingCompleted: true,
+                plan: parsed.plan || "PRO_MONTHLY",
+                subscriptionPlan: parsed.subscriptionPlan || "pro",
+                subscriptionStatus: parsed.subscriptionStatus || "ACTIVE_PRO",
+                planExpiresAt: parsed.planExpiresAt || null,
+                trialEndsAtMs: parsed.trialEndsAtMs || null,
+                isStaff: parsed.role === "admin" || parsed.role === "receptionist",
+                masterAdminUid: parsed.masterAdminUid,
+                ownerEmail: parsed.ownerEmail,
               };
               setProfile(fallbackProf);
               staffStore.setActiveRole(fallbackProf.role);

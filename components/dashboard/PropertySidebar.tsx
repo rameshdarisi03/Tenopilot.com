@@ -245,7 +245,7 @@ export function PropertySidebar({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-[#201a17] truncate">{displayName}</p>
-              <p className="text-[10px] text-[#554339] truncate">{roleDisplay}</p>
+              <div className="flex items-center gap-1.5 flex-wrap"><p className="text-[10px] text-[#554339] truncate">{roleDisplay}</p><span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-900 border border-amber-200 truncate">{sub.badgeLabel}</span></div>
             </div>
           </div>
 

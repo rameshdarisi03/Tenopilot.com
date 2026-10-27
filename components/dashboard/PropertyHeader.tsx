@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, ChevronLeft, UserCheck, Edit3, Sparkles } from "lucide-react";
+import { Search, Bell, Menu, X, Wrench, CreditCard, ShieldCheck, Check, User, Settings, LogOut, ChevronRight, ChevronLeft, UserCheck, Edit3, Sparkles, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { Complaint, subscribeToComplaints } from "@/lib/complaintStore";
@@ -10,6 +10,8 @@ import { TenoPilotLogo } from "@/components/TenoPilotLogo";
 import { evaluateSubscription } from "@/lib/subscriptionEngine";
 import { EditProfileModal } from "./EditProfileModal";
 import { PropertyAiOmnibar } from "@/components/ai/PropertyAiOmnibar";
+import { whatsappCreditStore } from "@/constants/whatsappCreditStore";
+import { emailCreditStore } from "@/constants/emailCreditStore";
 
 export function PropertyHeader({
   title = "Tenants & Guests Directory",
@@ -74,6 +76,25 @@ export function PropertyHeader({
       setComplaints(list || []);
     });
     return () => unsubscribe();
+  }, [effectivePropertyId]);
+
+  // 💬 Real-Time Multi-Tenant Communication Credit Balance Synchronization (WhatsApp & Email SSOT)
+  const [waCredits, setWaCredits] = useState<number>(() =>
+    whatsappCreditStore.getCredits(effectivePropertyId)
+  );
+
+  useEffect(() => {
+    if (!effectivePropertyId) return;
+    whatsappCreditStore.initFirebaseListener(effectivePropertyId);
+    whatsappCreditStore.fetchWalletFromFirestore(effectivePropertyId);
+    emailCreditStore.initFirebaseListener(effectivePropertyId);
+    emailCreditStore.fetchWalletFromFirestore(effectivePropertyId);
+
+    setWaCredits(whatsappCreditStore.getCredits(effectivePropertyId));
+    const unsub = whatsappCreditStore.subscribe(() => {
+      setWaCredits(whatsappCreditStore.getCredits(effectivePropertyId));
+    });
+    return unsub;
   }, [effectivePropertyId]);
 
   // Close dropdowns on outside click
@@ -397,8 +418,19 @@ export function PropertyHeader({
           )}
         </div>
 
-        {/* ⏳ Dynamic Subscription Lifecycle Badge (Master Admin Only) */}
-        {profile?.role === "master_admin" && (
+        {/* 💬 Cloud WhatsApp Credit Balance Pill */}
+        <Link
+          href={`/p/${effectivePropertyId}/subscription`}
+          title="Live WhatsApp Cloud Credits Balance"
+          className="hidden xl:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-white text-emerald-800 border border-emerald-300 hover:scale-[1.02] transition-transform shadow-2xs"
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="font-mono font-extrabold">{waCredits}</span>
+          <span className="text-[10px] text-emerald-700">Credits</span>
+        </Link>
+
+        {/* ⏳ Dynamic Subscription Lifecycle Badge (Master Admin & Staff Unified Roof) */}
+        {(profile?.role === "master_admin" || profile?.role === "admin" || profile?.role === "receptionist" || profile?.isStaff) && (
           <Link
             href={`/p/${effectivePropertyId}/subscription`}
             className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-2xs border transition-all hover:scale-[1.02] cursor-pointer ${
@@ -448,20 +480,35 @@ export function PropertyHeader({
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-gray-900 text-sm truncate">{displayName}</p>
                   <p className="text-[10px] text-gray-400 font-medium truncate">{userEmail}</p>
-                  <span className={`inline-block mt-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
-                    profile?.role === "master_admin"
-                      ? "bg-purple-100 text-purple-800 border-purple-200"
-                      : profile?.role === "admin"
-                      ? "bg-blue-100 text-blue-800 border-blue-200"
-                      : "bg-emerald-100 text-emerald-800 border-emerald-200"
-                  }`}>
-                    {profile?.role === "master_admin"
-                      ? "MASTER ADMIN 👑"
-                      : profile?.role === "admin"
-                      ? "PROPERTY ADMIN 🏢"
-                      : "RECEPTIONIST 🔑"}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                    <span className={`inline-block text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                      profile?.role === "master_admin"
+                        ? "bg-purple-100 text-purple-800 border-purple-200"
+                        : profile?.role === "admin"
+                        ? "bg-blue-100 text-blue-800 border-blue-200"
+                        : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                    }`}>
+                      {profile?.role === "master_admin"
+                        ? "MASTER ADMIN 👑"
+                        : profile?.role === "admin"
+                        ? "PROPERTY ADMIN 🏢"
+                        : "RECEPTIONIST 🔑"}
+                    </span>
+                    <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                      {sub.badgeLabel}
+                    </span>
+                  </div>
                 </div>
+              </div>
+
+              {/* 💬 Cloud WhatsApp Wallet Status */}
+              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px]">
+                <span className="font-bold text-[#964407] flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Balance
+                </span>
+                <span className="font-mono font-extrabold text-emerald-700">
+                  {waCredits} Credits
+                </span>
               </div>
 
               <div className="space-y-1">

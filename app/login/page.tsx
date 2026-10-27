@@ -55,6 +55,13 @@ interface SavedSession {
   assignedPropertyId?: string;
   hasSetPin?: boolean;
   phone?: string;
+  plan?: string;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+  planExpiresAt?: string | null;
+  trialEndsAtMs?: number | string | null;
+  masterAdminUid?: string;
+  ownerEmail?: string;
 }
 
 export default function LoginPage() {
@@ -751,6 +758,13 @@ export default function LoginPage() {
       ? savedSession.assignedPropertyId
       : (isMasterTestUser ? "sunshine-pg" : "");
     let member: StaffMember | undefined = undefined;
+    let cloudPlan: string | undefined = undefined;
+    let cloudSubscriptionPlan: string | undefined = undefined;
+    let cloudSubscriptionStatus: string | undefined = undefined;
+    let cloudPlanExpiresAt: string | null | undefined = undefined;
+    let cloudTrialEndsAtMs: number | string | null | undefined = undefined;
+    let cloudMasterAdminUid: string | undefined = undefined;
+    let cloudOwnerEmail: string | undefined = undefined;
 
     // 1. CLOUD-FIRST AUTHORITY: Query Firestore first as the definitive source of truth
     try {
@@ -765,6 +779,13 @@ export default function LoginPage() {
         if (data.assignedPropertyId && (isMasterTestUser || data.assignedPropertyId !== "sunshine-pg")) {
           resolvedProp = data.assignedPropertyId;
         }
+        if (data.plan) cloudPlan = data.plan;
+        if (data.subscriptionPlan) cloudSubscriptionPlan = data.subscriptionPlan;
+        if (data.subscriptionStatus) cloudSubscriptionStatus = data.subscriptionStatus;
+        if (data.planExpiresAt !== undefined) cloudPlanExpiresAt = data.planExpiresAt;
+        if (data.trialEndsAtMs !== undefined) cloudTrialEndsAtMs = data.trialEndsAtMs;
+        if (data.masterAdminUid) cloudMasterAdminUid = data.masterAdminUid;
+        if (data.ownerEmail) cloudOwnerEmail = data.ownerEmail;
 
         if (data.securityPin) {
           if (data.securityPin === inputPin) {
@@ -790,6 +811,13 @@ export default function LoginPage() {
             if (uData.assignedPropertyId && (isMasterTestUser || uData.assignedPropertyId !== "sunshine-pg")) {
               resolvedProp = uData.assignedPropertyId;
             }
+            if (uData.plan) cloudPlan = uData.plan;
+            if (uData.subscriptionPlan) cloudSubscriptionPlan = uData.subscriptionPlan;
+            if (uData.subscriptionStatus) cloudSubscriptionStatus = uData.subscriptionStatus;
+            if (uData.planExpiresAt !== undefined) cloudPlanExpiresAt = uData.planExpiresAt;
+            if (uData.trialEndsAtMs !== undefined) cloudTrialEndsAtMs = uData.trialEndsAtMs;
+            if (uData.masterAdminUid) cloudMasterAdminUid = uData.masterAdminUid;
+            if (uData.ownerEmail) cloudOwnerEmail = uData.ownerEmail;
 
             if (uData.securityPin) {
               if (uData.securityPin === inputPin) {
@@ -885,6 +913,13 @@ export default function LoginPage() {
         assignedPropertyId: resolvedProp,
         securityPin: inputPin,
         hasSetPin: true,
+        plan: cloudPlan || savedSession?.plan,
+        subscriptionPlan: cloudSubscriptionPlan || savedSession?.subscriptionPlan,
+        subscriptionStatus: cloudSubscriptionStatus || savedSession?.subscriptionStatus,
+        planExpiresAt: cloudPlanExpiresAt !== undefined ? cloudPlanExpiresAt : savedSession?.planExpiresAt,
+        trialEndsAtMs: cloudTrialEndsAtMs !== undefined ? cloudTrialEndsAtMs : savedSession?.trialEndsAtMs,
+        masterAdminUid: cloudMasterAdminUid || savedSession?.masterAdminUid,
+        ownerEmail: cloudOwnerEmail || savedSession?.ownerEmail,
       };
 
       setSavedSession(updatedSession);

@@ -75,29 +75,6 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     };
   }
 
-  // 🏢 STAFF ACCOUNT DELEGATION: Staff users (Admins & Receptionists) inherit organization operational authorization
-  if (userProfile.role === "admin" || userProfile.role === "receptionist" || userProfile.isStaff || userProfile.plan === "ORGANIZATION_STAFF") {
-    return {
-      status: "ACTIVE_PRO",
-      plan: "ORGANIZATION_STAFF",
-      isPro: true,
-      daysRemaining: 999,
-      graceDaysRemaining: 0,
-      isPreExpiry: false,
-      inGracePeriod: false,
-      canAccessProFeatures: true,
-      expiryDateFormatted: userProfile.planExpiresAt
-        ? new Date(userProfile.planExpiresAt).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })
-        : "Enterprise Workspace",
-      badgeLabel: userProfile.role === "admin" ? "🏢 Property Admin" : "🔑 Staff Member",
-      badgeColor: "emerald",
-    };
-  }
-
   if (userProfile.status === "SUSPENDED" || userProfile.subscriptionStatus === "SUSPENDED") {
     return {
       status: "SUSPENDED",
@@ -118,6 +95,7 @@ export function evaluateSubscription(userProfile: any): EvaluatedSubscription {
     userProfile.plan === "PRO_MONTHLY" ||
     userProfile.plan === "PRO_ANNUAL" ||
     userProfile.plan === "VIP_PASS" ||
+    userProfile.plan === "ORGANIZATION_STAFF" ||
     userProfile.subscriptionPlan === "pro";
 
   // Authoritative Expiration Timestamp (Google Cloud Stamped SSOT)
