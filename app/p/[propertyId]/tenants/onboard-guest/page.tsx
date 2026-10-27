@@ -410,7 +410,7 @@ export default function OnboardGuestPage({
     }
 
     if (capacityStatus.isAtCapacity) {
-      alert(`⚠️ Platform Tenant Capacity Limit (${effectiveTenantLimit}) reached! Upgrade to Pro or purchase a Tenant Extension Pack (+25 slots for ₹399/mo) to onboard additional occupants.`);
+      alert(`⚠️ Platform Tenant Capacity Limit (${effectiveTenantLimit}) reached! Upgrade to Pro or purchase a Tenant Extension Pack (+25 slots for ₹{(platformConfig?.tenantPackPrice || TENANT_EXTENSION_MONTHLY_PRICE || 125)}/mo) to onboard additional occupants.`);
       return;
     }
 

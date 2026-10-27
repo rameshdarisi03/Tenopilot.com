@@ -32,8 +32,8 @@ export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   // Plan Pricing
   proMonthlyPrice: 999,
   proAnnualPrice: 9990,
-  multiPropertyPrice: 899,
-  tenantPackPrice: 75,
+  multiPropertyPrice: 999,
+  tenantPackPrice: 125,
 
   // Trial & Grace Engine
   trialDays: 10,

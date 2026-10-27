@@ -190,8 +190,8 @@ export default function ApexCommandClientsPage() {
   const [globalProLimit, setGlobalProLimit] = useState<number>(300);
   const [globalTrialLimit, setGlobalTrialLimit] = useState<number>(50);
   const [globalAllowedProps, setGlobalAllowedProps] = useState<number>(1);
-  const [globalMultiPropPrice, setGlobalMultiPropPrice] = useState<number>(899);
-  const [globalTenantPackPrice, setGlobalTenantPackPrice] = useState<number>(399);
+  const [globalMultiPropPrice, setGlobalMultiPropPrice] = useState<number>(999);
+  const [globalTenantPackPrice, setGlobalTenantPackPrice] = useState<number>(125);
   const [isSavingGlobalCapacity, setIsSavingGlobalCapacity] = useState<boolean>(false);
 
   // Capacity Form State in 360 Modal
@@ -241,8 +241,8 @@ export default function ApexCommandClientsPage() {
           setGlobalProLimit(Number(data.config.proTenantLimit) || 300);
           setGlobalTrialLimit(Number(data.config.trialTenantLimit) || 50);
           setGlobalAllowedProps(Number(data.config.defaultAllowedProperties) || 1);
-          setGlobalMultiPropPrice(Number(data.config.multiPropertyPrice) || 899);
-          setGlobalTenantPackPrice(Number(data.config.tenantExtensionPrice) || 399);
+          setGlobalMultiPropPrice(Number(data.config.multiPropertyPrice) || 999);
+          setGlobalTenantPackPrice(Number(data.config.tenantExtensionPrice || data.config.tenantPackPrice) || 125);
           if (typeof window !== "undefined") {
             localStorage.setItem("tenopilot_global_capacity", JSON.stringify(data.config));
           }
@@ -418,8 +418,9 @@ export default function ApexCommandClientsPage() {
   useEffect(() => {
     if (selectedCustomer360) {
       const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
-      setCapacityMaxProps(selectedCustomer360.maxPropertiesAllowed ?? globalAllowedProps);
-      setCapacityBaseTenants(selectedCustomer360.maxTenantsLimit ?? (isPro ? globalProLimit : globalTrialLimit));
+      const hasCustomOverride = Boolean(selectedCustomer360.hasCustomLimitsOverride);
+      setCapacityMaxProps(hasCustomOverride && selectedCustomer360.maxPropertiesAllowed ? selectedCustomer360.maxPropertiesAllowed : globalAllowedProps);
+      setCapacityBaseTenants(hasCustomOverride && selectedCustomer360.maxTenantsLimit ? selectedCustomer360.maxTenantsLimit : (isPro ? globalProLimit : globalTrialLimit));
       setCapacityExtensionPacks(selectedCustomer360.tenantExtensionPacks ?? 0);
       setCapacityWhatsAppCredits(selectedCustomer360.whatsappCreditsLimit ?? (isPro ? (platformConfig.proWhatsAppCredits || 1000) : (platformConfig.trialWhatsAppCredits || 10)));
       setCapacityEmailMultiplier(selectedCustomer360.emailMultiplier ?? (platformConfig.emailMultiplier || 3));
@@ -1862,10 +1863,10 @@ export default function ApexCommandClientsPage() {
                           setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 9990);
                         } else if (val === "MULTI_PROPERTY_MONTHLY") {
                           setPlanDurationDays(30);
-                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 899);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : globalMultiPropPrice);
                         } else if (val === "TENANT_EXTENSION_PACK_25") {
                           setPlanDurationDays(30);
-                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : 399);
+                          setPlanAmount(paymentModeSelection === "VIP Pass" ? 0 : globalTenantPackPrice);
                         } else if (val === "TRIAL_EXTENSION") {
                           setPlanDurationDays(10);
                           setPlanAmount(0);
@@ -1875,8 +1876,8 @@ export default function ApexCommandClientsPage() {
                     >
                       <option value="PRO_MONTHLY">💎 Pro Monthly Plan (₹999 / 30 Days)</option>
                       <option value="PRO_ANNUAL">🏆 Pro Annual Plan (₹9,990 / 365 Days)</option>
-                      <option value="MULTI_PROPERTY_MONTHLY">🏢 Multi-Property Add-on (+1 Building @ ₹899 / 30 Days)</option>
-                      <option value="TENANT_EXTENSION_PACK_25">👥 Tenant Extension Pack (+25 Tenants @ ₹399 / 30 Days)</option>
+                      <option value="MULTI_PROPERTY_MONTHLY">🏢 Multi-Property Add-on (+1 Building @ ₹{globalMultiPropPrice} / 30 Days)</option>
+                      <option value="TENANT_EXTENSION_PACK_25">👥 Tenant Extension Pack (+25 Tenants @ ₹{globalTenantPackPrice} / 30 Days)</option>
                       <option value="TRIAL_EXTENSION">⏳ Extend Free Trial (+10 / +30 Days)</option>
                     </select>
                   </div>
@@ -2057,15 +2058,60 @@ export default function ApexCommandClientsPage() {
 
                 {/* Interactive Limit Controls */}
                 <div className="space-y-4 p-5 rounded-2xl bg-[#0d1117] border border-white/10">
-                  <h4 className="font-bold text-white text-xs uppercase tracking-wider border-b border-white/10 pb-2">
-                    Adjust Account Limits
-                  </h4>
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <h4 className="font-bold text-white text-xs uppercase tracking-wider">
+                      Adjust Account Limits
+                    </h4>
+                    {selectedCustomer360.hasCustomLimitsOverride ? (
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono">
+                          🔒 Custom Founder Override Active
+                        </span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm("Revert this client back to global Master Platform Controls?")) return;
+                            setIsSavingCapacity(true);
+                            try {
+                              const res = await fetch("/api/apex/update-limits", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  userId: selectedCustomer360.userId || selectedCustomer360.id,
+                                  email: selectedCustomer360.email,
+                                  resetToMasterDefaults: true,
+                                }),
+                              });
+                              if (res.ok) {
+                                selectedCustomer360.hasCustomLimitsOverride = false;
+                                selectedCustomer360.maxPropertiesAllowed = undefined;
+                                selectedCustomer360.maxTenantsLimit = undefined;
+                                setCapacityMaxProps(globalAllowedProps);
+                                const isPro = selectedCustomer360.subscriptionStatus === "ACTIVE_PRO" || selectedCustomer360.subscriptionStatus === "PRO_PRE_EXPIRY";
+                                setCapacityBaseTenants(isPro ? globalProLimit : globalTrialLimit);
+                                triggerToast("✓ Client reverted to live Master Platform Controls!");
+                              }
+                            } finally {
+                              setIsSavingCapacity(false);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-gray-300 text-[10px] cursor-pointer"
+                        >
+                          ↺ Reset to Master
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 text-[9px] font-mono">
+                        🌐 Inheriting Master Controls
+                      </span>
+                    )}
+                  </div>
 
                   {/* 1. Max Allowed Properties */}
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="font-bold text-white">Max Allowed Buildings</p>
-                      <p className="text-[11px] text-gray-400">Default is 1 building on base Pro plan. Each extra building is +₹899/mo.</p>
+                      <p className="text-[11px] text-gray-400">Default is 1 building on base Pro plan. Each extra building is +₹{globalMultiPropPrice}/mo.</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -2138,7 +2184,7 @@ export default function ApexCommandClientsPage() {
                   <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3">
                     <div>
                       <p className="font-bold text-white">Active Tenant Extension Packs (+25 tenants each)</p>
-                      <p className="text-[11px] text-gray-400">Adds +25 active occupant slots per pack (₹399/mo each).</p>
+                      <p className="text-[11px] text-gray-400">Adds +25 active occupant slots per pack (₹{globalTenantPackPrice}/mo each).</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button

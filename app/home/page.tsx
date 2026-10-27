@@ -134,7 +134,7 @@ export default function HomeWorkspacePage() {
           customerPhone: profile?.phone || "",
           propertyName: properties[0]?.name || "Main Branch",
           plan: "MULTI_PROPERTY_MONTHLY",
-          amount: MULTI_PROPERTY_MONTHLY_PRICE,
+          amount: platformConfig.multiPropertyPrice || MULTI_PROPERTY_MONTHLY_PRICE,
           paymentMode: "UPI",
           screenshotData: multiPropertyScreenshot,
           notes: `Multi-Property Expansion Request (Adding Building #${properties.length + 1})`,
@@ -866,7 +866,7 @@ export default function HomeWorkspacePage() {
               </div>
               <div className="text-right">
                 <span className="text-base font-extrabold text-[#964407]">
-                  ₹{MULTI_PROPERTY_MONTHLY_PRICE}
+                  ₹{platformConfig.multiPropertyPrice || MULTI_PROPERTY_MONTHLY_PRICE}
                 </span>
                 <span className="text-[10px] text-[#8a7f74] block">/mo per building</span>
               </div>

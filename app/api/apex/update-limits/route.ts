@@ -34,6 +34,15 @@ export async function POST(req: NextRequest) {
       lastModifiedBy: updatedBy,
     };
 
+    if (body.resetToMasterDefaults) {
+      updatePayload.hasCustomLimitsOverride = false;
+      updatePayload.maxPropertiesAllowed = null;
+      updatePayload.maxTenantsLimit = null;
+    } else {
+      updatePayload.hasCustomLimitsOverride = true;
+      updatePayload.customLimitsOverrideAt = nowIso;
+    }
+
     if (maxPropertiesAllowed !== undefined) {
       updatePayload.maxPropertiesAllowed = Number(maxPropertiesAllowed);
     }

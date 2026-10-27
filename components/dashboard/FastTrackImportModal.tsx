@@ -2172,7 +2172,7 @@ export function FastTrackImportModal({
                             <Sparkles className="w-3.5 h-3.5 text-[#c2652a]" /> Option 2: Expand Capacity
                           </span>
                           <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#964407] text-[10px] font-bold">
-                            +25 Slots / ₹399/mo
+                            +25 Slots / ₹{(platformConfig.tenantPackPrice || TENANT_EXTENSION_MONTHLY_PRICE || 125)}/mo
                           </span>
                         </div>
                         <p className="text-[11px] text-gray-600 leading-relaxed">

@@ -32,6 +32,8 @@ export interface ScannedAccountRecord {
   whatsappCreditsLimit?: number;
   emailCreditsLimit?: number;
   emailMultiplier?: number;
+  hasCustomLimitsOverride?: boolean;
+  customLimitsOverrideAt?: string;
 }
 
 export const dynamic = "force-dynamic";
@@ -291,7 +293,9 @@ export async function GET(req: NextRequest) {
           createdAt: data.createdAt || founderClient?.createdAt || vipInvite?.createdAt || "Legacy Account",
           lastActive: data.lastActive || founderClient?.lastActiveDate || "Recently",
           hasStorageFootprints: propIds.length > 0,
-          maxPropertiesAllowed: data.maxPropertiesAllowed ?? 1,
+          hasCustomLimitsOverride: Boolean(data.hasCustomLimitsOverride || founderClient?.hasCustomLimitsOverride),
+          customLimitsOverrideAt: data.customLimitsOverrideAt || founderClient?.customLimitsOverrideAt,
+          maxPropertiesAllowed: data.hasCustomLimitsOverride ? data.maxPropertiesAllowed : (founderClient?.maxPropertiesAllowed ?? data.maxPropertiesAllowed),
           maxTenantsLimit:
             data.maxTenantsLimit ??
             (subEvaluation.status === "ACTIVE_PRO" || subEvaluation.status === "PRO_PRE_EXPIRY" ? 300 : 50),

@@ -276,8 +276,8 @@ export const DEFAULT_PRO_TENANT_LIMIT = 300;
 export const DEFAULT_BASE_TENANT_LIMIT = 300; // SSOT Pro default
 export const DEFAULT_ALLOWED_PROPERTIES = 1;
 export const TENANT_EXTENSION_PACK_SIZE = 25;
-export const MULTI_PROPERTY_MONTHLY_PRICE = 899;
-export const TENANT_EXTENSION_MONTHLY_PRICE = 399;
+export const MULTI_PROPERTY_MONTHLY_PRICE = 999;
+export const TENANT_EXTENSION_MONTHLY_PRICE = 125;
 
 export interface GlobalCapacityConfig {
   proTenantLimit: number;
@@ -311,7 +311,14 @@ export function getMaxAllowedProperties(userProfile?: any): number {
   if (!userProfile) return DEFAULT_ALLOWED_PROPERTIES;
   if (userProfile.email?.toLowerCase() === "isharapandey01@gmail.com") return 999;
   const globalConfig = getGlobalCapacityConfig();
-  return Number(userProfile.maxPropertiesAllowed) || globalConfig.defaultAllowedProperties;
+
+  // 🔒 1. If Founder applied an explicit individual override for this client, preserve it!
+  if (userProfile.hasCustomLimitsOverride && userProfile.maxPropertiesAllowed !== undefined && Number(userProfile.maxPropertiesAllowed) > 0) {
+    return Number(userProfile.maxPropertiesAllowed);
+  }
+
+  // 🌐 2. Otherwise inherit live from Master Platform Controls SSOT
+  return globalConfig.defaultAllowedProperties || DEFAULT_ALLOWED_PROPERTIES;
 }
 
 export function getEffectiveTenantLimit(userProfile?: any): number {
@@ -321,8 +328,8 @@ export function getEffectiveTenantLimit(userProfile?: any): number {
   const globalConfig = getGlobalCapacityConfig();
   const packs = Number(userProfile.tenantExtensionPacks) || 0;
 
-  // 1. If customer has an explicit individual limit customized by founder in Founder Portal
-  if (userProfile.maxTenantsLimit !== undefined && userProfile.maxTenantsLimit !== null && Number(userProfile.maxTenantsLimit) > 0) {
+  // 🔒 1. If customer has an explicit individual limit customized by founder in Founder Portal
+  if (userProfile.hasCustomLimitsOverride && userProfile.maxTenantsLimit !== undefined && userProfile.maxTenantsLimit !== null && Number(userProfile.maxTenantsLimit) > 0) {
     const baseLimit = Number(userProfile.maxTenantsLimit);
     return baseLimit + (packs * TENANT_EXTENSION_PACK_SIZE);
   }
