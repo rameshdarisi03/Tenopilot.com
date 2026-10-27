@@ -117,7 +117,7 @@ export function generateWhatsAppMessageText(payload: WhatsAppSendParams): string
         `💰 Amount Due: INR ${Number(p.amount || 0).toLocaleString("en-IN")}${p.breakupNote ? `\n(${p.breakupNote})` : ""}\n` +
         `📅 Due Date: ${p.dueDate || "5th of this month"}\n` +
         `💳 ${payHeader}: ${payDest}\n\n` +
-        (p.payUrl ? `👉 *Tap to Pay (PhonePe / GPay / Paytm / UPI)*:\n${p.payUrl}\n\n` : "") +
+        (!isCash && p.payUrl ? `👉 *Tap to Pay (PhonePe / GPay / Paytm / UPI)*:\n${p.payUrl}\n\n` : "") +
         `Kindly clear your dues and share transaction proof for your digital receipt.\n\n` +
         `Thank you for being a valued resident!\n\n` +
         `- ${pName}`
@@ -378,7 +378,7 @@ export async function sendWhatsAppMessage(payload: WhatsAppSendParams): Promise<
 
         const tokenParam = p.payUrl ? (p.payUrl.split("/pay/")[1] || "") : "";
 
-        if (tokenParam) {
+        if (!isCash && tokenParam) {
           requestBody = {
             messaging_product: "whatsapp",
             recipient_type: "individual",

@@ -894,6 +894,22 @@ export default function TenantsDirectoryPage({
       const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
       const parkingPart = occStmt.remainingParkingDue;
       const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
+      const isCash = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.upiId === "CASH" || activeQr?.accountType === "CASH_DESK" || activeQr?.upiId?.toLowerCase().includes("cash");
+      const payUrl = isCash
+        ? undefined
+        : `https://www.tenopilot.com/pay/${generatePayToken({
+            propertyId,
+            propertyName: currentSettings.propertyName || "TenoPilot PG",
+            tenantId: occ.id,
+            tenantName: occ.name,
+            roomNumber: occ.roomNumber,
+            amount: effectiveAmount,
+            dueDate: occ.dueDate,
+            upiId: activeQr?.upiId,
+            partnerName: activeQr?.bankLabel || activeQr?.accountType,
+            partnerPhone: activeQr?.phone || currentSettings.managerPhone || "",
+            propertyPhone: currentSettings.managerPhone || "",
+          })}`;
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
@@ -918,6 +934,7 @@ export default function TenantsDirectoryPage({
                   upiId: activeQr?.upiId,
                   bankLabel: activeQr?.bankLabel,
                   accountType: activeQr?.accountType,
+                  payUrl,
                 },
               },
             ],
@@ -1106,6 +1123,22 @@ export default function TenantsDirectoryPage({
         const rentPart = occStmt.remainingRentDue > 0 ? occStmt.remainingRentDue : occ.rentAmount;
         const parkingPart = occStmt.remainingParkingDue;
         const breakupNote = parkingPart > 0 ? `${rentPart} rent + ${parkingPart} parking fee` : undefined;
+        const isCash = activeQr?.upiId === "CASH_PAYMENT" || activeQr?.upiId === "CASH" || activeQr?.accountType === "CASH_DESK" || activeQr?.upiId?.toLowerCase().includes("cash");
+        const payUrl = isCash
+          ? undefined
+          : `https://www.tenopilot.com/pay/${generatePayToken({
+              propertyId,
+              propertyName: currentSettings.propertyName || "TenoPilot PG",
+              tenantId: occ.id,
+              tenantName: occ.name,
+              roomNumber: occ.roomNumber,
+              amount: effectiveAmount,
+              dueDate: occ.dueDate,
+              upiId: activeQr?.upiId,
+              partnerName: activeQr?.bankLabel || activeQr?.accountType,
+              partnerPhone: activeQr?.phone || currentSettings.managerPhone || "",
+              propertyPhone: currentSettings.managerPhone || "",
+            })}`;
         try {
           const res = await fetch("/api/whatsapp/send", {
             method: "POST",
@@ -1125,11 +1158,12 @@ export default function TenantsDirectoryPage({
                     roomNumber: occ.roomNumber,
                     bedCode: occ.bedCode,
                     amount: effectiveAmount,
-                  breakupNote,
-                  dueDate: occ.dueDate,
+                    breakupNote,
+                    dueDate: occ.dueDate,
                     upiId: activeQr?.upiId,
                     bankLabel: activeQr?.bankLabel,
                     accountType: activeQr?.accountType,
+                    payUrl,
                   },
                 },
               ],
